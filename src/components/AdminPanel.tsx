@@ -233,6 +233,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
           receiptUrl,
           feedbackUrl,
           operator: String(sale?.cashier || ''),
+          paperWidth: printSettings.paper_width,
         });
 
         await qzPrintHtml(html, printSettings.printer_name);

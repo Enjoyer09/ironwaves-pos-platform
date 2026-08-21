@@ -92,6 +92,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
           receiptUrl: window.location.href,
           feedbackUrl: nextFeedbackUrl,
           operator: String(receiptData?.cashier || ''),
+          paperWidth: settings?.print_settings?.paper_width,
         });
         const receiptHtml = forceFreshReceipt || shouldRegenerateFromFallback
           ? await generatedHtml()
