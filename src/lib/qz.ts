@@ -138,9 +138,50 @@ const loadQzScript = async () => {
 
 const ensureQzConnection = async (qz: any) => {
   if (!qz?.websocket) throw new Error('QZ websocket not available');
-  const active = await qz.websocket.isActive();
-  if (!active) {
-    await qz.websocket.connect({ retries: 0, delay: 0 });
+  try {
+    const active = await qz.websocket.isActive();
+    if (active) return;
+  } catch {}
+
+  try {
+    await qz.websocket.connect({ retries: 2, delay: 1 });
+  } catch (err: any) {
+    try {
+      await qz.websocket.connect({
+        host: 'localhost',
+        usingSecure: window.location.protocol === 'https:',
+        retries: 2,
+        delay: 1,
+      });
+    } catch (fallbackErr: any) {
+      throw new Error(err?.message || fallbackErr?.message || 'QZ Tray-ə qoşulmaq mümkün olmadı');
+    }
+  }
+};
+
+export const qzCheckStatus = async (): Promise<{
+  online: boolean;
+  version?: string;
+  printers: string[];
+  error?: string;
+}> => {
+  try {
+    const qz = await loadQzScript();
+    await ensureQzConnection(qz);
+    const version = (await qz.api?.getVersion?.().catch(() => '2.2.4')) || '2.2.4';
+    const printersRaw = await qz.printers.find().catch(() => []);
+    const printers = Array.isArray(printersRaw) ? printersRaw.map((p) => String(p)).filter(Boolean) : [];
+    return {
+      online: true,
+      version: String(version),
+      printers,
+    };
+  } catch (err: any) {
+    return {
+      online: false,
+      printers: [],
+      error: err?.message || String(err),
+    };
   }
 };
 
@@ -166,7 +207,7 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
       type: 'pixel',
       format: 'html',
       flavor: 'plain',
-          data: withThermalReceiptPrintCss(html),
+      data: withThermalReceiptPrintCss(html),
     },
   ];
 
