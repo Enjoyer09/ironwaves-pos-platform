@@ -10,6 +10,7 @@ import { approve_void_request_live, get_pending_approvals_live, reject_void_requ
 import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
 import { printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
+import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
 import { get_settings_live } from '../api/settings';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
@@ -26,6 +27,8 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   // Kitchen printer & Auto-print state
   const [kitchenPrinter, setKitchenPrinter] = useState<string>('');
   const [useQz, setUseQz] = useState(false);
+  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>('58mm');
+  const [printEngine, setPrintEngine] = useState<'raw_escpos' | 'pixel_html'>('raw_escpos');
   const [companyName, setCompanyName] = useState('IRONWAVES POS');
   const [autoPrint, setAutoPrint] = useState(() => {
     try {
@@ -43,6 +46,8 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         if (pSettings) {
           setKitchenPrinter(pSettings.kitchen_printer_name || pSettings.printer_name || '');
           setUseQz(Boolean(pSettings.use_qz));
+          if (pSettings.paper_width) setPaperWidth(pSettings.paper_width as '58mm' | '80mm');
+          if (pSettings.print_engine) setPrintEngine(pSettings.print_engine as 'raw_escpos' | 'pixel_html');
         }
         if (s?.business_profile?.company_name) setCompanyName(s.business_profile.company_name);
       } catch {
@@ -64,28 +69,37 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const handlePrintOrderTicket = async (orderGroup: any) => {
     try {
       const normalized = normalizeItems(orderGroup);
+      const ticketData = {
+        company_name: companyName,
+        ticket_id: String(orderGroup.ids?.[0] || orderGroup.id || 'TICKET'),
+        table_label: orderGroup.table_label,
+        order_type: orderGroup.order_type,
+        created_at: orderGroup.created_at,
+        server_name: orderGroup.server_name,
+        items: (orderGroup.items || normalized).map((it: any) => ({
+          item_name: it.item_name || it.name,
+          qty: Number(it.qty || it.quantity || 1),
+          seat_label: it.seat_label,
+          notes: it.note || it.notes || it.reason || undefined,
+          modifiers: it.modifiers,
+          selected_modifiers: it.selected_modifiers,
+        })),
+      };
+
       const html = buildKitchenTicketHtml({
-        ticket: {
-          ticket_id: String(orderGroup.ids?.[0] || orderGroup.id || 'TICKET'),
-          table_label: orderGroup.table_label,
-          order_type: orderGroup.order_type,
-          created_at: orderGroup.created_at,
-          items: (orderGroup.items || normalized).map((it: any) => ({
-            item_name: it.item_name || it.name,
-            qty: Number(it.qty || it.quantity || 1),
-            seat_label: it.seat_label,
-            notes: it.note || it.notes || it.reason,
-            modifiers: it.modifiers,
-            selected_modifiers: it.selected_modifiers,
-          })),
-        },
+        ticket: ticketData,
         lang,
         companyName,
       });
 
+      const rawCmds = buildKitchenTicketEscPos(ticketData, { paperWidth });
+
       const res = await printDirectOrFallback(html, {
         printerName: kitchenPrinter,
         useQz,
+        paperWidth,
+        printEngine,
+        rawCommands: rawCmds,
         allowBrowserFallback: true,
       });
 
