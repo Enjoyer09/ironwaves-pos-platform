@@ -642,28 +642,59 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     const paymentNorm = (value: unknown) => String(value || '').trim().toLowerCase();
 
     let cashCount = 0;
+    let cashAmount = 0;
     let cardCount = 0;
+    let cardAmount = 0;
     let discountedCount = 0;
+    let discountAmount = 0;
     let staffPaymentCount = 0;
+    let staffPaymentAmount = 0;
     let salesWithCogs = 0;
-    const staffMap = new Map<string, number>();
+    const staffMap = new Map<string, { count: number; revenue: number }>();
 
     validSales.forEach((sale: any) => {
       const method = paymentNorm(sale.payment_method);
       const cashier = String(sale.cashier || '').trim() || '-';
       const discount = Number(sale.discount_amount || 0);
+      const total = Number(sale.total || 0);
       const cogs = Number(sale.cogs || 0);
 
-      if (method.includes('kart') || method.includes('card')) cardCount += 1;
-      if (method.includes('nəğd') || method.includes('cash')) cashCount += 1;
-      if (method.includes('staff')) staffPaymentCount += 1;
-      if (discount > 0) discountedCount += 1;
+      if (method.includes('kart') || method.includes('card')) {
+        cardCount += 1;
+        cardAmount += total;
+      } else if (method.includes('nəğd') || method.includes('nağd') || method.includes('cash')) {
+        cashCount += 1;
+        cashAmount += total;
+      } else if (method.includes('staff')) {
+        staffPaymentCount += 1;
+        staffPaymentAmount += total;
+      } else {
+        cardCount += 1;
+        cardAmount += total;
+      }
+
+      if (discount > 0) {
+        discountedCount += 1;
+        discountAmount += discount;
+      }
       if (cogs > 0) salesWithCogs += 1;
 
-      staffMap.set(cashier, (staffMap.get(cashier) || 0) + 1);
+      const currentStaff = staffMap.get(cashier) || { count: 0, revenue: 0 };
+      staffMap.set(cashier, {
+        count: currentStaff.count + 1,
+        revenue: currentStaff.revenue + total,
+      });
     });
 
-    const topStaff = Array.from(staffMap.entries()).sort((a, b) => b[1] - a[1])[0];
+    // If summary has exact cash/card sales, prioritize those to be 100% consistent with ledger
+    if (summary?.cash_sales !== undefined) {
+      cashAmount = Number(summary.cash_sales || 0);
+    }
+    if (summary?.card_sales !== undefined) {
+      cardAmount = Number(summary.card_sales || 0);
+    }
+
+    const topStaffEntry = Array.from(staffMap.entries()).sort((a, b) => b[1].revenue - a[1].revenue)[0];
     const cogsCoverage = validSales.length > 0 ? Math.round((salesWithCogs / validSales.length) * 100) : 0;
     const grossProfit = Number(summary?.gross_profit || 0);
     const profitReliability = cogsCoverage >= 90 ? 'high' : cogsCoverage >= 60 ? 'medium' : 'low';
@@ -671,11 +702,16 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     return {
       validSalesCount: validSales.length,
       cashCount,
+      cashAmount,
       cardCount,
+      cardAmount,
       discountedCount,
+      discountAmount,
       staffPaymentCount,
-      topStaffName: topStaff?.[0] || '-',
-      topStaffSales: topStaff?.[1] || 0,
+      staffPaymentAmount,
+      topStaffName: topStaffEntry?.[0] || '-',
+      topStaffSales: topStaffEntry?.[1]?.count || 0,
+      topStaffRevenue: topStaffEntry?.[1]?.revenue || 0,
       cogsCoverage,
       grossProfit,
       profitReliability,
@@ -780,25 +816,29 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
                 <div className="metal-panel p-4">
-                  <div className="text-xs text-slate-400">{tx(lang, 'Nağd satış sayı', 'Продажи наличными', 'Cash sales count')}</div>
-                  <div className="mt-1 text-2xl font-bold text-emerald-300">{analyticsBreakdown.cashCount}</div>
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Nağd Satış', 'Продажи наличными', 'Cash Sales')}</div>
+                  <div className="mt-1 text-2xl font-black text-emerald-300">{analyticsBreakdown.cashAmount.toFixed(2)} ₼</div>
+                  <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.cashCount} {tx(lang, 'satış', 'продаж', 'sales')}</div>
                 </div>
                 <div className="metal-panel p-4">
-                  <div className="text-xs text-slate-400">{tx(lang, 'Kart satış sayı', 'Продажи по карте', 'Card sales count')}</div>
-                  <div className="mt-1 text-2xl font-bold text-sky-300">{analyticsBreakdown.cardCount}</div>
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Kart Satışı', 'Продажи по карте', 'Card Sales')}</div>
+                  <div className="mt-1 text-2xl font-black text-sky-300">{analyticsBreakdown.cardAmount.toFixed(2)} ₼</div>
+                  <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.cardCount} {tx(lang, 'satış', 'продаж', 'sales')}</div>
                 </div>
                 <div className="metal-panel p-4">
-                  <div className="text-xs text-slate-400">{tx(lang, 'Endirimli satış sayı', 'Продажи со скидкой', 'Discounted sales count')}</div>
-                  <div className="mt-1 text-2xl font-bold text-amber-300">{analyticsBreakdown.discountedCount}</div>
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Tətbiq olunan Endirim', 'Сумма скидок', 'Total Discounts')}</div>
+                  <div className="mt-1 text-2xl font-black text-amber-300">{analyticsBreakdown.discountAmount.toFixed(2)} ₼</div>
+                  <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.discountedCount} {tx(lang, 'satışda', 'в продажах', 'in sales')}</div>
                 </div>
                 <div className="metal-panel p-4">
-                  <div className="text-xs text-slate-400">{tx(lang, 'Staff ödənişi sayı', 'Продажи Staff', 'Staff payment sales')}</div>
-                  <div className="mt-1 text-2xl font-bold text-fuchsia-300">{analyticsBreakdown.staffPaymentCount}</div>
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Staff Satışı', 'Продажи Staff', 'Staff Sales')}</div>
+                  <div className="mt-1 text-2xl font-black text-fuchsia-300">{analyticsBreakdown.staffPaymentAmount.toFixed(2)} ₼</div>
+                  <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.staffPaymentCount} {tx(lang, 'satış', 'продаж', 'sales')}</div>
                 </div>
                 <div className="metal-panel p-4">
-                  <div className="text-xs text-slate-400">{tx(lang, 'Top staff', 'Топ сотрудник', 'Top staff')}</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-100">{analyticsBreakdown.topStaffName}</div>
-                  <div className="text-xl font-bold text-cyan-300">{analyticsBreakdown.topStaffSales}</div>
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Top Staff', 'Топ сотрудник', 'Top Staff')}</div>
+                  <div className="mt-1 text-base font-bold text-slate-100 truncate">{analyticsBreakdown.topStaffName}</div>
+                  <div className="text-lg font-black text-cyan-300">{analyticsBreakdown.topStaffRevenue.toFixed(2)} ₼ <span className="text-xs font-medium text-slate-400">({analyticsBreakdown.topStaffSales} {tx(lang, 'satış', 'зак.', 'sales')})</span></div>
                 </div>
               </div>
               </div>
