@@ -92,25 +92,23 @@ export function buildKitchenTicketHtml({
       }
 
       return `
-        <div style="border-bottom: 1.5px dashed #000; padding: 6px 0;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-            <div style="font-size: 17px; font-weight: 900; line-height: 1.2;">
-              <span style="display: inline-block; background: #000; color: #fff; padding: 1px 6px; border-radius: 4px; margin-right: 4px; font-size: 15px;">${qty}x</span>
-              ${esc(item.item_name)}
-            </div>
+        <div style="border-bottom: 1px dashed #000; padding: 4px 0; page-break-inside: avoid; break-inside: avoid;">
+          <div style="font-size: 16px; font-weight: 900; line-height: 1.25;">
+            <span style="display: inline-block; font-size: 17px; font-weight: 900; margin-right: 4px;">${qty}x</span>
+            ${esc(item.item_name)}
           </div>
 
           ${
             mods.length > 0
-              ? `<div style="margin: 4px 0 2px 28px; font-size: 13px; font-weight: 700; color: #111;">
-                  ${mods.map((m) => `<div>• ${esc(m)}</div>`).join('')}
+              ? `<div style="margin: 2px 0 1px 18px; font-size: 12px; font-weight: 700; color: #111;">
+                  ${mods.map((m) => `<div>+ ${esc(m)}</div>`).join('')}
                 </div>`
               : ''
           }
 
           ${
             seat
-              ? `<div style="margin: 2px 0 0 28px; font-size: 12px; font-weight: 800;">
+              ? `<div style="margin: 1px 0 0 18px; font-size: 11px; font-weight: 800;">
                   [ ${tx(lang, 'Oturacaq', 'Место', 'Seat')}: ${esc(seat)} ]
                 </div>`
               : ''
@@ -118,7 +116,7 @@ export function buildKitchenTicketHtml({
 
           ${
             cupMode
-              ? `<div style="margin: 2px 0 0 28px; font-size: 12px; font-weight: 800;">
+              ? `<div style="margin: 1px 0 0 18px; font-size: 11px; font-weight: 800;">
                   [ ${cupMode === 'glass' ? tx(lang, 'Şüşə fincan', 'Стекло', 'Glass') : tx(lang, 'Kağız fincan', 'Бумажный', 'Paper')} ]
                 </div>`
               : ''
@@ -126,7 +124,7 @@ export function buildKitchenTicketHtml({
 
           ${
             notes
-              ? `<div style="margin: 4px 0 0 28px; background: #eee; padding: 3px 6px; border-left: 3px solid #000; font-size: 13px; font-weight: 900;">
+              ? `<div style="margin: 2px 0 0 18px; padding: 2px 4px; border-left: 3px solid #000; font-size: 12px; font-weight: 900;">
                   ⚡ ${tx(lang, 'Qeyd', 'Прим.', 'Note')}: ${esc(notes)}
                 </div>`
               : ''
@@ -143,77 +141,76 @@ export function buildKitchenTicketHtml({
   <title>Kitchen Ticket - ${displayId}</title>
   <style>
     ${THERMAL_RECEIPT_PRINT_CSS}
-    .kitchen-header {
+    .kitchen-box {
+      border: 2px solid #000;
+      padding: 4px 6px;
+      margin-bottom: 6px;
       text-align: center;
-      border-bottom: 2px solid #000;
-      padding-bottom: 6px;
-      margin-bottom: 8px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
-    .kitchen-banner {
-      font-size: 20px !important;
+    .kitchen-title {
+      font-size: 16px !important;
       font-weight: 900 !important;
       text-transform: uppercase;
-      padding: 4px 0;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.02em;
     }
-    .table-banner {
-      font-size: 22px !important;
+    .kitchen-target {
+      font-size: 20px !important;
       font-weight: 900 !important;
-      background: #000;
-      color: #fff !important;
-      padding: 6px 8px;
-      margin: 6px 0;
-      border-radius: 4px;
-      text-align: center;
+      margin-top: 2px;
+      text-transform: uppercase;
     }
-    .kitchen-meta {
-      font-size: 13px;
+    .kitchen-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
       font-weight: 700;
-      line-height: 1.35;
-      margin: 6px 0;
+      line-height: 1.3;
+      margin: 2px 0;
     }
   </style>
 </head>
 <body>
-  <div class="kitchen-header">
-    ${companyName ? `<div style="font-size: 13px; font-weight: 800; text-transform: uppercase;">${esc(companyName)}</div>` : ''}
-    <div class="kitchen-banner">*** ${tx(lang, 'MƏTBƏX SİFARİŞİ', 'ЗАКАЗ НА КУХНЮ', 'KITCHEN TICKET')} ***</div>
-    <div class="table-banner">${esc(orderTypeLabel)}</div>
+  <div class="kitchen-box">
+    ${companyName ? `<div style="font-size: 11px; font-weight: 800; text-transform: uppercase;">${esc(companyName)}</div>` : ''}
+    <div class="kitchen-title">*** ${tx(lang, 'MƏTBƏX SİFARİŞİ', 'ЗАКАЗ НА КУХНЮ', 'KITCHEN TICKET')} ***</div>
+    <div class="kitchen-target">${esc(orderTypeLabel)}</div>
   </div>
 
-  <div class="kitchen-meta">
-    <div style="display: flex; justify-content: space-between;">
+  <div style="page-break-inside: avoid; break-inside: avoid;">
+    <div class="kitchen-meta-row">
       <span>${tx(lang, 'Çek No', 'Чек №', 'Ticket #')}: <b>#${displayId}</b></span>
       <span>${dateStr.split(' ')[1] || ''}</span>
     </div>
-    <div style="display: flex; justify-content: space-between;">
+    <div class="kitchen-meta-row">
       <span>${tx(lang, 'Tarix', 'Дата', 'Date')}: ${dateStr.split(' ')[0] || ''}</span>
       ${ticket.server_name ? `<span>${tx(lang, 'Xidmət', 'Офиц.', 'Server')}: <b>${esc(ticket.server_name)}</b></span>` : ''}
     </div>
     ${
       ticket.cup_mode
-        ? `<div>${tx(lang, 'Fincan', 'Чашка', 'Cup')}: <b>${ticket.cup_mode === 'glass' ? tx(lang, 'Şüşə', 'Стекло', 'Glass') : tx(lang, 'Kağız', 'Бумажный', 'Paper')}</b></div>`
+        ? `<div class="kitchen-meta-row"><span>${tx(lang, 'Fincan', 'Чашка', 'Cup')}: <b>${ticket.cup_mode === 'glass' ? tx(lang, 'Şüşə', 'Стекло', 'Glass') : tx(lang, 'Kağız', 'Бумажный', 'Paper')}</b></span></div>`
         : ''
     }
     ${
       ticket.notes
-        ? `<div style="margin-top: 4px; background: #eee; padding: 4px 6px; border-left: 3px solid #000; font-size: 13px; font-weight: 900;">
+        ? `<div style="margin-top: 3px; padding: 2px 4px; border-left: 3px solid #000; font-size: 12px; font-weight: 900;">
             ⚡ ${tx(lang, 'Masa Qeydi', 'Заметка к столу', 'Table Note')}: ${esc(ticket.notes)}
           </div>`
         : ''
     }
   </div>
 
-  <div style="border-top: 2px solid #000; margin-top: 6px; padding-top: 4px;">
+  <div style="border-top: 2px solid #000; margin-top: 4px; padding-top: 2px;">
     ${itemsHtml}
   </div>
 
-  <div style="border-top: 2px solid #000; margin-top: 10px; padding-top: 6px; display: flex; justify-content: space-between; font-size: 15px; font-weight: 900;">
+  <div style="border-top: 2px solid #000; margin-top: 6px; padding-top: 4px; display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; page-break-inside: avoid; break-inside: avoid;">
     <span>${tx(lang, 'CƏMİ SAY', 'ВСЕГО ПОЗИЦИЙ', 'TOTAL ITEMS')}:</span>
     <span>${totalQty} ${tx(lang, 'ədəd', 'шт', 'pcs')}</span>
   </div>
 
-  <div style="text-align: center; margin-top: 16px; font-size: 11px; font-weight: 700; color: #555;">
+  <div style="text-align: center; margin-top: 10px; font-size: 11px; font-weight: 700; color: #333; page-break-inside: avoid; break-inside: avoid;">
     -- ${tx(lang, 'Mətbəx Çapı Tamamlandı', 'Печать для кухни завершена', 'Kitchen Print Finished')} --
   </div>
 </body>
