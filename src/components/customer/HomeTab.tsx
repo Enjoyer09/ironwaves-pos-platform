@@ -14,6 +14,20 @@ function coffeeGreeting(lang: string): string {
   return lang === 'ru' ? 'Добрый вечер' : lang === 'en' ? 'Good evening' : 'Axşamınız xeyir';
 }
 
+/* Days until the customer's next birthday (0 = today, -1 = no date). */
+function daysUntilNextBirthday(iso?: string | null): number {
+  if (!iso) return -1;
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return -1;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let next = new Date(now.getFullYear(), d.getMonth(), d.getDate());
+  if (next.getTime() < today.getTime()) {
+    next = new Date(now.getFullYear() + 1, d.getMonth(), d.getDate());
+  }
+  return Math.round((next.getTime() - today.getTime()) / 86400000);
+}
+
 /* Energetic brand hero — orange panel (no steam cup). */
 
 /* ── Animated Counter ────────────────────────────────────────────── */
@@ -156,6 +170,22 @@ export default function HomeTab({
   const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Member';
   const lifetimeStars = Number(customer?.lifetime_stars ?? customer?.stars ?? 0);
 
+  // Next-reward clarity (Starbucks-style "X stars to a free drink")
+  const starsBalance = Number(wallet?.stars_balance ?? 0);
+  const nextRewardAt = Number(wallet?.next_reward_at || 10);
+  const rewardRemaining = Math.max(0, nextRewardAt - starsBalance);
+  const rewardText = rewardRemaining > 0
+    ? tx(safeLang, `${rewardRemaining} ulduz qaldı → pulsuz Latte`, `${rewardRemaining} звезд до бесплатного Латте`, `${rewardRemaining} stars to a free Latte`)
+    : tx(safeLang, 'Pulsuz Latte hazır!', 'Бесплатный Латте готов!', 'Free Latte ready!');
+
+  // Birthday surprise detection
+  const birthdaySoon = (() => {
+    const bd = customer?.birth_date;
+    if (!bd) return false;
+    const days = daysUntilNextBirthday(bd);
+    return days >= 0 && days <= 7;
+  })();
+
   // Starbucks-style activated rewards: prefer the all-status claim history from
   // the backend; fall back to pending claims (older API responses).
   const claimList = (Array.isArray(claims) && claims.length > 0) ? claims : pendingClaims;
@@ -247,6 +277,14 @@ export default function HomeTab({
         </button>
         <img src="/logo.jpg" alt="Emalathhana" width={36} height={36}
           className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-md" />
+        <button type="button"
+          onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
+          aria-label={tx(safeLang, 'Wallet-ə əlavə et', 'Добавить в Wallet', 'Add to Wallet')}
+          className="relative h-10 w-10 rounded-full border border-[#FF8B26]/40 bg-[#FF8B26]/[0.08] flex items-center justify-center text-[#FF8B26] active:scale-95 transition-all duration-150">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h15a2 2 0 012 2v6a2 2 0 01-2 2H3V7zm0 0l2-3h12l2 3M16 13h2" />
+          </svg>
+        </button>
         <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
           className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}
           style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(244,140,36,0.3)' }}>
@@ -309,6 +347,48 @@ export default function HomeTab({
           </svg>
         </button>
       </div>
+
+      {/* Loyalty — next-reward clarity pill (Starbucks-style: "X stars to a free drink") */}
+      {showWallet && (
+        <div className="px-1 mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab('order')}
+            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150"
+          >
+            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0">
+              <span className="text-lg">⭐</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold text-[#F48C24]">
+                {tx(safeLang, 'Sənin üçün', 'Для тебя', 'For you')}
+              </p>
+              <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                {rewardText}
+              </p>
+            </div>
+            <span className="text-[13px] font-black text-[#FF8B26] shrink-0">
+              {rewardRemaining > 0 ? `${rewardRemaining}★` : '🎉'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Birthday surprise card */}
+      {birthdaySoon && (
+        <div className="px-1 mb-4">
+          <div
+            className="w-full rounded-[20px] p-4 flex items-center gap-3 text-white shadow-[0_10px_30px_rgba(255,139,38,0.28)]"
+            style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}
+          >
+            <span className="text-2xl">🎂</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-white">{tx(safeLang, 'Doğum günün yaxınlaşır!', 'День рождения скоро!', "Your birthday is near!")}</p>
+              <p className="text-[11px] text-white/85">{tx(safeLang, 'Sürpriz: pulsuz içki hədiyyə edirik 🎉', 'Сюрприз: дарим бесплатный напиток 🎉', 'Surprise: a free drink on us 🎉')}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active order — energetic brand progress pill */}
       {Array.isArray(activeOrders) && activeOrders.length > 0 && (
