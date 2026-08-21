@@ -1428,6 +1428,17 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         if (isBackendEnabled() && !queuedOffline && String(sale.sale_id || '').trim()) {
           void save_sale_receipt_html_live(String(sale.sale_id), receiptMarkup).catch(() => undefined);
         }
+        if (printSettings.auto_print_receipt !== false) {
+          void printDirectOrFallback(receiptMarkup, {
+            printerName: printSettings.printer_name,
+            useQz: true,
+            allowBrowserFallback: false,
+          }).then((res) => {
+            if (res.success && (res.method === 'agent' || res.method === 'qz')) {
+              notify('success', tx(lang, 'Çek avtomatik printerə göndərildi', 'Чек автоматически отправлен на принтер', 'Receipt auto-sent to printer'));
+            }
+          });
+        }
       };
 
       if (queuedOffline) {
@@ -1779,28 +1790,21 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   }, [tenantId, ctx.rewardClaimCode]);
 
   const printReceiptOnly = async () => {
-    if (safeReceiptHtml) {
-      try {
-        await printViaLocalAgent(safeReceiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap göndərildi', 'Печать отправлена через iRonWaves Print Agent', 'Print job sent via iRonWaves Print Agent'));
-        return;
-      } catch {
-        // Local agent is optional; fall back to QZ/browser print.
+    if (!safeReceiptHtml) return;
+    const res = await printDirectOrFallback(safeReceiptHtml, {
+      printerName: printSettings.printer_name,
+      useQz: true,
+      allowBrowserFallback: true,
+    });
+    if (res.success) {
+      if (res.method === 'agent') {
+        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
+      } else if (res.method === 'qz') {
+        notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
       }
+    } else {
+      notify('error', tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
     }
-    if (printSettings.use_qz && safeReceiptHtml) {
-      try {
-        await qzPrintHtml(safeReceiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray', 'Print job sent via QZ Tray'));
-        return;
-      } catch (e: any) {
-        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`, `QZ printing failed, falling back to browser printing: ${e.message || e}`));
-      }
-    }
-    const frame = receiptIframeRef.current;
-    if (!frame?.contentWindow) return;
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
   };
 
   const handleSyncOfflineQueue = async () => {
