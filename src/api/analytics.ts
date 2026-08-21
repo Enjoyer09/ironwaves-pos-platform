@@ -84,6 +84,7 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   let total_revenue = new Decimal(0);
   let cash_sales = new Decimal(0);
   let card_sales = new Decimal(0);
+  let split_sales = new Decimal(0);
   let total_cogs = new Decimal(0);
   const void_count = getSalesLocal(tenant_id).filter(
     (s) => isVoidSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to)
@@ -92,11 +93,20 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   sales.forEach(sale => {
     if (cashier_filter && sale.cashier !== cashier_filter) return;
 
-    total_revenue = total_revenue.plus(new Decimal(sale.total));
-    total_cogs = total_cogs.plus(new Decimal(sale.cogs));
+    const saleTotal = new Decimal(sale.total || 0);
+    total_revenue = total_revenue.plus(saleTotal);
+    total_cogs = total_cogs.plus(new Decimal(sale.cogs || 0));
 
-    if (sale.payment_method === 'Nəğd') cash_sales = cash_sales.plus(new Decimal(sale.total));
-    if (sale.payment_method === 'Kart') card_sales = card_sales.plus(new Decimal(sale.total));
+    const pm = String(sale.payment_method || '').trim().toLowerCase();
+    if (pm.includes('nəğd') || pm.includes('nağd') || pm.includes('cash')) {
+      cash_sales = cash_sales.plus(saleTotal);
+    } else if (pm.includes('kart') || pm.includes('card')) {
+      card_sales = card_sales.plus(saleTotal);
+    } else if (pm.includes('split')) {
+      split_sales = split_sales.plus(saleTotal);
+    } else {
+      card_sales = card_sales.plus(saleTotal);
+    }
   });
 
   // Split satışları finance cədvəlindən dəqiqləşdiririk
@@ -117,6 +127,14 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   const ledger_sales_total = cash_sales.plus(card_sales);
   const reconciliation_gap = total_revenue.minus(ledger_sales_total).toDecimalPlaces(2);
 
+  const payment_breakdown = [
+    { name: 'cash', value: Number(cash_sales.toFixed(2)) },
+    { name: 'card', value: Number(card_sales.toFixed(2)) },
+  ];
+  if (split_sales.greaterThan(0)) {
+    payment_breakdown.push({ name: 'split', value: Number(split_sales.toFixed(2)) });
+  }
+
   return {
     total_revenue: total_revenue.toString(),
     cash_sales: cash_sales.toString(),
@@ -126,7 +144,8 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
     has_reconciliation_issue: reconciliation_gap.abs().greaterThan(new Decimal('0.01')),
     total_cogs: total_cogs.toString(),
     gross_profit: gross_profit.toString(),
-    void_count
+    void_count,
+    payment_breakdown,
   };
 }
 

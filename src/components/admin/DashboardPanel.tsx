@@ -494,6 +494,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       <KPISection
         lang={lang}
         revenue={money(snapshot.summary?.total_revenue)}
+        cashSales={money(snapshot.summary?.cash_sales)}
+        cardSales={money(snapshot.summary?.card_sales)}
         activeTables={activeTables.length}
         openChecks={openChecks.length}
         avgTicket={money(averageTicket)}
@@ -891,6 +893,8 @@ function RangeControls({
 function KPISection({
   lang,
   revenue,
+  cashSales,
+  cardSales,
   activeTables,
   openChecks,
   avgTicket,
@@ -902,6 +906,8 @@ function KPISection({
 }: {
   lang: string;
   revenue: string;
+  cashSales?: string;
+  cardSales?: string;
   activeTables: number;
   openChecks: number;
   avgTicket: string;
@@ -911,9 +917,21 @@ function KPISection({
   grossMargin: string;
   onOpenTab: (tab: DashboardTab) => void;
 }) {
+  const salesHelper =
+    cashSales && cardSales
+      ? `${tx(lang, 'Nağd', 'Нал', 'Cash')}: ${cashSales} · ${tx(lang, 'Kart', 'Карта', 'Card')}: ${cardSales}`
+      : tx(lang, 'canlı yenilənir', 'live', 'live');
+
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-8">
-      <KpiCard title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')} value={revenue} helper={tx(lang, 'canlı yenilənir', 'live', 'live')} icon={<Receipt size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+      <KpiCard
+        title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
+        value={revenue}
+        helper={salesHelper}
+        icon={<Receipt size={22} />}
+        tone="emerald"
+        onClick={() => onOpenTab('analytics')}
+      />
       <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />

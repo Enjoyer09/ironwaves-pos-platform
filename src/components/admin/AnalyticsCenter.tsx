@@ -35,18 +35,61 @@ export default function AnalyticsCenter({
   }, [summary]);
 
   const paymentData = useMemo(() => {
-    if (!summary || !summary.payment_breakdown) return [];
-    return summary.payment_breakdown.map((item: any) => {
+    if (!summary) return [];
+    let items: Array<{ name: string; value: number; count?: number }> = [];
+    if (summary.payment_breakdown && Array.isArray(summary.payment_breakdown) && summary.payment_breakdown.length > 0) {
+      items = summary.payment_breakdown.map((it: any) => ({
+        name: String(it.name || ''),
+        value: Number(it.value ?? it.amount ?? 0),
+        count: it.count,
+      }));
+    } else {
+      const cashVal = Number(summary.cash_sales || 0);
+      const cardVal = Number(summary.card_sales || 0);
+      items = [
+        { name: 'cash', value: cashVal },
+        { name: 'card', value: cardVal },
+      ];
+    }
+
+    const total = items.reduce((acc, it) => acc + (it.value || 0), 0);
+
+    return items.map((item) => {
       let displayName = item.name;
-      if (item.name === 'cash') displayName = tx(lang, 'Nağd', 'Наличные', 'Cash');
-      else if (item.name === 'card') displayName = tx(lang, 'Kart', 'Карта', 'Card');
-      else if (item.name === 'split') displayName = tx(lang, 'Split', 'Раздельно', 'Split');
-      else if (item.name === 'staff') displayName = tx(lang, 'Staff', 'Staff', 'Staff');
-      return { ...item, displayName };
+      let color = '#64748b';
+      if (item.name === 'cash') {
+        displayName = tx(lang, 'Nağd', 'Наличные', 'Cash');
+        color = '#10b981'; // emerald
+      } else if (item.name === 'card') {
+        displayName = tx(lang, 'Kart', 'Карта', 'Card');
+        color = '#0ea5e9'; // sky
+      } else if (item.name === 'split') {
+        displayName = tx(lang, 'Split', 'Раздельно', 'Split');
+        color = '#8b5cf6'; // violet
+      } else if (item.name === 'staff') {
+        displayName = tx(lang, 'Staff', 'Staff', 'Staff');
+        color = '#f59e0b'; // amber
+      }
+
+      const share = total > 0 ? Math.round((item.value / total) * 100) : 0;
+      return {
+        ...item,
+        displayName,
+        color,
+        share,
+        formattedValue: item.value.toFixed(2),
+      };
     });
   }, [summary, lang]);
 
-  const PIE_COLORS = ['#10b981', '#0ea5e9', '#8b5cf6', '#64748b'];
+  const totalPaymentSum = useMemo(() => {
+    return paymentData.reduce((acc, it) => acc + (it.value || 0), 0);
+  }, [paymentData]);
+
+  const cashItem = paymentData.find((p) => p.name === 'cash');
+  const cardItem = paymentData.find((p) => p.name === 'card');
+
+  const PIE_COLORS = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#64748b'];
 
   const channels = summary?.channels || {
     bolt: { count: 0, revenue: '0.00', enabled: false },
@@ -144,15 +187,56 @@ export default function AnalyticsCenter({
       </div>
 
       {/* Payment Methods Chart */}
-      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md">
-        <h3 className="text-base font-black text-white">
-          {tx(lang, 'Ödəniş Üsulları', 'Способы оплаты', 'Payment Methods')}
-        </h3>
-        <p className="mt-1 text-xs text-slate-500">
-          {tx(lang, 'Kassa mədaxilinin bölünməsi', 'Разделение прихода кассы', 'Distribution of cash receipts')}
-        </p>
-        <div className="relative mt-5 flex h-[260px] items-center justify-center">
-          {paymentData.length === 0 || paymentData.every((item: any) => item.value === 0) ? (
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-black text-white">
+              {tx(lang, 'Ödəniş Üsulları', 'Способы оплаты', 'Payment Methods')}
+            </h3>
+            <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl">
+              {totalPaymentSum.toFixed(2)} ₼
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {tx(lang, 'Məbləğ və faiz bölgüsü', 'Распределение по суммам и процентам', 'Breakdown by monetary amounts & percent')}
+          </p>
+
+          {/* Quick Cash vs Card Amount Badges */}
+          <div className="grid grid-cols-2 gap-2 mt-3.5">
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/40 p-2.5 flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  {tx(lang, 'Nağd Satış', 'Наличные', 'Cash Sales')}
+                </span>
+                <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded-lg">
+                  {cashItem?.share || 0}%
+                </span>
+              </div>
+              <span className="text-base font-black text-white tracking-tight mt-0.5">
+                {cashItem?.formattedValue || '0.00'} ₼
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-sky-500/25 bg-sky-950/40 p-2.5 flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-sky-400" />
+                  {tx(lang, 'Kart Satışı', 'Карта', 'Card Sales')}
+                </span>
+                <span className="text-[10px] font-black text-sky-400 bg-sky-500/15 px-1.5 py-0.5 rounded-lg">
+                  {cardItem?.share || 0}%
+                </span>
+              </div>
+              <span className="text-base font-black text-white tracking-tight mt-0.5">
+                {cardItem?.formattedValue || '0.00'} ₼
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-2 flex h-[190px] items-center justify-center">
+          {paymentData.length === 0 || totalPaymentSum === 0 ? (
             <div className="text-sm font-semibold text-slate-500">
               {tx(lang, 'Ödəniş məlumatı tapılmadı', 'Нет данных об оплате', 'No payment data found')}
             </div>
@@ -164,37 +248,55 @@ export default function AnalyticsCenter({
                     data={paymentData.filter((item: any) => item.value > 0)}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
+                    innerRadius={50}
+                    outerRadius={68}
                     paddingAngle={4}
                     dataKey="value"
                   >
                     {paymentData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
                     itemStyle={{ color: '#fff' }}
-                    formatter={(value) => [`${value} ₼`, '']}
+                    formatter={(value: any, name: any, item: any) => [
+                      `${Number(value).toFixed(2)} ₼ (${item?.payload?.share || 0}%)`,
+                      item?.payload?.displayName || name,
+                    ]}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute bottom-0 flex flex-wrap justify-center gap-3">
-                {paymentData.map((item: any, index: number) => {
-                  if (item.value === 0) return null;
-                  return (
-                    <div key={item.name} className="flex items-center gap-1.5 text-xs">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                      <span className="font-bold text-slate-300">{item.displayName}</span>
-                      <span className="text-slate-500">({item.value} ₼)</span>
-                    </div>
-                  );
-                })}
+
+              {/* Center Donut Label */}
+              <div className="pointer-events-none absolute flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {tx(lang, 'Dövriyyə', 'Оборот', 'Revenue')}
+                </span>
+                <span className="text-sm font-black text-white">
+                  {totalPaymentSum.toFixed(2)} ₼
+                </span>
               </div>
             </>
           )}
         </div>
+
+        {/* Legend with exact amounts and percentages */}
+        {paymentData.length > 0 && totalPaymentSum > 0 && (
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-2 border-t border-slate-800/80 text-xs">
+            {paymentData.map((item: any, index: number) => {
+              if (item.value === 0) return null;
+              return (
+                <div key={item.name} className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color || PIE_COLORS[index % PIE_COLORS.length] }} />
+                  <span className="font-bold text-slate-300">{item.displayName}:</span>
+                  <span className="font-black text-white">{item.formattedValue} ₼</span>
+                  <span className="text-[11px] font-semibold text-slate-500">({item.share}%)</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Delivery Channels Widget */}
