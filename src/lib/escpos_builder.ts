@@ -120,6 +120,14 @@ export function buildKitchenTicketEscPos(
 
   let cmd = '';
 
+  // Font helpers: ESC ! bit layout varies on cheap thermal firmwares
+  // (emphasis bit can halve the printable width), so use the widely
+  // supported ESC E (bold) and GS ! (character size) commands instead.
+  const boldOn = ESC + 'E\x01';
+  const boldOff = ESC + 'E\x00';
+  const doubleHeightOn = GS + '!\x01';  // height x2, width unchanged
+  const sizeReset = GS + '!\x00';
+
   // ── INIT ──────────────────────────────────────────
   cmd += ESC + '@';       // Initialize printer (resets all settings)
   cmd += ESC + 't\x00';  // Code page PC437 - most compatible, no special chars
@@ -136,18 +144,20 @@ export function buildKitchenTicketEscPos(
 
   cmd += solidLine;
 
-  // "METBEX SIFARISI" — bold (ESC ! bit5 = 0x20)
-  cmd += ESC + '!\x20';
+  // "METBEX SIFARISI" — bold via ESC E (does not change column width)
+  cmd += boldOn;
   cmd += centerText('METBEX  SIFARISI', lineChars) + '\n';
-  cmd += ESC + '!\x00';  // Reset
+  cmd += boldOff;
 
   cmd += dashLine;
 
-  // MASA label — double height + bold, no double-width to avoid overflow
-  cmd += ESC + '!\x28';  // Double height (0x08) + Bold (0x20)
+  // MASA label — double height (GS !) + bold, width unchanged
+  cmd += doubleHeightOn;
+  cmd += boldOn;
   const masaLine = tableDisplay.slice(0, lineChars);  // Hard cap at lineChars
   cmd += centerText(masaLine, lineChars) + '\n';
-  cmd += ESC + '!\x00';  // Reset
+  cmd += boldOff;
+  cmd += sizeReset;
 
   cmd += solidLine;
 
@@ -161,15 +171,21 @@ export function buildKitchenTicketEscPos(
 
   const timeLabel = `Saat: ${timeStr}`;
   const dateLabel = `Tarix: ${dateStr}`;
-  const gap = Math.max(1, lineChars - timeLabel.length - dateLabel.length);
-  cmd += timeLabel + ' '.repeat(gap) + dateLabel + '\n';
+  // Keep on one line only if it comfortably fits; some firmwares expose fewer
+  // columns than the nominal 58mm width, so fall back to two lines.
+  if (timeLabel.length + dateLabel.length + 2 <= lineChars - 4) {
+    const gap = Math.max(1, lineChars - timeLabel.length - dateLabel.length);
+    cmd += timeLabel + ' '.repeat(gap) + dateLabel + '\n';
+  } else {
+    cmd += timeLabel + '\n' + dateLabel + '\n';
+  }
 
   const rawTicketId = (ticket as any).ticket_id || (ticket as any).order_id || (ticket as any).display_order_id || '';
   const ticketDisplayId = String(rawTicketId).split('-')[0].toUpperCase();
   if (ticketDisplayId) {
-    cmd += ESC + '!\x20';  // Bold
+    cmd += boldOn;
     cmd += `Cek: #${ticketDisplayId}\n`;
-    cmd += ESC + '!\x00';
+    cmd += boldOff;
   }
 
   if (ticket.server_name) {
@@ -192,12 +208,13 @@ export function buildKitchenTicketEscPos(
     const rawName = sanitizeEscPosText(String(item.item_name || item.name || ''));
 
     // Item number badge + qty
-    cmd += ESC + '!\x20';  // Bold
+    cmd += boldOn;
     cmd += `${(idx + 1)}. `;
-    cmd += ESC + '!\x00';  // Reset
+    cmd += boldOff;
 
-    // Item name in double-height bold (0x08 height + 0x20 bold; NOT double-width)
-    cmd += ESC + '!\x28';  // Double height
+    // Item name in double height (GS !) + bold — width unchanged
+    cmd += doubleHeightOn;
+    cmd += boldOn;
     const prefix = `${qty}x `;
     const availWidth = lineChars - prefix.length - 3;
     const nameLines = wrapEscPosText(rawName, availWidth);
@@ -209,7 +226,8 @@ export function buildKitchenTicketEscPos(
     } else {
       cmd += `${prefix}${rawName}\n`;
     }
-    cmd += ESC + '!\x00';  // Reset normal
+    cmd += boldOff;
+    cmd += sizeReset;  // Reset normal
 
     // Modifiers
     const mods: string[] = [];
@@ -245,13 +263,12 @@ export function buildKitchenTicketEscPos(
   const totalQty = items.reduce((sum: number, item: any) => sum + Number(item.qty || item.quantity || 1), 0);
 
   cmd += ESC + 'a\x01';  // Center
-  cmd += ESC + '!\x20';  // Bold
+  cmd += boldOn;
   cmd += `UMUMI: ${totalQty} MEHSUL\n`;
-  cmd += ESC + '!\x00';
+  cmd += boldOff;
 
   cmd += solidLine;
 
-  cmd += ESC + '!\x00';
   cmd += centerText('-- METBEX CAPI --', lineChars) + '\n';
 
   // ── FEED + CUT ────────────────────────────────────
@@ -269,9 +286,11 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += ESC + '@';
   cmd += ESC + 't' + '\x00';
   cmd += ESC + 'a' + '\x01';
-  cmd += ESC + '!' + '\x18';
+  cmd += GS + '!' + '\x01';
+  cmd += ESC + 'E' + '\x01';
   cmd += '=== TEST CAPI ===\n';
-  cmd += ESC + '!' + '\x00';
+  cmd += ESC + 'E' + '\x00';
+  cmd += GS + '!' + '\x00';
   cmd += `Nov: ${type === 'kitchen' ? 'METBEX' : 'KASSA'}\n`;
   cmd += `Printer: ${sanitizeEscPosText(printerName || 'Default')}\n`;
   cmd += `Saat: ${new Date().toLocaleTimeString()}\n`;
