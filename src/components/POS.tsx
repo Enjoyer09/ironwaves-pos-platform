@@ -19,6 +19,7 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
+import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1485,25 +1486,34 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         try {
           const sentTableObj = tables.find((t) => t.id === sentTable);
           const tableName = sentTableObj?.table_number ? `Masa ${sentTableObj.table_number}` : sentTable;
+          const ticketData = {
+            table_label: tableName,
+            order_type_label: tableName,
+            server_name: user.username,
+            cup_mode: ctx.cupMode,
+            company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
+            items: cart.map((c) => ({
+              item_name: c.item_name,
+              qty: c.qty,
+              seat_label: c.seat_label,
+              cup_mode: c.cup_mode || ctx.cupMode,
+            })),
+          };
           const kitchenHtml = buildKitchenTicketHtml({
-            ticket: {
-              table_label: tableName,
-              server_name: user.username,
-              cup_mode: ctx.cupMode,
-              items: cart.map((c) => ({
-                item_name: c.item_name,
-                qty: c.qty,
-                seat_label: c.seat_label,
-                cup_mode: c.cup_mode || ctx.cupMode,
-              })),
-            },
+            ticket: ticketData,
             lang: safeLang,
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+          });
+          const rawCmds = buildKitchenTicketEscPos(ticketData, {
+            paperWidth: printSettings.paper_width || '58mm',
           });
           const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
           await printDirectOrFallback(kitchenHtml, {
             printerName: targetPrinter,
             useQz: Boolean(printSettings.use_qz),
+            paperWidth: printSettings.paper_width || '58mm',
+            printEngine: printSettings.print_engine || 'raw_escpos',
+            rawCommands: rawCmds,
             allowBrowserFallback: false,
           });
         } catch (printErr) {

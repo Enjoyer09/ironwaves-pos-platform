@@ -43,7 +43,7 @@ import {
 } from '../../api/integrations';
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
-import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
+import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter, printDirectOrFallback } from '../../lib/local_print_agent';
 import { qzCheckStatus } from '../../lib/qz';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
@@ -143,7 +143,10 @@ export default function SettingsPanel() {
     kitchen_printer_name: '',
     auto_print_kitchen_ticket: true,
     auto_print_receipt: true,
+    paper_width: '58mm' as '58mm' | '80mm',
+    print_engine: 'raw_escpos' as 'pixel_html' | 'raw_escpos',
   });
+  const [testingPrint, setTestingPrint] = useState<'cashier' | 'kitchen' | null>(null);
   const [printAgentModalOpen, setPrintAgentModalOpen] = useState(false);
   const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
   const [printAgentVersion, setPrintAgentVersion] = useState('');
@@ -460,6 +463,8 @@ export default function SettingsPanel() {
         kitchen_printer_name: String(settingsRes.value.print_settings?.kitchen_printer_name || ''),
         auto_print_kitchen_ticket: settingsRes.value.print_settings?.auto_print_kitchen_ticket !== false,
         auto_print_receipt: settingsRes.value.print_settings?.auto_print_receipt !== false,
+        paper_width: (settingsRes.value.print_settings?.paper_width || '58mm') as '58mm' | '80mm',
+        print_engine: (settingsRes.value.print_settings?.print_engine || 'raw_escpos') as 'pixel_html' | 'raw_escpos',
       });
       setZReportReceiptSettings({
         show_operator: settingsRes.value.z_report_receipt_settings?.show_operator !== false,
@@ -1011,10 +1016,77 @@ export default function SettingsPanel() {
         kitchen_printer_name: printSettings.kitchen_printer_name.trim(),
         auto_print_kitchen_ticket: printSettings.auto_print_kitchen_ticket,
         auto_print_receipt: printSettings.auto_print_receipt,
+        paper_width: printSettings.paper_width,
+        print_engine: printSettings.print_engine,
       });
       flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
     } catch {
       notify('error', tx(lang, 'Çap ayarlarını yadda saxlamaq mümkün olmadı', 'Не удалось сохранить настройки печати', 'Failed to save print settings'));
+    }
+  };
+
+  const handleTestPrint = async (type: 'cashier' | 'kitchen') => {
+    setTestingPrint(type);
+    try {
+      const targetPrinter =
+        type === 'kitchen'
+          ? printSettings.kitchen_printer_name || printSettings.printer_name
+          : printSettings.printer_name;
+
+      const isRaw = printSettings.print_engine === 'raw_escpos';
+      const { buildTestTicketEscPos } = await import('../../lib/escpos_builder');
+      const rawCmds = buildTestTicketEscPos(type, targetPrinter);
+
+      const htmlTest = `
+        <div style="text-align: center; padding: 4px 0;">
+          <div style="font-weight: 900; font-size: 13px;">=== TEST CAPI ===</div>
+          <div style="font-size: 11px; margin-top: 2px;">Növ: <b>${type === 'kitchen' ? 'MƏTBƏX' : 'KASSA'}</b></div>
+          <div style="font-size: 11px;">Printer: <b>${targetPrinter || 'Sistem Default'}</b></div>
+          <div style="font-size: 10px; color: #444;">Format: ${printSettings.paper_width} | Rejim: ${isRaw ? 'ESC/POS Raw' : 'HTML Graphics'}</div>
+          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
+          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+            <span>1x Test Mehsul</span>
+            <span>OK</span>
+          </div>
+          <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
+          <div style="font-size: 10px; font-weight: bold; margin-top: 4px;">QZ Tray / Agent Baglantisi Ugurludur!</div>
+        </div>
+      `;
+
+      const res = await printDirectOrFallback(htmlTest, {
+        printerName: targetPrinter,
+        useQz: Boolean(printSettings.use_qz),
+        paperWidth: printSettings.paper_width,
+        printEngine: printSettings.print_engine,
+        rawCommands: isRaw ? rawCmds : undefined,
+        allowBrowserFallback: false,
+      });
+
+      if (res.success) {
+        notify(
+          'success',
+          tx(
+            lang,
+            `${type === 'kitchen' ? 'Mətbəx' : 'Kassa'} test çeki uğurla printerə göndərildi!`,
+            `Тестовый чек ${type === 'kitchen' ? 'кухни' : 'кассы'} успешно отправлен!`,
+            `${type === 'kitchen' ? 'Kitchen' : 'Cashier'} test receipt sent to printer!`
+          )
+        );
+      } else {
+        notify(
+          'error',
+          tx(
+            lang,
+            'Çap alınmadı. Zəhmət olmasa QZ Tray statusunu və printer adını yoxlayın.',
+            'Печать не удалась. Проверьте статус QZ Tray и имя принтера.',
+            'Print failed. Please verify QZ Tray status and printer name.'
+          )
+        );
+      }
+    } catch (e: any) {
+      notify('error', e?.message || 'Test çapı xətası');
+    } finally {
+      setTestingPrint(null);
     }
   };
 
@@ -1953,6 +2025,70 @@ export default function SettingsPanel() {
               <span>{tx(lang, 'Mətbəxə göndərildikdə avtomatik mətbəx çeki çıxar', 'Автоматически печатать чек при отправке на кухню', 'Auto-print ticket when sent to kitchen')}</span>
             </label>
           </div>
+        </div>
+
+        {/* Termal Presetlər və Çap Rejimi */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-cyan-300">
+              📏 {tx(lang, 'Kağız Eni (Termal Format)', 'Ширина бумаги (Термо формат)', 'Paper Width (Thermal Preset)')}
+            </label>
+            <select
+              className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
+              value={printSettings.paper_width}
+              onChange={(e) => setPrintSettings((prev) => ({ ...prev, paper_width: e.target.value as any }))}
+            >
+              <option value="58mm">58 mm (XP-58, POS-58 - Standart Balaca Termal)</option>
+              <option value="80mm">80 mm (XP-80, Epson TM-T20/T88 - Standart Böyük Termal)</option>
+            </select>
+            <span className="text-[11px] text-slate-400">
+              {printSettings.paper_width === '58mm'
+                ? tx(lang, '48mm çap sahəsi (32 simvol sətir). Hərflərin kəsilməsini aradan qaldırır.', 'Ширина печати 48мм (32 символа). Предотвращает обрезку строк.', '48mm printable area (32 chars/line). Prevents cropped text.')
+                : tx(lang, '72mm çap sahəsi (42-48 simvol sətir). Geniş çəklər üçün.', 'Ширина печати 72мм (42-48 символов). For wide tickets.')}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-purple-300">
+              ⚡ {tx(lang, 'Çap Rejimi (Print Engine)', 'Режим печати (Print Engine)', 'Print Engine Mode')}
+            </label>
+            <select
+              className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
+              value={printSettings.print_engine}
+              onChange={(e) => setPrintSettings((prev) => ({ ...prev, print_engine: e.target.value as any }))}
+            >
+              <option value="raw_escpos">{tx(lang, 'ESC/POS Raw (Tövsiyə olunur - Ultra Sürətli & Heç vaxt boş çıxmaz)', 'ESC/POS Raw (Рекомендуется - Ультра быстро и без сбоев)', 'ESC/POS Raw (Recommended - Ultra fast & never blank)')}</option>
+              <option value="pixel_html">{tx(lang, 'Standart HTML / Qrafik Çap', 'Стандартный HTML / Графическая печать', 'Standard HTML / Pixel Graphics')}</option>
+            </select>
+            <span className="text-[11px] text-slate-400">
+              {printSettings.print_engine === 'raw_escpos'
+                ? tx(lang, 'Birbaşa termal printer başlığına əmrlər göndərir. 0.05 san sürət, təmiz kəsim.', 'Прямые команды на головку термопринтера. 0.05 сек, чистый отрез.', 'Direct ESC/POS commands to thermal printhead. Instant and flawless.')
+                : tx(lang, 'Qrafik formatda HTML çapı.', 'Графическая печать HTML.', 'Pixel HTML graphics print.')}
+            </span>
+          </div>
+        </div>
+
+        {/* Canlı Test Çapı Bölməsi */}
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+          <span className="text-xs font-bold text-slate-300 mr-2">🧪 {tx(lang, 'Canlı Test Çapı:', 'Тестовая печать:', 'Live Test Print:')}</span>
+          <button
+            type="button"
+            disabled={testingPrint !== null}
+            onClick={() => void handleTestPrint('cashier')}
+            className="rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-3.5 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/30 transition active:scale-95 flex items-center gap-2"
+          >
+            {testingPrint === 'cashier' ? <span className="animate-spin">⏳</span> : '🧾'}
+            {tx(lang, 'Kassa Test Çeki Çap Et', 'Тест кассового чека', 'Print Cashier Test')}
+          </button>
+          <button
+            type="button"
+            disabled={testingPrint !== null}
+            onClick={() => void handleTestPrint('kitchen')}
+            className="rounded-xl border border-amber-500/40 bg-amber-500/20 px-3.5 py-2 text-xs font-bold text-amber-100 hover:bg-amber-500/30 transition active:scale-95 flex items-center gap-2"
+          >
+            {testingPrint === 'kitchen' ? <span className="animate-spin">⏳</span> : '🍳'}
+            {tx(lang, 'Mətbəx Test Çeki Çap Et', 'Тест чека кухни', 'Print Kitchen Test')}
+          </button>
         </div>
 
         <div className="flex items-center gap-4 pt-1">

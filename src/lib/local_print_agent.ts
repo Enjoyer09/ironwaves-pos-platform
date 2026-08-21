@@ -79,6 +79,9 @@ export async function printDirectOrFallback(
   options?: {
     printerName?: string;
     useQz?: boolean;
+    paperWidth?: '58mm' | '80mm';
+    printEngine?: 'pixel_html' | 'raw_escpos';
+    rawCommands?: string;
     allowBrowserFallback?: boolean;
   }
 ): Promise<{ method: 'agent' | 'qz' | 'browser' | 'none'; success: boolean }> {
@@ -90,11 +93,19 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  // 2. Try QZ Tray (supports explicit printer or QZ default printer)
+  // 2. Try QZ Tray (supports explicit printer, paperWidth and raw ESC/POS commands)
   try {
-    const { qzPrintHtml } = await import('./qz');
-    await qzPrintHtml(html, options?.printerName);
-    return { method: 'qz', success: true };
+    const { qzPrintHtml, qzPrintRaw } = await import('./qz');
+    if (options?.printEngine === 'raw_escpos' && options?.rawCommands) {
+      await qzPrintRaw(options.rawCommands, options?.printerName);
+      return { method: 'qz', success: true };
+    } else {
+      await qzPrintHtml(html, {
+        printerName: options?.printerName,
+        paperWidth: options?.paperWidth || '58mm',
+      });
+      return { method: 'qz', success: true };
+    }
   } catch (err) {
     console.warn('QZ Tray print attempted but failed:', err);
   }

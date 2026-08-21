@@ -1152,6 +1152,8 @@ export function update_print_settings(payload: {
   kitchen_printer_name?: string;
   auto_print_kitchen_ticket?: boolean;
   auto_print_receipt?: boolean;
+  paper_width?: '58mm' | '80mm';
+  print_engine?: 'pixel_html' | 'raw_escpos';
 }) {
   const settings = getSettings();
   settings.print_settings = payload;
@@ -1166,6 +1168,8 @@ export async function update_print_settings_live(payload: {
   kitchen_printer_name?: string;
   auto_print_kitchen_ticket?: boolean;
   auto_print_receipt?: boolean;
+  paper_width?: '58mm' | '80mm';
+  print_engine?: 'pixel_html' | 'raw_escpos';
 }) {
   if (!isBackendEnabled()) return update_print_settings(payload);
   await apiRequest('/api/v1/ops/settings/print-settings', { method: 'PATCH', tenantId: null, body: payload });
@@ -1381,6 +1385,8 @@ export async function get_settings_live(tenant_id?: string) {
     kitchen_printer_name: String(data?.print_settings?.kitchen_printer_name ?? localCached?.print_settings?.kitchen_printer_name ?? ''),
     auto_print_kitchen_ticket: data?.print_settings?.auto_print_kitchen_ticket ?? localCached?.print_settings?.auto_print_kitchen_ticket ?? true,
     auto_print_receipt: data?.print_settings?.auto_print_receipt ?? localCached?.print_settings?.auto_print_receipt ?? true,
+    paper_width: (data?.print_settings?.paper_width || localCached?.print_settings?.paper_width || '58mm') as '58mm' | '80mm',
+    print_engine: (data?.print_settings?.print_engine || localCached?.print_settings?.print_engine || 'pixel_html') as 'pixel_html' | 'raw_escpos',
   };
 
   const merged: Settings = {

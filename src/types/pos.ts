@@ -257,6 +257,8 @@ export interface Settings {
     kitchen_printer_name?: string;
     auto_print_kitchen_ticket?: boolean;
     auto_print_receipt?: boolean;
+    paper_width?: '58mm' | '80mm';
+    print_engine?: 'pixel_html' | 'raw_escpos';
   };
   business_profile?: {
     company_name?: string;
