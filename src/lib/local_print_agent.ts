@@ -9,23 +9,105 @@ function timeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
+export function printHtmlViaBrowserIframe(html: string): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      document.body.removeChild(iframe);
+      return false;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('iframe print error:', e);
+      } finally {
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+          } catch {}
+        }, 3000);
+      }
+    }, 250);
+
+    return true;
+  } catch (err) {
+    console.warn('Browser print fallback error:', err);
+    return false;
+  }
+}
+
 export async function printViaLocalAgent(html: string, printerName?: string): Promise<boolean> {
   const safeHtml = withThermalReceiptPrintCss(html);
   if (!safeHtml.trim()) return false;
-  const response = await fetch(`${AGENT_BASE_URL}/print-html`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      html: safeHtml,
-      printer_name: String(printerName || '').trim() || undefined,
-    }),
-    signal: timeoutSignal(REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(body || `Print Agent HTTP ${response.status}`);
+  try {
+    const response = await fetch(`${AGENT_BASE_URL}/print-html`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: safeHtml,
+        printer_name: String(printerName || '').trim() || undefined,
+      }),
+      signal: timeoutSignal(2500),
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
-  return true;
+}
+
+export async function printDirectOrFallback(
+  html: string,
+  options?: {
+    printerName?: string;
+    useQz?: boolean;
+    allowBrowserFallback?: boolean;
+  }
+): Promise<{ method: 'agent' | 'qz' | 'browser' | 'none'; success: boolean }> {
+  // 1. Try local Print Agent first
+  try {
+    const agentSuccess = await printViaLocalAgent(html, options?.printerName);
+    if (agentSuccess) {
+      return { method: 'agent', success: true };
+    }
+  } catch {}
+
+  // 2. Try QZ Tray if enabled
+  if (options?.useQz && options?.printerName) {
+    try {
+      const { qzPrintHtml } = await import('./qz');
+      await qzPrintHtml(html, options.printerName);
+      return { method: 'qz', success: true };
+    } catch {}
+  }
+
+  // 3. Fallback to Browser Print Dialog (Save to PDF / Native Print)
+  if (options?.allowBrowserFallback !== false) {
+    const browserSuccess = printHtmlViaBrowserIframe(html);
+    if (browserSuccess) {
+      return { method: 'browser', success: true };
+    }
+  }
+
+  return { method: 'none', success: false };
 }
 
 export async function localPrintAgentHealth(): Promise<boolean> {

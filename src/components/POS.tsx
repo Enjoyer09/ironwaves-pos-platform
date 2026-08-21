@@ -17,7 +17,7 @@ import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
-import { printViaLocalAgent } from '../lib/local_print_agent';
+import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import {
   cacheMenuOffline,
@@ -1490,10 +1490,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
           });
           const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
-          const agentSuccess = await printViaLocalAgent(kitchenHtml, targetPrinter);
-          if (!agentSuccess && printSettings.use_qz && targetPrinter) {
-            await qzPrintHtml(kitchenHtml, targetPrinter);
-          }
+          await printDirectOrFallback(kitchenHtml, {
+            printerName: targetPrinter,
+            useQz: Boolean(printSettings.use_qz),
+            allowBrowserFallback: false,
+          });
         } catch (printErr) {
           console.warn('Kitchen ticket print warning:', printErr);
         }
