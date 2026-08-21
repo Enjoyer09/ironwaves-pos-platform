@@ -18,6 +18,7 @@ import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { printViaLocalAgent } from '../lib/local_print_agent';
+import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1460,12 +1461,44 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     if (!ctx.selectedTable || cart.length === 0 || !user) return;
     try {
       const sentTable = ctx.selectedTable;
+      const sentCartItems = cart.map((c) => ({ ...c, price: toDecimalSafe(c.price), seat_label: c.seat_label })) as any;
       await send_to_kitchen_live(
         sentTable,
-        cart.map((c) => ({ ...c, price: toDecimalSafe(c.price), seat_label: c.seat_label })) as any,
+        sentCartItems,
         user.username,
         { cup_mode: ctx.cupMode },
       );
+
+      // Auto-print kitchen ticket if enabled
+      if (printSettings.auto_print_kitchen_ticket !== false) {
+        try {
+          const sentTableObj = tables.find((t) => t.id === sentTable);
+          const tableName = sentTableObj?.table_number ? `Masa ${sentTableObj.table_number}` : sentTable;
+          const kitchenHtml = buildKitchenTicketHtml({
+            ticket: {
+              table_label: tableName,
+              server_name: user.username,
+              cup_mode: ctx.cupMode,
+              items: cart.map((c) => ({
+                item_name: c.item_name,
+                qty: c.qty,
+                seat_label: c.seat_label,
+                cup_mode: c.cup_mode || ctx.cupMode,
+              })),
+            },
+            lang: safeLang,
+            companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+          });
+          const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+          const agentSuccess = await printViaLocalAgent(kitchenHtml, targetPrinter);
+          if (!agentSuccess && printSettings.use_qz && targetPrinter) {
+            await qzPrintHtml(kitchenHtml, targetPrinter);
+          }
+        } catch (printErr) {
+          console.warn('Kitchen ticket print warning:', printErr);
+        }
+      }
+
       clearCart(activeCart);
       patchCtx({ kitchenSent: true });
       window.dispatchEvent(new CustomEvent('table-order-sent', { detail: { tenant_id: tenantId, table_id: sentTable } }));

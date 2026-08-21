@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { get_kitchen_orders_live, accept_order_live, complete_order_live, ready_kitchen_item_status_live, serve_kitchen_item_status_live, start_kitchen_item_status_live } from '../api/kds';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { Clock, CheckCircle, ChefHat, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle, ChefHat, AlertCircle, Printer } from 'lucide-react';
 import { KitchenOrder } from '../types/pos';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import { logUiError } from '../lib/logger';
 import { approve_void_request_live, get_pending_approvals_live, reject_void_request_live, type PendingApprovalItem } from '../api/restaurant';
 import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
+import { printViaLocalAgent } from '../lib/local_print_agent';
+import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
+import { get_settings_live } from '../api/settings';
+import { qzPrintHtml } from '../lib/qz';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
@@ -19,6 +23,77 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const isStaffReadOnly = String(user?.role || '').toLowerCase() === 'staff';
   const isManager = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
   const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalItem[]>([]);
+
+  // Kitchen printer & Auto-print state
+  const [kitchenPrinter, setKitchenPrinter] = useState<string>('');
+  const [useQz, setUseQz] = useState(false);
+  const [companyName, setCompanyName] = useState('IRONWAVES POS');
+  const [autoPrint, setAutoPrint] = useState(() => {
+    try {
+      return localStorage.getItem('kds_auto_print') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const s = await get_settings_live(tenant_id);
+        const pSettings = s?.print_settings;
+        if (pSettings) {
+          setKitchenPrinter(pSettings.kitchen_printer_name || pSettings.printer_name || '');
+          setUseQz(Boolean(pSettings.use_qz));
+        }
+        if (s?.business_profile?.company_name) setCompanyName(s.business_profile.company_name);
+      } catch {
+        // no-op
+      }
+    })();
+  }, [tenant_id]);
+
+  const toggleAutoPrint = () => {
+    const next = !autoPrint;
+    setAutoPrint(next);
+    try {
+      localStorage.setItem('kds_auto_print', String(next));
+    } catch {
+      // no-op
+    }
+  };
+
+  const handlePrintOrderTicket = async (orderGroup: any) => {
+    try {
+      const normalized = normalizeItems(orderGroup);
+      const html = buildKitchenTicketHtml({
+        ticket: {
+          ticket_id: String(orderGroup.ids?.[0] || orderGroup.id || 'TICKET'),
+          table_label: orderGroup.table_label,
+          order_type: orderGroup.order_type,
+          created_at: orderGroup.created_at,
+          items: (orderGroup.items || normalized).map((it: any) => ({
+            item_name: it.item_name || it.name,
+            qty: Number(it.qty || it.quantity || 1),
+            seat_label: it.seat_label,
+            notes: it.note || it.notes || it.reason,
+            modifiers: it.modifiers,
+            selected_modifiers: it.selected_modifiers,
+          })),
+        },
+        lang,
+        companyName,
+      });
+
+      const success = await printViaLocalAgent(html, kitchenPrinter);
+      if (!success && useQz && kitchenPrinter) {
+        await qzPrintHtml(html, kitchenPrinter);
+      }
+      useAppStore.getState().notify('success', tx(lang, 'Mətbəx çeki çapa göndərildi 🖨️', 'Чек кухни отправлен на печать 🖨️', 'Kitchen ticket sent to printer 🖨️'));
+    } catch (e: any) {
+      logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'print_ticket' });
+      useAppStore.getState().notify('error', tx(lang, 'Çap alınmadı. Printer agenti yoxlayın.', 'Ошибка печати. Проверьте Printer Agent.', 'Print failed. Check Printer Agent.'));
+    }
+  };
 
   const [currentTime, setCurrentTime] = useState(Date.now());
   const fetchInFlightRef = useRef(false);
@@ -53,15 +128,23 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
     const normalized = Array.isArray(incoming) ? incoming : [];
     const nextIds = new Set(normalized.map((row) => String((row as any)?.id || '')).filter(Boolean));
     const previousIds = previousOrderIdsRef.current;
-    const hasNewOrders =
-      previousIds.size > 0 &&
-      normalized.some((row) => {
-        const id = String((row as any)?.id || '');
-        return id && !previousIds.has(id);
-      });
+    const newlyArrivedOrders = normalized.filter((row) => {
+      const id = String((row as any)?.id || '');
+      return id && !previousIds.has(id);
+    });
+
+    const hasNewOrders = previousIds.size > 0 && newlyArrivedOrders.length > 0;
     previousOrderIdsRef.current = nextIds;
     setOrders(normalized);
-    if (hasNewOrders) playKitchenBell();
+
+    if (hasNewOrders) {
+      playKitchenBell();
+      if (autoPrint) {
+        newlyArrivedOrders.forEach((newOrder) => {
+          void handlePrintOrderTicket(newOrder);
+        });
+      }
+    }
   };
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
@@ -468,8 +551,20 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
           <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx ekranı', 'Экран кухни', 'Kitchen display')}</h1>
         </div>
         <div className="flex gap-3 text-sm font-medium items-center">
+          <button
+            type="button"
+            onClick={toggleAutoPrint}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition border active:scale-95 ${
+              autoPrint
+                ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                : 'border-slate-600/70 bg-slate-800/60 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Printer size={15} className={autoPrint ? 'text-emerald-400 animate-pulse' : 'text-slate-400'} />
+            <span>{autoPrint ? tx(lang, 'Avto-Çap: Aktiv', 'Автопечать: Вкл', 'Auto-Print: ON') : tx(lang, 'Avto-Çap: Deaktiv', 'Автопечать: Выкл', 'Auto-Print: OFF')}</span>
+          </button>
           <div className="metal-panel px-4 py-2 text-slate-300 flex items-center">
-            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы', 'Active Orders')}: <span className="ml-2 text-yellow-300 text-lg">{groupedOrders.length}</span>
+            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы', 'Active Orders')}: <span className="ml-2 text-yellow-300 text-lg font-bold">{groupedOrders.length}</span>
           </div>
         </div>
       </div>
@@ -542,12 +637,22 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
                   </div>
                 )}
               </div>
-              <div className="flex flex-col items-end text-sm font-medium">
-                <div className="flex items-center text-slate-100 font-black text-sm bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-600/70 shadow-sm">
-                  <Clock size={16} className="mr-1.5 text-amber-300" />
-                  {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
+              <div className="flex flex-col items-end text-sm font-medium gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    title={tx(lang, 'Mətbəx çekini çap et', 'Распечатать чек кухни', 'Print kitchen ticket')}
+                    onClick={() => { void handlePrintOrderTicket(order); }}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/90 text-slate-300 hover:text-yellow-300 hover:border-yellow-400/50 transition active:scale-90 shadow-sm"
+                  >
+                    <Printer size={15} />
+                  </button>
+                  <div className="flex items-center text-slate-100 font-black text-sm bg-slate-800/90 px-2.5 py-1.5 rounded-xl border border-slate-600/70 shadow-sm">
+                    <Clock size={15} className="mr-1 text-amber-300" />
+                    {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
+                  </div>
                 </div>
-                <div className="text-slate-300 text-xs font-semibold mt-1">
+                <div className="text-slate-300 text-xs font-semibold">
                   {new Date(parseServerTimestamp(order.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>

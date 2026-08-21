@@ -1146,7 +1146,13 @@ export function update_staff_benefits(payload: {
   return { success: true, staff_benefits: settings.staff_benefits };
 }
 
-export function update_print_settings(payload: { use_qz: boolean; printer_name: string }) {
+export function update_print_settings(payload: {
+  use_qz: boolean;
+  printer_name: string;
+  kitchen_printer_name?: string;
+  auto_print_kitchen_ticket?: boolean;
+  auto_print_receipt?: boolean;
+}) {
   const settings = getSettings();
   settings.print_settings = payload;
   saveSettings(settings);
@@ -1154,7 +1160,13 @@ export function update_print_settings(payload: { use_qz: boolean; printer_name: 
   return { success: true };
 }
 
-export async function update_print_settings_live(payload: { use_qz: boolean; printer_name: string }) {
+export async function update_print_settings_live(payload: {
+  use_qz: boolean;
+  printer_name: string;
+  kitchen_printer_name?: string;
+  auto_print_kitchen_ticket?: boolean;
+  auto_print_receipt?: boolean;
+}) {
   if (!isBackendEnabled()) return update_print_settings(payload);
   await apiRequest('/api/v1/ops/settings/print-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_print_settings(payload);

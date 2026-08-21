@@ -254,6 +254,17 @@ export interface Settings {
   print_settings?: {
     use_qz: boolean;
     printer_name: string;
+    kitchen_printer_name?: string;
+    auto_print_kitchen_ticket?: boolean;
+    auto_print_receipt?: boolean;
+  };
+  business_profile?: {
+    company_name?: string;
+    tax_number?: string;
+    address?: string;
+    phone?: string;
+    receipt_header?: string;
+    receipt_footer?: string;
   };
   qr_settings?: {
     base_url: string;
