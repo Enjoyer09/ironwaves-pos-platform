@@ -96,10 +96,12 @@ export function buildKitchenTicketEscPos(
   options?: { paperWidth?: '58mm' | '80mm' }
 ): string {
   const is58 = (options?.paperWidth || '58mm') === '58mm';
-  const lineChars = is58 ? 32 : 42;
+  // 58mm paper: Font A = 32 chars max, use 30 for safety
+  // 80mm paper: Font A = 42 chars max, use 40 for safety
+  const lineChars = is58 ? 30 : 40;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
-  const dotLine = '. '.repeat(Math.floor(lineChars / 2)).slice(0, lineChars) + '\n';
+  const dotLine = '. . . . . . . . . . . . . . .\n'.slice(0, lineChars + 1);
 
   // Helper: is this string a raw UUID (not a display label)?
   const isUUID = (s: string) =>
@@ -114,18 +116,18 @@ export function buildKitchenTicketEscPos(
   const tableDisplay =
     rawTarget && !isUUID(String(rawTarget))
       ? sanitizeEscPosText(String(rawTarget)).toUpperCase()
-      : 'MASA';
+      : 'SIFARIS';
 
   let cmd = '';
 
   // ── INIT ──────────────────────────────────────────
-  cmd += ESC + '@';       // Initialize printer
-  cmd += ESC + 't\x10';  // Code page 857 (Turkish/Latin extended)
+  cmd += ESC + '@';       // Initialize printer (resets all settings)
+  cmd += ESC + 't\x00';  // Code page PC437 - most compatible, no special chars
 
   // ── HEADER ────────────────────────────────────────
   cmd += ESC + 'a\x01';  // Center align
 
-  // Company name (normal)
+  // Company name (normal font)
   const comp = (ticket as any).company_name;
   if (comp) {
     cmd += ESC + '!\x00';
@@ -134,16 +136,17 @@ export function buildKitchenTicketEscPos(
 
   cmd += solidLine;
 
-  // "METBEX SIFARISI" — bold only (not huge, just clear)
-  cmd += ESC + '!\x08';  // Bold
+  // "METBEX SIFARISI" — bold
+  cmd += ESC + '!\x08';  // Bold only
   cmd += centerText('METBEX  SIFARISI', lineChars) + '\n';
   cmd += ESC + '!\x00';  // Reset
 
   cmd += dashLine;
 
-  // MASA (table) — double height + bold, most prominent element
-  cmd += ESC + '!\x30';  // Double width + Double height + Bold
-  cmd += centerText(tableDisplay, Math.floor(lineChars / 2)) + '\n';
+  // MASA label — double height + bold, no double-width to avoid overflow
+  cmd += ESC + '!\x18';  // Double height + Bold (NOT double-width, safer)
+  const masaLine = tableDisplay.slice(0, lineChars);  // Hard cap at lineChars
+  cmd += centerText(masaLine, lineChars) + '\n';
   cmd += ESC + '!\x00';  // Reset
 
   cmd += solidLine;
