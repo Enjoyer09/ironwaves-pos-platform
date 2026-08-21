@@ -44,6 +44,7 @@ import {
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
 import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
+import { qzCheckStatus } from '../../lib/qz';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
 import { BusinessProfileSection } from './settings/BusinessProfileSection';
@@ -147,6 +148,9 @@ export default function SettingsPanel() {
   const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
   const [printAgentVersion, setPrintAgentVersion] = useState('');
   const [printAgentMinVersion, setPrintAgentMinVersion] = useState('0.2.0');
+  const [qzHealth, setQzHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
+  const [qzPrintersCount, setQzPrintersCount] = useState(0);
+  const [qzErrorMessage, setQzErrorMessage] = useState('');
   const [systemPrinters, setSystemPrinters] = useState<LocalPrintAgentPrinter[]>([]);
   const [customPrinterMode, setCustomPrinterMode] = useState(false);
   const [zReportReceiptSettings, setZReportReceiptSettings] = useState({
@@ -1016,16 +1020,40 @@ export default function SettingsPanel() {
 
   const checkPrintAgentStatus = async () => {
     setPrintAgentHealth('checking');
-    const info = await localPrintAgentInfo();
-    const isOnline = info.online;
-    setPrintAgentHealth(isOnline ? 'online' : 'offline');
-    setPrintAgentVersion(info.version);
-    if (isOnline) {
-      const printers = await localPrintAgentPrinters();
-      setSystemPrinters(printers);
-    } else {
-      setSystemPrinters([]);
+    setQzHealth('checking');
+
+    const [agentInfoResult, qzResult] = await Promise.allSettled([
+      localPrintAgentInfo(),
+      qzCheckStatus(),
+    ]);
+
+    const info = agentInfoResult.status === 'fulfilled' ? agentInfoResult.value : { online: false, version: '' };
+    const qz = qzResult.status === 'fulfilled' ? qzResult.value : { online: false, printers: [], error: 'Unknown error' };
+
+    setPrintAgentHealth(info.online ? 'online' : 'offline');
+    setPrintAgentVersion(info.version || '');
+
+    setQzHealth(qz.online ? 'online' : 'offline');
+    setQzPrintersCount(qz.printers?.length || 0);
+    setQzErrorMessage(qz.error || '');
+
+    const combinedPrinters: LocalPrintAgentPrinter[] = [];
+
+    if (info.online) {
+      const agentPrinters = await localPrintAgentPrinters().catch(() => []);
+      combinedPrinters.push(...agentPrinters);
     }
+
+    if (qz.online && qz.printers && qz.printers.length > 0) {
+      for (const p of qz.printers) {
+        if (!combinedPrinters.some((cp) => cp.name.toLowerCase() === p.toLowerCase())) {
+          combinedPrinters.push({ name: p, default: false });
+        }
+      }
+    }
+
+    setSystemPrinters(combinedPrinters);
+
     try {
       const response = await fetch(`${window.location.origin.replace(/\/+$/, '')}/downloads/print-agent-latest.json`, { method: 'GET' });
       if (response.ok) {
@@ -1923,42 +1951,56 @@ export default function SettingsPanel() {
             <span>{tx(lang, 'QZ Tray fallback istifadə et', 'Использовать fallback QZ Tray', 'Use QZ Tray fallback')}</span>
           </label>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+            className="rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-3.5 py-2.5 text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/30 active:scale-95 flex items-center gap-2"
+            onClick={() => void checkPrintAgentStatus()}
+          >
+            <span className={printAgentHealth === 'checking' || qzHealth === 'checking' ? 'animate-spin' : ''}>🔄</span>
+            {tx(lang, 'Printer və Agentləri Yoxla', 'Проверить принтеры и агенты', 'Check Printers & Agents')}
+          </button>
+
+          <button
+            type="button"
+            className="rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700"
             onClick={() => {
               setPrintAgentModalOpen(true);
               void checkPrintAgentStatus();
             }}
           >
-            {tx(lang, 'Printer Agentini yüklə', 'Установить Printer Agent', 'Install Printer Agent')}
+            {tx(lang, 'Lokal Agent Yüklə', 'Установить локальный агент', 'Download Local Agent')}
           </button>
-          <button
-            type="button"
-            className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200"
-            onClick={() => void checkPrintAgentStatus()}
-          >
-            {tx(lang, 'Agent statusu yoxla', 'Проверить статус агента', 'Check agent status')}
-          </button>
-          <span className="text-xs text-slate-300">
-            {printAgentHealth === 'online'
-              ? tx(lang, 'Status: online', 'Статус: online', 'Status: online')
-              : printAgentHealth === 'offline'
-                ? tx(lang, 'Status: offline', 'Статус: offline', 'Status: offline')
-                : printAgentHealth === 'checking'
-                  ? tx(lang, 'Status: yoxlanır...', 'Статус: проверяется...', 'Status: checking...')
-                  : tx(lang, 'Status: bilinmir', 'Статус: неизвестно', 'Status: unknown')}
-          </span>
+
+          {/* iRonWaves Print Agent Status Badge */}
+          <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs shadow-sm">
+            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${printAgentHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : printAgentHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-slate-600'}`} />
+            <span className="text-slate-400 font-medium">Lokal Agent (17777):</span>
+            <span className={`font-bold ${printAgentHealth === 'online' ? 'text-emerald-300' : 'text-slate-400'}`}>
+              {printAgentHealth === 'online' ? `Online (v${printAgentVersion || '0.2.0'})` : printAgentHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
+            </span>
+          </div>
+
+          {/* QZ Tray Status Badge */}
+          <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs shadow-sm">
+            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${qzHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : qzHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
+            <span className="text-slate-400 font-medium">QZ Tray:</span>
+            <span className={`font-bold ${qzHealth === 'online' ? 'text-emerald-300' : 'text-rose-400'}`}>
+              {qzHealth === 'online' ? `Online (${qzPrintersCount} printer tapıldı)` : qzHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
+            </span>
+          </div>
         </div>
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
-          {tx(
-            lang,
-            'Qeyd: iRonWaves Print Agent lokal olaraq 127.0.0.1:17777 portunda işləməlidir. Printer adı boş qalarsa Windows default printer istifadə olunur. QZ Tray checkbox-u əlavə fallback üçündür.',
-            'Примечание: iRonWaves Print Agent должен локально работать на 127.0.0.1:17777. Если имя принтера пустое, используется принтер Windows по умолчанию. Checkbox QZ Tray остается как дополнительный fallback.',
-            'Note: iRonWaves Print Agent must run locally on 127.0.0.1:17777. If printer name is empty, Windows default printer is used. The QZ Tray checkbox remains as an extra fallback.',
-          )}
-        </div>
+
+        {qzHealth === 'offline' && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            💡 <b>QZ Tray açıqdırsa, amma Offline görünürsə:</b>
+            <ul className="mt-1 list-disc list-inside space-y-0.5 text-slate-300">
+              <li>QZ Tray ikonunun sistem zolağında (System Tray) <b>yaşıl</b> rəngdə olduğundan əmin olun.</li>
+              <li>Əgər brauzer QZ Tray sertifikatına blok qoyubsa, brauzerdə <a href="https://localhost:8181" target="_blank" rel="noreferrer" className="text-cyan-300 underline font-bold">https://localhost:8181</a> linkini açıb <i>"Davam et (təhlükəli deyil / Advanced ➔ Proceed)"</i> klikləyin.</li>
+              <li>Sonra yuxarıdakı <b>"Printer və Agentləri Yoxla"</b> düyməsinə klikləyin.</li>
+            </ul>
+          </div>
+        )}
         {printSettings.use_qz && (
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-3">
             <span className="font-semibold text-emerald-400 block text-sm">
