@@ -1837,11 +1837,11 @@ export default function SettingsPanel() {
             <label className="text-xs font-bold text-slate-200">
               🧾 {tx(lang, 'Kassa Çek Printeri (Müştəri çeki)', 'Принтер кассовых чеков (Клиентский чек)', 'Cashier Receipt Printer (Customer receipt)')}
             </label>
-            {printAgentHealth === 'online' && systemPrinters.length > 0 ? (
+            {systemPrinters.length > 0 ? (
               <>
                 <select
                   className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
-                  value={customPrinterMode ? '__custom__' : printSettings.printer_name}
+                  value={customPrinterMode ? '__custom__' : (printSettings.printer_name || '')}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '__custom__') {
@@ -1876,7 +1876,7 @@ export default function SettingsPanel() {
                 </select>
                 {customPrinterMode && (
                   <input
-                    className="neon-input transition-all duration-300"
+                    className="neon-input transition-all duration-300 mt-2"
                     value={printSettings.printer_name}
                     onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
                     placeholder={tx(lang, 'Kassa printer adı daxil edin', 'Введите имя кассового принтера', 'Enter cashier printer name')}
@@ -1906,7 +1906,7 @@ export default function SettingsPanel() {
             <label className="text-xs font-bold text-amber-300">
               🍳 {tx(lang, 'Mətbəx Çek Printeri (Kitchen Ticket / Runner)', 'Принтер чеков кухни (Kitchen Ticket / Runner)', 'Kitchen Ticket Printer (Runner slip)')}
             </label>
-            {printAgentHealth === 'online' && systemPrinters.length > 0 ? (
+            {systemPrinters.length > 0 ? (
               <select
                 className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
                 value={printSettings.kitchen_printer_name || ''}

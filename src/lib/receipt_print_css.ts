@@ -3,16 +3,16 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   * { box-sizing: border-box; }
   html,
   body {
-    width: 100%;
-    max-width: 72mm;
-    margin: 0 !important;
-    padding: 1mm 0 !important;
+    width: 100% !important;
+    max-width: 48mm !important;
+    margin: 0 auto !important;
+    padding: 0 1mm !important;
     color: #000 !important;
     background: #fff !important;
-    font-family: "Courier New", "DejaVu Sans Mono", "Liberation Mono", monospace !important;
-    font-size: 13px !important;
-    line-height: 1.22 !important;
-    font-weight: 600 !important;
+    font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
     -webkit-print-color-adjust: exact;
@@ -24,15 +24,16 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
-  body { overflow-wrap: break-word; }
+  body { overflow-wrap: break-word; word-wrap: break-word; }
   .line {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
+    display: flex;
+    justify-content: space-between;
     align-items: start;
-    gap: 6px;
-    margin: 3px 0;
+    gap: 4px;
+    margin: 2px 0;
+    font-size: 11px;
   }
-  .line span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .line span:first-child { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
   .line span:last-child {
     text-align: right;
     white-space: nowrap;
@@ -41,26 +42,25 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .muted {
     color: #111;
-    font-size: 12px;
-    line-height: 1.22;
+    font-size: 10px;
+    line-height: 1.2;
     font-weight: 600;
   }
   .bold { font-weight: 900; }
   .section-title {
-    margin-top: 9px;
-    font-size: 13px;
-    line-height: 1.25;
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.2;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
   }
-  h1, h2, h3 { margin: 0 0 4px; font-weight: 900; line-height: 1.15; }
+  h1, h2, h3 { margin: 0 0 2px; font-weight: 900; line-height: 1.15; }
   table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 14px !important;
-    line-height: 1.25 !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
   }
   td {
     vertical-align: top;
