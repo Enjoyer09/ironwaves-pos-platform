@@ -116,6 +116,19 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [dismissedAlerts, setDismissedAlerts] = useState<Record<string, boolean>>({});
   const [financeAnomalies, setFinanceAnomalies] = useState<FinanceAnomalies | null>(null);
+  const [prevSummary, setPrevSummary] = useState<any>(null);
+  const [prevExpenses, setPrevExpenses] = useState<any>(null);
+  const DAILY_GOAL_KEY = 'emalathhana_daily_sales_goal';
+  const [dailyGoal, setDailyGoal] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem(DAILY_GOAL_KEY)); if (v > 0) return v; } catch { /* ignore */ }
+    return 1000;
+  });
+  const saveGoal = (raw: any) => {
+    const n = Number(raw);
+    const next = n > 0 ? n : 1000;
+    setDailyGoal(next);
+    try { localStorage.setItem(DAILY_GOAL_KEY, String(next)); } catch { /* ignore */ }
+  };
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
     summary: null,
     sales: [],
@@ -226,7 +239,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       }
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [loadDashboard]);
+    }, [loadDashboard]);
+
+  // Previous-period comparison data (for KPI deltas vs last period)
+  useEffect(() => {
+    let cancelled = false;
+    const from = new Date(activeRange.fromIso);
+    const to = new Date(activeRange.toIso);
+    const dur = to.getTime() - from.getTime();
+    if (dur <= 0) return;
+    const prevTo = new Date(from.getTime());
+    const prevFrom = new Date(from.getTime() - dur);
+    Promise.all([
+      get_sales_summary_live(tenant_id, prevFrom.toISOString(), prevTo.toISOString()).catch(() => null),
+      get_period_expenses_summary(tenant_id, prevFrom.toISOString(), prevTo.toISOString()).catch(() => null),
+    ]).then(([ps, pe]) => {
+      if (cancelled) return;
+      setPrevSummary(ps);
+      setPrevExpenses(pe);
+    });
+    return () => { cancelled = true; };
+  }, [tenant_id, activeRange.fromIso, activeRange.toIso]);
 
   useEffect(() => {
     return subscribeTenantRealtime(tenant_id, (message) => {
@@ -283,6 +316,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     const total = snapshot.sales.reduce((sum: Decimal, sale: any) => sum.plus(new Decimal(sale.total || 0)), new Decimal(0));
     return total.div(snapshot.sales.length);
   }, [snapshot.sales]);
+
+  // Previous-period deltas + daily sales goal progress (audit quick wins)
+  const revenueValue = Number(snapshot.summary?.total_revenue || 0);
+  const revenueDelta = useMemo(() => {
+    const prev = Number(prevSummary?.total_revenue || 0);
+    if (!prev) return null;
+    return ((revenueValue - prev) / prev) * 100;
+  }, [revenueValue, prevSummary]);
+
+  const currentExpenses = Number(snapshot.expenses?.total || 0);
+  const expensesDelta = useMemo(() => {
+    const prev = Number(prevExpenses?.total || 0);
+    if (!prev) return null;
+    return ((currentExpenses - prev) / prev) * 100;
+  }, [currentExpenses, prevExpenses]);
+
+  const goalForRange = useMemo(() => {
+    const days = Math.max(1, Math.round((new Date(activeRange.toIso).getTime() - new Date(activeRange.fromIso).getTime()) / 86400000));
+    return dailyGoal * days;
+  }, [dailyGoal, activeRange.fromIso, activeRange.toIso]);
+  const goalProgress = goalForRange > 0 ? Math.min(100, (revenueValue / goalForRange) * 100) : 0;
 
   const kitchenLoad = useMemo(() => {
     const load = kitchenActive.length + readyOrders.length;
@@ -515,6 +569,13 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         cogs={money(snapshot.summary?.total_cogs)}
         grossMargin={grossMargin}
         onOpenTab={onOpenTab}
+        revenueValue={revenueValue}
+        revenueDelta={revenueDelta}
+        expensesDelta={expensesDelta}
+        dailyGoal={dailyGoal}
+        goalForRange={goalForRange}
+        goalProgress={goalProgress}
+        onSetGoal={saveGoal}
       />
 
       <AIManagerStrip
@@ -918,6 +979,13 @@ function KPISection({
   cogs,
   grossMargin,
   onOpenTab,
+  revenueValue,
+  revenueDelta,
+  expensesDelta,
+  dailyGoal,
+  goalForRange,
+  goalProgress,
+  onSetGoal,
 }: {
   lang: string;
   revenue: string;
@@ -934,6 +1002,13 @@ function KPISection({
   cogs: string;
   grossMargin: string;
   onOpenTab: (tab: DashboardTab) => void;
+  revenueValue?: number;
+  revenueDelta?: number | null;
+  expensesDelta?: number | null;
+  dailyGoal?: number;
+  goalForRange?: number;
+  goalProgress?: number;
+  onSetGoal?: (v: any) => void;
 }) {
   const salesHelper =
     cashSales && cardSales
@@ -941,13 +1016,32 @@ function KPISection({
       : tx(lang, 'canlı yenilənir', 'live', 'live');
 
   return (
-    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10">
+    <>
+      <div className="flex items-center justify-between gap-3 px-1 mb-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-50">{tx(lang, 'Göstəricilər', 'Показатели', 'Key metrics')}</p>
+        {onSetGoal && (
+          <label className="flex items-center gap-1.5 text-[11px] opacity-70">
+            <span>{tx(lang, 'Günlük hədəf', 'Дневная цель', 'Daily goal')}:</span>
+            <input
+              type="number"
+              value={dailyGoal || 0}
+              min={0}
+              onChange={(e) => onSetGoal(e.target.value)}
+              className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-slate-100 outline-none focus:ring-1 focus:ring-emerald-400/40"
+            />
+            <span>₼</span>
+          </label>
+        )}
+      </div>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10">
       <KpiCard
         title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
         value={revenue}
         helper={salesHelper}
         icon={<Receipt size={22} />}
         tone="emerald"
+        delta={revenueDelta}
+        goalRing={goalProgress != null ? { progress: goalProgress, label: `${Math.round(goalProgress)}%` } : undefined}
         onClick={() => onOpenTab('analytics')}
       />
       <KpiCard
@@ -956,6 +1050,7 @@ function KPISection({
         helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`}
         icon={<Wallet size={22} />}
         tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'}
+        delta={expensesDelta}
         onClick={() => onOpenTab('finance')}
       />
       <KpiCard
@@ -972,8 +1067,9 @@ function KPISection({
       <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
       <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={22} />} tone="slate" onClick={() => onOpenTab('inventory')} />
-      <KpiCard title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
-    </section>
+      <KpiCard         title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+      </section>
+    </>
   );
 }
 
@@ -984,6 +1080,8 @@ function KpiCard({
   icon,
   tone,
   onClick,
+  delta,
+  goalRing,
 }: {
   title: string;
   value: string;
@@ -991,6 +1089,8 @@ function KpiCard({
   icon: React.ReactNode;
   tone: 'emerald' | 'sky' | 'violet' | 'slate' | 'amber' | 'rose';
   onClick: () => void;
+  delta?: number | null;
+  goalRing?: { progress: number; label: string };
 }) {
   const palette = {
     emerald: 'border-emerald-400/20 bg-emerald-950/35 text-emerald-100',
@@ -1000,15 +1100,34 @@ function KpiCard({
     amber: 'border-amber-400/25 bg-amber-950/35 text-amber-100',
     rose: 'border-rose-400/25 bg-rose-950/35 text-rose-100',
   } as const;
+  const ringPct = goalRing ? Math.max(0, Math.min(100, goalRing.progress)) : 0;
   return (
-    <button onClick={onClick} className={`min-h-[150px] rounded-[28px] border p-5 text-left shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
+    <button onClick={onClick} className={`relative min-h-[150px] rounded-[28px] border p-5 text-left shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
         <ArrowRight size={18} className="opacity-50" />
       </div>
       <div className="mt-5 text-xs font-black uppercase tracking-[0.18em] opacity-70">{title}</div>
-      <div className="mt-2 text-3xl font-black leading-none">{value}</div>
-      <div className="mt-3 text-xs font-semibold opacity-75">{helper}</div>
+      <div className="mt-2 flex items-center gap-3">
+        <div className="text-3xl font-black leading-none">{value}</div>
+        {goalRing && (
+          <svg width="40" height="40" viewBox="0 0 42 42" className="shrink-0">
+            <circle cx="21" cy="21" r="17" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="4" />
+            <circle cx="21" cy="21" r="17" fill="none" stroke="#F48C24" strokeWidth="4" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 17}
+              strokeDashoffset={2 * Math.PI * 17 * (1 - ringPct / 100)}
+              transform="rotate(-90 21 21)" />
+            <text x="21" y="24" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#fff">{goalRing.label}</text>
+          </svg>
+        )}
+      </div>
+      {delta != null && (
+        <div className={`mt-2 inline-flex items-center gap-1 text-[11px] font-bold ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <span>{delta >= 0 ? '▲' : '▼'}</span>
+          {Math.abs(delta).toFixed(0)}%
+        </div>
+      )}
+      <div className="mt-2 text-xs font-semibold opacity-75">{helper}</div>
     </button>
   );
 }
