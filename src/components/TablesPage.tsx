@@ -854,7 +854,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         // Auto-print kitchen ticket if enabled
         if (printSettings.auto_print_kitchen_ticket !== false) {
           try {
-            const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+            const tableName = table.label || 'Sifaris';
             const ticketData = {
               table_label: tableName,
               order_type_label: tableName,
@@ -920,7 +920,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       // Auto-print kitchen ticket if enabled
       if (printSettings.auto_print_kitchen_ticket !== false) {
         try {
-          const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+          const tableName = table.label || 'Sifaris';
           const ticketData = {
             table_label: tableName,
             order_type_label: tableName,
