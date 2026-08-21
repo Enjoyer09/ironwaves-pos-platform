@@ -69,10 +69,23 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const handlePrintOrderTicket = async (orderGroup: any) => {
     try {
       const normalized = normalizeItems(orderGroup);
+
+      // Build human-readable table label (never show UUID)
+      const isUUID = (s: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s).trim());
+      const rawLabel = orderGroup.table_label;
+      const safeLabel = rawLabel && !isUUID(rawLabel) ? rawLabel : null;
+      const contextLabel = safeLabel
+        ? `Masa ${safeLabel}`
+        : orderGroup.order_type
+          ? String(orderGroup.order_type)
+          : 'SIFARIS';
+
       const ticketData = {
         company_name: companyName,
         ticket_id: String(orderGroup.ids?.[0] || orderGroup.id || 'TICKET'),
-        table_label: orderGroup.table_label,
+        table_label: safeLabel,
+        order_type_label: contextLabel,
         order_type: orderGroup.order_type,
         created_at: orderGroup.created_at,
         server_name: orderGroup.server_name,
