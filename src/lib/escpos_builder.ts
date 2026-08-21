@@ -55,6 +55,33 @@ export interface EscPosTicketData {
   items: EscPosTicketItem[];
 }
 
+function wrapEscPosText(text: string, maxLen: number): string[] {
+  if (!text) return [];
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    if ((currentLine + (currentLine ? ' ' : '') + word).length <= maxLen) {
+      currentLine += (currentLine ? ' ' : '') + word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      if (word.length > maxLen) {
+        let remaining = word;
+        while (remaining.length > maxLen) {
+          lines.push(remaining.slice(0, maxLen));
+          remaining = remaining.slice(maxLen);
+        }
+        currentLine = remaining;
+      } else {
+        currentLine = word;
+      }
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
 /**
  * Builds native ESC/POS thermal printer commands for Kitchen Order Tickets
  */
@@ -63,12 +90,9 @@ export function buildKitchenTicketEscPos(
   options?: { paperWidth?: '58mm' | '80mm' }
 ): string {
   const is58 = (options?.paperWidth || '58mm') === '58mm';
-  const divider = is58
-    ? '--------------------------------\n'
-    : '------------------------------------------\n';
-  const dotted = is58
-    ? '- - - - - - - - - - - - - - - -\n'
-    : '- - - - - - - - - - - - - - - - - - - - - \n';
+  const lineChars = is58 ? 32 : 42;
+  const divider = '-'.repeat(lineChars) + '\n';
+  const dotted = '- '.repeat(Math.floor(lineChars / 2)) + '\n';
 
   let cmd = '';
 
@@ -76,16 +100,19 @@ export function buildKitchenTicketEscPos(
   cmd += ESC + '@'; // Initialize
   cmd += ESC + 't' + '\x00'; // Code table standard
 
-  // 2. Header (Centered, Large)
-  cmd += ESC + 'a' + '\x01'; // Center
+  // 2. Header (Centered)
+  cmd += ESC + 'a' + '\x01'; // Center align
   const comp = (ticket as any).company_name;
   if (comp) {
     cmd += ESC + '!' + '\x00'; // Normal
     cmd += sanitizeEscPosText(comp).toUpperCase() + '\n';
   }
-  cmd += ESC + '!' + '\x18'; // Double height + bold
+
+  cmd += ESC + '!' + '\x08'; // Bold normal
   cmd += '*** METBEX SIFARISI ***\n';
-  cmd += ESC + '!' + '\x38'; // Double width + double height + bold
+
+  // Target Table/Order (Double Height, standard width)
+  cmd += ESC + '!' + '\x18'; // Double Height + Bold (fits standard line without horizontal crop!)
   const target =
     (ticket as any).order_type_label ||
     ticket.table_label ||
@@ -95,7 +122,7 @@ export function buildKitchenTicketEscPos(
 
   cmd += divider;
 
-  // 3. Metadata (Left aligned)
+  // 3. Metadata (Left aligned, clean compact font)
   cmd += ESC + 'a' + '\x00'; // Left align
   const orderId = (ticket as any).display_order_id || ticket.order_id || ticket.ticket_id || '1';
   const now = ticket.created_at ? new Date(ticket.created_at) : new Date();
@@ -111,19 +138,32 @@ export function buildKitchenTicketEscPos(
     cmd += `Fincan: ${ticket.cup_mode === 'glass' ? 'Suse' : 'Kagiz'}\n`;
   }
   if (ticket.notes) {
-    cmd += `* Qeyd: ${sanitizeEscPosText(ticket.notes)}\n`;
+    const wrappedNotes = wrapEscPosText(`Qeyd: ${sanitizeEscPosText(ticket.notes)}`, lineChars);
+    wrappedNotes.forEach((ln) => {
+      cmd += `* ${ln}\n`;
+    });
   }
 
   cmd += divider;
 
-  // 4. Order Items
+  // 4. Order Items (Double Height + Bold for item name, clean wrapping)
   (ticket.items || []).forEach((item: any) => {
     const qty = Number(item.qty || item.quantity || 1);
-    const name = sanitizeEscPosText(String(item.item_name || item.name || ''));
+    const rawName = sanitizeEscPosText(String(item.item_name || item.name || ''));
 
-    // Large bold line for item
-    cmd += ESC + '!' + '\x28'; // Double height + Bold
-    cmd += `${qty}x ${name}\n`;
+    // Item line: Double-height bold for kitchen readability without width overflow
+    cmd += ESC + '!' + '\x18'; // Double height + Bold
+    const namePrefix = `${qty}x `;
+    const wrappedItemLines = wrapEscPosText(rawName, lineChars - namePrefix.length);
+    
+    if (wrappedItemLines.length > 0) {
+      cmd += `${namePrefix}${wrappedItemLines[0]}\n`;
+      for (let i = 1; i < wrappedItemLines.length; i++) {
+        cmd += `   ${wrappedItemLines[i]}\n`;
+      }
+    } else {
+      cmd += `${namePrefix}${rawName}\n`;
+    }
     cmd += ESC + '!' + '\x00'; // Reset normal
 
     const mods: string[] = [];
@@ -140,7 +180,10 @@ export function buildKitchenTicketEscPos(
 
     if (mods.length > 0) {
       mods.forEach((m) => {
-        cmd += `   + ${sanitizeEscPosText(m)}\n`;
+        const wrappedMod = wrapEscPosText(`+ ${sanitizeEscPosText(m)}`, lineChars - 3);
+        wrappedMod.forEach((ml) => {
+          cmd += `   ${ml}\n`;
+        });
       });
     }
 
@@ -150,27 +193,30 @@ export function buildKitchenTicketEscPos(
     }
 
     if (item.notes) {
-      cmd += `   ! Qeyd: ${sanitizeEscPosText(item.notes)}\n`;
+      const wrappedItemNotes = wrapEscPosText(`! ${sanitizeEscPosText(item.notes)}`, lineChars - 3);
+      wrappedItemNotes.forEach((nl) => {
+        cmd += `   ${nl}\n`;
+      });
     }
 
     cmd += dotted;
   });
 
-  // 5. Total
+  // 5. Total Summary
   const totalQty = (ticket.items || []).reduce(
     (sum: number, item: any) => sum + Number(item.qty || item.quantity || 1),
     0
   );
   cmd += ESC + '!' + '\x18'; // Double height + Bold
-  cmd += `CEMI SAY: ${totalQty} eded\n`;
+  cmd += `CEMI: ${totalQty} eded\n`;
   cmd += ESC + '!' + '\x00'; // Reset normal
 
   cmd += ESC + 'a' + '\x01'; // Center
   cmd += '-- Metbex Capi --\n';
 
-  // 6. Feed and Cut
-  cmd += '\n\n\n\n'; // Feed 4 lines
-  cmd += GS + 'V' + '\x41' + '\x03'; // Cut paper
+  // 6. Feed 4 lines and Full Cut
+  cmd += '\n\n\n\n';
+  cmd += GS + 'V' + '\x41' + '\x03';
 
   return cmd;
 }
