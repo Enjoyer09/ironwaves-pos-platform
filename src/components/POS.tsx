@@ -1485,7 +1485,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (printSettings.auto_print_kitchen_ticket !== false) {
         try {
           const sentTableObj = tables.find((t) => t.id === sentTable);
-          const tableName = sentTableObj?.table_number ? `Masa ${sentTableObj.table_number}` : sentTable;
+          const tableName = sentTableObj?.label || 'Sifaris';
           const ticketData = {
             table_label: tableName,
             order_type_label: tableName,
