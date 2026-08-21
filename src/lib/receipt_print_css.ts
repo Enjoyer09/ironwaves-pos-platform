@@ -1,22 +1,28 @@
 export const THERMAL_RECEIPT_PRINT_CSS = `
-  @page { size: 80mm auto; margin: 3mm; }
+  @page { size: auto; margin: 0; }
   * { box-sizing: border-box; }
   html,
   body {
-    width: 70mm;
-    max-width: 70mm;
+    width: 100%;
+    max-width: 72mm;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 1mm 0 !important;
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "DejaVu Sans Mono", "Liberation Mono", monospace !important;
-    font-size: 14px !important;
-    line-height: 1.26 !important;
+    font-size: 13px !important;
+    line-height: 1.22 !important;
     font-weight: 600 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  div, table, tr, td, p {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   body { overflow-wrap: break-word; }
   .line {
