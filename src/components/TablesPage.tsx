@@ -18,6 +18,7 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
+import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -854,25 +855,34 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         if (printSettings.auto_print_kitchen_ticket !== false) {
           try {
             const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+            const ticketData = {
+              table_label: tableName,
+              order_type_label: tableName,
+              server_name: user?.username || 'Staff',
+              company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
+              items: serverDraftItems.map((c: any) => ({
+                item_name: c.item_name || c.name,
+                qty: Number(c.qty || c.quantity || 1),
+                notes: c.notes,
+                seat_label: c.seat_label,
+                cup_mode: c.cup_mode,
+              })),
+            };
             const kitchenHtml = buildKitchenTicketHtml({
-              ticket: {
-                table_label: tableName,
-                server_name: user?.username || 'Staff',
-                items: serverDraftItems.map((c: any) => ({
-                  item_name: c.item_name || c.name,
-                  qty: Number(c.qty || c.quantity || 1),
-                  notes: c.notes,
-                  seat_label: c.seat_label,
-                  cup_mode: c.cup_mode,
-                })),
-              },
+              ticket: ticketData,
               lang: lang as any,
               companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+            });
+            const rawCmds = buildKitchenTicketEscPos(ticketData, {
+              paperWidth: printSettings.paper_width || '58mm',
             });
             const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
             await printDirectOrFallback(kitchenHtml, {
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
+              paperWidth: printSettings.paper_width || '58mm',
+              printEngine: printSettings.print_engine || 'raw_escpos',
+              rawCommands: rawCmds,
               allowBrowserFallback: false,
             });
           } catch (printErr) {
@@ -911,24 +921,33 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       if (printSettings.auto_print_kitchen_ticket !== false) {
         try {
           const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+          const ticketData = {
+            table_label: tableName,
+            order_type_label: tableName,
+            server_name: user?.username || 'Staff',
+            company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
+            items: roundDraft.map((row: any) => ({
+              item_name: row.item_name,
+              qty: Number(row.qty || 1),
+              seat_label: row.seat_label,
+              cup_mode: row.cup_mode,
+            })),
+          };
           const kitchenHtml = buildKitchenTicketHtml({
-            ticket: {
-              table_label: tableName,
-              server_name: user?.username || 'Staff',
-              items: roundDraft.map((row: any) => ({
-                item_name: row.item_name,
-                qty: Number(row.qty || 1),
-                seat_label: row.seat_label,
-                cup_mode: row.cup_mode,
-              })),
-            },
+            ticket: ticketData,
             lang: lang as any,
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+          });
+          const rawCmds = buildKitchenTicketEscPos(ticketData, {
+            paperWidth: printSettings.paper_width || '58mm',
           });
           const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
           await printDirectOrFallback(kitchenHtml, {
             printerName: targetPrinter,
             useQz: Boolean(printSettings.use_qz),
+            paperWidth: printSettings.paper_width || '58mm',
+            printEngine: printSettings.print_engine || 'raw_escpos',
+            rawCommands: rawCmds,
             allowBrowserFallback: false,
           });
         } catch (printErr) {

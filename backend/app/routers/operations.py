@@ -1239,6 +1239,8 @@ def get_app_settings(
             "kitchen_printer_name": "",
             "auto_print_kitchen_ticket": True,
             "auto_print_receipt": True,
+            "paper_width": "58mm",
+            "print_engine": "pixel_html",
         },
     )
     session_settings = {**DEFAULT_SESSION_SETTINGS, **getv("session_settings", DEFAULT_SESSION_SETTINGS)}
@@ -3166,6 +3168,8 @@ def update_print_settings(
         "kitchen_printer_name": str(payload.get("kitchen_printer_name") or "").strip(),
         "auto_print_kitchen_ticket": bool(payload.get("auto_print_kitchen_ticket", True)),
         "auto_print_receipt": bool(payload.get("auto_print_receipt", True)),
+        "paper_width": "80mm" if str(payload.get("paper_width")) == "80mm" else "58mm",
+        "print_engine": "raw_escpos" if str(payload.get("print_engine")) == "raw_escpos" else "pixel_html",
     }
     _set_setting_value(db, tenant.id, "print_settings", cleaned)
     db.commit()

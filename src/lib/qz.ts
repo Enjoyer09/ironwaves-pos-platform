@@ -185,10 +185,7 @@ export const qzCheckStatus = async (): Promise<{
   }
 };
 
-export const qzPrintHtml = async (html: string, printerName?: string) => {
-  const qz = await loadQzScript();
-  await ensureQzConnection(qz);
-
+export const resolveQzPrinter = async (qz: any, printerName?: string): Promise<any> => {
   let printer: any = null;
   const targetName = String(printerName || '').trim();
 
@@ -224,11 +221,29 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
     throw new Error('QZ Tray sistemində heç bir printer tapılmadı');
   }
 
+  return printer;
+};
+
+export const qzPrintHtml = async (
+  html: string,
+  options?: { printerName?: string; paperWidth?: '58mm' | '80mm' } | string
+) => {
+  const targetName = typeof options === 'string' ? options : options?.printerName;
+  const paperWidth = typeof options === 'object' ? options?.paperWidth : undefined;
+
+  const qz = await loadQzScript();
+  await ensureQzConnection(qz);
+  const printer = await resolveQzPrinter(qz, targetName);
+
+  const is58 = (paperWidth || '58mm') === '58mm';
+  const widthMm = is58 ? 48 : 72;
+
   const config = qz.configs.create(printer, {
     copies: 1,
-    scaleContent: true,
-    rasterize: true,
+    size: { width: widthMm },
+    units: 'mm',
     margins: 0,
+    scaleContent: true,
   });
 
   const data = [
@@ -237,6 +252,27 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
       format: 'html',
       flavor: 'plain',
       data: withThermalReceiptPrintCss(html),
+    },
+  ];
+
+  await qz.print(config, data);
+};
+
+export const qzPrintRaw = async (commands: string, printerName?: string) => {
+  const qz = await loadQzScript();
+  await ensureQzConnection(qz);
+  const printer = await resolveQzPrinter(qz, printerName);
+
+  const config = qz.configs.create(printer, {
+    copies: 1,
+  });
+
+  const data = [
+    {
+      type: 'raw',
+      format: 'command',
+      flavor: 'plain',
+      data: commands,
     },
   ];
 
@@ -254,3 +290,4 @@ export const qzListPrinters = async (): Promise<string[]> => {
 
   return printers.map((p: unknown) => String(p)).filter(Boolean);
 };
+
