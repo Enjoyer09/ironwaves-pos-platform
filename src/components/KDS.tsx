@@ -8,10 +8,9 @@ import { tx } from '../i18n';
 import { logUiError } from '../lib/logger';
 import { approve_void_request_live, get_pending_approvals_live, reject_void_request_live, type PendingApprovalItem } from '../api/restaurant';
 import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
-import { printViaLocalAgent } from '../lib/local_print_agent';
+import { printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import { get_settings_live } from '../api/settings';
-import { qzPrintHtml } from '../lib/qz';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
@@ -84,14 +83,25 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         companyName,
       });
 
-      const success = await printViaLocalAgent(html, kitchenPrinter);
-      if (!success && useQz && kitchenPrinter) {
-        await qzPrintHtml(html, kitchenPrinter);
+      const res = await printDirectOrFallback(html, {
+        printerName: kitchenPrinter,
+        useQz,
+        allowBrowserFallback: true,
+      });
+
+      if (res.success) {
+        useAppStore.getState().notify(
+          'success',
+          res.method === 'browser'
+            ? tx(lang, 'Mətbəx çeki brauzer çapına göndərildi 🖨️', 'Чек кухни отправлен на печать браузера 🖨️', 'Kitchen ticket opened in browser print 🖨️')
+            : tx(lang, 'Mətbəx çeki çapa göndərildi 🖨️', 'Чек кухни отправлен на печать 🖨️', 'Kitchen ticket sent to printer 🖨️'),
+        );
+      } else {
+        useAppStore.getState().notify('error', tx(lang, 'Çap pəncərəsi açıla bilmədi', 'Не удалось открыть печать', 'Failed to open print dialog'));
       }
-      useAppStore.getState().notify('success', tx(lang, 'Mətbəx çeki çapa göndərildi 🖨️', 'Чек кухни отправлен на печать 🖨️', 'Kitchen ticket sent to printer 🖨️'));
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'print_ticket' });
-      useAppStore.getState().notify('error', tx(lang, 'Çap alınmadı. Printer agenti yoxlayın.', 'Ошибка печати. Проверьте Printer Agent.', 'Print failed. Check Printer Agent.'));
+      useAppStore.getState().notify('error', tx(lang, 'Çap xətası baş verdi', 'Ошибка печати', 'Print error occurred'));
     }
   };
 
