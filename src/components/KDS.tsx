@@ -103,6 +103,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         ticket: ticketData,
         lang,
         companyName,
+        paperWidth,
       });
 
       const rawCmds = buildKitchenTicketEscPos(ticketData, { paperWidth });

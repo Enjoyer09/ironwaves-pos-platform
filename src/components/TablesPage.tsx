@@ -872,6 +872,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               ticket: ticketData,
               lang: lang as any,
               companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+              paperWidth: printSettings.paper_width || '58mm',
             });
             const rawCmds = buildKitchenTicketEscPos(ticketData, {
               paperWidth: printSettings.paper_width || '58mm',

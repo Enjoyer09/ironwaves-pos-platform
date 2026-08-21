@@ -101,7 +101,7 @@ export function buildKitchenTicketEscPos(
   const lineChars = is58 ? 30 : 40;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
-  const dotLine = '. . . . . . . . . . . . . . .\n'.slice(0, lineChars + 1);
+  const dotLine = '. '.repeat(Math.floor(lineChars / 2)).trimEnd() + '\n';
 
   // Helper: is this string a raw UUID (not a display label)?
   const isUUID = (s: string) =>
@@ -136,15 +136,15 @@ export function buildKitchenTicketEscPos(
 
   cmd += solidLine;
 
-  // "METBEX SIFARISI" — bold
-  cmd += ESC + '!\x08';  // Bold only
+  // "METBEX SIFARISI" — bold (ESC ! bit5 = 0x20)
+  cmd += ESC + '!\x20';
   cmd += centerText('METBEX  SIFARISI', lineChars) + '\n';
   cmd += ESC + '!\x00';  // Reset
 
   cmd += dashLine;
 
   // MASA label — double height + bold, no double-width to avoid overflow
-  cmd += ESC + '!\x18';  // Double height + Bold (NOT double-width, safer)
+  cmd += ESC + '!\x28';  // Double height (0x08) + Bold (0x20)
   const masaLine = tableDisplay.slice(0, lineChars);  // Hard cap at lineChars
   cmd += centerText(masaLine, lineChars) + '\n';
   cmd += ESC + '!\x00';  // Reset
@@ -159,7 +159,18 @@ export function buildKitchenTicketEscPos(
   const timeStr = now.toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' });
   const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
 
-  cmd += `Saat : ${timeStr}           Tarix: ${dateStr}\n`;
+  const timeLabel = `Saat: ${timeStr}`;
+  const dateLabel = `Tarix: ${dateStr}`;
+  const gap = Math.max(1, lineChars - timeLabel.length - dateLabel.length);
+  cmd += timeLabel + ' '.repeat(gap) + dateLabel + '\n';
+
+  const rawTicketId = (ticket as any).ticket_id || (ticket as any).order_id || (ticket as any).display_order_id || '';
+  const ticketDisplayId = String(rawTicketId).split('-')[0].toUpperCase();
+  if (ticketDisplayId) {
+    cmd += ESC + '!\x20';  // Bold
+    cmd += `Cek: #${ticketDisplayId}\n`;
+    cmd += ESC + '!\x00';
+  }
 
   if (ticket.server_name) {
     cmd += `Ofisiant: ${sanitizeEscPosText(ticket.server_name)}\n`;
@@ -181,12 +192,12 @@ export function buildKitchenTicketEscPos(
     const rawName = sanitizeEscPosText(String(item.item_name || item.name || ''));
 
     // Item number badge + qty
-    cmd += ESC + '!\x08';  // Bold
+    cmd += ESC + '!\x20';  // Bold
     cmd += `${(idx + 1)}. `;
     cmd += ESC + '!\x00';  // Reset
 
-    // Item name in double-height bold
-    cmd += ESC + '!\x10';  // Double height
+    // Item name in double-height bold (0x08 height + 0x20 bold; NOT double-width)
+    cmd += ESC + '!\x28';  // Double height
     const prefix = `${qty}x `;
     const availWidth = lineChars - prefix.length - 3;
     const nameLines = wrapEscPosText(rawName, availWidth);
@@ -234,7 +245,7 @@ export function buildKitchenTicketEscPos(
   const totalQty = items.reduce((sum: number, item: any) => sum + Number(item.qty || item.quantity || 1), 0);
 
   cmd += ESC + 'a\x01';  // Center
-  cmd += ESC + '!\x08';  // Bold
+  cmd += ESC + '!\x20';  // Bold
   cmd += `UMUMI: ${totalQty} MEHSUL\n`;
   cmd += ESC + '!\x00';
 

@@ -1,7 +1,7 @@
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { tx } from '../i18n';
-import { THERMAL_RECEIPT_PRINT_CSS } from './receipt_print_css';
+import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from './receipt_print_css';
 
 type ReceiptLang = 'az' | 'ru' | 'en';
 
@@ -85,6 +85,7 @@ export async function buildSaleReceiptHtml({
   receiptUrl = '',
   feedbackUrl = '',
   operator = '',
+  paperWidth,
 }: {
   sale: any;
   profile?: any;
@@ -92,10 +93,14 @@ export async function buildSaleReceiptHtml({
   receiptUrl?: string;
   feedbackUrl?: string;
   operator?: string;
+  paperWidth?: '58mm' | '80mm';
 }): Promise<string> {
   const saleId = String(sale?.sale_id || sale?.id || '').trim();
   const displayId = formatReceiptDisplayId(saleId);
-  const qrTarget = String(feedbackUrl || receiptUrl || '').trim() || `SALE:${displayId}`;
+  // Feedback QR is meaningless on a voided sale — fall back to receipt URL.
+  const qrTarget = !isVoidSaleStatus(sale?.status)
+    ? (String(feedbackUrl || receiptUrl || '').trim() || `SALE:${displayId}`)
+    : (String(receiptUrl || '').trim() || `SALE:${displayId}`);
   const qrDataUrl = await QRCode.toDataURL(qrTarget, {
     width: 156,
     margin: 2,
@@ -117,7 +122,7 @@ export async function buildSaleReceiptHtml({
     if (promoD > 0) {
       lineHtml += `
         <tr>
-          <td style="padding-left: 12px; font-style: italic; font-size: 11px; color: #4b5563;">[Promo] 2nd Item 50% Off</td>
+          <td style="padding-left: 12px; font-style: italic; font-size: 11px; color: #4b5563;">${esc(tx(lang, '[Promo] 2-ci məhsul 50% endirim', '[Промо] 2-й товар скидка 50%', '[Promo] 2nd Item 50% Off'))}</td>
           <td style="font-style: italic; font-size: 11px; color: #4b5563;">-${money(promoD)} ₼</td>
         </tr>
       `;
@@ -136,16 +141,20 @@ export async function buildSaleReceiptHtml({
   const freeCoffees = Number(sale?.free_coffees_applied || 0);
   const customerId = String(sale?.customer_card_id || '').trim();
   const starsAfter = Number(sale?.customer_stars_after || 0);
-  const createdAt = sale?.created_at ? new Date(sale.created_at).toLocaleString() : new Date().toLocaleString();
-  const barcodeSvg = generateReceiptBarcodeSvg(`SALE:${saleId || displayId}`);
+  const createdAt = sale?.created_at
+    ? new Date(sale.created_at).toLocaleString('az-AZ')
+    : new Date().toLocaleString('az-AZ');
+  // Encode the short display ID — must match the human-readable text under the barcode.
+  const barcodeSvg = generateReceiptBarcodeSvg(`SALE:${displayId}`);
   const companyName = profile?.company_name || 'IRONWAVES POS';
 
   return `
     <html>
       <head>
-        <style>
-          ${THERMAL_RECEIPT_PRINT_CSS}
-        </style>
+          <style>
+            ${THERMAL_RECEIPT_PRINT_CSS}
+            ${thermalPaperWidthOverride(paperWidth)}
+          </style>
       </head>
       <body>
         ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
@@ -174,10 +183,12 @@ export async function buildSaleReceiptHtml({
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${money(split.cash)} ₼</span></div>` : ''}
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${money(split.card)} ₼</span></div>` : ''}
         <hr />
+        ${!isVoided ? `
         <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
           <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
         </div>
         <div class="muted" style="font-size:10px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
+        ` : ''}
         <hr />
         <div class="muted">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
       </body>

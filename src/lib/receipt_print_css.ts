@@ -4,8 +4,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   html,
   body {
     width: 100% !important;
-    max-width: 48mm !important;
-    margin: 0 auto !important;
+    max-width: 48mm !important;    margin: 0 auto !important;
     padding: 0 1mm !important;
     color: #000 !important;
     background: #fff !important;
@@ -84,8 +83,13 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   img { max-width: 100%; image-rendering: crisp-edges; }
 `;
 
-export function withThermalReceiptPrintCss(html: string): string {
-  const source = String(html || '');
+// Paper width override: 58mm printers fit ~48mm of printable content, 80mm ~72mm.
+export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
+  const contentWidth = paperWidth === '80mm' ? '72mm' : '48mm';
+  return `<style data-iw-thermal-paper-width="1">html, body { max-width: ${contentWidth} !important; }</style>`;
+}
+
+export function withThermalReceiptPrintCss(html: string): string {  const source = String(html || '');
   if (!source.trim()) return source;
   if (source.includes('data-iw-thermal-receipt-css="1"')) return source;
   const styleTag = `<style data-iw-thermal-receipt-css="1">${THERMAL_RECEIPT_PRINT_CSS}</style>`;

@@ -1,5 +1,5 @@
 import { tx } from '../i18n';
-import { THERMAL_RECEIPT_PRINT_CSS } from './receipt_print_css';
+import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from './receipt_print_css';
 
 type TicketLang = 'az' | 'ru' | 'en';
 
@@ -40,10 +40,12 @@ export function buildKitchenTicketHtml({
   ticket,
   lang = 'az',
   companyName = '',
+  paperWidth,
 }: {
   ticket: KitchenTicketData;
   lang?: TicketLang;
   companyName?: string;
+  paperWidth?: '58mm' | '80mm';
 }): string {
   const displayId = String(ticket.ticket_id || ticket.order_id || 'ORDER').split('-')[0].toUpperCase();
   const dateObj = ticket.created_at ? new Date(ticket.created_at) : new Date();
@@ -125,7 +127,7 @@ export function buildKitchenTicketHtml({
           ${
             notes
               ? `<div style="margin: 1px 0 0 14px; padding: 1px 3px; border-left: 2px solid #000; font-size: 10px; font-weight: 900;">
-                  ⚡ ${tx(lang, 'Qeyd', 'Прим.', 'Note')}: ${esc(notes)}
+                  ! ${tx(lang, 'Qeyd', 'Прим.', 'Note')}: ${esc(notes)}
                 </div>`
               : ''
           }
@@ -141,6 +143,7 @@ export function buildKitchenTicketHtml({
   <title>Kitchen Ticket - ${displayId}</title>
   <style>
     ${THERMAL_RECEIPT_PRINT_CSS}
+    ${thermalPaperWidthOverride(paperWidth)}
     .kitchen-box {
       border: 1.5px solid #000;
       padding: 3px 4px;
@@ -195,7 +198,7 @@ export function buildKitchenTicketHtml({
     ${
       ticket.notes
         ? `<div style="margin-top: 2px; padding: 1px 3px; border-left: 2px solid #000; font-size: 10px; font-weight: 900;">
-            ⚡ ${tx(lang, 'Qeyd', 'Заметка', 'Note')}: ${esc(ticket.notes)}
+            ! ${tx(lang, 'Qeyd', 'Заметка', 'Note')}: ${esc(ticket.notes)}
           </div>`
         : ''
     }
