@@ -1865,6 +1865,11 @@ export default function SettingsPanel() {
                       {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
                     </option>
                   ))}
+                  {printSettings.printer_name && !systemPrinters.some(p => p.name.trim().toLowerCase() === printSettings.printer_name.trim().toLowerCase()) && (
+                    <option value={printSettings.printer_name}>
+                      {printSettings.printer_name} {tx(lang, '(Yadda saxlanılan)', '(Сохраненный)', '(Saved)')}
+                    </option>
+                  )}
                   <option value="__custom__">
                     {tx(
                       lang,
@@ -1925,6 +1930,11 @@ export default function SettingsPanel() {
                     {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
                   </option>
                 ))}
+                {printSettings.kitchen_printer_name && !systemPrinters.some(p => p.name.trim().toLowerCase() === printSettings.kitchen_printer_name.trim().toLowerCase()) && (
+                  <option value={printSettings.kitchen_printer_name}>
+                    {printSettings.kitchen_printer_name} {tx(lang, '(Yadda saxlanılan)', '(Сохраненный)', '(Saved)')}
+                  </option>
+                )}
               </select>
             ) : (
               <input

@@ -1374,8 +1374,18 @@ export async function get_settings_live(tenant_id?: string) {
     overrides[requestedTenant] ||
     overrides[resolvedTenant] ||
     (responseTenant ? overrides[responseTenant] : undefined);
+  const localCached = get_settings(tenant_id);
+  const print_settings = {
+    use_qz: data?.print_settings?.use_qz ?? localCached?.print_settings?.use_qz ?? false,
+    printer_name: String(data?.print_settings?.printer_name ?? localCached?.print_settings?.printer_name ?? ''),
+    kitchen_printer_name: String(data?.print_settings?.kitchen_printer_name ?? localCached?.print_settings?.kitchen_printer_name ?? ''),
+    auto_print_kitchen_ticket: data?.print_settings?.auto_print_kitchen_ticket ?? localCached?.print_settings?.auto_print_kitchen_ticket ?? true,
+    auto_print_receipt: data?.print_settings?.auto_print_receipt ?? localCached?.print_settings?.auto_print_receipt ?? true,
+  };
+
   const merged: Settings = {
     ...data,
+    print_settings,
     session_settings: {
       idle_logout_minutes: Number(data?.session_settings?.idle_logout_minutes || 0),
       virtual_keyboard_enabled: data?.session_settings?.virtual_keyboard_enabled !== false,

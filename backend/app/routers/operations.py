@@ -1231,7 +1231,16 @@ def get_app_settings(
             "kitchen": ["kds"],
         },
     )
-    print_settings = getv("print_settings", {"use_qz": False, "printer_name": ""})
+    print_settings = getv(
+        "print_settings",
+        {
+            "use_qz": False,
+            "printer_name": "",
+            "kitchen_printer_name": "",
+            "auto_print_kitchen_ticket": True,
+            "auto_print_receipt": True,
+        },
+    )
     session_settings = {**DEFAULT_SESSION_SETTINGS, **getv("session_settings", DEFAULT_SESSION_SETTINGS)}
     session_settings["staff_pin_length"] = _clean_staff_pin_length(session_settings.get("staff_pin_length"))
     session_settings["theme_mode"] = _clean_theme_mode(session_settings.get("theme_mode"))
@@ -3154,6 +3163,9 @@ def update_print_settings(
     cleaned = {
         "use_qz": bool(payload.get("use_qz", False)),
         "printer_name": str(payload.get("printer_name") or "").strip(),
+        "kitchen_printer_name": str(payload.get("kitchen_printer_name") or "").strip(),
+        "auto_print_kitchen_ticket": bool(payload.get("auto_print_kitchen_ticket", True)),
+        "auto_print_receipt": bool(payload.get("auto_print_receipt", True)),
     }
     _set_setting_value(db, tenant.id, "print_settings", cleaned)
     db.commit()
