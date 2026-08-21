@@ -726,6 +726,76 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
   return mapped;
 };
 
+export type PeriodExpensesSummary = {
+  total: string;
+  totalNum: number;
+  count: number;
+  byCategory: Array<{ category: string; amount: number; formattedAmount: string; share: number }>;
+  entries: FinanceEntry[];
+};
+
+export const get_period_expenses_summary = async (
+  tenant_id: string,
+  date_from?: string,
+  date_to?: string
+): Promise<PeriodExpensesSummary> => {
+  let entries: FinanceEntry[] = [];
+  try {
+    if (isBackendEnabled()) {
+      entries = await fetch_finance_entries(tenant_id);
+    } else {
+      entries = getFinanceLocal(tenant_id);
+    }
+  } catch {
+    entries = getFinanceLocal(tenant_id);
+  }
+
+  const inRange = (createdAt: string) => {
+    if (!date_from || !date_to) return true;
+    const dt = new Date(createdAt);
+    const from = new Date(date_from);
+    const to = new Date(date_to);
+    return dt >= from && dt < to;
+  };
+
+  const outEntries = (entries || []).filter((f) => {
+    if (f.type !== 'out' || f.is_deleted) return false;
+    return inRange(f.created_at);
+  });
+
+  let totalDec = new Decimal(0);
+  const catMap = new Map<string, Decimal>();
+
+  outEntries.forEach((f) => {
+    const amt = new Decimal(f.amount || 0);
+    totalDec = totalDec.plus(amt);
+    const cat = f.category || 'Digər Xərc';
+    catMap.set(cat, (catMap.get(cat) || new Decimal(0)).plus(amt));
+  });
+
+  const totalNum = totalDec.toNumber();
+  const byCategory = Array.from(catMap.entries())
+    .map(([category, amt]) => {
+      const amountNum = amt.toNumber();
+      const share = totalNum > 0 ? Math.round((amountNum / totalNum) * 100) : 0;
+      return {
+        category,
+        amount: amountNum,
+        formattedAmount: amt.toFixed(2),
+        share,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    total: totalDec.toFixed(2),
+    totalNum,
+    count: outEntries.length,
+    byCategory,
+    entries: outEntries,
+  };
+};
+
 export type FinanceAnomalies = {
   cash_balance: string;
   deposit_balance: string;

@@ -4,8 +4,9 @@ import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_li
 import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live, upload_menu_image_live, auto_assign_menu_images } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
+import { get_period_expenses_summary, type PeriodExpensesSummary } from '../api/finance';
 import { Decimal } from 'decimal.js';
-import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp, Printer, Sparkles } from 'lucide-react';
+import { GripVertical, Plus, Trash2, TrendingUp, TrendingDown, ShoppingBag, DollarSign, Wallet, Pencil, ChevronDown, ChevronUp, Printer, Sparkles } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -83,6 +84,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   const [dateTo, setDateTo] = useState(() => {
     return localDateInputValue();
   });
+  const [expenses, setExpenses] = useState<PeriodExpensesSummary | null>(null);
   const [saleActionModal, setSaleActionModal] = useState<null | { mode: 'void' | 'edit' | 'partial'; sale: any }>(null);
   const [saleReason, setSaleReason] = useState('');
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
@@ -350,9 +352,10 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
       }
       const fromIso = localDateTimeStart(dateFrom);
       const toIso = localDateTimeNextStart(dateTo);
-      const [summaryResult, salesResult] = await Promise.allSettled([
+      const [summaryResult, salesResult, expensesResult] = await Promise.allSettled([
         get_sales_summary_live(tenant_id, fromIso, toIso, staffCashierFilter, { signal }),
         get_sales_list_live(tenant_id, fromIso, toIso, staffCashierFilter, { signal, limit: 300 }),
+        get_period_expenses_summary(tenant_id, fromIso, toIso),
       ]);
       if (seq !== fetchSeqRef.current) return;
       if (summaryResult.status === 'fulfilled') {
@@ -364,6 +367,11 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
         setSales(salesResult.value);
       } else {
         setSales(get_sales_list(tenant_id, fromIso, toIso, staffCashierFilter));
+      }
+      if (expensesResult.status === 'fulfilled') {
+        setExpenses(expensesResult.value);
+      } else {
+        setExpenses(null);
       }
       fetchCacheRef.current[cacheKey] = Date.now();
       return;
@@ -696,7 +704,12 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
 
     const topStaffEntry = Array.from(staffMap.entries()).sort((a, b) => b[1].revenue - a[1].revenue)[0];
     const cogsCoverage = validSales.length > 0 ? Math.round((salesWithCogs / validSales.length) * 100) : 0;
-    const grossProfit = Number(summary?.gross_profit || 0);
+    const totalExpenses = Number(expenses?.total || 0);
+    const expensesCount = expenses?.count || 0;
+    const totalRevenue = Number(summary?.total_revenue || 0);
+    const totalCogs = Number(summary?.total_cogs || 0);
+    const grossProfit = Number(summary?.gross_profit ?? (totalRevenue - totalCogs));
+    const netProfit = grossProfit - totalExpenses;
     const profitReliability = cogsCoverage >= 90 ? 'high' : cogsCoverage >= 60 ? 'medium' : 'low';
 
     return {
@@ -714,9 +727,12 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
       topStaffRevenue: topStaffEntry?.[1]?.revenue || 0,
       cogsCoverage,
       grossProfit,
+      totalExpenses,
+      expensesCount,
+      netProfit,
       profitReliability,
     };
-  }, [sales, summary]);
+  }, [sales, summary, expenses]);
 
   return (
     <div className="compact-shell h-full overflow-hidden p-3 text-slate-100 md:p-6">
@@ -775,7 +791,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
             {/* Summary Cards */}
             {summary && (
               <div className="mb-8 space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="metal-panel p-6 flex items-center">
                   <div className="w-14 h-14 bg-green-400/20 text-green-200 rounded-2xl flex items-center justify-center mr-4 border border-green-300/30">
                     <DollarSign size={28} />
@@ -783,8 +799,12 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                   <div>
                     <p className="text-sm font-medium text-slate-300">{tx(lang, 'Ümumi Gəlir', 'Общая выручка', 'Total Revenue')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.total_revenue).toFixed(2)} ₼</h3>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {tx(lang, 'Nağd', 'Нал', 'Cash')}: {analyticsBreakdown.cashAmount.toFixed(2)} ₼ · {tx(lang, 'Kart', 'Карта', 'Card')}: {analyticsBreakdown.cardAmount.toFixed(2)} ₼
+                    </div>
                   </div>
                 </div>
+
                 <div className="metal-panel p-6 flex items-center">
                   <div className="w-14 h-14 bg-blue-400/20 text-blue-200 rounded-2xl flex items-center justify-center mr-4 border border-blue-300/30">
                     <ShoppingBag size={28} />
@@ -792,29 +812,42 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                   <div>
                     <p className="text-sm font-medium text-slate-300">{tx(lang, 'Satış Sayı', 'Количество продаж', 'Sales Count')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{analyticsBreakdown.validSalesCount}</h3>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {analyticsBreakdown.cashCount} {tx(lang, 'nağd', 'нал', 'cash')} · {analyticsBreakdown.cardCount} {tx(lang, 'kart', 'карта', 'card')}
+                    </div>
                   </div>
                 </div>
+
                 <div className="metal-panel p-6 flex items-center">
-                  <div className="w-14 h-14 bg-purple-400/20 text-purple-200 rounded-2xl flex items-center justify-center mr-4 border border-purple-300/30">
+                  <div className="w-14 h-14 bg-rose-400/20 text-rose-200 rounded-2xl flex items-center justify-center mr-4 border border-rose-300/30">
+                    <Wallet size={28} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')}</p>
+                    <h3 className="text-2xl font-bold text-rose-300">-{analyticsBreakdown.totalExpenses.toFixed(2)} ₼</h3>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {analyticsBreakdown.expensesCount} {tx(lang, 'xərc qeydi', 'записей', 'records')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metal-panel p-6 flex items-center">
+                  <div className={`w-14 h-14 ${analyticsBreakdown.netProfit >= 0 ? 'bg-emerald-400/20 text-emerald-200 border-emerald-300/30' : 'bg-rose-400/20 text-rose-200 border-rose-300/30'} rounded-2xl flex items-center justify-center mr-4 border`}>
                     <TrendingUp size={28} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Mənfəət (təxmini)', 'Прибыль (приблизительно)', 'Profit (estimated)')}</p>
-                    <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.gross_profit).toFixed(2)} ₼</h3>
-                    <div className={`mt-1 text-xs ${
-                      analyticsBreakdown.profitReliability === 'high'
-                        ? 'text-emerald-300'
-                        : analyticsBreakdown.profitReliability === 'medium'
-                          ? 'text-amber-300'
-                          : 'text-rose-300'
-                    }`}>
-                      {tx(lang, 'COGS doluluğu', 'Покрытие COGS', 'COGS coverage')}: {analyticsBreakdown.cogsCoverage}%
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}</p>
+                    <h3 className={`text-2xl font-bold ${analyticsBreakdown.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                      {analyticsBreakdown.netProfit.toFixed(2)} ₼
+                    </h3>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
                 <div className="metal-panel p-4">
                   <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Nağd Satış', 'Продажи наличными', 'Cash Sales')}</div>
                   <div className="mt-1 text-2xl font-black text-emerald-300">{analyticsBreakdown.cashAmount.toFixed(2)} ₼</div>
@@ -824,6 +857,11 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                   <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Kart Satışı', 'Продажи по карте', 'Card Sales')}</div>
                   <div className="mt-1 text-2xl font-black text-sky-300">{analyticsBreakdown.cardAmount.toFixed(2)} ₼</div>
                   <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.cardCount} {tx(lang, 'satış', 'продаж', 'sales')}</div>
+                </div>
+                <div className="metal-panel p-4">
+                  <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Xərclər (Çıxış)', 'Расходы (Расход)', 'Expenses (Out)')}</div>
+                  <div className="mt-1 text-2xl font-black text-rose-300">-{analyticsBreakdown.totalExpenses.toFixed(2)} ₼</div>
+                  <div className="mt-1 text-xs text-slate-400 font-medium">{analyticsBreakdown.expensesCount} {tx(lang, 'qeyd', 'зап.', 'records')}</div>
                 </div>
                 <div className="metal-panel p-4">
                   <div className="text-xs font-semibold text-slate-400">{tx(lang, 'Tətbiq olunan Endirim', 'Сумма скидок', 'Total Discounts')}</div>
