@@ -20,9 +20,16 @@ import {
 export default function AnalyticsCenter({
   lang,
   summary,
+  expenses,
 }: {
   lang: string;
   summary: any;
+  expenses?: {
+    total: string;
+    totalNum?: number;
+    count: number;
+    byCategory: Array<{ category: string; amount: number; formattedAmount: string; share: number }>;
+  } | null;
 }) {
   const hourlyData = useMemo(() => {
     if (!summary || !summary.hourly_trend) {
@@ -152,8 +159,15 @@ export default function AnalyticsCenter({
     },
   ];
 
+  // Expenses & Net profit calculations
+  const totalRevenueNum = Number(summary?.total_revenue || 0);
+  const totalCogsNum = Number(summary?.total_cogs || 0);
+  const expenseTotalNum = Number(expenses?.total || 0);
+  const netProfitNum = totalRevenueNum - totalCogsNum - expenseTotalNum;
+  const netMargin = totalRevenueNum > 0 ? Math.round((netProfitNum / totalRevenueNum) * 100) : 0;
+
   return (
-    <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+    <section className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-4">
       {/* Hourly Sales Chart */}
       <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md">
         <h3 className="text-base font-black text-white">
@@ -297,6 +311,87 @@ export default function AnalyticsCenter({
             })}
           </div>
         )}
+      </div>
+
+      {/* End of Day Expenses & Net Profit Widget */}
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-black text-white">
+              {tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'End of Day Expenses')}
+            </h3>
+            <span className="text-xs font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-xl">
+              -{expenseTotalNum.toFixed(2)} ₼
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {tx(lang, 'Maliyyə xərcləri və xalis mənfəət', 'Расходы и чистая прибыль', 'Expenses and net profit')}
+          </p>
+
+          {/* Quick Expense vs Net Profit Badges */}
+          <div className="grid grid-cols-2 gap-2 mt-3.5">
+            <div className="rounded-2xl border border-rose-500/25 bg-rose-950/40 p-2.5 flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-rose-300 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-rose-400" />
+                  {tx(lang, 'Xərclər', 'Расходы', 'Expenses')}
+                </span>
+                <span className="text-[10px] font-black text-rose-400 bg-rose-500/15 px-1.5 py-0.5 rounded-lg">
+                  {expenses?.count || 0} {tx(lang, 'qeyd', 'зап.', 'entries')}
+                </span>
+              </div>
+              <span className="text-base font-black text-white tracking-tight mt-0.5">
+                {expenseTotalNum.toFixed(2)} ₼
+              </span>
+            </div>
+
+            <div className={`rounded-2xl border ${netProfitNum >= 0 ? 'border-emerald-500/25 bg-emerald-950/40' : 'border-amber-500/25 bg-amber-950/40'} p-2.5 flex flex-col gap-0.5`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold ${netProfitNum >= 0 ? 'text-emerald-300' : 'text-amber-300'} flex items-center gap-1.5`}>
+                  <span className={`h-2 w-2 rounded-full ${netProfitNum >= 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  {tx(lang, 'Xalis Qazanc', 'Чистая прибыль', 'Net Profit')}
+                </span>
+                <span className={`text-[10px] font-black ${netProfitNum >= 0 ? 'text-emerald-400 bg-emerald-500/15' : 'text-amber-400 bg-amber-500/15'} px-1.5 py-0.5 rounded-lg`}>
+                  {netMargin}%
+                </span>
+              </div>
+              <span className="text-base font-black text-white tracking-tight mt-0.5">
+                {netProfitNum.toFixed(2)} ₼
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories breakdown */}
+        <div className="mt-3 space-y-2 max-h-[190px] overflow-y-auto pr-1">
+          {(!expenses?.byCategory || expenses.byCategory.length === 0) ? (
+            <div className="flex h-[140px] items-center justify-center text-xs font-semibold text-slate-500">
+              {tx(lang, 'Bu dövrdə xərc qeydə alınmayıb', 'Нет расходов за этот период', 'No expenses recorded in this period')}
+            </div>
+          ) : (
+            expenses.byCategory.map((cat, idx) => (
+              <div key={idx} className="space-y-1">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-300 truncate max-w-[130px]">{cat.category}</span>
+                  <div className="text-slate-400 flex items-center gap-1.5">
+                    <span className="font-black text-white">{cat.formattedAmount} ₼</span>
+                    <span className="text-[10px] font-semibold text-rose-400 bg-rose-500/10 px-1 rounded">{cat.share}%</span>
+                  </div>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-950">
+                  <div className="h-full rounded-full bg-rose-500 transition-all duration-500" style={{ width: `${cat.share}%` }} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+          <span>{tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')}</span>
+          <span className={`font-bold ${netProfitNum >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {netProfitNum.toFixed(2)} ₼
+          </span>
+        </div>
       </div>
 
       {/* Delivery Channels Widget */}

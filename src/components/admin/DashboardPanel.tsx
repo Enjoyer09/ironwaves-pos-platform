@@ -21,7 +21,7 @@ const AnalyticsCenter = lazy(() => import('./AnalyticsCenter'));
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live } from '../../api/analytics';
-import { fetch_finance_anomalies, fetch_finance_balances, fetch_finance_entries, get_balance, type FinanceAnomalies } from '../../api/finance';
+import { fetch_finance_anomalies, fetch_finance_balances, fetch_finance_entries, get_balance, get_period_expenses_summary, type FinanceAnomalies, type PeriodExpensesSummary } from '../../api/finance';
 import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
 import { get_tables, get_tables_live, getPendingOfflineTableOps, getPendingOfflineTableOpsCount, type OfflineTableOpSummary } from '../../api/tables';
@@ -48,6 +48,7 @@ type DashboardSnapshot = {
   pendingOfflineTableOpItems: OfflineTableOpSummary[];
   auditLogs: any[];
   agentInsights: BackgroundAgentInsight[];
+  expenses?: PeriodExpensesSummary | null;
   loading: boolean;
 };
 
@@ -175,6 +176,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         anomalies,
         auditLogs,
         agentInsights,
+        expenses,
       ] = await Promise.all([
         get_sales_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
           get_sales_summary(tenant_id, activeRange.fromIso, activeRange.toIso),
@@ -191,6 +193,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         fetch_finance_anomalies(tenant_id).catch(() => null),
         get_logs_live(tenant_id, 80).catch(() => []),
         fetch_agent_insights(),
+        get_period_expenses_summary(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() => null),
       ]);
 
       setSnapshot({
@@ -205,6 +208,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         pendingOfflineTableOpItems,
         auditLogs,
         agentInsights,
+        expenses,
         loading: false,
       });
       setFinanceAnomalies(anomalies);
@@ -496,6 +500,13 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         revenue={money(snapshot.summary?.total_revenue)}
         cashSales={money(snapshot.summary?.cash_sales)}
         cardSales={money(snapshot.summary?.card_sales)}
+        expensesTotal={money(snapshot.expenses?.total || 0)}
+        expensesCount={snapshot.expenses?.count || 0}
+        netProfit={money(
+          new Decimal(snapshot.summary?.total_revenue || 0)
+            .minus(new Decimal(snapshot.summary?.total_cogs || 0))
+            .minus(new Decimal(snapshot.expenses?.total || 0))
+        )}
         activeTables={activeTables.length}
         openChecks={openChecks.length}
         avgTicket={money(averageTicket)}
@@ -515,14 +526,15 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       {!snapshot.loading && (
         <Suspense
           fallback={
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-4">
+              <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
               <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
               <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
               <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
             </div>
           }
         >
-          <AnalyticsCenter lang={lang} summary={snapshot.summary} />
+          <AnalyticsCenter lang={lang} summary={snapshot.summary} expenses={snapshot.expenses} />
         </Suspense>
       )}
 
@@ -895,6 +907,9 @@ function KPISection({
   revenue,
   cashSales,
   cardSales,
+  expensesTotal,
+  expensesCount,
+  netProfit,
   activeTables,
   openChecks,
   avgTicket,
@@ -908,6 +923,9 @@ function KPISection({
   revenue: string;
   cashSales?: string;
   cardSales?: string;
+  expensesTotal?: string;
+  expensesCount?: number;
+  netProfit?: string;
   activeTables: number;
   openChecks: number;
   avgTicket: string;
@@ -923,13 +941,29 @@ function KPISection({
       : tx(lang, 'canlı yenilənir', 'live', 'live');
 
   return (
-    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-8">
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10">
       <KpiCard
         title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
         value={revenue}
         helper={salesHelper}
         icon={<Receipt size={22} />}
         tone="emerald"
+        onClick={() => onOpenTab('analytics')}
+      />
+      <KpiCard
+        title={tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')}
+        value={expensesTotal || '0.00 ₼'}
+        helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`}
+        icon={<Wallet size={22} />}
+        tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'}
+        onClick={() => onOpenTab('finance')}
+      />
+      <KpiCard
+        title={tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}
+        value={netProfit || '0.00 ₼'}
+        helper={tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')}
+        icon={<TrendingUp size={22} />}
+        tone={netProfit && netProfit.startsWith('-') ? 'rose' : 'emerald'}
         onClick={() => onOpenTab('analytics')}
       />
       <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
