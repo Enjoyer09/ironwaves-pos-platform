@@ -17,6 +17,7 @@ import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { printViaLocalAgent } from '../lib/local_print_agent';
+import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -848,6 +849,36 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           sent_by: user?.username || 'staff',
           course_no: 1,
         });
+
+        // Auto-print kitchen ticket if enabled
+        if (printSettings.auto_print_kitchen_ticket !== false) {
+          try {
+            const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+            const kitchenHtml = buildKitchenTicketHtml({
+              ticket: {
+                table_label: tableName,
+                server_name: user?.username || 'Staff',
+                items: serverDraftItems.map((c: any) => ({
+                  item_name: c.item_name || c.name,
+                  qty: Number(c.qty || c.quantity || 1),
+                  notes: c.notes,
+                  seat_label: c.seat_label,
+                  cup_mode: c.cup_mode,
+                })),
+              },
+              lang: lang as any,
+              companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+            });
+            const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+            const agentSuccess = await printViaLocalAgent(kitchenHtml, targetPrinter);
+            if (!agentSuccess && printSettings.use_qz && targetPrinter) {
+              await qzPrintHtml(kitchenHtml, targetPrinter);
+            }
+          } catch (printErr) {
+            console.warn('Kitchen ticket print warning:', printErr);
+          }
+        }
+
         notify('success', tx(lang, 'Yeni sifariş mətbəxə göndərildi', 'Новый заказ отправлен на кухню', 'New order sent to kitchen'));
         setDraftSendError(null);
         setRoundDraft([]);
@@ -874,6 +905,35 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           is_coffee: Boolean(row.is_coffee),
         })),
       });
+
+      // Auto-print kitchen ticket if enabled
+      if (printSettings.auto_print_kitchen_ticket !== false) {
+        try {
+          const tableName = table.table_number ? `Masa ${table.table_number}` : table.name || table.id;
+          const kitchenHtml = buildKitchenTicketHtml({
+            ticket: {
+              table_label: tableName,
+              server_name: user?.username || 'Staff',
+              items: roundDraft.map((row: any) => ({
+                item_name: row.item_name,
+                qty: Number(row.qty || 1),
+                seat_label: row.seat_label,
+                cup_mode: row.cup_mode,
+              })),
+            },
+            lang: lang as any,
+            companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+          });
+          const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+          const agentSuccess = await printViaLocalAgent(kitchenHtml, targetPrinter);
+          if (!agentSuccess && printSettings.use_qz && targetPrinter) {
+            await qzPrintHtml(kitchenHtml, targetPrinter);
+          }
+        } catch (printErr) {
+          console.warn('Kitchen ticket print warning:', printErr);
+        }
+      }
+
       notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
       setDraftSendError(null);
       clearRoundComposer();

@@ -139,6 +139,9 @@ export default function SettingsPanel() {
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
     printer_name: '',
+    kitchen_printer_name: '',
+    auto_print_kitchen_ticket: true,
+    auto_print_receipt: true,
   });
   const [printAgentModalOpen, setPrintAgentModalOpen] = useState(false);
   const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
@@ -450,6 +453,9 @@ export default function SettingsPanel() {
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
+        kitchen_printer_name: String(settingsRes.value.print_settings?.kitchen_printer_name || ''),
+        auto_print_kitchen_ticket: settingsRes.value.print_settings?.auto_print_kitchen_ticket !== false,
+        auto_print_receipt: settingsRes.value.print_settings?.auto_print_receipt !== false,
       });
       setZReportReceiptSettings({
         show_operator: settingsRes.value.z_report_receipt_settings?.show_operator !== false,
@@ -998,6 +1004,9 @@ export default function SettingsPanel() {
       await update_print_settings_live({
         use_qz: printSettings.use_qz,
         printer_name: printSettings.printer_name.trim(),
+        kitchen_printer_name: printSettings.kitchen_printer_name.trim(),
+        auto_print_kitchen_ticket: printSettings.auto_print_kitchen_ticket,
+        auto_print_receipt: printSettings.auto_print_receipt,
       });
       flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
     } catch {
@@ -1794,12 +1803,12 @@ export default function SettingsPanel() {
             'The most cost-effective silent printing path is iRonWaves Print Agent. If it is running on this computer, POS, table receipts, and Z-report print through it first; otherwise QZ/browser fallback remains.',
           )}
         </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={printSettings.use_qz} onChange={(e) => setPrintSettings((prev) => ({ ...prev, use_qz: e.target.checked }))} />
-            <span>{tx(lang, 'QZ Tray ilə birbaşa çap et', 'Печатать напрямую через QZ Tray', 'Direct print via QZ Tray')}</span>
-          </label>
-          <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Kassa Çek Printeri */}
+          <div className="flex flex-col gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+            <label className="text-xs font-bold text-slate-200">
+              🧾 {tx(lang, 'Kassa Çek Printeri (Müştəri çeki)', 'Принтер кассовых чеков (Клиентский чек)', 'Cashier Receipt Printer (Customer receipt)')}
+            </label>
             {printAgentHealth === 'online' && systemPrinters.length > 0 ? (
               <>
                 <select
@@ -1842,7 +1851,7 @@ export default function SettingsPanel() {
                     className="neon-input transition-all duration-300"
                     value={printSettings.printer_name}
                     onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
-                    placeholder={tx(lang, 'Printer adı daxil edin', 'Введите имя принтера', 'Enter printer name')}
+                    placeholder={tx(lang, 'Kassa printer adı daxil edin', 'Введите имя кассового принтера', 'Enter cashier printer name')}
                   />
                 )}
               </>
@@ -1851,10 +1860,68 @@ export default function SettingsPanel() {
                 className="neon-input"
                 value={printSettings.printer_name}
                 onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
-                placeholder={tx(lang, 'Printer adı (opsional)', 'Имя принтера (необязательно)', 'Printer name (optional)')}
+                placeholder={tx(lang, 'Kassa printer adı (məs. POS-80)', 'Имя кассового принтера (напр. POS-80)', 'Cashier printer name (e.g. POS-80)')}
               />
             )}
+            <label className="flex items-center gap-2 text-xs text-slate-300 mt-2">
+              <input
+                type="checkbox"
+                checked={printSettings.auto_print_receipt !== false}
+                onChange={(e) => setPrintSettings((prev) => ({ ...prev, auto_print_receipt: e.target.checked }))}
+              />
+              <span>{tx(lang, 'Ödənişdə avtomatik kassa çeki çap et', 'Автоматически печатать чек при оплате', 'Auto-print receipt on payment')}</span>
+            </label>
           </div>
+
+          {/* Mətbəx Çek Printeri */}
+          <div className="flex flex-col gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+            <label className="text-xs font-bold text-amber-300">
+              🍳 {tx(lang, 'Mətbəx Çek Printeri (Kitchen Ticket / Runner)', 'Принтер чеков кухни (Kitchen Ticket / Runner)', 'Kitchen Ticket Printer (Runner slip)')}
+            </label>
+            {printAgentHealth === 'online' && systemPrinters.length > 0 ? (
+              <select
+                className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
+                value={printSettings.kitchen_printer_name || ''}
+                onChange={(e) => setPrintSettings((prev) => ({ ...prev, kitchen_printer_name: e.target.value }))}
+              >
+                <option value="">
+                  {tx(
+                    lang,
+                    'Kassa printeri ilə eyni (və ya Default)',
+                    'Такой же как кассовый (или Default)',
+                    'Same as cashier printer (or Default)',
+                  )}
+                </option>
+                {systemPrinters.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="neon-input"
+                value={printSettings.kitchen_printer_name || ''}
+                onChange={(e) => setPrintSettings((prev) => ({ ...prev, kitchen_printer_name: e.target.value }))}
+                placeholder={tx(lang, 'Mətbəx printer adı və ya IP (məs. Kitchen-80)', 'Имя принтера кухни или IP (напр. Kitchen-80)', 'Kitchen printer name or IP (e.g. Kitchen-80)')}
+              />
+            )}
+            <label className="flex items-center gap-2 text-xs text-amber-200 mt-2">
+              <input
+                type="checkbox"
+                checked={printSettings.auto_print_kitchen_ticket !== false}
+                onChange={(e) => setPrintSettings((prev) => ({ ...prev, auto_print_kitchen_ticket: e.target.checked }))}
+              />
+              <span>{tx(lang, 'Mətbəxə göndərildikdə avtomatik mətbəx çeki çıxar', 'Автоматически печатать чек при отправке на кухню', 'Auto-print ticket when sent to kitchen')}</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 pt-1">
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input type="checkbox" checked={printSettings.use_qz} onChange={(e) => setPrintSettings((prev) => ({ ...prev, use_qz: e.target.checked }))} />
+            <span>{tx(lang, 'QZ Tray fallback istifadə et', 'Использовать fallback QZ Tray', 'Use QZ Tray fallback')}</span>
+          </label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
