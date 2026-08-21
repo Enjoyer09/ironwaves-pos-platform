@@ -16,7 +16,7 @@ import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
-import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
+import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
@@ -1370,7 +1370,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             feedbackUrl = feedbackBaseUrl;
           }
         }
-        const barcodeSvg = generateBarcodeSvg(`SALE:${sale.sale_id}`);
+        const barcodeSvg = generateBarcodeSvg(`SALE:${formatDisplayId(sale.sale_id)}`);
         const receiptCustomerId = String((sale as any)?.customer_card_id || receiptCustomer?.card_id || '').trim();
         const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
         const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl, {
@@ -1388,6 +1388,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             <head>
               <style>
                 ${THERMAL_RECEIPT_PRINT_CSS}
+                ${thermalPaperWidthOverride(printSettings.paper_width)}
               </style>
             </head>
             <body>
@@ -1399,7 +1400,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <hr />
               <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
               <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
-              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString()}</span></div>
+              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString('az-AZ')}</span></div>
               <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${receiptOrderType}</span></div>
               <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
               <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
@@ -1503,6 +1504,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             ticket: ticketData,
             lang: safeLang,
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+            paperWidth: printSettings.paper_width || '58mm',
           });
           const rawCmds = buildKitchenTicketEscPos(ticketData, {
             paperWidth: printSettings.paper_width || '58mm',
