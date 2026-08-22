@@ -411,6 +411,11 @@ export default function PublicMenu() {
     : 'none';
   const splashEnabled = isMobileDevice && showSplash && splashType !== 'none' && splashUrl.length > 0;
 
+  // Debug: log splash state (remove after confirming it works)
+  if (typeof window !== 'undefined' && !loading) {
+    (window as any).__splashDebug = { isMobileDevice, showSplash, splashType, splashTypeRaw, splashUrl: splashUrl.slice(0, 60), splashEnabled, brandingSplashUrl: splashBranding.splash_url, localSplashUrl: localSplashSettings.splash_url, bootstrapKeys: Object.keys(splashBranding) };
+  }
+
   if (splashEnabled) {
     const splashText = String(splashBranding.splash_overlay_text || localSplashSettings.splash_overlay_text || '').trim();
     const splashBg = String(splashBranding.splash_bg_color || localSplashSettings.splash_bg_color || '#000000').trim();
