@@ -70,7 +70,6 @@ const MODULE_ALIASES: Record<string, ModuleKey> = {
   posbuilder: 'posbuilder',
   'pos-builder': 'posbuilder',
   ai: 'ai',
-  menu: 'menu',
   'menu-editor': 'menu',
   recipes: 'recipes',
   tenants: 'tenants',
@@ -85,6 +84,7 @@ const RESERVED_PUBLIC_PATHS = new Set([
   'feedback',
   'customer',
   'menu',
+  'qrmenu',
   'qr-menu',
   'm',
 ]);
@@ -121,17 +121,17 @@ export function isPublicMenuRoute(pathname: string): boolean {
   if (typeof pathname !== 'string') return false;
   const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
   const segment = clean.split('/')[0] || '';
-  return segment === 'menu' || segment === 'qr-menu' || segment === 'm';
+  return segment === 'menu' || segment === 'qrmenu' || segment === 'qr-menu' || segment === 'm';
 }
 
 /**
- * Extracts a tenant slug from paths like /menu/chaidan, /m/chaidan, /qr-menu/chaidan.
+ * Extracts a tenant slug from paths like /menu/chaidan, /qrmenu/chaidan, /m/chaidan, /qr-menu/chaidan.
  */
 export function extractMenuTenantSlug(pathname: string): string | null {
   if (typeof pathname !== 'string') return null;
   const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
   const parts = clean.split('/');
-  if (parts[0] === 'menu' || parts[0] === 'qr-menu' || parts[0] === 'm') {
+  if (parts[0] === 'menu' || parts[0] === 'qrmenu' || parts[0] === 'qr-menu' || parts[0] === 'm') {
     return parts[1] || null;
   }
   return null;
