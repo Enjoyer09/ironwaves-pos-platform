@@ -385,7 +385,7 @@ export default function PublicMenu() {
   // ─── Splash Screen ─────────────────────────────────────────────────────────
   if (showSplash) {
     if (!splashTimerRef.current) {
-      splashTimerRef.current = setTimeout(() => setShowSplash(false), 4000);
+      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2000);
     }
     return (
       <div
@@ -402,14 +402,8 @@ export default function PublicMenu() {
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-black/30" />
-        <div className="relative z-10 text-center">
-          <h1 className="text-3xl font-black text-white drop-shadow-lg">{companyName}</h1>
-        </div>
         <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden">
-          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 4s linear forwards' }} />
-        </div>
-        <div className="absolute bottom-14 text-center w-full">
-          <span className="text-xs text-white/40">tap to skip</span>
+          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2s linear forwards' }} />
         </div>
         <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } }`}</style>
       </div>
