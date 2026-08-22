@@ -20,6 +20,9 @@ router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
 MAX_IMAGE_URL_LENGTH = 2048
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+ALLOWED_VIDEO_TYPES = {"video/mp4": ".mp4"}
+ALLOWED_MEDIA_TYPES = {**ALLOWED_IMAGE_TYPES, **ALLOWED_VIDEO_TYPES}
+MAX_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024
 MENU_UPLOADS_ROOT = Path(__file__).resolve().parents[2] / "uploads" / "menu-images"
 
 
@@ -61,36 +64,42 @@ async def upload_menu_image(
 ):
     _ensure_catalog_write_access(user)
     content_type = str(file.content_type or "").lower().strip()
-    if content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="only jpeg/png/webp/gif image types are allowed")
+    is_video = content_type in ALLOWED_VIDEO_TYPES
+    if content_type not in ALLOWED_MEDIA_TYPES:
+        raise HTTPException(status_code=400, detail="only jpeg/png/webp/gif/mp4 file types are allowed")
 
     payload = await file.read()
     if not payload:
         raise HTTPException(status_code=400, detail="empty file")
-    if len(payload) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="image too large (max 5MB)")
+    max_bytes = MAX_VIDEO_UPLOAD_BYTES if is_video else MAX_UPLOAD_BYTES
+    if len(payload) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"file too large (max {max_bytes // (1024*1024)}MB)")
 
-    # Validate actual file content via magic bytes (not just Content-Type header)
+    # Validate actual file content via magic bytes
     magic_signatures = {
         b"\xff\xd8\xff": "image/jpeg",
         b"\x89PNG\r\n\x1a\n": "image/png",
-        b"RIFF": "image/webp",  # WebP starts with RIFF....WEBP
+        b"RIFF": "image/webp",
         b"GIF87a": "image/gif",
         b"GIF89a": "image/gif",
+        b"\x00\x00\x00": "video/mp4",  # MP4 ftyp box starts with size bytes
     }
     detected_type = None
     for magic, mime in magic_signatures.items():
         if payload[:len(magic)] == magic:
             detected_type = mime
             break
+    # MP4 additional check: ftyp marker at byte 4
+    if not detected_type and len(payload) > 8 and payload[4:8] == b"ftyp":
+        detected_type = "video/mp4"
     if not detected_type:
-        raise HTTPException(status_code=400, detail="File content does not match a valid image format")
-    if detected_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="File content does not match a valid format")
+    if detected_type not in ALLOWED_MEDIA_TYPES:
         raise HTTPException(status_code=400, detail=f"Detected format {detected_type} is not allowed")
 
     tenant_dir = MENU_UPLOADS_ROOT / str(tenant.id)
     tenant_dir.mkdir(parents=True, exist_ok=True)
-    ext = ALLOWED_IMAGE_TYPES.get(content_type, ".jpg")
+    ext = ALLOWED_MEDIA_TYPES.get(content_type, ALLOWED_MEDIA_TYPES.get(detected_type, ".bin"))
     filename = f"{uuid.uuid4().hex}{ext}"
     full_path = tenant_dir / filename
     with open(full_path, "wb") as output:
