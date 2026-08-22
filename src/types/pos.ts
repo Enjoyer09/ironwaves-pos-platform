@@ -293,6 +293,12 @@ export interface Settings {
     custom_font_url?: string;
     theme_preset?: 'dark' | 'light' | 'emerald' | 'custom';
     layout_preset?: 'classic' | 'bolt';
+    splash_type?: 'image' | 'video' | 'gif' | 'none' | string;
+    splash_media_url?: string;
+    splash_url?: string;
+    splash_duration_ms?: number;
+    splash_overlay_text?: string;
+    splash_bg_color?: string;
   };
   feedback_settings?: {
     enabled: boolean;

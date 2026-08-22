@@ -1,16 +1,22 @@
 export const THERMAL_RECEIPT_PRINT_CSS = `
-  @page { size: auto; margin: 0; }
-  * { box-sizing: border-box; }
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+  * {
+    box-sizing: border-box;
+  }
   html,
   body {
     width: 100% !important;
-    max-width: 48mm !important;    margin: 0 auto !important;
-    padding: 0 1mm !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 1.5mm !important;
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
-    font-size: 11px !important;
-    line-height: 1.2 !important;
+    font-size: 12.5px !important;
+    line-height: 1.25 !important;
     font-weight: 700 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
@@ -18,6 +24,15 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     print-color-adjust: exact;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+  @media print {
+    html,
+    body {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 1mm !important;
+    }
   }
   div, table, tr, td, p {
     page-break-inside: avoid !important;
@@ -29,8 +44,8 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     justify-content: space-between;
     align-items: start;
     gap: 4px;
-    margin: 2px 0;
-    font-size: 11px;
+    margin: 2.5px 0;
+    font-size: 12.5px;
   }
   .line span:first-child { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
   .line span:last-child {
@@ -41,25 +56,25 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .muted {
     color: #111;
-    font-size: 10px;
-    line-height: 1.2;
+    font-size: 11px;
+    line-height: 1.25;
     font-weight: 600;
   }
   .bold { font-weight: 900; }
   .section-title {
     margin-top: 6px;
-    font-size: 11px;
-    line-height: 1.2;
+    font-size: 12.5px;
+    line-height: 1.25;
     font-weight: 900;
     text-transform: uppercase;
   }
-  h1, h2, h3 { margin: 0 0 2px; font-weight: 900; line-height: 1.15; }
+  h1, h2, h3 { margin: 0 0 2px; font-weight: 900; line-height: 1.2; }
   table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 11px !important;
-    line-height: 1.2 !important;
+    font-size: 12.5px !important;
+    line-height: 1.25 !important;
   }
   td {
     vertical-align: top;
@@ -68,7 +83,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   td:first-child { overflow-wrap: anywhere; padding-right: 6px; }
   td:last-child {
-    width: 24mm;
+    width: 25mm;
     text-align: right;
     white-space: nowrap;
     font-weight: 900;
@@ -77,19 +92,25 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   hr {
     border: 0;
     border-top: 1.5px dashed #000;
-    margin: 9px 0;
+    margin: 8px 0;
   }
   svg { max-width: 100%; }
   img { max-width: 100%; image-rendering: crisp-edges; }
 `;
 
-// Paper width override: 58mm printers fit ~48mm of printable content, 80mm ~72mm.
+// Paper width override: 58mm printers fit ~48-52mm of printable content, 80mm ~72-76mm.
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
-  const contentWidth = paperWidth === '80mm' ? '72mm' : '48mm';
-  return `<style data-iw-thermal-paper-width="1">html, body { max-width: ${contentWidth} !important; }</style>`;
+  const contentWidth = paperWidth === '80mm' ? '76mm' : '52mm';
+  const fontSize = paperWidth === '80mm' ? '14px' : '12.5px';
+  return `<style data-iw-thermal-paper-width="1">
+    html, body { max-width: ${contentWidth} !important; font-size: ${fontSize} !important; }
+    table { font-size: ${fontSize} !important; }
+    .line { font-size: ${fontSize} !important; }
+  </style>`;
 }
 
-export function withThermalReceiptPrintCss(html: string): string {  const source = String(html || '');
+export function withThermalReceiptPrintCss(html: string): string {
+  const source = String(html || '');
   if (!source.trim()) return source;
   if (source.includes('data-iw-thermal-receipt-css="1"')) return source;
   const styleTag = `<style data-iw-thermal-receipt-css="1">${THERMAL_RECEIPT_PRINT_CSS}</style>`;
