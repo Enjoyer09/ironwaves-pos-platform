@@ -204,6 +204,19 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             return tenant
 
     explicit = (request.headers.get("x-tenant-id") or "").strip()
+    explicit_slug = (
+        request.headers.get("x-tenant-slug")
+        or request.query_params.get("tenant_slug")
+        or request.query_params.get("tenant")
+        or ""
+    ).strip().lower()
+    if explicit_slug:
+        tenant = db.query(Tenant).filter(Tenant.slug == explicit_slug, Tenant.status == "active").first()
+        if tenant:
+            _remember("explicit_slug", explicit_slug, tenant)
+            _log("tenant_resolved", source="explicit_slug", tenant_id=tenant.id, tenant_slug=tenant.slug)
+            return tenant
+
     has_auth_context = bool((request.headers.get("authorization") or "").strip())
 
     # Domain is the security boundary for public/auth routes. Never trust

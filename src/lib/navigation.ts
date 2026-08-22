@@ -111,6 +111,29 @@ export function getPathnameForModule(moduleKey: ModuleKey): string {
 }
 
 /**
+ * Checks if the current pathname is a public QR menu route.
+ */
+export function isPublicMenuRoute(pathname: string): boolean {
+  if (typeof pathname !== 'string') return false;
+  const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const segment = clean.split('/')[0] || '';
+  return segment === 'menu' || segment === 'qr-menu' || segment === 'm';
+}
+
+/**
+ * Extracts a tenant slug from paths like /menu/chaidan, /m/chaidan, /qr-menu/chaidan.
+ */
+export function extractMenuTenantSlug(pathname: string): string | null {
+  if (typeof pathname !== 'string') return null;
+  const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const parts = clean.split('/');
+  if (parts[0] === 'menu' || parts[0] === 'qr-menu' || parts[0] === 'm') {
+    return parts[1] || null;
+  }
+  return null;
+}
+
+/**
  * Updates the browser's URL without reloading the page using History API.
  */
 export function syncUrlWithModule(moduleKey: ModuleKey, replace: boolean = false) {

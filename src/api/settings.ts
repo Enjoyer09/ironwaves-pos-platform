@@ -1445,7 +1445,11 @@ export async function update_feedback_settings_live(payload: NonNullable<Setting
   return update_feedback_settings(payload, tenantId);
 }
 
-export async function get_public_qr_menu_bootstrap_live() {
+export async function get_public_qr_menu_bootstrap_live(tenantSlug?: string) {
+  const headers: Record<string, string> = {};
+  if (tenantSlug) {
+    headers['x-tenant-slug'] = tenantSlug;
+  }
   return apiRequest<{
     tenant_id: string;
     enabled: boolean;
@@ -1467,6 +1471,14 @@ export async function get_public_qr_menu_bootstrap_live() {
       accent_color: string;
       font_family: string;
       custom_font_url: string;
+      theme_preset?: string;
+      layout_preset?: string;
+      phone?: string;
+      address?: string;
+      instagram?: string;
+      wifi_ssid?: string;
+      wifi_password?: string;
+      working_hours?: string;
     };
     show_prices: boolean;
     show_images: boolean;
@@ -1475,6 +1487,29 @@ export async function get_public_qr_menu_bootstrap_live() {
     method: 'GET',
     tenantId: null,
     auth: false,
+    headers,
+  });
+}
+
+export async function send_public_table_service(
+  payload: {
+    action: 'call_waiter' | 'request_bill';
+    table_label: string;
+    payment_method?: 'cash' | 'card';
+    note?: string;
+  },
+  tenantSlug?: string
+) {
+  const headers: Record<string, string> = {};
+  if (tenantSlug) {
+    headers['x-tenant-slug'] = tenantSlug;
+  }
+  return apiRequest<{ success: boolean; message: string }>('/api/v1/ops/public-table-service', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    headers,
+    body: payload,
   });
 }
 
