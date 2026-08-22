@@ -34,6 +34,7 @@ import {
   verify_totp_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
+import { upload_menu_image_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import {
   getDeliveryMenuMappings,
@@ -2503,23 +2504,17 @@ export default function SettingsPanel() {
                         return;
                       }
                       try {
-                        notify('info', tx(lang, 'Fayl yüklənir...', 'Загрузка файла...', 'Uploading file...'));
-                        if (isVideo) {
-                          // Video: convert to base64 data URL directly (no compression)
-                          const reader = new FileReader();
-                          const dataUrl = await new Promise<string>((resolve, reject) => {
-                            reader.onload = () => resolve(reader.result as string);
-                            reader.onerror = () => reject(new Error('File read failed'));
-                            reader.readAsDataURL(file);
-                          });
-                          setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl, splash_type: 'video' }));
-                        } else {
-                          const dataUrl = await prepareImageDataUrl(file, { maxDimension: 1080, outputQuality: 0.85 });
-                          setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl }));
-                        }
+                        notify('info', tx(lang, 'Serverə yüklənir...', 'Загрузка на сервер...', 'Uploading to server...'));
+                        // Upload file to server — returns a permanent URL
+                        const imageUrl = await upload_menu_image_live(file);
+                        setQrMenuSettings((p: any) => ({
+                          ...p,
+                          splash_url: imageUrl,
+                          ...(isVideo ? { splash_type: 'video' } : {}),
+                        }));
                         notify('success', tx(lang, 'Splash media yükləndi', 'Splash медиа загружено', 'Splash media uploaded'));
                       } catch (err: any) {
-                        notify('error', err?.message || 'Upload failed');
+                        notify('error', err?.message || tx(lang, 'Yükləmə uğursuz oldu. Backend aktiv olmalıdır.', 'Загрузка не удалась. Backend должен быть активен.', 'Upload failed. Backend must be active.'));
                       }
                       e.target.value = '';
                     }}
