@@ -1221,7 +1221,7 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     splash_bg_color: String((payload as any).splash_bg_color || '').trim() || '#000000',
   };
   saveSettings(settings);
-  logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);
+  logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings || {});
   return { success: true, qr_menu_settings: settings.qr_menu_settings };
 }
 

@@ -255,6 +255,7 @@ export default function SettingsPanel() {
     negative_balance_alert_azn: '0',
     approver_roles: 'manager, admin, finance_admin, super_admin',
   });
+  const [aiApiKey, setAiApiKey] = useState(() => readScopedStorage('gemini_api_key') || '');
   const [tableServiceSettings, setTableServiceSettings] = useState({
     service_fee_percent: '0',
     deposit_per_guest_azn: '0',
