@@ -216,6 +216,34 @@ def _finance_account_code_map(db: Session, tenant_id: str) -> dict[str, str]:
     return {row.id: row.code for row in rows}
 
 
+def _effective_shift_start(
+    db: Session,
+    tenant_id: str,
+    shift_id: str | None,
+    opened_at: datetime | None,
+    closed_at: datetime | None = None,
+) -> datetime | None:
+    """Calculates the real start time for transactions in this shift.
+    If another shift was closed between opened_at and closed_at (e.g. duplicate
+    shift opened on previous day or multi-day shift), the effective start is
+    the closed_at of the most recent prior closed shift."""
+    if not opened_at:
+        return None
+    query = db.query(Shift.closed_at).filter(
+        Shift.tenant_id == tenant_id,
+        Shift.status == "closed",
+        Shift.closed_at > opened_at,
+    )
+    if shift_id:
+        query = query.filter(Shift.id != shift_id)
+    if closed_at:
+        query = query.filter(Shift.closed_at < closed_at)
+    prev = query.order_by(Shift.closed_at.desc()).first()
+    if prev and prev[0]:
+        return prev[0]
+    return opened_at
+
+
 def _shift_sales_payment_totals(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> tuple[Decimal, Decimal]:
     totals = _sales_payment_totals(db, tenant_id, opened_at, closed_at)
     return totals["cash_sales"], totals["card_sales"]
@@ -433,6 +461,7 @@ def _z_report_financial_context(
     shift: Shift,
     total_sales: Decimal,
     report_account_ids: list[str] | None = None,
+    effective_opened_at: datetime | None = None,
 ) -> dict:
     account_ids = report_account_ids
     if account_ids is None:
@@ -443,7 +472,7 @@ def _z_report_financial_context(
             if code in {"cash", "card", "safe", "debt"} and account_id
         ]
 
-    opened_at = shift.opened_at
+    opened_at = effective_opened_at or _effective_shift_start(db, tenant_id, shift.id, shift.opened_at, shift.closed_at)
     closed_at = shift.closed_at
     total_cogs = _shift_cogs_total(db, tenant_id, opened_at, closed_at)
     bank_fee_total = _posted_transaction_sum(
@@ -651,9 +680,11 @@ def _build_z_report_receipt_html(
     other_income_lines: list[dict] | None = None,
     other_expense_total: Decimal = Decimal("0.00"),
     other_expense_lines: list[dict] | None = None,
+    effective_opened_at: datetime | None = None,
 ) -> str:
     profile = _business_profile(db, tenant)
     report_id = str(shift.id or "Z-REPORT")[:8].upper()
+    display_opened_at = effective_opened_at or shift.opened_at
     cashier_rows = "\n".join(
         (
             f'<div class="line"><span>{row.get("cashier") or "-"} ({int(row.get("sales_count") or 0)})</span>'
@@ -701,7 +732,7 @@ def _build_z_report_receipt_html(
           <hr />
           <div class="line"><span>Z-Hesabat</span><span>{report_id}</span></div>
           <div class="line"><span>Operator</span><span>{shift.closed_by or shift.opened_by or "-"}</span></div>
-          <div class="line"><span>Açılış saatı</span><span>{_format_z_report_time(shift.opened_at)}</span></div>
+          <div class="line"><span>Açılış saatı</span><span>{_format_z_report_time(display_opened_at)}</span></div>
           <div class="line"><span>Bağlanış saatı</span><span>{_format_z_report_time(shift.closed_at)}</span></div>
           <hr />
           <div class="section-title">Satış xülasəsi</div>
@@ -1237,8 +1268,9 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     # All sales/finance aggregations must be bounded by this moment so that
     # transactions from OTHER shifts (past or future) are never included.
     close_timestamp = _utcnow()
+    eff_start = _effective_shift_start(db, tenant.id, active.id, active.opened_at, close_timestamp)
 
-    sales_totals = _shift_sales_totals(db, tenant.id, active.opened_at, close_timestamp)
+    sales_totals = _shift_sales_totals(db, tenant.id, eff_start, close_timestamp)
     cash_sales = sales_totals["cash_sales"]
     card_sales = sales_totals["card_sales"]
     deposit_applied_sales = sales_totals["deposit_applied"]
@@ -1247,19 +1279,19 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     ledger_sales_total = sales_totals["ledger_sales_total"]
     reconciliation_gap = sales_totals["reconciliation_gap"]
     void_sales = sales_totals["void_sales"]
-    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, active.opened_at, close_timestamp)
-    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, active.opened_at, close_timestamp)
+    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, eff_start, close_timestamp)
+    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, eff_start, close_timestamp)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
-        active.opened_at,
+        eff_start,
         FinanceTransaction.transaction_type == "deposit_hold",
         closed_at=close_timestamp,
     )
     other_income_total, other_income_lines = _group_posted_transaction_amounts(
         db,
         tenant.id,
-        active.opened_at,
+        eff_start,
         or_(
             (FinanceTransaction.transaction_type == "income") & FinanceTransaction.related_order_id.is_(None),
             (
@@ -1274,7 +1306,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     other_expense_total, other_expense_lines = _group_posted_transaction_amounts(
         db,
         tenant.id,
-        active.opened_at,
+        eff_start,
         or_(
             FinanceTransaction.transaction_type == "expense",
             (
@@ -1291,6 +1323,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         active,
         total_sales,
         report_account_ids=report_account_ids,
+        effective_opened_at=eff_start,
     )
 
     active.status = "closed"
@@ -1391,16 +1424,17 @@ def list_z_report_receipts(
     for row in rows:
         if not row.z_report_html:
             continue
-        sales_totals = _shift_sales_totals(db, tenant.id, row.opened_at, row.closed_at)
+        eff_start = _effective_shift_start(db, tenant.id, row.id, row.opened_at, row.closed_at)
+        sales_totals = _shift_sales_totals(db, tenant.id, eff_start, row.closed_at)
         cash_sales = sales_totals["cash_sales"]
         card_sales = sales_totals["card_sales"]
         deposit_applied_sales = sales_totals["deposit_applied"]
         total_sales = sales_totals["sales_total"]
         sales_count = int(sales_totals["sales_count"])
         void_sales = sales_totals["void_sales"]
-        cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, row.opened_at, row.closed_at)
-        item_breakdown = _shift_item_sales_breakdown(db, tenant.id, row.opened_at, row.closed_at)
-        receipt_context = _z_report_financial_context(db, tenant.id, row, total_sales)
+        cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, eff_start, row.closed_at)
+        item_breakdown = _shift_item_sales_breakdown(db, tenant.id, eff_start, row.closed_at)
+        receipt_context = _z_report_financial_context(db, tenant.id, row, total_sales, effective_opened_at=eff_start)
         corrected_html = _build_z_report_receipt_html(
             db=db,
             tenant=tenant,
@@ -1430,11 +1464,14 @@ def list_z_report_receipts(
             other_income_lines=receipt_context["other_income_lines"],
             other_expense_total=receipt_context["other_expense_total"],
             other_expense_lines=receipt_context["other_expense_lines"],
+            effective_opened_at=eff_start,
         )
+        if row.z_report_html != corrected_html:
+            row.z_report_html = corrected_html
         result.append(
             {
                 "id": row.id,
-                "opened_at": row.opened_at.isoformat() if row.opened_at else None,
+                "opened_at": (eff_start or row.opened_at).isoformat() if (eff_start or row.opened_at) else None,
                 "closed_at": row.closed_at.isoformat() if row.closed_at else None,
                 "opened_by": row.opened_by,
                 "closed_by": row.closed_by,
@@ -1448,6 +1485,10 @@ def list_z_report_receipts(
                 "z_report_html": corrected_html,
             }
         )
+    try:
+        db.commit()
+    except Exception:
+        pass
     return result
 
 
