@@ -29,6 +29,7 @@ import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
 import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
 import type { Settings } from './types/pos';
+import { getModuleFromPathname, syncUrlWithModule, type ModuleKey } from './lib/navigation';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -65,30 +66,6 @@ type AdminView =
   | 'combos'
   | 'landing'
   | 'tenants';
-
-type ModuleKey =
-  | 'pos'
-  | 'tables'
-  | 'kds'
-  | 'zreport'
-  | 'finance'
-  | 'inventory'
-  | 'suppliers'
-  | 'combos'
-  | 'dashboard'
-  | 'analytics'
-  | 'logs'
-  | 'crm'
-  | 'customerapp'
-  | 'posbuilder'
-  | 'ai'
-  | 'menu'
-  | 'recipes'
-  | 'tenants'
-  | 'notes'
-  | 'settings'
-  | 'landing'
-  | 'database';
 
 type DemoGuideBubble = {
   text: string;
@@ -519,8 +496,20 @@ export default function App() {
     };
   }, [backendMode, hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout, mappedTenantFromHost]);
 
-  const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
-  const [mountedModules, setMountedModules] = useState<ModuleKey[]>(['pos']);
+  const [currentModule, setCurrentModule] = useState<ModuleKey>(() => {
+    if (typeof window !== 'undefined') {
+      const fromUrl = getModuleFromPathname(window.location.pathname);
+      if (fromUrl) return fromUrl;
+    }
+    return 'pos';
+  });
+  const [mountedModules, setMountedModules] = useState<ModuleKey[]>(() => {
+    if (typeof window !== 'undefined') {
+      const fromUrl = getModuleFromPathname(window.location.pathname);
+      if (fromUrl) return [fromUrl];
+    }
+    return ['pos'];
+  });
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
@@ -1355,19 +1344,38 @@ export default function App() {
 
   useEffect(() => {
     if (!visibleModules.find((m) => m.key === currentModule)) {
-      setCurrentModule(visibleModules[0]?.key || 'pos');
+      const fallback = visibleModules[0]?.key || 'pos';
+      setCurrentModule(fallback);
+      syncUrlWithModule(fallback, true);
     }
   }, [sessionRole, currentModule, visibleModuleKeys]);
 
   useEffect(() => {
     setMountedModules((prev) => (prev.includes(resolvedModule) ? prev : [...prev, resolvedModule]));
+    syncUrlWithModule(resolvedModule);
   }, [resolvedModule]);
 
   useEffect(() => {
-    const firstModule = visibleModules[0]?.key || 'pos';
-    setMountedModules([firstModule]);
-    setCurrentModule(firstModule);
+    const urlModule = typeof window !== 'undefined' ? getModuleFromPathname(window.location.pathname) : null;
+    const targetModule = (urlModule && visibleModules.some((m) => m.key === urlModule))
+      ? urlModule
+      : (visibleModules[0]?.key || 'pos');
+    setMountedModules((prev) => (prev.includes(targetModule) ? prev : [...prev, targetModule]));
+    setCurrentModule(targetModule);
+    syncUrlWithModule(targetModule, true);
   }, [moduleTenantKey]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined') return;
+      const fromUrl = getModuleFromPathname(window.location.pathname);
+      if (fromUrl && visibleModules.some((m) => m.key === fromUrl)) {
+        setCurrentModule(fromUrl);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [visibleModules]);
 
   useEffect(() => {
     if (safeLang !== lang) {

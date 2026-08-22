@@ -1,0 +1,131 @@
+export type ModuleKey =
+  | 'pos'
+  | 'tables'
+  | 'kds'
+  | 'zreport'
+  | 'finance'
+  | 'inventory'
+  | 'suppliers'
+  | 'combos'
+  | 'dashboard'
+  | 'analytics'
+  | 'logs'
+  | 'crm'
+  | 'customerapp'
+  | 'posbuilder'
+  | 'ai'
+  | 'menu'
+  | 'recipes'
+  | 'tenants'
+  | 'notes'
+  | 'settings'
+  | 'landing'
+  | 'database';
+
+export const ALL_MODULE_KEYS: ModuleKey[] = [
+  'pos',
+  'tables',
+  'kds',
+  'zreport',
+  'finance',
+  'inventory',
+  'suppliers',
+  'combos',
+  'dashboard',
+  'analytics',
+  'logs',
+  'crm',
+  'customerapp',
+  'posbuilder',
+  'ai',
+  'menu',
+  'recipes',
+  'tenants',
+  'notes',
+  'settings',
+  'landing',
+  'database',
+];
+
+const MODULE_ALIASES: Record<string, ModuleKey> = {
+  '': 'pos',
+  pos: 'pos',
+  main: 'pos',
+  tables: 'tables',
+  kds: 'kds',
+  kitchen: 'kds',
+  zreport: 'zreport',
+  'z-report': 'zreport',
+  finance: 'finance',
+  inventory: 'inventory',
+  suppliers: 'suppliers',
+  combos: 'combos',
+  dashboard: 'dashboard',
+  analytics: 'analytics',
+  logs: 'logs',
+  crm: 'crm',
+  customers: 'crm',
+  customerapp: 'customerapp',
+  'customer-app': 'customerapp',
+  posbuilder: 'posbuilder',
+  'pos-builder': 'posbuilder',
+  ai: 'ai',
+  menu: 'menu',
+  recipes: 'recipes',
+  tenants: 'tenants',
+  notes: 'notes',
+  settings: 'settings',
+  landing: 'landing',
+  database: 'database',
+};
+
+const RESERVED_PUBLIC_PATHS = new Set([
+  'receipt',
+  'feedback',
+  'customer',
+  'qr-menu',
+]);
+
+/**
+ * Extracts a valid ModuleKey from the current URL pathname.
+ * Returns null if the path is a reserved public route or unknown.
+ */
+export function getModuleFromPathname(pathname: string): ModuleKey | null {
+  if (typeof pathname !== 'string') return null;
+  const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const segment = clean.split('/')[0] || '';
+
+  if (RESERVED_PUBLIC_PATHS.has(segment)) {
+    return null;
+  }
+
+  return MODULE_ALIASES[segment] || null;
+}
+
+/**
+ * Returns the canonical URL pathname for a given module.
+ */
+export function getPathnameForModule(moduleKey: ModuleKey): string {
+  if (moduleKey === 'pos') return '/';
+  return `/${moduleKey}`;
+}
+
+/**
+ * Updates the browser's URL without reloading the page using History API.
+ */
+export function syncUrlWithModule(moduleKey: ModuleKey, replace: boolean = false) {
+  if (typeof window === 'undefined' || !window.history) return;
+  const targetPath = getPathnameForModule(moduleKey);
+  const currentPath = window.location.pathname;
+  const currentSearch = window.location.search;
+  const currentHash = window.location.hash;
+
+  if (currentPath === targetPath) return;
+
+  const newUrl = `${targetPath}${currentSearch}${currentHash}`;
+  if (replace) {
+    window.history.replaceState({ moduleKey }, '', newUrl);
+  } else {
+    window.history.pushState({ moduleKey }, '', newUrl);
+  }
+}
