@@ -389,7 +389,8 @@ export default function PublicMenu() {
     }
     return (
       <div
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-black"
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden bg-black"
+        style={{ height: '100dvh', width: '100vw' }}
         onClick={() => setShowSplash(false)}
       >
         <video
