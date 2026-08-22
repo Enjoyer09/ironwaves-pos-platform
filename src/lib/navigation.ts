@@ -71,6 +71,7 @@ const MODULE_ALIASES: Record<string, ModuleKey> = {
   'pos-builder': 'posbuilder',
   ai: 'ai',
   menu: 'menu',
+  'menu-editor': 'menu',
   recipes: 'recipes',
   tenants: 'tenants',
   notes: 'notes',
@@ -83,7 +84,9 @@ const RESERVED_PUBLIC_PATHS = new Set([
   'receipt',
   'feedback',
   'customer',
+  'menu',
   'qr-menu',
+  'm',
 ]);
 
 /**
@@ -107,6 +110,7 @@ export function getModuleFromPathname(pathname: string): ModuleKey | null {
  */
 export function getPathnameForModule(moduleKey: ModuleKey): string {
   if (moduleKey === 'pos') return '/';
+  if (moduleKey === 'menu') return '/menu-editor';
   return `/${moduleKey}`;
 }
 
