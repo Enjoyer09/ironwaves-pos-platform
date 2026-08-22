@@ -2475,6 +2475,7 @@ export default function SettingsPanel() {
                 <option value="none">{tx(lang, 'Söndürülüb (default skeleton)', 'Отключено (скелетон)', 'Disabled (default skeleton)')}</option>
                 <option value="image">{tx(lang, 'Şəkil (JPG/PNG/WebP)', 'Изображение', 'Image')}</option>
                 <option value="gif">{tx(lang, 'GIF (animasiya)', 'GIF (анимация)', 'GIF (animation)')}</option>
+                <option value="video">{tx(lang, 'Video (MP4, max 2MB)', 'Видео (MP4, макс 2МБ)', 'Video (MP4, max 2MB)')}</option>
               </select>
             </div>
             <div className="field-stack">
@@ -2489,16 +2490,34 @@ export default function SettingsPanel() {
                   📁 {tx(lang, 'Yüklə', 'Загрузить', 'Upload')}
                   <input
                     type="file"
-                    accept="image/*,.gif"
+                    accept="image/*,.gif,video/mp4"
                     className="hidden"
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
+                      const isVideo = file.type.startsWith('video/');
+                      const maxSize = isVideo ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+                      if (file.size > maxSize) {
+                        notify('error', tx(lang, `Fayl çox böyükdür (max ${isVideo ? '2MB' : '5MB'})`, `Файл слишком большой (макс ${isVideo ? '2МБ' : '5МБ'})`, `File too large (max ${isVideo ? '2MB' : '5MB'})`));
+                        e.target.value = '';
+                        return;
+                      }
                       try {
                         notify('info', tx(lang, 'Fayl yüklənir...', 'Загрузка файла...', 'Uploading file...'));
-                        const dataUrl = await prepareImageDataUrl(file, { maxDimension: 1080, outputQuality: 0.85 });
-                        setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl }));
-                        notify('success', tx(lang, 'Splash şəkli yükləndi', 'Splash изображение загружено', 'Splash image uploaded'));
+                        if (isVideo) {
+                          // Video: convert to base64 data URL directly (no compression)
+                          const reader = new FileReader();
+                          const dataUrl = await new Promise<string>((resolve, reject) => {
+                            reader.onload = () => resolve(reader.result as string);
+                            reader.onerror = () => reject(new Error('File read failed'));
+                            reader.readAsDataURL(file);
+                          });
+                          setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl, splash_type: 'video' }));
+                        } else {
+                          const dataUrl = await prepareImageDataUrl(file, { maxDimension: 1080, outputQuality: 0.85 });
+                          setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl }));
+                        }
+                        notify('success', tx(lang, 'Splash media yükləndi', 'Splash медиа загружено', 'Splash media uploaded'));
                       } catch (err: any) {
                         notify('error', err?.message || 'Upload failed');
                       }
@@ -2509,7 +2528,11 @@ export default function SettingsPanel() {
               </div>
               {qrMenuSettings.splash_url && (
                 <div className="mt-2 flex items-center gap-3">
-                  <img src={qrMenuSettings.splash_url} alt="splash preview" className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" />
+                  {qrMenuSettings.splash_type === 'video' ? (
+                    <video src={qrMenuSettings.splash_url} className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" muted autoPlay loop playsInline />
+                  ) : (
+                    <img src={qrMenuSettings.splash_url} alt="splash preview" className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" />
+                  )}
                   <button type="button" onClick={() => setQrMenuSettings((p: any) => ({ ...p, splash_url: '' }))} className="text-xs text-rose-400 hover:text-rose-300">✕ {tx(lang, 'Sil', 'Удалить', 'Remove')}</button>
                 </div>
               )}

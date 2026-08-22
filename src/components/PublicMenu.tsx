@@ -417,12 +417,24 @@ export default function PublicMenu() {
           `}</style>
 
           {/* Media */}
-          <img
-            src={splashUrl}
-            alt="splash"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
-          />
+          {splashType === 'video' ? (
+            <video
+              src={splashUrl}
+              autoPlay
+              muted
+              playsInline
+              loop
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
+            />
+          ) : (
+            <img
+              src={splashUrl}
+              alt="splash"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
+            />
+          )}
 
           {/* Dark overlay */}
           <div className="absolute inset-0 bg-black/40" />
