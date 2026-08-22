@@ -144,15 +144,20 @@ export async function get_menu_items_live(
   return items;
 }
 
-export async function get_public_menu_live() {
+export async function get_public_menu_live(tenantSlug?: string) {
   const tenantId = getResolvedTenantIdFromHost() || 'tenant_default';
   if (!isBackendEnabled()) {
     return get_menu_items(tenantId);
+  }
+  const headers: Record<string, string> = {};
+  if (tenantSlug) {
+    headers['x-tenant-slug'] = tenantSlug;
   }
   let items = await apiRequest<any[]>('/api/v1/catalog/public-menu', {
     method: 'GET',
     tenantId: null,
     auth: false,
+    headers,
   });
   const all = getDB<any>('menu_items').filter((i) => i.tenant_id !== tenantId);
   setDB('menu_items', [...all, ...items.map((i) => ({ ...i, tenant_id: i?.tenant_id || tenantId }))]);

@@ -29,7 +29,7 @@ import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
 import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
 import type { Settings } from './types/pos';
-import { getModuleFromPathname, syncUrlWithModule, type ModuleKey } from './lib/navigation';
+import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, type ModuleKey } from './lib/navigation';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -1639,7 +1639,13 @@ export default function App() {
     );
   }
 
-  if (publicPathname === '/menu' || publicPathname === '/menu/') {
+  if (
+    isPublicMenuRoute(publicPathname) ||
+    publicPathname === '/menu' ||
+    publicPathname === '/menu/' ||
+    publicPathname === '/qr-menu' ||
+    publicPathname === '/qr-menu/'
+  ) {
     return <Suspense fallback={lazyModuleFallback}><PublicMenu /></Suspense>;
   }
 

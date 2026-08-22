@@ -3771,6 +3771,64 @@ def get_public_menu_bootstrap(
     }
 
 
+class PublicTableServiceIn(BaseModel):
+    action: str  # "call_waiter" | "request_bill"
+    table_label: str
+    payment_method: str | None = None
+    note: str | None = None
+
+
+@router.post("/public-table-service")
+def public_table_service(
+    payload: PublicTableServiceIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    action = payload.action.strip().lower()
+    table = payload.table_label.strip() or "Masa"
+    pay_method = (payload.payment_method or "").strip().lower()
+    pay_label = "Kart ilə" if pay_method == "card" else "Nağd" if pay_method == "cash" else ""
+
+    if action == "call_waiter":
+        title = f"🔔 Ofisiant Çağırışı: {table}"
+        msg = f"{table} ofisiant çağırır."
+    elif action == "request_bill":
+        title = f"🧾 Hesab Tələbi: {table}"
+        msg = f"{table} hesab istəyir" + (f" ({pay_label})" if pay_label else "") + "."
+    else:
+        title = f"Masa Məlumatı: {table}"
+        msg = f"{table} bildiriş göndərdi: {payload.note or ''}"
+
+    # Notify all active staff members
+    staff_users = db.query(User).filter(
+        User.tenant_id == tenant.id,
+        User.is_active == True,
+    ).all()
+
+    for s_user in staff_users:
+        db.add(
+            StaffNotification(
+                tenant_id=tenant.id,
+                username=s_user.username,
+                title=title,
+                message=msg,
+                meta_json=json.dumps(
+                    {
+                        "action": action,
+                        "table_label": table,
+                        "payment_method": pay_method,
+                        "note": payload.note or "",
+                        "created_at": _utcnow().isoformat(),
+                    },
+                    ensure_ascii=False,
+                ),
+                is_read=False,
+            )
+        )
+    db.commit()
+    return {"success": True, "message": "Bildiriş komandaya çatdırıldı"}
+
+
 @router.post("/customer-app/enroll")
 def enroll_customer_app(
     payload: dict,
