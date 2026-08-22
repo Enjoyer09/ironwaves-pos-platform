@@ -1351,11 +1351,32 @@ export default function App() {
   }, [sessionRole, currentModule, visibleModuleKeys]);
 
   useEffect(() => {
+    // Don't override URL for public routes (menu, receipt, feedback, etc.)
+    if (isPublicMenuRoute(window.location.pathname) ||
+        window.location.pathname === '/menu' || window.location.pathname === '/menu/' ||
+        window.location.pathname === '/qrmenu' || window.location.pathname === '/qrmenu/' ||
+        window.location.pathname === '/qr-menu' || window.location.pathname === '/qr-menu/' ||
+        window.location.pathname === '/feedback' || window.location.pathname === '/feedback/' ||
+        window.location.pathname === '/landing' || window.location.pathname === '/landing/' ||
+        window.location.pathname.startsWith('/receipt') || window.location.pathname.startsWith('/customer')) {
+      return;
+    }
     setMountedModules((prev) => (prev.includes(resolvedModule) ? prev : [...prev, resolvedModule]));
     syncUrlWithModule(resolvedModule);
   }, [resolvedModule]);
 
   useEffect(() => {
+    // Don't override URL for public routes
+    if (isPublicMenuRoute(window.location.pathname) ||
+        window.location.pathname.startsWith('/menu') ||
+        window.location.pathname.startsWith('/qrmenu') ||
+        window.location.pathname.startsWith('/qr-menu') ||
+        window.location.pathname.startsWith('/feedback') ||
+        window.location.pathname.startsWith('/receipt') ||
+        window.location.pathname.startsWith('/customer') ||
+        window.location.pathname === '/landing' || window.location.pathname === '/landing/') {
+      return;
+    }
     const urlModule = typeof window !== 'undefined' ? getModuleFromPathname(window.location.pathname) : null;
     const targetModule = (urlModule && visibleModules.some((m) => m.key === urlModule))
       ? urlModule
