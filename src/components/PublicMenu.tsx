@@ -302,6 +302,18 @@ export default function PublicMenu() {
   const wifiSsid = branding.wifi_ssid || '';
   const wifiPassword = branding.wifi_password || '';
 
+  // Dynamic theming from tenant settings
+  const bgColor = branding.background_color || '#07090e';
+  const surfaceColor = branding.surface_color || '#0d1322';
+  const textColor = branding.text_color || '#ffffff';
+  const primaryColor = branding.primary_color || '#d4af37';
+  const accentColor = branding.accent_color || '#d4af37';
+  const fontFamily = branding.font_family || '';
+  const customFontUrl = branding.custom_font_url || '';
+  const showPrices = bootstrap?.show_prices !== false;
+  const showImages = bootstrap?.show_images !== false;
+  const showDescriptions = bootstrap?.show_descriptions !== false;
+
   // Categories calculation
   const categories = useMemo(() => {
     const unique = Array.from(
@@ -450,7 +462,17 @@ export default function PublicMenu() {
   return (
     <div className={`min-h-screen w-full antialiased selection:bg-[#d4af37]/30 selection:text-[#d4af37] pb-32 transition-colors duration-500 ${
       isMenuLight ? 'bg-[#F8F6F3] text-slate-900' : 'bg-[#07090e] text-slate-100'
-    }`}>
+    }`}
+      style={{
+        ...(fontFamily ? { fontFamily } : {}),
+        ...(isMenuLight ? {} : { backgroundColor: bgColor, color: textColor }),
+        ['--menu-primary' as string]: primaryColor,
+        ['--menu-accent' as string]: accentColor,
+        ['--menu-surface' as string]: surfaceColor,
+      }}
+    >
+      {/* Custom font import */}
+      {customFontUrl && <link rel="stylesheet" href={customFontUrl} />}
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(24px) scale(0.96); }
@@ -482,6 +504,10 @@ export default function PublicMenu() {
           70% { transform: scale(0.95); }
           100% { transform: scale(1); }
         }
+        .menu-primary-bg { background: var(--menu-primary); }
+        .menu-primary-text { color: var(--menu-primary); }
+        .menu-primary-border { border-color: var(--menu-primary); }
+        .menu-primary-gradient { background: linear-gradient(135deg, var(--menu-primary), var(--menu-accent)); }
         .animate-float { animation: float 6s ease-in-out infinite; }
         .animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
       `}</style>
@@ -569,7 +595,7 @@ export default function PublicMenu() {
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-16 sm:-mt-20">
           <div className="flex flex-col items-center text-center">
             {/* Circular Glowing Logo */}
-            <div className="relative mb-4 flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center rounded-full border-3 border-[#d4af37] bg-[#0c111d] shadow-[0_0_35px_rgba(212,175,55,0.35)] p-1.5 animate-glow-pulse">
+            <div className="relative mb-4 flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center rounded-full bg-[#0c111d] shadow-[0_0_35px_rgba(212,175,55,0.35)] p-1.5 animate-glow-pulse" style={{ borderWidth: '3px', borderStyle: 'solid', borderColor: primaryColor }}>
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -586,7 +612,7 @@ export default function PublicMenu() {
               {companyName}
             </h1>
             {branding.hero_subtitle && (
-              <p className="mt-2 text-sm sm:text-base md:text-lg text-[#d4af37] font-semibold tracking-wide max-w-xl">
+              <p className="mt-2 text-sm sm:text-base md:text-lg font-semibold tracking-wide max-w-xl" style={{ color: primaryColor }}>
                 {branding.hero_subtitle}
               </p>
             )}
@@ -777,6 +803,7 @@ export default function PublicMenu() {
                   }}
                 >
                   {/* Food Image with Hover Zoom */}
+                  {showImages && (
                   <div className="relative h-32 w-32 sm:h-36 sm:w-36 md:h-40 md:w-40 shrink-0 overflow-hidden rounded-2xl bg-[#161e32]">
                     {img ? (
                       <img
@@ -791,11 +818,12 @@ export default function PublicMenu() {
                       </div>
                     )}
                     {item.is_coffee && (
-                      <span className="absolute bottom-2 left-2 rounded-lg bg-[#0a0d16]/90 px-2 py-1 text-xs font-bold text-[#d4af37] backdrop-blur-md">
+                      <span className="absolute bottom-2 left-2 rounded-lg bg-[#0a0d16]/90 px-2 py-1 text-xs font-bold backdrop-blur-md" style={{ color: primaryColor }}>
                         ☕ Coffee
                       </span>
                     )}
                   </div>
+                  )}
 
                   {/* Info Column */}
                   <div className="ml-4 sm:ml-5 flex flex-1 flex-col justify-between">
@@ -805,7 +833,7 @@ export default function PublicMenu() {
                       }`}>
                         {item.item_name}
                       </h3>
-                      {item.description && (
+                      {showDescriptions && item.description && (
                         <p className="mt-1.5 text-xs sm:text-sm text-slate-300 line-clamp-2 leading-relaxed">
                           {item.description}
                         </p>
@@ -814,13 +842,16 @@ export default function PublicMenu() {
 
                     {/* Price & Action */}
                     <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-baseline gap-1 group-hover:animate-[priceBounce_0.4s_ease-out]">
-                        <span className="text-xl sm:text-2xl font-black text-[#d4af37]">{priceFormatted}</span>
-                        <span className="text-sm sm:text-base font-bold text-[#d4af37]">₼</span>
-                      </div>
+                      {showPrices && (
+                        <div className="flex items-baseline gap-1 group-hover:animate-[priceBounce_0.4s_ease-out]">
+                          <span className="text-xl sm:text-2xl font-black" style={{ color: primaryColor }}>{priceFormatted}</span>
+                          <span className="text-sm sm:text-base font-bold" style={{ color: primaryColor }}>₼</span>
+                        </div>
+                      )}
                       <button
                         type="button"
-                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300 transition-all duration-300 group-hover:bg-[#d4af37] group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-[0_4px_15px_rgba(212,175,55,0.4)] active:scale-90"
+                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300 transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_4px_15px_rgba(212,175,55,0.4)] active:scale-90"
+                        style={{ '--tw-shadow-color': `${primaryColor}40` } as React.CSSProperties}
                       >
                         <ChevronRight className="h-5 w-5" />
                       </button>
@@ -845,7 +876,7 @@ export default function PublicMenu() {
               className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all ${
                 waiterCooldown > 0
                   ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-xl hover:brightness-110 active:scale-95'
+                  : 'menu-primary-gradient text-slate-950 shadow-xl hover:brightness-110 active:scale-95'
               }`}
             >
               <BellRing className="h-5 w-5" />
@@ -940,7 +971,7 @@ export default function PublicMenu() {
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
-                className="w-full rounded-2xl bg-gradient-to-r from-[#d4af37] to-[#b89528] py-4 text-base font-extrabold uppercase tracking-wider text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all active:scale-[0.98]"
+                className="w-full rounded-2xl menu-primary-gradient py-4 text-base font-extrabold uppercase tracking-wider text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all active:scale-[0.98]"
               >
                 {TX.close[lang]}
               </button>
@@ -1043,7 +1074,7 @@ export default function PublicMenu() {
               <button
                 type="button"
                 onClick={handleRequestBill}
-                className="flex-1 rounded-2xl bg-gradient-to-r from-[#d4af37] to-[#b89528] py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-950 shadow-xl hover:brightness-110"
+                className="flex-1 rounded-2xl menu-primary-gradient py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-950 shadow-xl hover:brightness-110"
               >
                 {TX.send[lang]}
               </button>
