@@ -385,7 +385,7 @@ export default function PublicMenu() {
   // ─── Splash Screen ─────────────────────────────────────────────────────────
   if (showSplash) {
     if (!splashTimerRef.current) {
-      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2500);
+      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2800);
     }
     return (
       <div
@@ -407,7 +407,7 @@ export default function PublicMenu() {
         />
         <div className="absolute inset-0 bg-black/30 pointer-events-none" />
         <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden pointer-events-none">
-          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2.5s linear forwards' }} />
+          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2.8s linear forwards' }} />
         </div>
         <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } } video::-webkit-media-controls { display: none !important; } video::-webkit-media-controls-enclosure { display: none !important; }`}</style>
       </div>
