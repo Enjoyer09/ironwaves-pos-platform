@@ -21,9 +21,18 @@ def upgrade() -> None:
     conn = op.get_bind()
     dialect = conn.dialect.name
 
+    # In --sql mode (offline), just emit CREATE TABLE unconditionally
+    is_offline = not hasattr(conn, 'exec_driver_sql')
+    try:
+        inspector = sa.inspect(conn)
+        table_exists = "tenant_branches" in inspector.get_table_names()
+    except Exception:
+        # --sql mode or MockConnection — assume table doesn't exist
+        is_offline = True
+        table_exists = False
+
     # ── 1. Create table (idempotent: skip if already exists) ──────────
-    inspector = sa.inspect(conn)
-    if "tenant_branches" not in inspector.get_table_names():
+    if not table_exists:
         op.create_table(
             "tenant_branches",
             sa.Column("id", sa.String(36), primary_key=True),
@@ -41,25 +50,22 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
             sa.UniqueConstraint("tenant_id", "name", name="uq_tenant_branch_name"),
         )
-
-        existing_indexes = {idx["name"] for idx in inspector.get_indexes("tenant_branches")} if "tenant_branches" in inspector.get_table_names() else set()
-        if "ix_tenant_branches_tenant_id" not in existing_indexes:
+        if not is_offline:
             op.create_index("ix_tenant_branches_tenant_id", "tenant_branches", ["tenant_id"])
-        if "ix_tenant_branches_tenant_active" not in existing_indexes:
             op.create_index("ix_tenant_branches_tenant_active", "tenant_branches", ["tenant_id", "is_active"])
 
-    # ── 2. Backfill: create a default branch per tenant (Python-side UUID) ──
-    # Use Python uuid4() to avoid dialect-specific SQL functions.
+    # ── 2. Backfill (skip in --sql/offline mode) ──────────────────────
+    if is_offline:
+        return
+
     import uuid
     from datetime import datetime, timezone
 
-    # Check if any branches already exist — skip if so (idempotent).
     existing_count = conn.execute(
         sa.text("SELECT COUNT(*) FROM tenant_branches")
     ).scalar()
 
     if existing_count == 0:
-        # Fetch business_profiles that don't have a branch yet
         rows = conn.execute(
             sa.text(
                 """
