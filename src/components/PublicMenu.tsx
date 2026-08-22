@@ -228,7 +228,7 @@ export default function PublicMenu() {
     if (loading || !showSplash) return;
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
     if (!isMobile) { setShowSplash(false); return; }
-    const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
+    const splashSettings = bootstrap?.branding || {};
     const splashType = String(splashSettings.splash_type || 'none');
     const duration = splashType === 'none' ? 0 : Number(splashSettings.splash_duration_ms || 3000);
     if (duration <= 0) {
@@ -395,7 +395,7 @@ export default function PublicMenu() {
   // ─── Splash Screen (mobile only) ──────────────────────────────────────────
   const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
   if (showSplash && isMobileDevice) {
-    const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
+    const splashSettings = bootstrap?.branding || {};
     const splashType = String(splashSettings.splash_type || 'none');
     const splashUrl = String(splashSettings.splash_url || '').trim();
     const splashText = String(splashSettings.splash_overlay_text || '').trim();
@@ -676,7 +676,7 @@ export default function PublicMenu() {
       {categories.length > 0 && (
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-4 mb-6">
           <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {/* All button */}
+            {/* All button — with restaurant logo */}
             <button
               type="button"
               onClick={() => setActiveCategory('ALL')}
@@ -688,7 +688,11 @@ export default function PublicMenu() {
                   ? 'border-[#d4af37] shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105 bg-[#d4af37]/10'
                   : 'border-white/10 group-hover:border-white/30 group-hover:scale-105 bg-white/[0.03]'
               }`}>
-                <span className="text-3xl">✨</span>
+                {logoUrl ? (
+                  <img src={logoUrl} alt={companyName} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-3xl">✨</span>
+                )}
               </div>
               <span className={`text-[11px] sm:text-xs font-bold transition-colors ${
                 activeCategory === 'ALL' ? 'text-[#d4af37]' : 'text-slate-400 group-hover:text-slate-200'
@@ -734,54 +738,49 @@ export default function PublicMenu() {
         </div>
       )}
 
-      {/* ─── Sticky Search Bar ───────────────────────────────────────────────── */}
-      <div className={`sticky top-0 z-30 border-b backdrop-blur-2xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)] transition-colors duration-500 ${
-        isMenuLight ? 'border-slate-200/60 bg-white/80' : 'border-white/[0.06] bg-[#07090e]/80'
-      }`}>
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 py-3">
-          {/* Search Input — expand on click */}
-          <div className="relative">
-            {!searchExpanded && !search ? (
-              <button
-                type="button"
-                onClick={() => setSearchExpanded(true)}
-                className={`flex items-center gap-3 w-full rounded-2xl border py-3 px-5 text-sm backdrop-blur-xl transition-all duration-300 ${
+      {/* ─── Search Bar (inline, below story slider) ────────────────────────── */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 mb-6">
+        <div className="relative">
+          {!searchExpanded && !search ? (
+            <button
+              type="button"
+              onClick={() => setSearchExpanded(true)}
+              className={`flex items-center gap-3 w-full rounded-2xl border py-3 px-5 text-sm transition-all duration-300 ${
+                isMenuLight
+                  ? 'border-slate-200 bg-white/60 text-slate-400 hover:border-slate-300'
+                  : 'border-white/10 bg-white/[0.05] text-slate-500 hover:border-white/20'
+              }`}
+            >
+              <Search className="h-4 w-4 text-slate-400" />
+              <span>{TX.searchPlaceholder[lang]}</span>
+            </button>
+          ) : (
+            <div style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d4af37]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onBlur={() => { if (!search) setSearchExpanded(false); }}
+                autoFocus
+                placeholder={TX.searchPlaceholder[lang]}
+                className={`w-full rounded-2xl border py-3 pl-11 pr-10 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 ${
                   isMenuLight
-                    ? 'border-slate-200 bg-white/60 text-slate-400 hover:border-slate-300 hover:bg-white/80'
-                    : 'border-white/10 bg-white/[0.05] text-slate-500 hover:border-white/20 hover:bg-white/[0.08]'
+                    ? 'border-[#d4af37]/40 bg-white text-slate-900 placeholder-slate-400'
+                    : 'border-[#d4af37]/40 bg-white/[0.06] text-slate-100 placeholder-slate-500'
                 }`}
-              >
-                <Search className="h-5 w-5 text-slate-400" />
-                <span>{TX.searchPlaceholder[lang]}</span>
-              </button>
-            ) : (
-              <div style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
-                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#d4af37]" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onBlur={() => { if (!search) setSearchExpanded(false); }}
-                  autoFocus
-                  placeholder={TX.searchPlaceholder[lang]}
-                  className={`w-full rounded-2xl border py-3 pl-12 pr-11 text-sm sm:text-base backdrop-blur-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 ${
-                    isMenuLight
-                      ? 'border-[#d4af37]/40 bg-white/80 text-slate-900 placeholder-slate-400'
-                      : 'border-[#d4af37]/40 bg-white/[0.08] text-slate-100 placeholder-slate-500 shadow-[0_0_20px_rgba(212,175,55,0.1)]'
-                  }`}
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => { setSearch(''); setSearchExpanded(false); }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setSearchExpanded(false); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
