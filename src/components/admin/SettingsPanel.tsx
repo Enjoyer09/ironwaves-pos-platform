@@ -1542,11 +1542,11 @@ export default function SettingsPanel() {
     { id: 'finance', icon: '💰', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
     { id: 'integrations', icon: '🔗', label: tx(lang, 'İnteqrasiya', 'Интеграции', 'Integrations') },
     { id: 'ai', icon: '🤖', label: tx(lang, 'AI', 'AI', 'AI') },
-    { id: 'security', icon: '🔒', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security') },
+    ...(['admin', 'super_admin'].includes(currentRole) ? [{ id: 'security', icon: '🔒', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security') }] : []),
     { id: 'interface', icon: '🎨', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface') },
   ];
 
-  const [activeSettingsCategory, setActiveSettingsCategory] = useState('all');
+  const [activeSettingsCategory, setActiveSettingsCategory] = useState('general');
 
   // Toggle section visibility via DOM when category changes
   useEffect(() => {
@@ -1904,6 +1904,16 @@ export default function SettingsPanel() {
         </div>
 
         {renderPanelSuccess('delivery_integrations')}
+        {(deliveryIntegrations.bolt_food_enabled && !deliveryIntegrations.bolt_food_provider_id) && (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+            ⚠️ {tx(lang, 'Bolt Food aktiv amma Provider ID boşdur', 'Bolt Food активен, но Provider ID пуст', 'Bolt Food enabled but Provider ID is empty')}
+          </div>
+        )}
+        {(deliveryIntegrations.wolt_enabled && !deliveryIntegrations.wolt_venue_id) && (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+            ⚠️ {tx(lang, 'Wolt aktiv amma Venue ID boşdur', 'Wolt активен, но Venue ID пуст', 'Wolt enabled but Venue ID is empty')}
+          </div>
+        )}
         <div className="flex justify-end border-t border-slate-700/40 pt-4">
           <button onClick={() => { void saveDeliveryIntegrations(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
@@ -4040,13 +4050,13 @@ export default function SettingsPanel() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
-            <input className="neon-input w-full" type="password" value={readScopedStorage('gemini_api_key') || ''} onChange={(e) => { writeScopedStorage('gemini_api_key', e.target.value); void update_api_key_live(e.target.value, {}); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
+            <input className="neon-input w-full" type="password" value={aiApiKey} onChange={(e) => { setAiApiKey(e.target.value); writeScopedStorage('gemini_api_key', e.target.value); void update_api_key_live(e.target.value, {}); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
             <p className="text-[10px] text-slate-500">{tx(lang, 'Key formatına görə provider avtomatik tanınır', 'Провайдер определяется автоматически', 'Provider is auto-detected from key format')}</p>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Aşkarlanan provider', 'Определённый провайдер', 'Detected provider')}</label>
             <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-200">
-              {(() => { const k = readScopedStorage('gemini_api_key') || ''; if (!k) return tx(lang, 'Key daxil edilməyib', 'Ключ не введён', 'No key entered'); const d = detectAiConfigFromApiKey(k); return `${aiProviderLabel(d.provider)} · ${d.model}`; })()}
+              {aiApiKey ? `${aiProviderLabel(detectAiConfigFromApiKey(aiApiKey).provider)} · ${detectAiConfigFromApiKey(aiApiKey).model}` : tx(lang, 'Key daxil edilməyib', 'Ключ не введён', 'No key entered')}
             </div>
           </div>
         </div>
