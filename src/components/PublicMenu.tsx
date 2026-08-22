@@ -400,7 +400,7 @@ export default function PublicMenu() {
   const splashBranding = bootstrap?.branding || {};
   const localSplashSettings = (() => { try { return (get_settings() as any)?.qr_menu_settings || {}; } catch { return {}; } })();
   // Resolve splash URL from any available source
-  const splashUrl = String(splashBranding.splash_url || localSplashSettings.splash_url || '').trim();
+  const splashUrl = String(splashBranding.splash_url || localSplashSettings.splash_url || 'https://res.cloudinary.com/dtjh5e3nm/video/upload/v1787398802/WhatsApp_Video_2026-08-22_at_2.22.01_PM.mp4').trim();
   // Auto-detect type from URL extension if splash_type not set
   const splashTypeRaw = String(splashBranding.splash_type || localSplashSettings.splash_type || '').trim();
   const splashType = splashTypeRaw && splashTypeRaw !== 'none'
