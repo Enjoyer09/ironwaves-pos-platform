@@ -123,6 +123,7 @@ export default function PublicMenu() {
   const [waiterCooldown, setWaiterCooldown] = useState(0);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [showSplash, setShowSplash] = useState(true);
   const [menuTheme, setMenuTheme] = useState<'dark' | 'light'>(() => {
     try {
       const saved = localStorage.getItem('qr_menu_theme');
@@ -221,6 +222,20 @@ export default function PublicMenu() {
     })();
     return () => { mounted = false; };
   }, [tenantSlug]);
+
+  // Splash screen timer — dismiss after duration
+  useEffect(() => {
+    if (loading || !showSplash) return;
+    const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
+    const splashType = String(splashSettings.splash_type || 'none');
+    const duration = splashType === 'none' ? 0 : Number(splashSettings.splash_duration_ms || 3000);
+    if (duration <= 0) {
+      setShowSplash(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowSplash(false), duration);
+    return () => clearTimeout(timer);
+  }, [loading, showSplash, bootstrap]);
 
   // Cooldown countdown timer
   useEffect(() => {
@@ -361,6 +376,72 @@ export default function PublicMenu() {
         </div>
       </div>
     );
+  }
+
+  // ─── Splash Screen ───────────────────────────────────────────────────────
+  if (showSplash) {
+    const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
+    const splashType = String(splashSettings.splash_type || 'none');
+    const splashUrl = String(splashSettings.splash_url || '').trim();
+    const splashText = String(splashSettings.splash_overlay_text || '').trim();
+    const splashBg = String(splashSettings.splash_bg_color || '#000000').trim();
+    const logoUrl = resolveImageUrl(splashSettings.logo_url || bootstrap?.branding?.logo_url);
+    const companyName = String(splashSettings.company_name || bootstrap?.branding?.company_name || '').trim();
+
+    if (splashType !== 'none' && splashUrl) {
+      return (
+        <div
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden"
+          style={{ backgroundColor: splashBg }}
+          onClick={() => setShowSplash(false)}
+        >
+          <style>{`
+            @keyframes splashFadeIn { from { opacity: 0; transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
+            @keyframes splashTextIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes splashProgress { from { width: 0%; } to { width: 100%; } }
+          `}</style>
+
+          {/* Media */}
+          <img
+            src={splashUrl}
+            alt="splash"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
+          />
+
+          {/* Dark overlay */}
+          <div className="absolute inset-0 bg-black/40" />
+
+          {/* Content overlay */}
+          <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6" style={{ animation: 'splashTextIn 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both' }}>
+            {logoUrl && (
+              <img src={logoUrl} alt="logo" className="h-20 w-20 rounded-2xl object-cover shadow-2xl border-2 border-white/20" />
+            )}
+            {companyName && (
+              <h1 className="text-3xl sm:text-4xl font-black text-white drop-shadow-lg">{companyName}</h1>
+            )}
+            {splashText && (
+              <p className="text-base sm:text-lg text-white/80 font-medium max-w-sm">{splashText}</p>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden">
+            <div
+              className="h-full bg-white/80 rounded-full"
+              style={{ animation: `splashProgress ${Number(splashSettings.splash_duration_ms || 3000)}ms linear forwards` }}
+            />
+          </div>
+
+          {/* Skip hint */}
+          <div className="absolute bottom-14 left-0 right-0 text-center">
+            <span className="text-xs text-white/40 font-medium">tap to skip</span>
+          </div>
+        </div>
+      );
+    }
+    // If splash_type is 'none' or no URL, skip splash immediately
+    setShowSplash(false);
   }
 
   return (
