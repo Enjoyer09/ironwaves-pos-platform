@@ -2482,8 +2482,37 @@ export default function SettingsPanel() {
               <input className="neon-input" type="number" min="1000" max="10000" step="500" value={qrMenuSettings.splash_duration_ms || 3000} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_duration_ms: Number(e.target.value) }))} />
             </div>
             <div className="field-stack md:col-span-2">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Media URL (video/şəkil/gif linki)', 'URL медиа', 'Media URL')}</label>
-              <input className="neon-input" value={qrMenuSettings.splash_url || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_url: e.target.value }))} placeholder="https://example.com/splash.mp4" />
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Şəkil/GIF (fayl yüklə və ya URL yapışdır)', 'Изображение/GIF (загрузите или вставьте URL)', 'Image/GIF (upload file or paste URL)')}</label>
+              <div className="flex gap-2">
+                <input className="neon-input flex-1" value={qrMenuSettings.splash_url || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_url: e.target.value }))} placeholder="https://example.com/splash.gif" />
+                <label className="shrink-0 cursor-pointer rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-500/20 active:scale-95">
+                  📁 {tx(lang, 'Yüklə', 'Загрузить', 'Upload')}
+                  <input
+                    type="file"
+                    accept="image/*,.gif"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        notify('info', tx(lang, 'Fayl yüklənir...', 'Загрузка файла...', 'Uploading file...'));
+                        const dataUrl = await prepareImageDataUrl(file, { maxDimension: 1080, outputQuality: 0.85 });
+                        setQrMenuSettings((p: any) => ({ ...p, splash_url: dataUrl }));
+                        notify('success', tx(lang, 'Splash şəkli yükləndi', 'Splash изображение загружено', 'Splash image uploaded'));
+                      } catch (err: any) {
+                        notify('error', err?.message || 'Upload failed');
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+              {qrMenuSettings.splash_url && (
+                <div className="mt-2 flex items-center gap-3">
+                  <img src={qrMenuSettings.splash_url} alt="splash preview" className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" />
+                  <button type="button" onClick={() => setQrMenuSettings((p: any) => ({ ...p, splash_url: '' }))} className="text-xs text-rose-400 hover:text-rose-300">✕ {tx(lang, 'Sil', 'Удалить', 'Remove')}</button>
+                </div>
+              )}
             </div>
             <div className="field-stack">
               <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Overlay text (opsional)', 'Текст поверх (необязательно)', 'Overlay text (optional)')}</label>

@@ -223,9 +223,11 @@ export default function PublicMenu() {
     return () => { mounted = false; };
   }, [tenantSlug]);
 
-  // Splash screen timer — dismiss after duration
+  // Splash screen timer — dismiss after duration (mobile only)
   useEffect(() => {
     if (loading || !showSplash) return;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (!isMobile) { setShowSplash(false); return; }
     const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
     const splashType = String(splashSettings.splash_type || 'none');
     const duration = splashType === 'none' ? 0 : Number(splashSettings.splash_duration_ms || 3000);
@@ -378,8 +380,9 @@ export default function PublicMenu() {
     );
   }
 
-  // ─── Splash Screen ───────────────────────────────────────────────────────
-  if (showSplash) {
+  // ─── Splash Screen (mobile only) ──────────────────────────────────────────
+  const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+  if (showSplash && isMobileDevice) {
     const splashSettings = bootstrap?.qr_menu_settings || bootstrap?.branding || {};
     const splashType = String(splashSettings.splash_type || 'none');
     const splashUrl = String(splashSettings.splash_url || '').trim();
