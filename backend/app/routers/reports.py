@@ -1233,7 +1233,12 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         for code, account_id in account_id_by_code.items()
         if code in {"cash", "card", "safe", "debt"} and account_id
     ]
-    sales_totals = _shift_sales_totals(db, tenant.id, active.opened_at, None)
+    # ── Determine the closing timestamp BEFORE committing ──────────────────
+    # All sales/finance aggregations must be bounded by this moment so that
+    # transactions from OTHER shifts (past or future) are never included.
+    close_timestamp = _utcnow()
+
+    sales_totals = _shift_sales_totals(db, tenant.id, active.opened_at, close_timestamp)
     cash_sales = sales_totals["cash_sales"]
     card_sales = sales_totals["card_sales"]
     deposit_applied_sales = sales_totals["deposit_applied"]
@@ -1242,13 +1247,14 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     ledger_sales_total = sales_totals["ledger_sales_total"]
     reconciliation_gap = sales_totals["reconciliation_gap"]
     void_sales = sales_totals["void_sales"]
-    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, active.opened_at, None)
-    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, active.opened_at, None)
+    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, active.opened_at, close_timestamp)
+    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, active.opened_at, close_timestamp)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
         active.opened_at,
         FinanceTransaction.transaction_type == "deposit_hold",
+        closed_at=close_timestamp,
     )
     other_income_total, other_income_lines = _group_posted_transaction_amounts(
         db,
@@ -1262,6 +1268,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             ),
             FinanceTransaction.transaction_type == "investor_injection",
         ),
+        closed_at=close_timestamp,
         exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit alındı"},
     )
     other_expense_total, other_expense_lines = _group_posted_transaction_amounts(
@@ -1275,6 +1282,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
                 & FinanceTransaction.source_account_id.in_(report_account_ids)
             ),
         ),
+        closed_at=close_timestamp,
         exclude_categories={"maaş", "bank komissiyası"},
     )
     receipt_context = _z_report_financial_context(
@@ -1287,7 +1295,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
     active.status = "closed"
     active.closed_by = user.username
-    active.closed_at = _utcnow()
+    active.closed_at = close_timestamp  # same timestamp used for all aggregations above
     _clear_staff_shift_sessions(db, tenant.id)
     active.actual_cash = actual_cash
     active.declared_cash = actual_cash
