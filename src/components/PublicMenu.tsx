@@ -227,19 +227,17 @@ export default function PublicMenu() {
   useEffect(() => {
     if (loading || !showSplash) return;
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    // Try bootstrap branding first, fallback to local settings
     const brnd = bootstrap?.branding || {};
-    const localQrSettings = (get_settings() as any)?.qr_menu_settings || {};
-    const sType = String(brnd.splash_type || localQrSettings.splash_type || 'none');
-    const sUrl = String(brnd.splash_url || localQrSettings.splash_url || '').trim();
+    const localQr = (() => { try { return (get_settings() as any)?.qr_menu_settings || {}; } catch { return {}; } })();
+    const sUrl = String(brnd.splash_url || localQr.splash_url || '').trim();
 
-    // Desktop or no splash configured → dismiss immediately
-    if (!isMobile || sType === 'none' || !sUrl) {
+    // Desktop or no splash URL → dismiss immediately
+    if (!isMobile || !sUrl) {
       setShowSplash(false);
       return;
     }
 
-    const duration = Number(brnd.splash_duration_ms || localQrSettings.splash_duration_ms || 3000);
+    const duration = Number(brnd.splash_duration_ms || localQr.splash_duration_ms || 3000);
     const timer = setTimeout(() => setShowSplash(false), duration);
     return () => clearTimeout(timer);
   }, [loading, showSplash, bootstrap]);
@@ -400,9 +398,17 @@ export default function PublicMenu() {
   // ─── Splash Screen (mobile only) ──────────────────────────────────────────
   const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
   const splashBranding = bootstrap?.branding || {};
-  const localSplashSettings = (get_settings() as any)?.qr_menu_settings || {};
-  const splashType = String(splashBranding.splash_type || localSplashSettings.splash_type || 'none');
+  const localSplashSettings = (() => { try { return (get_settings() as any)?.qr_menu_settings || {}; } catch { return {}; } })();
+  // Resolve splash URL from any available source
   const splashUrl = String(splashBranding.splash_url || localSplashSettings.splash_url || '').trim();
+  // Auto-detect type from URL extension if splash_type not set
+  const splashTypeRaw = String(splashBranding.splash_type || localSplashSettings.splash_type || '').trim();
+  const splashType = splashTypeRaw && splashTypeRaw !== 'none'
+    ? splashTypeRaw
+    : splashUrl.match(/\.(mp4|mov|webm)(\?|$)/i) ? 'video'
+    : splashUrl.match(/\.gif(\?|$)/i) ? 'gif'
+    : splashUrl ? 'image'
+    : 'none';
   const splashEnabled = isMobileDevice && showSplash && splashType !== 'none' && splashUrl.length > 0;
 
   if (splashEnabled) {
