@@ -385,7 +385,7 @@ export default function PublicMenu() {
   // ─── Splash Screen ─────────────────────────────────────────────────────────
   if (showSplash) {
     if (!splashTimerRef.current) {
-      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2000);
+      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2500);
     }
     return (
       <div
@@ -399,13 +399,17 @@ export default function PublicMenu() {
           muted
           playsInline
           loop
-          className="absolute inset-0 h-full w-full object-cover"
+          disablePictureInPicture
+          disableRemotePlayback
+          controls={false}
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          style={{ objectFit: 'cover' }}
         />
-        <div className="absolute inset-0 bg-black/30" />
-        <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden">
-          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2s linear forwards' }} />
+        <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+        <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden pointer-events-none">
+          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2.5s linear forwards' }} />
         </div>
-        <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } }`}</style>
+        <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } } video::-webkit-media-controls { display: none !important; } video::-webkit-media-controls-enclosure { display: none !important; }`}</style>
       </div>
     );
   }
