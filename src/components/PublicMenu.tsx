@@ -132,8 +132,6 @@ export default function PublicMenu() {
   });
   const isMenuLight = menuTheme === 'light';
 
-  const categoryScrollRef = useRef<HTMLDivElement>(null);
-
   // Scroll progress tracking
   useEffect(() => {
     const handleScroll = () => {
@@ -556,7 +554,27 @@ export default function PublicMenu() {
       {categories.length > 0 && (
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-4 mb-6">
           <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {categories.slice(0, 8).map((cat, idx) => {
+            {/* All button */}
+            <button
+              type="button"
+              onClick={() => setActiveCategory('ALL')}
+              className="flex flex-col items-center gap-2 shrink-0 group"
+              style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0s both' }}
+            >
+              <div className={`relative h-20 w-20 sm:h-24 sm:w-24 rounded-[22px] overflow-hidden border-2 transition-all duration-300 flex items-center justify-center ${
+                activeCategory === 'ALL'
+                  ? 'border-[#d4af37] shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105 bg-[#d4af37]/10'
+                  : 'border-white/10 group-hover:border-white/30 group-hover:scale-105 bg-white/[0.03]'
+              }`}>
+                <span className="text-3xl">✨</span>
+              </div>
+              <span className={`text-[11px] sm:text-xs font-bold transition-colors ${
+                activeCategory === 'ALL' ? 'text-[#d4af37]' : 'text-slate-400 group-hover:text-slate-200'
+              }`}>
+                {TX.all[lang]}
+              </span>
+            </button>
+            {categories.map((cat, idx) => {
               const catItems = menuItems.filter((i) => String(i.category || '').trim() === cat);
               const coverImg = resolveImageUrl(catItems.find((i) => i.image_url)?.image_url);
               const isActive = activeCategory === cat;
@@ -566,7 +584,7 @@ export default function PublicMenu() {
                   type="button"
                   onClick={() => setActiveCategory(cat)}
                   className="flex flex-col items-center gap-2 shrink-0 group"
-                  style={{ animation: `fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 0.08}s both` }}
+                  style={{ animation: `fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${(idx + 1) * 0.06}s both` }}
                 >
                   <div className={`relative h-20 w-20 sm:h-24 sm:w-24 rounded-[22px] overflow-hidden border-2 transition-all duration-300 ${
                     isActive
@@ -594,18 +612,22 @@ export default function PublicMenu() {
         </div>
       )}
 
-      {/* ─── Sticky Search & Category Carousel ────────────────────────────────── */}
+      {/* ─── Sticky Search Bar ───────────────────────────────────────────────── */}
       <div className={`sticky top-0 z-30 border-b backdrop-blur-2xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)] transition-colors duration-500 ${
         isMenuLight ? 'border-slate-200/60 bg-white/80' : 'border-white/[0.06] bg-[#07090e]/80'
       }`}>
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 py-4">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 py-3">
           {/* Search Input — expand on click */}
-          <div className="relative mb-3.5">
+          <div className="relative">
             {!searchExpanded && !search ? (
               <button
                 type="button"
                 onClick={() => setSearchExpanded(true)}
-                className="flex items-center gap-3 w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3.5 px-5 text-sm text-slate-500 backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08]"
+                className={`flex items-center gap-3 w-full rounded-2xl border py-3 px-5 text-sm backdrop-blur-xl transition-all duration-300 ${
+                  isMenuLight
+                    ? 'border-slate-200 bg-white/60 text-slate-400 hover:border-slate-300 hover:bg-white/80'
+                    : 'border-white/10 bg-white/[0.05] text-slate-500 hover:border-white/20 hover:bg-white/[0.08]'
+                }`}
               >
                 <Search className="h-5 w-5 text-slate-400" />
                 <span>{TX.searchPlaceholder[lang]}</span>
@@ -620,7 +642,11 @@ export default function PublicMenu() {
                   onBlur={() => { if (!search) setSearchExpanded(false); }}
                   autoFocus
                   placeholder={TX.searchPlaceholder[lang]}
-                  className="w-full rounded-2xl border border-[#d4af37]/40 bg-white/[0.08] py-3.5 pl-12 pr-11 text-sm sm:text-base text-slate-100 placeholder-slate-500 backdrop-blur-xl transition-all duration-300 focus:border-[#d4af37]/60 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 shadow-[0_0_20px_rgba(212,175,55,0.1)]"
+                  className={`w-full rounded-2xl border py-3 pl-12 pr-11 text-sm sm:text-base backdrop-blur-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 ${
+                    isMenuLight
+                      ? 'border-[#d4af37]/40 bg-white/80 text-slate-900 placeholder-slate-400'
+                      : 'border-[#d4af37]/40 bg-white/[0.08] text-slate-100 placeholder-slate-500 shadow-[0_0_20px_rgba(212,175,55,0.1)]'
+                  }`}
                 />
                 {search && (
                   <button
@@ -633,58 +659,6 @@ export default function PublicMenu() {
                 )}
               </div>
             )}
-          </div>
-
-          {/* Horizontal Category Carousel */}
-          <div
-            ref={categoryScrollRef}
-            className="flex items-center gap-2.5 overflow-x-auto pb-1.5 scrollbar-none"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {/* 'ALL' Button */}
-            <button
-              type="button"
-              onClick={() => setActiveCategory('ALL')}
-              className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                activeCategory === 'ALL'
-                  ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
-                  : isMenuLight
-                    ? 'border border-slate-200 bg-white/80 backdrop-blur-lg text-slate-600 hover:border-[#d4af37]/40 hover:text-slate-900'
-                    : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
-              }`}
-            >
-              <span className="text-base">✨</span>
-              <span>{TX.all[lang]}</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-black ${activeCategory === 'ALL' ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                {menuItems.length}
-              </span>
-            </button>
-
-            {/* Dynamic Categories */}
-            {categories.map((cat) => {
-              const count = menuItems.filter((i) => String(i.category || '').trim() === cat).length;
-              const isSelected = activeCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                    isSelected
-                      ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
-                      : isMenuLight
-                        ? 'border border-slate-200 bg-white/80 backdrop-blur-lg text-slate-600 hover:border-[#d4af37]/40 hover:text-slate-900'
-                        : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
-                  }`}
-                >
-                  <span className="text-base">{getCategoryIcon(cat)}</span>
-                  <span>{cat}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-black ${isSelected ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
