@@ -612,7 +612,7 @@ export default function SettingsPanel() {
     void (async () => {
       try {
         const baseUrl = String(profile?.qr_base_url || '').trim() || window.location.origin;
-        const menuUrl = `${baseUrl.replace(/\/+$/, '')}/menu`;
+        const menuUrl = `${baseUrl.replace(/\/+$/, '')}/qrmenu`;
         const qrDataUrl = await QRCode.toDataURL(menuUrl, { margin: 1, width: 220 });
         const canvas = document.createElement('canvas');
         canvas.width = 900;
@@ -2436,7 +2436,7 @@ export default function SettingsPanel() {
         </div>
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-300">
           <div className="font-semibold text-slate-100">{tx(lang, 'QR Menu linki', 'Ссылка QR Menu', 'QR Menu link')}</div>
-          <div className="mt-2 break-all text-cyan-300">{`${String(profile?.qr_base_url || '').trim() || window.location.origin}`.replace(/\/+$/, '')}/menu</div>
+          <div className="mt-2 break-all text-cyan-300">{`${String(profile?.qr_base_url || '').trim() || window.location.origin}`.replace(/\/+$/, '')}/qrmenu</div>
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-slate-700/60 bg-slate-950/30 p-5">

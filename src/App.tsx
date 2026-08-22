@@ -1643,6 +1643,8 @@ export default function App() {
     isPublicMenuRoute(publicPathname) ||
     publicPathname === '/menu' ||
     publicPathname === '/menu/' ||
+    publicPathname === '/qrmenu' ||
+    publicPathname === '/qrmenu/' ||
     publicPathname === '/qr-menu' ||
     publicPathname === '/qr-menu/'
   ) {
