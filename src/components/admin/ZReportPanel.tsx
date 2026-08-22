@@ -231,17 +231,20 @@ export default function ZReportPanel() {
     const expectedCash = new Decimal(result?.expected_cash || 0);
     const actualCash = new Decimal(result?.actual_cash || zActualCash || 0);
     const closingDifference = actualCash.minus(expectedCash);
-    const cashSales = new Decimal(result?.cash_sales ?? summary.cash_sales ?? 0);
-    const cardSales = new Decimal(result?.card_sales ?? summary.card_sales ?? 0);
-    const depositAppliedSales = new Decimal(result?.deposit_applied_sales ?? summary.deposit_applied_sales ?? 0);
-    const totalSales = new Decimal(result?.total_sales ?? cashSales.plus(cardSales).plus(depositAppliedSales));
-    const voidSales = new Decimal(result?.void_sales ?? summary.void_sales ?? 0);
+    // IMPORTANT: always use values from `result` (backend Z-report response).
+    // Never fall back to `summary` state — summary uses a date-range filter
+    // that may differ from the actual shift window, causing inflated totals.
+    const cashSales = new Decimal(result?.cash_sales || 0);
+    const cardSales = new Decimal(result?.card_sales || 0);
+    const depositAppliedSales = new Decimal(result?.deposit_applied_sales || 0);
+    const totalSales = new Decimal(result?.total_sales || cashSales.plus(cardSales).plus(depositAppliedSales));
+    const voidSales = new Decimal(result?.void_sales || 0);
     const depositCollected = new Decimal(result?.deposit_total || 0);
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
     const otherIncomeTotal = new Decimal(result?.other_income_total || 0);
     const otherExpenseTotal = new Decimal(result?.other_expense_total || 0);
-    const totalCogs = new Decimal(result?.total_cogs ?? summary.total_cogs ?? 0);
-    const grossProfit = new Decimal(result?.gross_profit ?? summary.gross_profit ?? 0);
+    const totalCogs = new Decimal(result?.total_cogs || 0);
+    const grossProfit = new Decimal(result?.gross_profit || 0);
     const bankFeeTotal = new Decimal(result?.bank_fee_total || 0);
     const otherIncomeLines = Array.isArray(result?.other_income_lines) ? result.other_income_lines : [];
     const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
