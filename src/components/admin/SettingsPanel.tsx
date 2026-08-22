@@ -194,6 +194,11 @@ export default function SettingsPanel() {
     custom_font_url: '',
     theme_preset: 'dark' as 'dark' | 'light' | 'emerald' | 'custom',
     layout_preset: 'classic' as 'classic' | 'bolt',
+    splash_type: 'none',
+    splash_url: '',
+    splash_duration_ms: 3000,
+    splash_overlay_text: '',
+    splash_bg_color: '#000000',
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
     enabled: false,
@@ -504,6 +509,11 @@ export default function SettingsPanel() {
         custom_font_url: String(settingsRes.value.qr_menu_settings?.custom_font_url || ''),
         theme_preset: (String(settingsRes.value.qr_menu_settings?.theme_preset || 'dark') as any),
         layout_preset: (String(settingsRes.value.qr_menu_settings?.layout_preset || 'classic') as any),
+        splash_type: String((settingsRes.value.qr_menu_settings as any)?.splash_type || 'none'),
+        splash_url: String((settingsRes.value.qr_menu_settings as any)?.splash_url || ''),
+        splash_duration_ms: Number((settingsRes.value.qr_menu_settings as any)?.splash_duration_ms || 3000),
+        splash_overlay_text: String((settingsRes.value.qr_menu_settings as any)?.splash_overlay_text || ''),
+        splash_bg_color: String((settingsRes.value.qr_menu_settings as any)?.splash_bg_color || '#000000'),
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
@@ -1295,7 +1305,12 @@ export default function SettingsPanel() {
       custom_font_url: qrMenuSettings.custom_font_url,
       theme_preset: qrMenuSettings.theme_preset,
       layout_preset: qrMenuSettings.layout_preset,
-    });
+      splash_type: qrMenuSettings.splash_type,
+      splash_url: qrMenuSettings.splash_url,
+      splash_duration_ms: qrMenuSettings.splash_duration_ms,
+      splash_overlay_text: qrMenuSettings.splash_overlay_text,
+      splash_bg_color: qrMenuSettings.splash_bg_color,
+    } as any);
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'), 'qr_menu');
   };
 
