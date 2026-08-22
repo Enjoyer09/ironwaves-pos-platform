@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { get_public_menu_live } from '../api/menu';
-import { get_public_qr_menu_bootstrap_live, send_public_table_service } from '../api/settings';
+import { get_public_qr_menu_bootstrap_live, get_settings, send_public_table_service } from '../api/settings';
 import { extractMenuTenantSlug } from '../lib/navigation';
 import {
   Search,
@@ -227,9 +227,11 @@ export default function PublicMenu() {
   useEffect(() => {
     if (loading || !showSplash) return;
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    // Try bootstrap branding first, fallback to local settings
     const brnd = bootstrap?.branding || {};
-    const sType = String(brnd.splash_type || 'none');
-    const sUrl = String(brnd.splash_url || '').trim();
+    const localQrSettings = (get_settings() as any)?.qr_menu_settings || {};
+    const sType = String(brnd.splash_type || localQrSettings.splash_type || 'none');
+    const sUrl = String(brnd.splash_url || localQrSettings.splash_url || '').trim();
 
     // Desktop or no splash configured → dismiss immediately
     if (!isMobile || sType === 'none' || !sUrl) {
@@ -237,7 +239,7 @@ export default function PublicMenu() {
       return;
     }
 
-    const duration = Number(brnd.splash_duration_ms || 3000);
+    const duration = Number(brnd.splash_duration_ms || localQrSettings.splash_duration_ms || 3000);
     const timer = setTimeout(() => setShowSplash(false), duration);
     return () => clearTimeout(timer);
   }, [loading, showSplash, bootstrap]);
@@ -398,16 +400,17 @@ export default function PublicMenu() {
   // ─── Splash Screen (mobile only) ──────────────────────────────────────────
   const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
   const splashBranding = bootstrap?.branding || {};
-  const splashType = String(splashBranding.splash_type || 'none');
-  const splashUrl = String(splashBranding.splash_url || '').trim();
+  const localSplashSettings = (get_settings() as any)?.qr_menu_settings || {};
+  const splashType = String(splashBranding.splash_type || localSplashSettings.splash_type || 'none');
+  const splashUrl = String(splashBranding.splash_url || localSplashSettings.splash_url || '').trim();
   const splashEnabled = isMobileDevice && showSplash && splashType !== 'none' && splashUrl.length > 0;
 
   if (splashEnabled) {
-    const splashText = String(splashBranding.splash_overlay_text || '').trim();
-    const splashBg = String(splashBranding.splash_bg_color || '#000000').trim();
-    const splashLogo = resolveImageUrl(splashBranding.logo_url);
-    const splashCompany = String(splashBranding.company_name || '').trim();
-    const splashDuration = Number(splashBranding.splash_duration_ms || 3000);
+    const splashText = String(splashBranding.splash_overlay_text || localSplashSettings.splash_overlay_text || '').trim();
+    const splashBg = String(splashBranding.splash_bg_color || localSplashSettings.splash_bg_color || '#000000').trim();
+    const splashLogo = resolveImageUrl(splashBranding.logo_url || bootstrap?.branding?.logo_url);
+    const splashCompany = String(splashBranding.company_name || bootstrap?.branding?.company_name || '').trim();
+    const splashDuration = Number(splashBranding.splash_duration_ms || localSplashSettings.splash_duration_ms || 3000);
 
     return (
       <div
