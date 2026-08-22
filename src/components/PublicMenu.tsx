@@ -223,24 +223,11 @@ export default function PublicMenu() {
     return () => { mounted = false; };
   }, [tenantSlug]);
 
-  // Splash screen timer — dismiss after duration (mobile only)
+  // Splash screen — auto-dismiss after duration
+  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (loading || !showSplash) return;
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    const brnd = bootstrap?.branding || {};
-    const localQr = (() => { try { return (get_settings() as any)?.qr_menu_settings || {}; } catch { return {}; } })();
-    const sUrl = String(brnd.splash_url || localQr.splash_url || '').trim();
-
-    // Desktop or no splash URL → dismiss immediately
-    if (!isMobile || !sUrl) {
-      setShowSplash(false);
-      return;
-    }
-
-    const duration = Number(brnd.splash_duration_ms || localQr.splash_duration_ms || 3000);
-    const timer = setTimeout(() => setShowSplash(false), duration);
-    return () => clearTimeout(timer);
-  }, [loading, showSplash, bootstrap]);
+    return () => { if (splashTimerRef.current) clearTimeout(splashTimerRef.current); };
+  }, []);
 
   // Cooldown countdown timer
   useEffect(() => {
@@ -395,94 +382,35 @@ export default function PublicMenu() {
     );
   }
 
-  // ─── Splash Screen (mobile only) ──────────────────────────────────────────
-  const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
-  const splashBranding = bootstrap?.branding || {};
-  const localSplashSettings = (() => { try { return (get_settings() as any)?.qr_menu_settings || {}; } catch { return {}; } })();
-  // Resolve splash URL from any available source
-  const splashUrl = String(splashBranding.splash_url || localSplashSettings.splash_url || 'https://res.cloudinary.com/dtjh5e3nm/video/upload/v1787398802/WhatsApp_Video_2026-08-22_at_2.22.01_PM.mp4').trim();
-  // Auto-detect type from URL extension if splash_type not set
-  const splashTypeRaw = String(splashBranding.splash_type || localSplashSettings.splash_type || '').trim();
-  const splashType = splashTypeRaw && splashTypeRaw !== 'none'
-    ? splashTypeRaw
-    : splashUrl.match(/\.(mp4|mov|webm)(\?|$)/i) ? 'video'
-    : splashUrl.match(/\.gif(\?|$)/i) ? 'gif'
-    : splashUrl ? 'image'
-    : 'none';
-  const splashEnabled = isMobileDevice && showSplash && splashType !== 'none' && splashUrl.length > 0;
-
-  // Debug: log splash state (remove after confirming it works)
-  if (typeof window !== 'undefined' && !loading) {
-    (window as any).__splashDebug = { isMobileDevice, showSplash, splashType, splashTypeRaw, splashUrl: splashUrl.slice(0, 60), splashEnabled, brandingSplashUrl: splashBranding.splash_url, localSplashUrl: localSplashSettings.splash_url, bootstrapKeys: Object.keys(splashBranding) };
-  }
-
-  if (splashEnabled) {
-    const splashText = String(splashBranding.splash_overlay_text || localSplashSettings.splash_overlay_text || '').trim();
-    const splashBg = String(splashBranding.splash_bg_color || localSplashSettings.splash_bg_color || '#000000').trim();
-    const splashLogo = resolveImageUrl(splashBranding.logo_url || bootstrap?.branding?.logo_url);
-    const splashCompany = String(splashBranding.company_name || bootstrap?.branding?.company_name || '').trim();
-    const splashDuration = Number(splashBranding.splash_duration_ms || localSplashSettings.splash_duration_ms || 3000);
-
+  // ─── Splash Screen ─────────────────────────────────────────────────────────
+  if (showSplash) {
+    if (!splashTimerRef.current) {
+      splashTimerRef.current = setTimeout(() => setShowSplash(false), 4000);
+    }
     return (
       <div
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden"
-        style={{ backgroundColor: splashBg }}
+        className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-black"
         onClick={() => setShowSplash(false)}
       >
-        <style>{`
-          @keyframes splashFadeIn { from { opacity: 0; transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
-          @keyframes splashTextIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-          @keyframes splashProgress { from { width: 0%; } to { width: 100%; } }
-        `}</style>
-
-        {/* Media */}
-        {splashType === 'video' ? (
-          <video
-            src={splashUrl}
-            autoPlay
-            muted
-            playsInline
-            loop
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
-          />
-        ) : (
-          <img
-            src={splashUrl}
-            alt="splash"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ animation: 'splashFadeIn 0.8s ease-out forwards' }}
-          />
-        )}
-
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-black/40" />
-
-        {/* Content overlay */}
-        <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6" style={{ animation: 'splashTextIn 0.6s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both' }}>
-          {splashLogo && (
-            <img src={splashLogo} alt="logo" className="h-20 w-20 rounded-2xl object-cover shadow-2xl border-2 border-white/20" />
-          )}
-          {splashCompany && (
-            <h1 className="text-3xl sm:text-4xl font-black text-white drop-shadow-lg">{splashCompany}</h1>
-          )}
-          {splashText && (
-            <p className="text-base sm:text-lg text-white/80 font-medium max-w-sm">{splashText}</p>
-          )}
+        <video
+          src="https://res.cloudinary.com/dtjh5e3nm/video/upload/v1787398802/WhatsApp_Video_2026-08-22_at_2.22.01_PM.mp4"
+          autoPlay
+          muted
+          playsInline
+          loop
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-black/30" />
+        <div className="relative z-10 text-center">
+          <h1 className="text-3xl font-black text-white drop-shadow-lg">{companyName}</h1>
         </div>
-
-        {/* Progress bar */}
         <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden">
-          <div
-            className="h-full bg-white/80 rounded-full"
-            style={{ animation: `splashProgress ${splashDuration}ms linear forwards` }}
-          />
+          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 4s linear forwards' }} />
         </div>
-
-        {/* Skip hint */}
-        <div className="absolute bottom-14 left-0 right-0 text-center">
-          <span className="text-xs text-white/40 font-medium">tap to skip</span>
+        <div className="absolute bottom-14 text-center w-full">
+          <span className="text-xs text-white/40">tap to skip</span>
         </div>
+        <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } }`}</style>
       </div>
     );
   }
