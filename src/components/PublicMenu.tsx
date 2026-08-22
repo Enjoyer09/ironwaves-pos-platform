@@ -121,8 +121,34 @@ export default function PublicMenu() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [copiedWifi, setCopiedWifi] = useState(false);
   const [waiterCooldown, setWaiterCooldown] = useState(0);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [menuTheme, setMenuTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('qr_menu_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {}
+    return 'dark';
+  });
+  const isMenuLight = menuTheme === 'light';
 
   const categoryScrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll progress tracking
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(docHeight > 0 ? Math.min(1, scrollTop / docHeight) : 0);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Persist menu theme
+  useEffect(() => {
+    try { localStorage.setItem('qr_menu_theme', menuTheme); } catch {}
+  }, [menuTheme]);
 
   // Enable native body & HTML scrolling on Desktop and Mobile
   useEffect(() => {
@@ -296,18 +322,53 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#07090e] text-[#d4af37]">
-        <div className="relative mb-5 flex h-20 w-20 items-center justify-center">
-          <div className="absolute inset-0 animate-ping rounded-full bg-[#d4af37]/20" />
-          <UtensilsCrossed className="h-10 w-10 animate-pulse text-[#d4af37]" />
+      <div className="min-h-screen w-full bg-[#07090e] pb-32">
+        <style>{`
+          @keyframes shimmerMove {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+          .skeleton-shimmer {
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+            background-size: 200% 100%;
+            animation: shimmerMove 1.5s ease-in-out infinite;
+          }
+        `}</style>
+        {/* Skeleton hero */}
+        <div className="h-52 sm:h-64 w-full skeleton-shimmer rounded-b-3xl" />
+        {/* Skeleton story row */}
+        <div className="flex gap-4 px-6 mt-6">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="shrink-0 space-y-2">
+              <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-[22px] skeleton-shimmer" />
+              <div className="h-3 w-16 rounded-full skeleton-shimmer mx-auto" />
+            </div>
+          ))}
         </div>
-        <p className="text-base font-bold tracking-widest uppercase text-slate-200">Menyu Yüklənir...</p>
+        {/* Skeleton search */}
+        <div className="mx-6 mt-6 h-12 rounded-2xl skeleton-shimmer" />
+        {/* Skeleton cards */}
+        <div className="mx-6 mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex gap-4 rounded-3xl border border-white/[0.05] p-4">
+              <div className="h-32 w-32 shrink-0 rounded-2xl skeleton-shimmer" />
+              <div className="flex-1 space-y-3 py-2">
+                <div className="h-5 w-3/4 rounded-lg skeleton-shimmer" />
+                <div className="h-3 w-full rounded-lg skeleton-shimmer" />
+                <div className="h-3 w-2/3 rounded-lg skeleton-shimmer" />
+                <div className="h-7 w-20 rounded-xl skeleton-shimmer mt-4" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#07090e] text-slate-100 antialiased selection:bg-[#d4af37]/30 selection:text-[#d4af37] pb-32">
+    <div className={`min-h-screen w-full antialiased selection:bg-[#d4af37]/30 selection:text-[#d4af37] pb-32 transition-colors duration-500 ${
+      isMenuLight ? 'bg-[#F8F6F3] text-slate-900' : 'bg-[#07090e] text-slate-100'
+    }`}>
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(24px) scale(0.96); }
@@ -329,6 +390,16 @@ export default function PublicMenu() {
           0%, 100% { box-shadow: 0 0 20px rgba(212,175,55,0.15); }
           50% { box-shadow: 0 0 40px rgba(212,175,55,0.3); }
         }
+        @keyframes sheetSlideUp {
+          from { opacity: 0; transform: translateY(100%); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes priceBounce {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.15); }
+          70% { transform: scale(0.95); }
+          100% { transform: scale(1); }
+        }
         .animate-float { animation: float 6s ease-in-out infinite; }
         .animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
       `}</style>
@@ -343,6 +414,14 @@ export default function PublicMenu() {
           </div>
         </div>
       )}
+
+      {/* Scroll Progress Indicator */}
+      <div className="fixed top-0 left-0 right-0 z-[60] h-[3px]">
+        <div
+          className="h-full bg-gradient-to-r from-[#d4af37] to-[#f5d060] shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-all duration-150"
+          style={{ width: `${scrollProgress * 100}%`, opacity: scrollProgress > 0.01 ? 1 : 0 }}
+        />
+      </div>
 
       {/* ─── Hero / Restaurant Header ─────────────────────────────────────────── */}
       <header className="relative w-full overflow-hidden bg-gradient-to-b from-[#0f1526] to-[#07090e] pb-8">
@@ -374,7 +453,17 @@ export default function PublicMenu() {
               </div>
             ) : <div />}
 
-            <div className="flex items-center gap-1.5 rounded-full border border-slate-700/70 bg-[#0a0e1a]/90 p-1.5 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              {/* Theme toggle */}
+              <button
+                type="button"
+                onClick={() => setMenuTheme(isMenuLight ? 'dark' : 'light')}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-[#0a0e1a]/90 shadow-2xl backdrop-blur-xl text-base transition-transform active:scale-90"
+              >
+                {isMenuLight ? '🌙' : '☀️'}
+              </button>
+              {/* Language selector */}
+              <div className="flex items-center gap-1.5 rounded-full border border-slate-700/70 bg-[#0a0e1a]/90 p-1.5 shadow-2xl backdrop-blur-xl">
               {(['az', 'ru', 'en'] as const).map((l) => (
                 <button
                   key={l}
@@ -389,6 +478,7 @@ export default function PublicMenu() {
                   {l}
                 </button>
               ))}
+            </div>
             </div>
           </div>
         </div>
@@ -462,27 +552,86 @@ export default function PublicMenu() {
         </div>
       </header>
 
+      {/* ─── Instagram-style Story Slider ─────────────────────────────────────── */}
+      {categories.length > 0 && (
+        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-4 mb-6">
+          <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {categories.slice(0, 8).map((cat, idx) => {
+              const catItems = menuItems.filter((i) => String(i.category || '').trim() === cat);
+              const coverImg = resolveImageUrl(catItems.find((i) => i.image_url)?.image_url);
+              const isActive = activeCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setActiveCategory(cat)}
+                  className="flex flex-col items-center gap-2 shrink-0 group"
+                  style={{ animation: `fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 0.08}s both` }}
+                >
+                  <div className={`relative h-20 w-20 sm:h-24 sm:w-24 rounded-[22px] overflow-hidden border-2 transition-all duration-300 ${
+                    isActive
+                      ? 'border-[#d4af37] shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105'
+                      : 'border-white/10 group-hover:border-white/30 group-hover:scale-105'
+                  }`}>
+                    {coverImg ? (
+                      <img src={coverImg} alt={cat} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-white/[0.05] text-2xl">
+                        {getCategoryIcon(cat)}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  </div>
+                  <span className={`text-[11px] sm:text-xs font-bold truncate max-w-[80px] sm:max-w-[96px] transition-colors ${
+                    isActive ? 'text-[#d4af37]' : 'text-slate-400 group-hover:text-slate-200'
+                  }`}>
+                    {cat}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ─── Sticky Search & Category Carousel ────────────────────────────────── */}
-      <div className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#07090e]/80 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
+      <div className={`sticky top-0 z-30 border-b backdrop-blur-2xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)] transition-colors duration-500 ${
+        isMenuLight ? 'border-slate-200/60 bg-white/80' : 'border-white/[0.06] bg-[#07090e]/80'
+      }`}>
         <div className="mx-auto max-w-4xl px-4 sm:px-6 py-4">
-          {/* Search Input */}
+          {/* Search Input — expand on click */}
           <div className="relative mb-3.5">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={TX.searchPlaceholder[lang]}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3.5 pl-12 pr-11 text-sm sm:text-base text-slate-100 placeholder-slate-500 backdrop-blur-xl transition-all duration-300 focus:border-[#d4af37]/60 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 focus:bg-white/[0.08] shadow-inner"
-            />
-            {search && (
+            {!searchExpanded && !search ? (
               <button
                 type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-100"
+                onClick={() => setSearchExpanded(true)}
+                className="flex items-center gap-3 w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3.5 px-5 text-sm text-slate-500 backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08]"
               >
-                <X className="h-5 w-5" />
+                <Search className="h-5 w-5 text-slate-400" />
+                <span>{TX.searchPlaceholder[lang]}</span>
               </button>
+            ) : (
+              <div style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#d4af37]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onBlur={() => { if (!search) setSearchExpanded(false); }}
+                  autoFocus
+                  placeholder={TX.searchPlaceholder[lang]}
+                  className="w-full rounded-2xl border border-[#d4af37]/40 bg-white/[0.08] py-3.5 pl-12 pr-11 text-sm sm:text-base text-slate-100 placeholder-slate-500 backdrop-blur-xl transition-all duration-300 focus:border-[#d4af37]/60 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 shadow-[0_0_20px_rgba(212,175,55,0.1)]"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearch(''); setSearchExpanded(false); }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -499,7 +648,9 @@ export default function PublicMenu() {
               className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeCategory === 'ALL'
                   ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
-                  : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+                  : isMenuLight
+                    ? 'border border-slate-200 bg-white/80 backdrop-blur-lg text-slate-600 hover:border-[#d4af37]/40 hover:text-slate-900'
+                    : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
               }`}
             >
               <span className="text-base">✨</span>
@@ -521,7 +672,9 @@ export default function PublicMenu() {
                   className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     isSelected
                       ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
-                      : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+                      : isMenuLight
+                        ? 'border border-slate-200 bg-white/80 backdrop-blur-lg text-slate-600 hover:border-[#d4af37]/40 hover:text-slate-900'
+                        : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
                   }`}
                 >
                   <span className="text-base">{getCategoryIcon(cat)}</span>
@@ -539,9 +692,13 @@ export default function PublicMenu() {
       {/* ─── Menu Grid ───────────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8">
         {filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center text-slate-500">
-            <UtensilsCrossed className="mb-4 h-14 w-14 stroke-1 text-slate-600" />
-            <p className="text-base font-semibold">{TX.noResults[lang]}</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center text-slate-500" style={{ animation: 'fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-full bg-[#d4af37]/5 blur-xl animate-pulse" />
+              <UtensilsCrossed className="relative h-16 w-16 stroke-1 text-slate-600 animate-float" />
+            </div>
+            <p className="text-lg font-bold text-slate-400">{TX.noResults[lang]}</p>
+            <p className="mt-2 text-sm text-slate-600">{lang === 'az' ? 'Başqa açar söz yoxlayın' : lang === 'ru' ? 'Попробуйте другой запрос' : 'Try a different keyword'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2">
@@ -552,7 +709,11 @@ export default function PublicMenu() {
                 <div
                   key={item.id}
                   onClick={() => setSelectedItem(item)}
-                  className="group relative flex cursor-pointer overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4 sm:p-5 shadow-xl backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:border-[#d4af37]/40 hover:bg-white/[0.08] hover:shadow-[0_8px_40px_rgba(212,175,55,0.15)] hover:-translate-y-1 active:scale-[0.98] active:duration-150"
+                  className={`group relative flex cursor-pointer overflow-hidden rounded-3xl border p-4 sm:p-5 shadow-xl backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 active:scale-[0.98] active:duration-150 ${
+                    isMenuLight
+                      ? 'border-slate-200/80 bg-white/70 hover:border-[#d4af37]/40 hover:bg-white/90 hover:shadow-[0_8px_40px_rgba(212,175,55,0.1)]'
+                      : 'border-white/[0.08] bg-white/[0.04] hover:border-[#d4af37]/40 hover:bg-white/[0.08] hover:shadow-[0_8px_40px_rgba(212,175,55,0.15)]'
+                  }`}
                   style={{
                     animation: `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 0.06}s both`,
                   }}
@@ -581,7 +742,9 @@ export default function PublicMenu() {
                   {/* Info Column */}
                   <div className="ml-4 sm:ml-5 flex flex-1 flex-col justify-between">
                     <div>
-                      <h3 className="font-serif text-lg sm:text-xl font-bold text-slate-50 line-clamp-2 leading-snug group-hover:text-[#d4af37] transition-colors">
+                      <h3 className={`font-serif text-lg sm:text-xl font-bold line-clamp-2 leading-snug group-hover:text-[#d4af37] transition-colors ${
+                        isMenuLight ? 'text-slate-900' : 'text-slate-50'
+                      }`}>
                         {item.item_name}
                       </h3>
                       {item.description && (
@@ -593,13 +756,13 @@ export default function PublicMenu() {
 
                     {/* Price & Action */}
                     <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-baseline gap-1">
+                      <div className="flex items-baseline gap-1 group-hover:animate-[priceBounce_0.4s_ease-out]">
                         <span className="text-xl sm:text-2xl font-black text-[#d4af37]">{priceFormatted}</span>
                         <span className="text-sm sm:text-base font-bold text-[#d4af37]">₼</span>
                       </div>
                       <button
                         type="button"
-                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#1b2438] text-slate-300 transition-colors group-hover:bg-[#d4af37] group-hover:text-slate-950 shadow-md"
+                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300 transition-all duration-300 group-hover:bg-[#d4af37] group-hover:text-slate-950 group-hover:scale-110 group-hover:shadow-[0_4px_15px_rgba(212,175,55,0.4)] active:scale-90"
                       >
                         <ChevronRight className="h-5 w-5" />
                       </button>
@@ -644,74 +807,86 @@ export default function PublicMenu() {
         </div>
       )}
 
-      {/* ─── Dish Detail Modal (Popup) ────────────────────────────────────────── */}
+      {/* ─── Dish Detail Sheet (iOS-style bottom sheet) ─────────────────────── */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-xl animate-fade-in">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-md"
+          onClick={() => setSelectedItem(null)}
+        >
           <div
-            className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-[#0e1424]/90 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 text-slate-100"
-            style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
+            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-[32px] border-t border-white/10 bg-[#0e1424]/95 shadow-[0_-10px_60px_rgba(0,0,0,0.5)] backdrop-blur-2xl backdrop-saturate-150 text-slate-100"
+            style={{ animation: 'sheetSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setSelectedItem(null)}
-              className="absolute right-5 top-5 z-10 rounded-full bg-black/70 p-2.5 text-slate-300 hover:text-white backdrop-blur-md shadow-lg"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            {/* Drag Indicator */}
+            <div className="sticky top-0 z-10 flex justify-center pt-3 pb-2">
+              <div className="h-1.5 w-12 rounded-full bg-white/20" />
+            </div>
 
-            {/* Modal Image */}
-            <div className="relative mb-6 h-64 sm:h-80 w-full overflow-hidden rounded-2xl bg-[#161e32]">
+            {/* Sheet Image — full-width, no padding */}
+            <div className="relative h-64 sm:h-80 w-full overflow-hidden">
               {selectedItem.image_url ? (
                 <img
                   src={resolveImageUrl(selectedItem.image_url)}
                   alt={selectedItem.item_name}
                   className="h-full w-full object-cover"
+                  style={{ animation: 'heroZoom 15s ease-in-out infinite alternate' }}
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-7xl opacity-30">
+                <div className="flex h-full w-full items-center justify-center bg-white/[0.03] text-7xl opacity-30">
                   {getCategoryIcon(selectedItem.category)}
                 </div>
               )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0e1424] via-transparent to-transparent" />
+              {/* Floating close button */}
+              <button
+                type="button"
+                onClick={() => setSelectedItem(null)}
+                className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-lg border border-white/10 transition-transform active:scale-90"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            {/* Title & Category Badge */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="inline-block rounded-xl bg-[#d4af37]/20 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#d4af37]">
-                  {selectedItem.category}
-                </span>
-                <h2 className="mt-2.5 font-serif text-2xl sm:text-3xl font-extrabold text-slate-50 leading-tight">
-                  {selectedItem.item_name}
-                </h2>
-              </div>
-              <div className="text-right">
-                <span className="text-3xl sm:text-4xl font-black text-[#d4af37]">
-                  {Number(selectedItem.price || 0).toFixed(2)}
-                </span>
-                <span className="text-lg font-bold text-[#d4af37]"> ₼</span>
-              </div>
-            </div>
-
-            {/* Description & Ingredients */}
-            {selectedItem.description && (
-              <div className="mt-5 rounded-2xl border border-slate-800 bg-[#141b2e] p-5 text-sm sm:text-base text-slate-200 leading-relaxed">
-                <div className="mb-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-[#d4af37]">
-                  {TX.ingredients[lang]}
+            {/* Content */}
+            <div className="px-6 pb-8 pt-4 space-y-5">
+              {/* Category Badge + Price row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <span className="inline-block rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/30 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-[#d4af37]">
+                    {getCategoryIcon(selectedItem.category)} {selectedItem.category}
+                  </span>
+                  <h2 className="font-serif text-2xl sm:text-3xl font-extrabold text-slate-50 leading-tight">
+                    {selectedItem.item_name}
+                  </h2>
                 </div>
-                <p>{selectedItem.description}</p>
+                <div className="text-right shrink-0">
+                  <div className="text-3xl sm:text-4xl font-black text-[#d4af37]" style={{ animation: 'fadeInUp 0.4s 0.2s both' }}>
+                    {Number(selectedItem.price || 0).toFixed(2)}
+                  </div>
+                  <span className="text-sm font-bold text-[#d4af37]/70">₼</span>
+                </div>
               </div>
-            )}
 
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setSelectedItem(null)}
-              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-[#d4af37] to-[#b89528] py-4 text-base font-extrabold uppercase tracking-wider text-slate-950 shadow-xl hover:brightness-110 transition-transform active:scale-98"
-            >
-              {TX.close[lang]}
-            </button>
+              {/* Description */}
+              {selectedItem.description && (
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-lg p-5 text-sm sm:text-base text-slate-200 leading-relaxed" style={{ animation: 'fadeInUp 0.4s 0.3s both' }}>
+                  <div className="mb-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-[#d4af37]/80">
+                    {TX.ingredients[lang]}
+                  </div>
+                  <p>{selectedItem.description}</p>
+                </div>
+              )}
+
+              {/* Close action */}
+              <button
+                type="button"
+                onClick={() => setSelectedItem(null)}
+                className="w-full rounded-2xl bg-gradient-to-r from-[#d4af37] to-[#b89528] py-4 text-base font-extrabold uppercase tracking-wider text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all active:scale-[0.98]"
+              >
+                {TX.close[lang]}
+              </button>
+            </div>
           </div>
         </div>
       )}
