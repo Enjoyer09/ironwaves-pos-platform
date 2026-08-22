@@ -481,6 +481,11 @@ function getSettings(tenant_id?: string): Settings {
       logo_shape: 'rounded',
       font_family: '',
       custom_font_url: '',
+      splash_type: 'none',
+      splash_url: '',
+      splash_duration_ms: 3000,
+      splash_overlay_text: '',
+      splash_bg_color: '#000000',
     },
     feedback_settings: DEFAULT_FEEDBACK_SETTINGS,
     customer_app_settings: {
@@ -1209,6 +1214,11 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     logo_shape: payload.logo_shape === 'circle' || payload.logo_shape === 'square' ? payload.logo_shape : 'rounded',
     font_family: String(payload.font_family || '').trim(),
     custom_font_url: String(payload.custom_font_url || '').trim(),
+    splash_type: ['image', 'gif', 'none'].includes(String((payload as any).splash_type || '')) ? String((payload as any).splash_type) : 'none',
+    splash_url: String((payload as any).splash_url || '').trim(),
+    splash_duration_ms: Math.max(1000, Math.min(10000, Number((payload as any).splash_duration_ms || 3000))),
+    splash_overlay_text: String((payload as any).splash_overlay_text || '').trim(),
+    splash_bg_color: String((payload as any).splash_bg_color || '').trim() || '#000000',
   };
   saveSettings(settings);
   logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);

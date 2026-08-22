@@ -2461,6 +2461,46 @@ export default function SettingsPanel() {
           </div>
         </div>
         {renderPanelSuccess('qr_menu')}
+
+        {/* ── Splash Screen Settings ── */}
+        <div className="border-t border-slate-700/40 pt-5 space-y-3">
+          <h3 className="text-lg font-bold text-slate-100">{tx(lang, '🎬 Splash Ekranı (menyu yüklənərkən)', '🎬 Splash-экран (при загрузке меню)', '🎬 Splash Screen (while menu loads)')}</h3>
+          <p className="text-sm text-slate-400">
+            {tx(lang, 'Müştəri QR scan etdikdə menyu yüklənənədək göstəriləcək video, şəkil və ya GIF. Restoran ambiance-ını premium şəkildə təqdim edin.', 'Видео, изображение или GIF, которое показывается пока загружается меню. Представьте атмосферу ресторана.', 'Video, image or GIF shown while menu loads. Showcase your restaurant ambiance.')}
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="field-stack">
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Splash tipi', 'Тип splash', 'Splash type')}</label>
+              <select className="neon-input" value={qrMenuSettings.splash_type || 'none'} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_type: e.target.value }))}>
+                <option value="none">{tx(lang, 'Söndürülüb (default skeleton)', 'Отключено (скелетон)', 'Disabled (default skeleton)')}</option>
+                <option value="image">{tx(lang, 'Şəkil (JPG/PNG/WebP)', 'Изображение', 'Image')}</option>
+                <option value="gif">{tx(lang, 'GIF (animasiya)', 'GIF (анимация)', 'GIF (animation)')}</option>
+              </select>
+            </div>
+            <div className="field-stack">
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Müddət (ms)', 'Длительность (мс)', 'Duration (ms)')}</label>
+              <input className="neon-input" type="number" min="1000" max="10000" step="500" value={qrMenuSettings.splash_duration_ms || 3000} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_duration_ms: Number(e.target.value) }))} />
+            </div>
+            <div className="field-stack md:col-span-2">
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Media URL (video/şəkil/gif linki)', 'URL медиа', 'Media URL')}</label>
+              <input className="neon-input" value={qrMenuSettings.splash_url || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_url: e.target.value }))} placeholder="https://example.com/splash.mp4" />
+            </div>
+            <div className="field-stack">
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Overlay text (opsional)', 'Текст поверх (необязательно)', 'Overlay text (optional)')}</label>
+              <input className="neon-input" value={qrMenuSettings.splash_overlay_text || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_overlay_text: e.target.value }))} placeholder={tx(lang, 'Menyuya xoş gəlmisiniz', 'Добро пожаловать', 'Welcome to our menu')} />
+            </div>
+            <div className="field-stack">
+              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
+              <input className="neon-input" type="color" value={qrMenuSettings.splash_bg_color || '#000000'} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_bg_color: e.target.value }))} />
+            </div>
+          </div>
+          {qrMenuSettings.splash_type && qrMenuSettings.splash_type !== 'none' && qrMenuSettings.splash_url && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
+              ✅ {tx(lang, 'Splash aktiv — müştəri menyu açanda bu media göstəriləcək', 'Splash активен — будет показан при открытии меню', 'Splash active — will be shown when menu opens')}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap justify-end gap-2">
           <button onClick={downloadQrPoster} className="neon-btn rounded-xl px-5 py-2 font-semibold">
             {tx(lang, 'Poster yüklə', 'Скачать постер', 'Download poster')}
