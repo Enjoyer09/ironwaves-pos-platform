@@ -308,6 +308,30 @@ export default function PublicMenu() {
 
   return (
     <div className="min-h-screen w-full bg-[#07090e] text-slate-100 antialiased selection:bg-[#d4af37]/30 selection:text-[#d4af37] pb-32">
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(24px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes heroZoom {
+          from { transform: scale(1.05); }
+          to { transform: scale(1.15); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(212,175,55,0.15); }
+          50% { box-shadow: 0 0 40px rgba(212,175,55,0.3); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        .animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
+      `}</style>
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-6 left-1/2 z-50 -translate-x-1/2 transform animate-fade-in w-[90%] max-w-md">
@@ -328,12 +352,16 @@ export default function PublicMenu() {
             <img
               src={heroImageUrl}
               alt={companyName}
-              className="h-full w-full object-cover opacity-65 filter brightness-95"
+              className="h-full w-full object-cover opacity-65 filter brightness-95 scale-105 transition-transform duration-[2s] ease-out"
+              style={{ animation: 'heroZoom 20s ease-in-out infinite alternate' }}
             />
           ) : (
             <div className="h-full w-full bg-gradient-to-tr from-[#0a0d16] via-[#161f34] to-[#07090e] opacity-90" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#07090e] via-[#07090e]/50 to-transparent" />
+          {/* Floating glass orbs */}
+          <div className="absolute top-10 right-10 h-32 w-32 rounded-full bg-[#d4af37]/10 blur-[60px] animate-pulse" />
+          <div className="absolute bottom-10 left-10 h-24 w-24 rounded-full bg-[#d4af37]/5 blur-[40px] animate-pulse" style={{ animationDelay: '1s' }} />
 
           {/* Top Bar with Language Selector & Table Indicator */}
           <div className="absolute top-5 inset-x-4 sm:inset-x-8 flex items-center justify-between z-10">
@@ -369,7 +397,7 @@ export default function PublicMenu() {
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-16 sm:-mt-20">
           <div className="flex flex-col items-center text-center">
             {/* Circular Glowing Logo */}
-            <div className="relative mb-4 flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center rounded-full border-3 border-[#d4af37] bg-[#0c111d] shadow-[0_0_35px_rgba(212,175,55,0.35)] p-1.5">
+            <div className="relative mb-4 flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center rounded-full border-3 border-[#d4af37] bg-[#0c111d] shadow-[0_0_35px_rgba(212,175,55,0.35)] p-1.5 animate-glow-pulse">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -435,7 +463,7 @@ export default function PublicMenu() {
       </header>
 
       {/* ─── Sticky Search & Category Carousel ────────────────────────────────── */}
-      <div className="sticky top-0 z-30 border-b border-slate-800/90 bg-[#07090e]/95 backdrop-blur-2xl shadow-2xl">
+      <div className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#07090e]/80 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 py-4">
           {/* Search Input */}
           <div className="relative mb-3.5">
@@ -445,7 +473,7 @@ export default function PublicMenu() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={TX.searchPlaceholder[lang]}
-              className="w-full rounded-2xl border border-slate-800 bg-[#111728] py-3.5 pl-12 pr-11 text-sm sm:text-base text-slate-100 placeholder-slate-500 transition-all focus:border-[#d4af37] focus:outline-none focus:ring-2 focus:ring-[#d4af37]/30 shadow-inner"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.05] py-3.5 pl-12 pr-11 text-sm sm:text-base text-slate-100 placeholder-slate-500 backdrop-blur-xl transition-all duration-300 focus:border-[#d4af37]/60 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 focus:bg-white/[0.08] shadow-inner"
             />
             {search && (
               <button
@@ -468,10 +496,10 @@ export default function PublicMenu() {
             <button
               type="button"
               onClick={() => setActiveCategory('ALL')}
-              className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all ${
+              className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                 activeCategory === 'ALL'
-                  ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-lg scale-105 font-black'
-                  : 'border border-slate-800 bg-[#111728] text-slate-300 hover:border-slate-700 hover:text-white'
+                  ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
+                  : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
               }`}
             >
               <span className="text-base">✨</span>
@@ -490,10 +518,10 @@ export default function PublicMenu() {
                   key={cat}
                   type="button"
                   onClick={() => setActiveCategory(cat)}
-                  className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all ${
+                  className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-2.5 text-sm sm:text-base font-bold tracking-wide transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     isSelected
-                      ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-lg scale-105 font-black'
-                      : 'border border-slate-800 bg-[#111728] text-slate-300 hover:border-slate-700 hover:text-white'
+                      ? 'border border-[#d4af37] bg-gradient-to-r from-[#d4af37] to-[#b89528] text-slate-950 shadow-[0_4px_20px_rgba(212,175,55,0.3)] scale-105 font-black'
+                      : 'border border-white/10 bg-white/[0.05] backdrop-blur-lg text-slate-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
                   }`}
                 >
                   <span className="text-base">{getCategoryIcon(cat)}</span>
@@ -517,14 +545,17 @@ export default function PublicMenu() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2">
-            {filteredItems.map((item) => {
+            {filteredItems.map((item, idx) => {
               const img = resolveImageUrl(item.image_url);
               const priceFormatted = Number(item.price || 0).toFixed(2);
               return (
                 <div
                   key={item.id}
                   onClick={() => setSelectedItem(item)}
-                  className="group relative flex cursor-pointer overflow-hidden rounded-3xl border border-slate-800/80 bg-[#0d1322] p-4 sm:p-5 shadow-xl transition-all duration-300 hover:border-[#d4af37]/50 hover:bg-[#12192d] hover:shadow-[0_8px_30px_rgba(212,175,55,0.12)] active:scale-[0.99]"
+                  className="group relative flex cursor-pointer overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4 sm:p-5 shadow-xl backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:border-[#d4af37]/40 hover:bg-white/[0.08] hover:shadow-[0_8px_40px_rgba(212,175,55,0.15)] hover:-translate-y-1 active:scale-[0.98] active:duration-150"
+                  style={{
+                    animation: `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 0.06}s both`,
+                  }}
                 >
                   {/* Food Image with Hover Zoom */}
                   <div className="relative h-32 w-32 sm:h-36 sm:w-36 md:h-40 md:w-40 shrink-0 overflow-hidden rounded-2xl bg-[#161e32]">
@@ -615,9 +646,10 @@ export default function PublicMenu() {
 
       {/* ─── Dish Detail Modal (Popup) ────────────────────────────────────────── */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 p-0 sm:p-4 backdrop-blur-lg animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-xl animate-fade-in">
           <div
-            className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-slate-800 bg-[#0e1424] p-6 sm:p-8 shadow-2xl animate-slide-up text-slate-100"
+            className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-[#0e1424]/90 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 text-slate-100"
+            style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Button */}
