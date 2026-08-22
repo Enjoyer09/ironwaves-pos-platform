@@ -1214,7 +1214,7 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     logo_shape: payload.logo_shape === 'circle' || payload.logo_shape === 'square' ? payload.logo_shape : 'rounded',
     font_family: String(payload.font_family || '').trim(),
     custom_font_url: String(payload.custom_font_url || '').trim(),
-    splash_type: ['image', 'gif', 'none'].includes(String((payload as any).splash_type || '')) ? String((payload as any).splash_type) : 'none',
+    splash_type: ['image', 'video', 'gif', 'none'].includes(String((payload as any).splash_type || '')) ? String((payload as any).splash_type) : 'none',
     splash_url: String((payload as any).splash_url || '').trim(),
     splash_duration_ms: Math.max(1000, Math.min(10000, Number((payload as any).splash_duration_ms || 3000))),
     splash_overlay_text: String((payload as any).splash_overlay_text || '').trim(),
