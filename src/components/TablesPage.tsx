@@ -1864,10 +1864,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     round_no: row.round_no,
                     status: row.status,
                     created_at: row.sent_at,
+                    sent_by: row.sent_by,
                     items: row.items.map((item) => ({
                       item_name: item.item_name,
                       qty: item.qty,
-                      seat_label: item.seat_no ? `Seat ${item.seat_no}` : undefined,
+                      price: item.price,
+                      seat_label: item.seat_no ? `Oturacaq ${item.seat_no}` : undefined,
                       action: item.status === 'VOIDED' ? 'CANCEL' : null,
                       reason: item.note || '',
                       raw_status: item.status,
@@ -2144,7 +2146,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
-                        ['history', `${tx(lang, 'Raundlar', 'Раунды', 'Rounds')} · ${rounds.length}`],
+                        ['history', `${tx(lang, 'Göndərişlər', 'Отправки', 'Dispatches')} · ${rounds.length}`],
                         ['ops', tx(lang, 'Əməliyyatlar', 'Операции', 'Operations')],
                       ] as Array<[typeof tableWorkspaceTab, string]>).map(([tabKey, label]) => (
                         <button
