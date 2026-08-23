@@ -194,8 +194,14 @@ def _release_table_lock(table: Table) -> None:
 
 
 def _ensure_table_write_access(table: Table, user: User, allow_manager_override: bool = True) -> str | None:
-    # All authenticated staff members, waiters, cashiers, managers and admins in the tenant have access to edit tables and send rounds to the kitchen
-    return None
+    lock_holder = _table_lock_holder(table)
+    if not lock_holder:
+        return None
+    if lock_holder == user.username:
+        return lock_holder
+    if allow_manager_override and _is_manager(user):
+        return lock_holder
+    raise HTTPException(status_code=403, detail=f"Bu masa artıq {lock_holder} tərəfindən istifadə olunur")
 
 
 def _resolve_manager_override_user(db: Session, tenant_id: str, manager_password: str | None) -> User:

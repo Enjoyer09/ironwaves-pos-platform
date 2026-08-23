@@ -336,6 +336,9 @@ export const send_to_kitchen = (
   const table = tables.find(t => t.id === table_id);
   
   if (!table) throw new Error('Masa tapılmadı');
+  if (table.is_occupied && table.assigned_to && table.assigned_to !== sent_by) {
+    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
+  }
 
   // Masa məlumatlarını yeniləyək
   table.is_occupied = true;
@@ -417,6 +420,9 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
   const tables = getDB<Table>('tables');
   const table = tables.find((t) => t.id === table_id);
   if (!table) throw new Error('Masa tapılmadı');
+  if (table.is_occupied && table.assigned_to && table.assigned_to !== payload.opened_by) {
+    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
+  }
   if (table.is_occupied && ((Array.isArray(table.items) && table.items.length > 0) || new Decimal(table.deposit_amount || 0).greaterThan(0))) {
     throw new Error('Masa artıq açıqdır');
   }

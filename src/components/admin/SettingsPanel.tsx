@@ -47,10 +47,9 @@ import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_u
 import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter, printDirectOrFallback } from '../../lib/local_print_agent';
 import { qzCheckStatus } from '../../lib/qz';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
+import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
 import { BusinessProfileSection } from './settings/BusinessProfileSection';
 import { EmailSettingsSection } from './settings/EmailSettingsSection';
-import { AISettingsSection } from './settings/AISettingsSection';
-import { InterfaceSettingsSection } from './settings/InterfaceSettingsSection';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -786,27 +785,6 @@ export default function SettingsPanel() {
     }
   };
 
-  const saveTablesUiMode = async (mode: 'classic' | 'modern') => {
-    setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
-    try { localStorage.setItem('iw_tables_ui_mode', mode); localStorage.setItem('iw_pos_ui_mode', mode); } catch {}
-    try {
-      await update_session_settings_live({
-        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
-        staff_pin_length: sessionSettings.staff_pin_length,
-        theme_mode: sessionSettings.theme_mode,
-        ui_mode: 'old',
-        tables_ui_mode: mode,
-        login_background_url: sessionSettings.login_background_url || '',
-      } as any);
-      notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
-      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-    } catch (e: any) {
-      setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode === 'modern' ? 'classic' : 'modern' } as any));
-      notify('error', e?.message || 'Failed');
-    }
-  };
-
   const handleCreateUser = async () => {
     const username = newUserName.trim();
     if (!username) {
@@ -1024,12 +1002,6 @@ export default function SettingsPanel() {
       timeout_sec: Number(emailSettings.timeout_sec || 15),
     });
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
-  };
-
-  const saveAiApiKey = async () => {
-    writeScopedStorage('gemini_api_key', aiApiKey);
-    await update_api_key_live(aiApiKey, {});
-    flashSuccess(tx(lang, 'AI API key yadda saxlanıldı', 'AI API key сохранён', 'AI API key saved'), 'ai');
   };
 
   const saveDeliveryIntegrations = async () => {
@@ -4071,16 +4043,33 @@ export default function SettingsPanel() {
         </div>
       ) : null}
 
-      <AISettingsSection
-        lang={lang}
-        saveButtonClass={saveButtonClass}
-        renderPanelSuccess={renderPanelSuccess}
-        aiApiKey={aiApiKey}
-        setAiApiKey={setAiApiKey}
-        saveAiApiKey={saveAiApiKey}
-        menuCatalog={menuCatalog}
-        inventoryCatalog={inventoryCatalog}
-      />
+      <div id="sec-ai" className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">🤖 {tx(lang, 'AI Resept Konfiqurasiyası', 'AI Конфигурация рецептов', 'AI Recipe Configuration')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(lang, 'Resept AI agenti üçün API key konfiqurasiyası. Key formatına görə provider avtomatik tanınır.', 'Конфигурация API key для AI агента рецептов. Провайдер определяется автоматически по формату ключа.', 'API key configuration for the recipe AI agent. Provider is auto-detected from key format.')}
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
+            <input className="neon-input w-full" type="password" value={aiApiKey} onChange={(e) => { setAiApiKey(e.target.value); writeScopedStorage('gemini_api_key', e.target.value); void update_api_key_live(e.target.value, {}); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
+            <p className="text-[10px] text-slate-500">{tx(lang, 'Key formatına görə provider avtomatik tanınır', 'Провайдер определяется автоматически', 'Provider is auto-detected from key format')}</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Aşkarlanan provider', 'Определённый провайдер', 'Detected provider')}</label>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-200">
+              {aiApiKey ? `${aiProviderLabel(detectAiConfigFromApiKey(aiApiKey).provider)} · ${detectAiConfigFromApiKey(aiApiKey).model}` : tx(lang, 'Key daxil edilməyib', 'Ключ не введён', 'No key entered')}
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-xs text-cyan-200/90 space-y-1">
+          <div className="font-bold">{tx(lang, 'Dəstəklənən providerlər:', 'Поддерживаемые провайдеры:', 'Supported providers:')}</div>
+          <div>• <strong>FreeModel.dev</strong> — Claude, GPT (pulsuz kredit)</div>
+          <div>• <strong>Google Gemini</strong> — AIza... key</div>
+          <div>• <strong>OpenRouter</strong> — sk-or-v1-... key</div>
+          <div>• <strong>OpenAI</strong> — sk-... key</div>
+          <div>• <strong>Anthropic</strong> — sk-ant-... key</div>
+        </div>
+      </div>
 
       <div id="sec-roles" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol icazələri', 'Права ролей', 'Role permissions')}</h2>
