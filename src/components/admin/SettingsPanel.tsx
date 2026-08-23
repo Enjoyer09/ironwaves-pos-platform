@@ -635,11 +635,6 @@ export default function SettingsPanel() {
     if (sessionSettings.theme_mode === nextMode) return;
     const previous = sessionSettings.theme_mode;
     setSessionSettings((prev) => ({ ...prev, theme_mode: nextMode }));
-    document.documentElement.setAttribute('data-theme', nextMode);
-    document.documentElement.style.colorScheme = nextMode;
-    try {
-      localStorage.setItem('iw_theme_mode', nextMode);
-    } catch {}
     try {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
