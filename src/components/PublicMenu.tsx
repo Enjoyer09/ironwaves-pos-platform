@@ -47,7 +47,11 @@ interface Branding {
   font_family?: string;
   custom_font_url?: string;
   theme_preset?: string;
-  layout_preset?: string;
+  splash_type?: string;
+  splash_url?: string;
+  splash_duration_ms?: number;
+  splash_overlay_text?: string;
+  splash_bg_color?: string;
   phone?: string;
   address?: string;
   instagram?: string;
@@ -382,34 +386,62 @@ export default function PublicMenu() {
     );
   }
 
-  // ─── Splash Screen ─────────────────────────────────────────────────────────
-  if (showSplash) {
+  // ─── Tenant Splash Screen ──────────────────────────────────────────────────
+  const splashType = String(branding.splash_type || 'none').toLowerCase();
+  const splashUrl = String(branding.splash_url || '').trim();
+  const splashDuration = Math.max(1000, Number(branding.splash_duration_ms || 3000));
+  const splashOverlayText = String(branding.splash_overlay_text || '').trim();
+  const splashBgColor = String(branding.splash_bg_color || '#000000').trim();
+  const hasSplash = Boolean(splashType && splashType !== 'none' && splashUrl);
+
+  if (hasSplash && showSplash) {
     if (!splashTimerRef.current) {
-      splashTimerRef.current = setTimeout(() => setShowSplash(false), 2800);
+      splashTimerRef.current = setTimeout(() => setShowSplash(false), splashDuration);
     }
     return (
       <div
-        className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden bg-black"
-        style={{ height: '100dvh', width: '100vw' }}
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden"
+        style={{ height: '100dvh', width: '100vw', backgroundColor: splashBgColor }}
         onClick={() => setShowSplash(false)}
       >
-        <video
-          src="https://res.cloudinary.com/dtjh5e3nm/video/upload/v1787398802/WhatsApp_Video_2026-08-22_at_2.22.01_PM.mp4"
-          autoPlay
-          muted
-          playsInline
-          loop
-          disablePictureInPicture
-          disableRemotePlayback
-          controls={false}
-          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-          style={{ objectFit: 'cover' }}
-        />
+        {splashType === 'video' ? (
+          <video
+            src={splashUrl}
+            autoPlay
+            muted
+            playsInline
+            loop
+            disablePictureInPicture
+            disableRemotePlayback
+            controls={false}
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+            style={{ objectFit: 'cover' }}
+          />
+        ) : (
+          <img
+            src={splashUrl}
+            alt="splash"
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+            style={{ objectFit: 'cover' }}
+          />
+        )}
         <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+        {splashOverlayText && (
+          <div className="relative z-10 px-6 text-center text-white font-extrabold text-2xl sm:text-3xl drop-shadow-lg tracking-wide">
+            {splashOverlayText}
+          </div>
+        )}
         <div className="absolute bottom-8 left-8 right-8 h-1 rounded-full bg-white/20 overflow-hidden pointer-events-none">
-          <div className="h-full bg-white/80 rounded-full" style={{ animation: 'splashProgress 2.8s linear forwards' }} />
+          <div
+            className="h-full bg-white/80 rounded-full"
+            style={{ animation: `splashProgress ${splashDuration}ms linear forwards` }}
+          />
         </div>
-        <style>{`@keyframes splashProgress { from { width: 0% } to { width: 100% } } video::-webkit-media-controls { display: none !important; } video::-webkit-media-controls-enclosure { display: none !important; }`}</style>
+        <style>{`
+          @keyframes splashProgress { from { width: 0% } to { width: 100% } }
+          video::-webkit-media-controls { display: none !important; }
+          video::-webkit-media-controls-enclosure { display: none !important; }
+        `}</style>
       </div>
     );
   }

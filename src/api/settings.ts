@@ -1482,7 +1482,11 @@ export async function get_public_qr_menu_bootstrap_live(tenantSlug?: string) {
       font_family: string;
       custom_font_url: string;
       theme_preset?: string;
-      layout_preset?: string;
+      splash_type?: string;
+      splash_url?: string;
+      splash_duration_ms?: number;
+      splash_overlay_text?: string;
+      splash_bg_color?: string;
       phone?: string;
       address?: string;
       instagram?: string;
