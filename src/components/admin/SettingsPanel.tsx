@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon, X } from 'lucide-react';
+import { Settings as SettingsIcon } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -34,7 +34,6 @@ import {
   verify_totp_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
-import { upload_menu_image_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import {
   getDeliveryMenuMappings,
@@ -42,59 +41,25 @@ import {
   deleteDeliveryMenuMapping,
   DeliveryMenuMapping,
 } from '../../api/integrations';
-import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
-import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter, printDirectOrFallback } from '../../lib/local_print_agent';
+import { localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter, printDirectOrFallback } from '../../lib/local_print_agent';
 import { qzCheckStatus } from '../../lib/qz';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
-import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
 import { BusinessProfileSection } from './settings/BusinessProfileSection';
 import { EmailSettingsSection } from './settings/EmailSettingsSection';
+import { OperationSettingsSection } from './settings/OperationSettingsSection';
+import { FinanceSettingsSection } from './settings/FinanceSettingsSection';
+import { IntegrationsSettingsSection } from './settings/IntegrationsSettingsSection';
+import { AISettingsSection } from './settings/AISettingsSection';
+import { InterfaceSettingsSection } from './settings/InterfaceSettingsSection';
+import { SecuritySettingsSection } from './settings/SecuritySettingsSection';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
-
-const YIELD_PRESETS = {
-  beef: {
-    ratio: '1.4',
-    min: '30',
-    max: '40',
-  },
-  chicken: {
-    ratio: '1.33',
-    min: '25',
-    max: '35',
-  },
-} as const;
 
 const defaultRoleModules: RoleModules = {
   staff: ['pos', 'tables', 'kds', 'zreport'],
   manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
   kitchen: ['kds'],
-};
-
-const moduleCatalog = ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'];
-
-const roleLabelMap: Record<'staff' | 'manager' | 'kitchen', string> = {
-  staff: 'Ofisiant / Kassir',
-  manager: 'Menecer',
-  kitchen: 'Mətbəx',
-};
-
-const moduleLabelMap: Record<string, string> = {
-  pos: 'POS',
-  tables: 'Masalar',
-  kds: 'Mətbəx ekranı',
-  zreport: 'Z-Hesabat',
-  finance: 'Maliyyə',
-  inventory: 'Anbar',
-  combos: 'Kombolar',
-  analytics: 'Analitika',
-  logs: 'Loqlar',
-  crm: 'CRM',
-  customerapp: 'Müştəri tətbiqi',
-  ai: 'AI menecer',
-  menu: 'Menyu',
-  recipes: 'Reseptlər',
 };
 
 export default function SettingsPanel() {
@@ -240,7 +205,6 @@ export default function SettingsPanel() {
     const base = String(profile?.qr_base_url || profile?.website || '').trim() || window.location.origin;
     return `${base.replace(/\/+$/, '')}/feedback`;
   }, [profile?.qr_base_url, profile?.website]);
-  const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
   const [bankCommission, setBankCommission] = useState({
     card_sale_percent: '2',
     card_transfer_percent: '0.5',
@@ -291,8 +255,6 @@ export default function SettingsPanel() {
     menu_item_id: '',
   });
   const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
-  const [yieldInventoryCandidate, setYieldInventoryCandidate] = useState('');
-  const [yieldInventorySearch, setYieldInventorySearch] = useState('');
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -320,48 +282,6 @@ export default function SettingsPanel() {
   const [resetTotpCode, setResetTotpCode] = useState('');
 
 
-  const suggestedYieldItems = inventoryCatalog.filter((item: any) => {
-    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
-    return (
-      hay.includes('dönər') ||
-      hay.includes('doner') ||
-      hay.includes('dana') ||
-      hay.includes('mal ') ||
-      hay.includes('mal əti') ||
-      hay.includes('toyuq') ||
-      hay.includes('chicken')
-    );
-  });
-  const preferredYieldInventory = inventoryCatalog.filter((item: any) => {
-    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
-    return (
-      hay.includes('dönər') ||
-      hay.includes('doner') ||
-      hay.includes('ət') ||
-      hay.includes('et') ||
-      hay.includes('dana') ||
-      hay.includes('mal ') ||
-      hay.includes('mal əti') ||
-      hay.includes('toyuq') ||
-      hay.includes('chicken') ||
-      hay.includes('shawarma') ||
-      hay.includes('gyro') ||
-      hay.includes('kebab')
-    );
-  });
-  const remainingYieldInventory = inventoryCatalog.filter(
-    (item: any) => !preferredYieldInventory.some((preferred: any) => preferred.id === item.id || preferred.name === item.name),
-  );
-  const selectableYieldInventory = [...preferredYieldInventory, ...remainingYieldInventory].filter(
-    (item: any) => !yieldManagement.tracked_items.some((row) => row.inventory_name === item.name),
-  );
-  const normalizedYieldInventorySearch = String(yieldInventorySearch || '').trim().toLowerCase();
-  const filteredYieldInventory = selectableYieldInventory.filter((item: any) => {
-    if (!normalizedYieldInventorySearch) return true;
-    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
-    return hay.includes(normalizedYieldInventorySearch);
-  });
-
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const configuredStaffPinLength = sessionSettings.staff_pin_length === 4 ? 4 : 6;
   const passwordPolicyText = tx(
@@ -371,8 +291,6 @@ export default function SettingsPanel() {
     'Password must be at least 10 characters and include upper/lowercase, number and symbol.',
   );
   const isStrongPassword = (value: string) => value.length >= 10 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value);
-  const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
-  const passwordUsers = users.filter((u) => ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()));
   const currentPasswordUser = users.find((u) => u.username === user?.username);
   const totpEnabled = Boolean(currentPasswordUser?.two_factor_enabled);
 
@@ -618,53 +536,6 @@ export default function SettingsPanel() {
       setCustomPrinterMode(false);
     }
   }, [systemPrinters, printSettings.printer_name]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const baseUrl = String(profile?.qr_base_url || '').trim() || window.location.origin;
-        const menuUrl = `${baseUrl.replace(/\/+$/, '')}/qrmenu`;
-        const qrDataUrl = await QRCode.toDataURL(menuUrl, { margin: 1, width: 220 });
-        const canvas = document.createElement('canvas');
-        canvas.width = 900;
-        canvas.height = 1200;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.fillStyle = String(qrMenuSettings.background_color || '#efe2c1');
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 56px Arial';
-        ctx.fillText(String(qrMenuSettings.poster_title || 'Menyuya baxmaq üçün skan et'), canvas.width / 2, 120);
-        ctx.font = '28px Arial';
-        ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
-        ctx.fillText(String(qrMenuSettings.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'), canvas.width / 2, 170);
-        if (profile?.company_name) {
-          ctx.font = 'bold 36px Arial';
-          ctx.fillStyle = String(qrMenuSettings.poster_background_color || '#d59b2d');
-          ctx.fillText(String(profile.company_name), canvas.width / 2, 240);
-        }
-        const qrImage = new Image();
-        qrImage.onload = () => {
-          ctx.fillStyle = String(qrMenuSettings.surface_color || '#fff7e8');
-          ctx.fillRect(190, 300, 520, 520);
-          ctx.drawImage(qrImage, 220, 330, 460, 460);
-          ctx.font = '24px Arial';
-          ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
-          ctx.fillText(menuUrl.replace(/^https?:\/\//, ''), canvas.width / 2, 910);
-          const posterUrl = canvas.toDataURL('image/png');
-          if (!cancelled) setQrMenuPosterDataUrl(posterUrl);
-        };
-        qrImage.src = qrDataUrl;
-      } catch {
-        if (!cancelled) setQrMenuPosterDataUrl('');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [profile?.company_name, profile?.qr_base_url, qrMenuSettings.poster_title, qrMenuSettings.poster_subtitle, qrMenuSettings.background_color, qrMenuSettings.surface_color, qrMenuSettings.text_color, qrMenuSettings.poster_background_color]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -974,16 +845,6 @@ export default function SettingsPanel() {
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Sistem sıfırlanmadı', 'Система не была сброшена', 'System reset failed'));
     }
-  };
-
-  const toggleRoleModule = (role: keyof RoleModules, moduleKey: string) => {
-    setRoleModules((prev) => {
-      const current = prev[role] || [];
-      const next = current.includes(moduleKey)
-        ? current.filter((item) => item !== moduleKey)
-        : [...current, moduleKey];
-      return { ...prev, [role]: next };
-    });
   };
 
   const saveRoleModules = async () => {
@@ -1351,14 +1212,6 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'), 'feedback');
   };
 
-  const downloadQrPoster = () => {
-    if (!qrMenuPosterDataUrl) return;
-    const link = document.createElement('a');
-    link.href = qrMenuPosterDataUrl;
-    link.download = `qr-menu-poster-${tenantId}.png`;
-    link.click();
-  };
-
   const saveBankCommission = async () => {
     await update_bank_commission_live({
       card_sale_percent: Number(bankCommission.card_sale_percent || 0),
@@ -1430,75 +1283,38 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'), 'yield');
   };
 
-  const applyYieldPreset = (meatType: 'beef' | 'chicken') => {
-    const preset = YIELD_PRESETS[meatType];
-    setYieldManagement((prev) => ({
-      ...prev,
-      ...(meatType === 'beef'
-        ? {
-            beef_ratio: preset.ratio,
-            beef_loss_min_percent: preset.min,
-            beef_loss_max_percent: preset.max,
-          }
-        : {
-            chicken_ratio: preset.ratio,
-            chicken_loss_min_percent: preset.min,
-            chicken_loss_max_percent: preset.max,
-          }),
-      tracked_items: prev.tracked_items.map((row) =>
-        row.meat_type === meatType
-          ? { ...row, raw_to_ready_ratio: preset.ratio }
-          : row,
-      ),
-    }));
+
+
+  const saveAiApiKey = async () => {
+    try {
+      writeScopedStorage('gemini_api_key', aiApiKey);
+      await update_api_key_live(aiApiKey, {});
+      flashSuccess(tx(lang, 'AI API Key yadda saxlanıldı', 'AI API Key сохранён', 'AI API Key saved'), 'ai');
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'AI API Key saxlanmadı', 'AI API Key не сохранён', 'AI API Key was not saved'));
+    }
   };
 
-  const applySmartYieldSuggestion = (inventoryName: string) => {
-    const hay = String(inventoryName || '').toLowerCase();
-    const meatType: 'beef' | 'chicken' =
-      hay.includes('toyuq') || hay.includes('chicken') ? 'chicken' : 'beef';
-    const ratio = meatType === 'chicken' ? yieldManagement.chicken_ratio || YIELD_PRESETS.chicken.ratio : yieldManagement.beef_ratio || YIELD_PRESETS.beef.ratio;
-    setYieldManagement((prev) => {
-      const existing = prev.tracked_items.find((row) => row.inventory_name === inventoryName);
-      if (existing) {
-        return {
-          ...prev,
-          tracked_items: prev.tracked_items.map((row) =>
-            row.inventory_name === inventoryName
-              ? { ...row, enabled: true, meat_type: meatType, raw_to_ready_ratio: ratio }
-              : row,
-          ),
-        };
-      }
-      return {
-        ...prev,
-        tracked_items: [
-          ...prev.tracked_items,
-          {
-            inventory_name: inventoryName,
-            enabled: true,
-            meat_type: meatType,
-            raw_to_ready_ratio: ratio,
-          },
-        ],
-      };
-    });
+  const saveTablesUiMode = async (mode: 'classic' | 'modern') => {
+    setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
+    try { localStorage.setItem('iw_tables_ui_mode', mode); localStorage.setItem('iw_pos_ui_mode', mode); } catch {}
+    try {
+      await update_session_settings_live({
+        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
+        staff_pin_length: sessionSettings.staff_pin_length,
+        theme_mode: sessionSettings.theme_mode,
+        ui_mode: 'old',
+        tables_ui_mode: mode,
+        login_background_url: sessionSettings.login_background_url || '',
+      } as any);
+      notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+    } catch (e: any) {
+      setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode === 'modern' ? 'classic' : 'modern' } as any));
+      notify('error', e?.message || 'Failed');
+    }
   };
-
-  const addYieldTrackedInventory = () => {
-    const inventoryName = String(yieldInventoryCandidate || '').trim();
-    if (!inventoryName) return;
-    applySmartYieldSuggestion(inventoryName);
-    setYieldInventoryCandidate('');
-  };
-
-  const removeYieldTrackedInventory = (inventoryName: string) => {
-    setYieldManagement((prev) => ({
-      ...prev,
-      tracked_items: prev.tracked_items.filter((row) => row.inventory_name !== inventoryName),
-    }));
-  };
-
 
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
@@ -1589,53 +1405,6 @@ export default function SettingsPanel() {
 
       {/* Content */}
       <div className="min-w-0 flex-1 space-y-6">
-      {resetModalOpen ? (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
-          <div className="metal-panel w-full max-w-md p-5">
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Bütün sistemi sıfırla', 'Сбросить всю систему', 'Reset entire system')}</h3>
-            <p className="mt-2 text-sm text-slate-300">
-              {tx(
-                lang,
-                'Cari tenantın bütün iş datası silinəcək. Davam etmək üçün admin şifrəsini yazın.',
-                'Рабочие данные текущего tenant будут удалены. Для продолжения введите пароль администратора.',
-                'The current tenant operational data will be deleted. Enter the admin password to continue.',
-              )}
-            </p>
-            <div className="mt-4 space-y-3">
-              <input
-                className="neon-input"
-                type="password"
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора', 'Admin password')}
-              />
-              {totpEnabled ? (
-                <input
-                  className="neon-input"
-                  value={resetTotpCode}
-                  onChange={(e) => setResetTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder={tx(lang, '2FA kodu', 'Код 2FA', '2FA code')}
-                />
-              ) : null}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setResetModalOpen(false);
-                  setResetPassword('');
-                  setResetTotpCode('');
-                }}
-                className="neon-btn rounded-lg px-4 py-2"
-              >
-                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-              </button>
-              <button onClick={() => { void handleResetSystem(); }} className="rounded-lg border border-red-400/50 px-4 py-2 font-semibold text-red-200 hover:bg-red-500/10">
-                {tx(lang, 'Sıfırla', 'Сбросить', 'Reset')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       <div className="metal-panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-700/70 p-6">
           <SettingsIcon className="text-cyan-300" size={22} />
@@ -1666,2541 +1435,181 @@ export default function SettingsPanel() {
         saveButtonClass={saveButtonClass}
       />
 
-      <div id="sec-delivery" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çatdırılma İnteqrasiyaları', 'Интеграции доставки', 'Delivery Integrations')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Bolt Food və Wolt inteqrasiyaları üçün Provider/Venue ID və Secret Key ayarları.',
-            'Настройки Provider/Venue ID и Secret Key для интеграций Bolt Food и Wolt.',
-            'Provider/Venue ID and Secret Key settings for Bolt Food and Wolt integrations.',
-          )}
-        </p>
-        
-        <div className="border-t border-slate-700/40 pt-4 space-y-3">
-          <h3 className="text-md font-semibold text-slate-200">Bolt Food</h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
-              <input 
-                type="checkbox" 
-                checked={deliveryIntegrations.bolt_food_enabled} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_enabled: e.target.checked }))} 
-              />
-              <span>{tx(lang, 'Bolt Food aktiv et', 'Включить Bolt Food', 'Enable Bolt Food')}</span>
-            </label>
-            <input 
-              className="neon-input" 
-              value={deliveryIntegrations.bolt_food_provider_id} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_provider_id: e.target.value }))} 
-              placeholder="Provider ID" 
-            />
-            <input 
-              className="neon-input md:col-span-2" 
-              type="password"
-              value={deliveryIntegrations.bolt_food_secret_key} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
-              placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
-            />
-            {deliveryIntegrations.bolt_food_enabled && (
-              <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
-                <span className="text-xs font-semibold text-slate-400 block">Bolt Food Webhook URL:</span>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    className="neon-input flex-1 text-xs select-all py-1.5 opacity-80"
-                    value={`${window.location.origin}/api/v1/integrations/bolt/webhook/${tenantId}`}
-                  />
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(`${window.location.origin}/api/v1/integrations/bolt/webhook/${tenantId}`);
-                      notify('success', tx(lang, 'Webhook URL kopyalandı', 'Webhook URL скопирован', 'Webhook URL copied'));
-                    }}
-                    className="glossy-gold text-xs px-3 py-1 rounded-lg font-bold"
-                  >
-                    {tx(lang, 'Kopyala', 'Копировать', 'Copy')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-slate-700/40 pt-4 space-y-3">
-          <h3 className="text-md font-semibold text-slate-200">Wolt</h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
-              <input 
-                type="checkbox" 
-                checked={deliveryIntegrations.wolt_enabled} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_enabled: e.target.checked }))} 
-              />
-              <span>{tx(lang, 'Wolt aktiv et', 'Включить Wolt', 'Enable Wolt')}</span>
-            </label>
-            <input 
-              className="neon-input" 
-              value={deliveryIntegrations.wolt_venue_id} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_venue_id: e.target.value }))} 
-              placeholder="Venue ID" 
-            />
-            <input 
-              className="neon-input md:col-span-2" 
-              type="password"
-              value={deliveryIntegrations.wolt_client_secret} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
-              placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
-            />
-            {deliveryIntegrations.wolt_enabled && (
-              <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
-                <span className="text-xs font-semibold text-slate-400 block">Wolt Webhook URL:</span>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    className="neon-input flex-1 text-xs select-all py-1.5 opacity-80"
-                    value={`${window.location.origin}/api/v1/integrations/wolt/webhook/${tenantId}`}
-                  />
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(`${window.location.origin}/api/v1/integrations/wolt/webhook/${tenantId}`);
-                      notify('success', tx(lang, 'Webhook URL kopyalandı', 'Webhook URL скопирован', 'Webhook URL copied'));
-                    }}
-                    className="glossy-gold text-xs px-3 py-1 rounded-lg font-bold"
-                  >
-                    {tx(lang, 'Kopyala', 'Копировать', 'Copy')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Menu Mappings Sub-section */}
-        <div className="border-t border-slate-700/40 pt-6 space-y-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Menyu Xəritələnməsi', 'Сопоставление меню', 'Menu Mappings')}</h3>
-            <p className="text-xs text-slate-400">
-              {tx(
-                lang,
-                'Çatdırılma platformalarından (Bolt/Wolt) gələn xarici Məhsul ID-lərini sistemin daxili menyu elementlərinə uyğunlaşdırın.',
-                'Сопоставьте внешние ID продуктов от платформ доставки (Bolt/Wolt) с внутренними элементами меню.',
-                'Map external product IDs from delivery platforms (Bolt/Wolt) to internal menu items.',
-              )}
-            </p>
-          </div>
-
-          {/* New Mapping Form */}
-          <form onSubmit={handleAddDeliveryMenuMapping} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-slate-900/40 p-4 rounded-xl border border-slate-800">
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</label>
-              <select
-                className="neon-input w-full bg-slate-950 border border-slate-800"
-                value={newDeliveryMenuMapping.provider}
-                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, provider: e.target.value as 'bolt' | 'wolt' }))}
-              >
-                <option value="bolt">Bolt Food</option>
-                <option value="wolt">Wolt</option>
-              </select>
-            </div>
-            
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul ID', 'Внешний ID продукта', 'External Product ID')}</label>
-              <input
-                className="neon-input w-full"
-                value={newDeliveryMenuMapping.external_item_id}
-                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_id: e.target.value }))}
-                placeholder="Örnək: item-1234"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul Adı (İxtiyari)', 'Внешнее имя (Опционально)', 'External Name (Optional)')}</label>
-              <input
-                className="neon-input w-full"
-                value={newDeliveryMenuMapping.external_item_name}
-                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_name: e.target.value }))}
-                placeholder="Örnək: Cappuccino 250ml"
-              />
-            </div>
-
-            <div className="space-y-1 flex gap-2">
-              <div className="flex-1 space-y-1">
-                <label className="text-xs text-slate-400 block">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт меню', 'Internal Menu Item')}</label>
-                <select
-                  className="neon-input w-full bg-slate-950 border border-slate-800"
-                  value={newDeliveryMenuMapping.menu_item_id}
-                  onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, menu_item_id: e.target.value }))}
-                >
-                  <option value="">{tx(lang, 'Seçin...', 'Выберите...', 'Select...')}</option>
-                  {menuCatalog.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.item_name} ({Number(item.price).toFixed(2)} AZN)
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="submit"
-                className="glossy-gold h-[42px] px-4 rounded-xl font-bold flex items-center justify-center shrink-0"
-              >
-                {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
-              </button>
-            </div>
-          </form>
-
-          {/* Mappings Table */}
-          {deliveryMenuMappingsLoading ? (
-            <div className="text-center py-4 text-xs text-slate-400">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</div>
-          ) : deliveryMenuMappings.length === 0 ? (
-            <div className="text-center py-4 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
-              {tx(lang, 'Hələ heç bir menyu xəritələnməsi qurulmayıb.', 'Сопоставления меню еще не настроены.', 'No menu mappings have been set up yet.')}
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/20">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-900/50 text-slate-400 uppercase font-semibold">
-                    <th className="p-3">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</th>
-                    <th className="p-3">{tx(lang, 'Xarici ID / Adı', 'Внешний ID / Имя', 'External ID / Name')}</th>
-                    <th className="p-3">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт', 'Internal Menu Item')}</th>
-                    <th className="p-3 text-right">{tx(lang, 'Əməliyyat', 'Действие', 'Action')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {deliveryMenuMappings.map((mapping) => (
-                    <tr key={mapping.id} className="hover:bg-slate-900/20 transition-colors">
-                      <td className="p-3 capitalize font-medium text-slate-200">
-                        {mapping.provider === 'bolt' ? 'Bolt Food' : 'Wolt'}
-                      </td>
-                      <td className="p-3">
-                        <span className="font-mono text-slate-400 block">{mapping.external_item_id}</span>
-                        {mapping.external_item_name && (
-                          <span className="text-[10px] text-slate-500 block mt-0.5">{mapping.external_item_name}</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {mapping.menu_item_name ? (
-                          <div className="flex flex-col">
-                            <span className="text-slate-100 font-semibold">{mapping.menu_item_name}</span>
-                            <span className="text-[10px] text-slate-400">{Number(mapping.menu_item_price).toFixed(2)} AZN</span>
-                          </div>
-                        ) : (
-                          <span className="text-rose-400/80 italic">{tx(lang, 'Məhsul silinib', 'Продукт удален', 'Product deleted')}</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => handleDeleteDeliveryMenuMapping(mapping.id)}
-                          className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition-colors font-semibold"
-                        >
-                          {tx(lang, 'Sil', 'Удалить', 'Delete')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {renderPanelSuccess('delivery_integrations')}
-        {(deliveryIntegrations.bolt_food_enabled && !deliveryIntegrations.bolt_food_provider_id) && (
-          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
-            ⚠️ {tx(lang, 'Bolt Food aktiv amma Provider ID boşdur', 'Bolt Food активен, но Provider ID пуст', 'Bolt Food enabled but Provider ID is empty')}
-          </div>
-        )}
-        {(deliveryIntegrations.wolt_enabled && !deliveryIntegrations.wolt_venue_id) && (
-          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
-            ⚠️ {tx(lang, 'Wolt aktiv amma Venue ID boşdur', 'Wolt активен, но Venue ID пуст', 'Wolt enabled but Venue ID is empty')}
-          </div>
-        )}
-        <div className="flex justify-end border-t border-slate-700/40 pt-4">
-          <button onClick={() => { void saveDeliveryIntegrations(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-print" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çap Ayarları', 'Настройки печати', 'Print Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Ən sərfəli səssiz çap yolu iRonWaves Print Agent-dir. Agent bu kompüterdə işləyirsə POS, masa çeki və Z-report əvvəlcə ona göndərilir; agent yoxdursa QZ/browser fallback qalır.',
-            'Самый выгодный способ тихой печати — iRonWaves Print Agent. Если агент запущен на этом компьютере, POS, чеки столов и Z-отчет сначала отправляются ему; если агента нет, остается QZ/browser fallback.',
-            'The most cost-effective silent printing path is iRonWaves Print Agent. If it is running on this computer, POS, table receipts, and Z-report print through it first; otherwise QZ/browser fallback remains.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Kassa Çek Printeri */}
-          <div className="flex flex-col gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
-            <label className="text-xs font-bold text-slate-200">
-              🧾 {tx(lang, 'Kassa Çek Printeri (Müştəri çeki)', 'Принтер кассовых чеков (Клиентский чек)', 'Cashier Receipt Printer (Customer receipt)')}
-            </label>
-            {systemPrinters.length > 0 ? (
-              <>
-                <select
-                  className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
-                  value={customPrinterMode ? '__custom__' : (printSettings.printer_name || '')}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '__custom__') {
-                      setCustomPrinterMode(true);
-                    } else {
-                      setCustomPrinterMode(false);
-                      setPrintSettings((prev) => ({ ...prev, printer_name: val }));
-                    }
-                  }}
-                >
-                  <option value="">
-                    {tx(
-                      lang,
-                      'Lokal default printer (Windows/Mac default)',
-                      'Локальный принтер по умолчанию (Windows/Mac default)',
-                      'Local default printer (Windows/Mac default)',
-                    )}
-                  </option>
-                  {systemPrinters.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
-                    </option>
-                  ))}
-                  {printSettings.printer_name && !systemPrinters.some(p => p.name.trim().toLowerCase() === printSettings.printer_name.trim().toLowerCase()) && (
-                    <option value={printSettings.printer_name}>
-                      {printSettings.printer_name} {tx(lang, '(Yadda saxlanılan)', '(Сохраненный)', '(Saved)')}
-                    </option>
-                  )}
-                  <option value="__custom__">
-                    {tx(
-                      lang,
-                      'Xüsusi printer daxil et... (Manual)',
-                      'Ввести имя принтера вручную...',
-                      'Enter custom printer name... (Manual)',
-                    )}
-                  </option>
-                </select>
-                {customPrinterMode && (
-                  <input
-                    className="neon-input transition-all duration-300 mt-2"
-                    value={printSettings.printer_name}
-                    onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
-                    placeholder={tx(lang, 'Kassa printer adı daxil edin', 'Введите имя кассового принтера', 'Enter cashier printer name')}
-                  />
-                )}
-              </>
-            ) : (
-              <input
-                className="neon-input"
-                value={printSettings.printer_name}
-                onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
-                placeholder={tx(lang, 'Kassa printer adı (məs. POS-80)', 'Имя кассового принтера (напр. POS-80)', 'Cashier printer name (e.g. POS-80)')}
-              />
-            )}
-            <label className="flex items-center gap-2 text-xs text-slate-300 mt-2">
-              <input
-                type="checkbox"
-                checked={printSettings.auto_print_receipt !== false}
-                onChange={(e) => setPrintSettings((prev) => ({ ...prev, auto_print_receipt: e.target.checked }))}
-              />
-              <span>{tx(lang, 'Ödənişdə avtomatik kassa çeki çap et', 'Автоматически печатать чек при оплате', 'Auto-print receipt on payment')}</span>
-            </label>
-          </div>
-
-          {/* Mətbəx Çek Printeri */}
-          <div className="flex flex-col gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
-            <label className="text-xs font-bold text-amber-300">
-              🍳 {tx(lang, 'Mətbəx Çek Printeri (Kitchen Ticket / Runner)', 'Принтер чеков кухни (Kitchen Ticket / Runner)', 'Kitchen Ticket Printer (Runner slip)')}
-            </label>
-            {systemPrinters.length > 0 ? (
-              <select
-                className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
-                value={printSettings.kitchen_printer_name || ''}
-                onChange={(e) => setPrintSettings((prev) => ({ ...prev, kitchen_printer_name: e.target.value }))}
-              >
-                <option value="">
-                  {tx(
-                    lang,
-                    'Kassa printeri ilə eyni (və ya Default)',
-                    'Такой же как кассовый (или Default)',
-                    'Same as cashier printer (or Default)',
-                  )}
-                </option>
-                {systemPrinters.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
-                  </option>
-                ))}
-                {printSettings.kitchen_printer_name && !systemPrinters.some(p => p.name.trim().toLowerCase() === printSettings.kitchen_printer_name.trim().toLowerCase()) && (
-                  <option value={printSettings.kitchen_printer_name}>
-                    {printSettings.kitchen_printer_name} {tx(lang, '(Yadda saxlanılan)', '(Сохраненный)', '(Saved)')}
-                  </option>
-                )}
-              </select>
-            ) : (
-              <input
-                className="neon-input"
-                value={printSettings.kitchen_printer_name || ''}
-                onChange={(e) => setPrintSettings((prev) => ({ ...prev, kitchen_printer_name: e.target.value }))}
-                placeholder={tx(lang, 'Mətbəx printer adı və ya IP (məs. Kitchen-80)', 'Имя принтера кухни или IP (напр. Kitchen-80)', 'Kitchen printer name or IP (e.g. Kitchen-80)')}
-              />
-            )}
-            <label className="flex items-center gap-2 text-xs text-amber-200 mt-2">
-              <input
-                type="checkbox"
-                checked={printSettings.auto_print_kitchen_ticket !== false}
-                onChange={(e) => setPrintSettings((prev) => ({ ...prev, auto_print_kitchen_ticket: e.target.checked }))}
-              />
-              <span>{tx(lang, 'Mətbəxə göndərildikdə avtomatik mətbəx çeki çıxar', 'Автоматически печатать чек при отправке на кухню', 'Auto-print ticket when sent to kitchen')}</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Termal Presetlər və Çap Rejimi */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-cyan-300">
-              📏 {tx(lang, 'Kağız Eni (Termal Format)', 'Ширина бумаги (Термо формат)', 'Paper Width (Thermal Preset)')}
-            </label>
-            <select
-              className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
-              value={printSettings.paper_width}
-              onChange={(e) => setPrintSettings((prev) => ({ ...prev, paper_width: e.target.value as any }))}
-            >
-              <option value="58mm">58 mm (XP-58, POS-58 - Standart Balaca Termal)</option>
-              <option value="80mm">80 mm (XP-80, Epson TM-T20/T88 - Standart Böyük Termal)</option>
-            </select>
-            <span className="text-[11px] text-slate-400">
-              {printSettings.paper_width === '58mm'
-                ? tx(lang, '48mm çap sahəsi (32 simvol sətir). Hərflərin kəsilməsini aradan qaldırır.', 'Ширина печати 48мм (32 символа). Предотвращает обрезку строк.', '48mm printable area (32 chars/line). Prevents cropped text.')
-                : tx(lang, '72mm çap sahəsi (42-48 simvol sətir). Geniş çəklər üçün.', 'Ширина печати 72мм (42-48 символов). For wide tickets.')}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-purple-300">
-              ⚡ {tx(lang, 'Çap Rejimi (Print Engine)', 'Режим печати (Print Engine)', 'Print Engine Mode')}
-            </label>
-            <select
-              className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
-              value={printSettings.print_engine}
-              onChange={(e) => setPrintSettings((prev) => ({ ...prev, print_engine: e.target.value as any }))}
-            >
-              <option value="raw_escpos">{tx(lang, 'ESC/POS Raw (Tövsiyə olunur - Ultra Sürətli & Heç vaxt boş çıxmaz)', 'ESC/POS Raw (Рекомендуется - Ультра быстро и без сбоев)', 'ESC/POS Raw (Recommended - Ultra fast & never blank)')}</option>
-              <option value="pixel_html">{tx(lang, 'Standart HTML / Qrafik Çap', 'Стандартный HTML / Графическая печать', 'Standard HTML / Pixel Graphics')}</option>
-            </select>
-            <span className="text-[11px] text-slate-400">
-              {printSettings.print_engine === 'raw_escpos'
-                ? tx(lang, 'Birbaşa termal printer başlığına əmrlər göndərir. 0.05 san sürət, təmiz kəsim.', 'Прямые команды на головку термопринтера. 0.05 сек, чистый отрез.', 'Direct ESC/POS commands to thermal printhead. Instant and flawless.')
-                : tx(lang, 'Qrafik formatda HTML çapı.', 'Графическая печать HTML.', 'Pixel HTML graphics print.')}
-            </span>
-          </div>
-        </div>
-
-        {/* Canlı Test Çapı Bölməsi */}
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
-          <span className="text-xs font-bold text-slate-300 mr-2">🧪 {tx(lang, 'Canlı Test Çapı:', 'Тестовая печать:', 'Live Test Print:')}</span>
-          <button
-            type="button"
-            disabled={testingPrint !== null}
-            onClick={() => void handleTestPrint('cashier')}
-            className="rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-3.5 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/30 transition active:scale-95 flex items-center gap-2"
-          >
-            {testingPrint === 'cashier' ? <span className="animate-spin">⏳</span> : '🧾'}
-            {tx(lang, 'Kassa Test Çeki Çap Et', 'Тест кассового чека', 'Print Cashier Test')}
-          </button>
-          <button
-            type="button"
-            disabled={testingPrint !== null}
-            onClick={() => void handleTestPrint('kitchen')}
-            className="rounded-xl border border-amber-500/40 bg-amber-500/20 px-3.5 py-2 text-xs font-bold text-amber-100 hover:bg-amber-500/30 transition active:scale-95 flex items-center gap-2"
-          >
-            {testingPrint === 'kitchen' ? <span className="animate-spin">⏳</span> : '🍳'}
-            {tx(lang, 'Mətbəx Test Çeki Çap Et', 'Тест чека кухни', 'Print Kitchen Test')}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4 pt-1">
-          <label className="flex items-center gap-2 text-xs text-slate-300">
-            <input type="checkbox" checked={printSettings.use_qz} onChange={(e) => setPrintSettings((prev) => ({ ...prev, use_qz: e.target.checked }))} />
-            <span>{tx(lang, 'QZ Tray fallback istifadə et', 'Использовать fallback QZ Tray', 'Use QZ Tray fallback')}</span>
-          </label>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-3.5 py-2.5 text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/30 active:scale-95 flex items-center gap-2"
-            onClick={() => void checkPrintAgentStatus()}
-          >
-            <span className={printAgentHealth === 'checking' || qzHealth === 'checking' ? 'animate-spin' : ''}>🔄</span>
-            {tx(lang, 'Printer və Agentləri Yoxla', 'Проверить принтеры и агенты', 'Check Printers & Agents')}
-          </button>
-
-          <button
-            type="button"
-            className="rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700"
-            onClick={() => {
-              setPrintAgentModalOpen(true);
-              void checkPrintAgentStatus();
-            }}
-          >
-            {tx(lang, 'Lokal Agent Yüklə', 'Установить локальный агент', 'Download Local Agent')}
-          </button>
-
-          {/* iRonWaves Print Agent Status Badge */}
-          <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs shadow-sm">
-            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${printAgentHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : printAgentHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-slate-600'}`} />
-            <span className="text-slate-400 font-medium">Lokal Agent (17777):</span>
-            <span className={`font-bold ${printAgentHealth === 'online' ? 'text-emerald-300' : 'text-slate-400'}`}>
-              {printAgentHealth === 'online' ? `Online (v${printAgentVersion || '0.2.0'})` : printAgentHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
-            </span>
-          </div>
-
-          {/* QZ Tray Status Badge */}
-          <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs shadow-sm">
-            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${qzHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : qzHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
-            <span className="text-slate-400 font-medium">QZ Tray:</span>
-            <span className={`font-bold ${qzHealth === 'online' ? 'text-emerald-300' : 'text-rose-400'}`}>
-              {qzHealth === 'online' ? `Online (${qzPrintersCount} printer tapıldı)` : qzHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
-            </span>
-          </div>
-        </div>
-
-        {qzHealth === 'offline' && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-            💡 <b>QZ Tray açıqdırsa, amma Offline görünürsə:</b>
-            <ul className="mt-1 list-disc list-inside space-y-0.5 text-slate-300">
-              <li>QZ Tray ikonunun sistem zolağında (System Tray) <b>yaşıl</b> rəngdə olduğundan əmin olun.</li>
-              <li>Əgər brauzer QZ Tray sertifikatına blok qoyubsa, brauzerdə <a href="https://localhost:8181" target="_blank" rel="noreferrer" className="text-cyan-300 underline font-bold">https://localhost:8181</a> linkini açıb <i>"Davam et (təhlükəli deyil / Advanced ➔ Proceed)"</i> klikləyin.</li>
-              <li>Sonra yuxarıdakı <b>"Printer və Agentləri Yoxla"</b> düyməsinə klikləyin.</li>
-            </ul>
-          </div>
-        )}
-        {printSettings.use_qz && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-3">
-            <span className="font-semibold text-emerald-400 block text-sm">
-              🔒 {tx(lang, 'QZ Tray — Sessiz Çap Quraşdırması', 'QZ Tray — Настройка тихой печати', 'QZ Tray — Silent Print Setup')}
-            </span>
-
-            {/* One-click download buttons */}
-            <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 space-y-3">
-              <p className="text-sm font-semibold text-emerald-200">
-                {tx(lang, '⚡ Ən sadə yol (1 dəqiqə):', 'Самый простой способ (1 минута):', '⚡ Easiest way (1 minute):')}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={URL.createObjectURL(new Blob(['7b202bd54bf3dbc7c9394001d2edbdaec85dd8df\n'], { type: 'text/plain' }))}
-                  download="allowed.dat"
-                  className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-400/50 bg-emerald-500/20 px-4 py-2.5 text-sm font-bold text-emerald-100 transition hover:bg-emerald-500/30 active:scale-95"
-                >
-                  📥 {tx(lang, 'allowed.dat yüklə', 'Скачать allowed.dat', 'Download allowed.dat')}
-                </a>
-                <a
-                  href="/downloads/qz-digital-certificate.txt"
-                  download="qz-digital-certificate.txt"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700/60 active:scale-95"
-                >
-                  📄 {tx(lang, 'Sertifikat yüklə', 'Скачать сертификат', 'Download certificate')}
-                </a>
-              </div>
-              <div className="space-y-2 text-xs text-emerald-200/80">
-                <p className="font-bold">{tx(lang, 'Quraşdırma addımları:', 'Шаги установки:', 'Setup steps:')}</p>
-                <ol className="list-decimal pl-4 space-y-1.5">
-                  <li>
-                    {tx(lang,
-                      'Yuxarıdakı "allowed.dat yüklə" düyməsinə basın',
-                      'Нажмите кнопку "Скачать allowed.dat" выше',
-                      'Click "Download allowed.dat" button above')}
-                  </li>
-                  <li>
-                    <strong>Windows:</strong> {tx(lang,
-                      'Faylı bura kopyalayın:',
-                      'Скопируйте файл сюда:',
-                      'Copy file to:')} <code className="rounded bg-black/40 px-1.5 py-0.5">C:\\ProgramData\\QZ Tray\\allowed.dat</code>
-                  </li>
-                  <li>
-                    <strong>macOS:</strong> {tx(lang,
-                      'Faylı bura kopyalayın:',
-                      'Скопируйте файл сюда:',
-                      'Copy file to:')} <code className="rounded bg-black/40 px-1.5 py-0.5">/Library/Application Support/qz/allowed.dat</code>
-                  </li>
-                  <li>
-                    {tx(lang,
-                      'QZ Tray-i restart edin (system tray → sağ klik → Exit → yenidən açın)',
-                      'Перезапустите QZ Tray (system tray → правый клик → Exit → откройте снова)',
-                      'Restart QZ Tray (system tray → right-click → Exit → reopen)')}
-                  </li>
-                </ol>
-                <p className="mt-2 text-emerald-300/70 italic">
-                  ✅ {tx(lang,
-                    'Bir dəfə quraşdırıldıqdan sonra heç bir dialog gəlməyəcək. Bütün çap əməliyyatları sessiz olacaq.',
-                    'После установки ни одно окно подтверждения больше не появится. Вся печать будет бесшумной.',
-                    'Once installed, no confirmation dialogs will appear. All printing will be silent.')}
-                </p>
-              </div>
-            </div>
-
-            {/* Alternative: Site Manager method */}
-            <details className="group">
-              <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200 transition">
-                {tx(lang, '📖 Alternativ yol: QZ Tray Site Manager', '📖 Альтернативный способ: QZ Tray Site Manager', '📖 Alternative: QZ Tray Site Manager')}
-              </summary>
-              <ol className="mt-2 list-decimal pl-4 space-y-1 text-xs text-slate-400">
-                <li>
-                  {tx(lang, 'Sertifikat faylını yükləyin (yuxarıdakı "Sertifikat yüklə" düyməsi)', 'Скачайте файл сертификата (кнопка "Скачать сертификат" выше)', 'Download the certificate file (button above)')}
-                </li>
-                <li>
-                  {tx(lang, 'QZ Tray ikonuna sağ klikləyin → Advanced → Site Manager', 'Правый клик по иконке QZ Tray → Advanced → Site Manager', 'Right-click QZ Tray icon → Advanced → Site Manager')}
-                </li>
-                <li>
-                  {tx(lang, '"+" düyməsinə basıb sertifikat faylını seçin', 'Нажмите "+" и выберите файл сертификата', 'Click "+" and select the certificate file')}
-                </li>
-              </ol>
-            </details>
-          </div>
-        )}
-        {renderPanelSuccess('print')}
-        <div className="flex justify-end">
-          <button onClick={savePrintSettings} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-zreport" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Z-Hesabat Çek Ayarları', 'Настройки чека Z-отчёта', 'Z-report receipt settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Admin buradan Z-Hesabat çekində hansı hissələrin görünəcəyini seçə bilər. Maaş, xərclər, giriş pulları, depozit və kassir breakdown-u checkbox ilə idarə olunur.',
-            'Здесь администратор выбирает, какие секции будут показаны в чеке Z-отчёта. Зарплата, расходы, поступления, депозиты и разбивка по кассирам управляются чекбоксами.',
-            'Choose which sections appear on the Z-report receipt. Wage, expenses, inflows, deposits, and cashier breakdown are controlled here.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {[
-            ['show_operator', tx(lang, 'Operator görünsün', 'Показывать оператора', 'Show operator')],
-            ['show_date_range', tx(lang, 'Tarix aralığı görünsün', 'Показывать диапазон дат', 'Show date range')],
-            ['show_sales_summary', tx(lang, 'Satış xülasəsi görünsün', 'Показывать сводку продаж', 'Show sales summary')],
-            ['show_profit_summary', tx(lang, 'Maya və mənfəət görünsün', 'Показывать себестоимость и прибыль', 'Show COGS and profit')],
-            ['show_wage', tx(lang, 'Maaş çıxışı görünsün', 'Показывать списание зарплаты', 'Show wage deduction')],
-            ['show_shift_cash', tx(lang, 'Açılış və bağlanış kassası görünsün', 'Показывать открытие и закрытие кассы', 'Show opening and closing cash')],
-            ['show_cash_movements', tx(lang, 'Kassa giriş/çıxışları görünsün', 'Показывать движения по кассе', 'Show cash movements')],
-            ['show_other_income', tx(lang, 'Digər giriş pulları görünsün', 'Показывать прочие поступления', 'Show other income')],
-            ['show_other_expense', tx(lang, 'Digər xərclər görünsün', 'Показывать прочие расходы', 'Show other expenses')],
-            ['show_deposit_summary', tx(lang, 'Depozit xülasəsi görünsün', 'Показывать сводку депозитов', 'Show deposit summary')],
-            ['show_cashier_breakdown', tx(lang, 'Kassir breakdown-u görünsün', 'Показывать разбивку по кассирам', 'Show cashier breakdown')],
-            ['show_item_breakdown', tx(lang, 'Məhsul satışları görünsün', 'Показывать продажи товаров', 'Show item sales breakdown')],
-            ['show_counts', tx(lang, 'Satış və void sayları görünsün', 'Показывать количество продаж и void', 'Show sales and void counts')],
-          ].map(([key, label]) => (
-            <label key={String(key)} className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-200">
-              <input
-                type="checkbox"
-                checked={Boolean((zReportReceiptSettings as any)[key])}
-                onChange={(e) => setZReportReceiptSettings((prev) => ({ ...prev, [key]: e.target.checked }))}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </div>
-        {renderPanelSuccess('zreport_receipt')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveZReportReceiptSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-qr" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'QR menyu ayarları', 'QR Menu Settings', 'QR Menu Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Müştərilər QR skan edib login olmadan public menyunu görə bilərlər. Buradan başlıq, poster və görünəcək məlumatları idarə edin.',
-            'Клиенты могут открыть публичное меню по QR без логина. Здесь управляются заголовки, постер и видимые поля.',
-            'Customers can open the public menu via QR without logging in. Manage title, poster, and visible fields here.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
-            <input type="checkbox" checked={qrMenuSettings.enabled} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
-            <span>{tx(lang, 'İctimai QR menyu aktiv olsun', 'Публичное QR меню активно', 'Enable public QR Menu')}</span>
-          </label>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_title: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Alt başlıq', 'Подзаголовок', 'Hero subtitle')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Poster başlığı', 'Заголовок постера', 'Poster title')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_title: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Poster alt mətni', 'Подзаголовок постера', 'Poster subtitle')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_subtitle: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Kart fonu', 'Цвет карточек', 'Surface color')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Yazı rəngi', 'Цвет текста', 'Text color')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Poster vurğu rəngi', 'Акцент постера', 'Poster accent color')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Əsas rəng (qiymət, accent)', 'Основной цвет (цена, акцент)', 'Primary color (price, accent)')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.primary_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, primary_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.primary_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, primary_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'İkinci vurğu rəngi', 'Вторичный акцент', 'Accent color')}</label>
-            <div className="flex items-center gap-2">
-              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.accent_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, accent_color: e.target.value }))} />
-              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.accent_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, accent_color: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Hero şəkil yüklə', 'Загрузить hero-изображение', 'Upload hero image')}</label>
-            <input className="neon-input" type="file" accept="image/*" onChange={handleQrHeroUpload} />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Sağ poster şəkli', 'Изображение правого постера', 'Right poster image')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: e.target.value }))} placeholder={tx(lang, 'Kiçik şəkil URL və ya yüklənmiş şəkil', 'URL маленького изображения или загруженное изображение', 'Small image URL or uploaded image')} />
-            <input className="neon-input" type="file" accept="image/*" onChange={handleQrPosterImageUpload} />
-            <div className="text-xs text-slate-400">
-              {tx(lang, 'Şəkil avtomatik kiçildilir: maksimum 768 KB fayl, 640px tərəf və ~350 KB saxlanılan data.', 'Изображение автоматически уменьшается: файл до 768 KB, сторона 640px и ~350 KB данных.', 'Image is auto-compressed: max 768 KB file, 640px side and ~350 KB stored data.')}
-            </div>
-            {qrMenuSettings.poster_image_url ? (
-              <button type="button" className="neon-btn rounded-xl px-3 py-2 text-xs" onClick={() => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: '' }))}>
-                {tx(lang, 'Poster şəklini sil', 'Удалить изображение постера', 'Remove poster image')}
-              </button>
-            ) : null}
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Dizayn şablonu', 'Шаблон дизайна', 'Layout preset')}</label>
-            <select className="neon-input" value={qrMenuSettings.layout_preset} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, layout_preset: e.target.value as any }))}>
-              <option value="classic">{tx(lang, 'Klassik (Çox addımlı)', 'Классический (Многошаговый)', 'Classic (Multi-step)')}</option>
-              <option value="bolt">{tx(lang, 'Bolt Food stili (Tək səhifə)', 'Bolt Food стиль (Одностраничный)', 'Bolt Food style (Single page)')}</option>
-            </select>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Mövzu seçimi', 'Выбор темы', 'Theme preset')}</label>
-            <select className="neon-input" value={qrMenuSettings.theme_preset} onChange={(e) => handleThemePresetChange(e.target.value as any)}>
-              <option value="dark">{tx(lang, 'Qaranlıq (Dark)', 'Темная (Dark)', 'Dark')}</option>
-              <option value="light">{tx(lang, 'İşıqlı (Light)', 'Светлая (Light)', 'Light')}</option>
-              <option value="emerald">{tx(lang, 'Zümrüd (Emerald)', 'Изумрудная (Emerald)', 'Emerald')}</option>
-              <option value="custom">{tx(lang, 'Xüsusi (Fərdi rənglər)', 'Кастомная (Свои цвета)', 'Custom (Personal colors)')}</option>
-            </select>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
-            <select className="neon-input" value={qrMenuSettings.logo_shape} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, logo_shape: e.target.value as any }))}>
-              <option value="rounded">{tx(lang, 'Yumru künc', 'Скругленный', 'Rounded')}</option>
-              <option value="circle">{tx(lang, 'Dairəvi', 'Круглый', 'Circle')}</option>
-              <option value="square">{tx(lang, 'Kvadrat', 'Квадратный', 'Square')}</option>
-            </select>
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Şrift ailəsi', 'Семейство шрифтов', 'Font family')}</label>
-            <select className="neon-input" value={qrMenuSettings.font_family} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, font_family: e.target.value }))}>
-              <option value="">{tx(lang, 'Standart (Geist Sans)', 'Стандартный (Geist Sans)', 'Default (Geist Sans)')}</option>
-              <option value="Inter">Inter</option>
-              <option value="Poppins">Poppins</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Playfair Display">Playfair Display</option>
-              <option value="Raleway">Raleway</option>
-              <option value="Nunito">Nunito</option>
-              <option value="Lora">Lora</option>
-              <option value="Roboto">Roboto</option>
-              <option value="Open Sans">Open Sans</option>
-              <option value="Oswald">Oswald</option>
-              <option value="custom">{tx(lang, 'Xüsusi şrift (URL ilə)', 'Свой шрифт (по URL)', 'Custom font (via URL)')}</option>
-            </select>
-            <p className="text-[11px] text-slate-400">{tx(lang, 'Google Fonts-dan populyar şriftlər. "Xüsusi şrift" seçsəniz aşağıda URL daxil edin.', 'Популярные шрифты из Google Fonts. Выберите "Свой шрифт" для URL.', 'Popular Google Fonts. Select "Custom font" to provide a URL below.')}</p>
-          </div>
-          {qrMenuSettings.font_family === 'custom' && (
-            <div className="field-stack form-card md:col-span-2">
-              <label className="field-label">{tx(lang, 'Xüsusi şrift URL (CSS @font-face)', 'URL шрифта (CSS @font-face)', 'Custom font URL (CSS @font-face)')}</label>
-              <input className="neon-input" value={qrMenuSettings.custom_font_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, custom_font_url: e.target.value }))} placeholder="https://fonts.googleapis.com/css2?family=YourFont&display=swap" />
-              <p className="text-[11px] text-slate-400">{tx(lang, 'Google Fonts və ya hər hansı CSS font URL yapışdırın. Şrift adını yuxarıdakı sahəyə yazın.', 'Вставьте URL Google Fonts или любой CSS font. Имя шрифта укажите выше.', 'Paste a Google Fonts or any CSS font URL. Enter the font name above.')}</p>
-            </div>
-          )}
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={qrMenuSettings.show_prices} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_prices: e.target.checked }))} />
-            <span>{tx(lang, 'Qiymətləri göstər', 'Показывать цены', 'Show prices')}</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={qrMenuSettings.show_images} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_images: e.target.checked }))} />
-            <span>{tx(lang, 'Şəkilləri göstər', 'Показывать фото', 'Show images')}</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
-            <input type="checkbox" checked={qrMenuSettings.show_descriptions} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_descriptions: e.target.checked }))} />
-            <span>{tx(lang, 'Təsvirləri göstər', 'Показывать описания', 'Show descriptions')}</span>
-          </label>
-        </div>
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-300">
-          <div className="font-semibold text-slate-100">{tx(lang, 'QR Menu linki', 'Ссылка QR Menu', 'QR Menu link')}</div>
-          <div className="mt-2 break-all text-cyan-300">{`${String(profile?.qr_base_url || '').trim() || window.location.origin}`.replace(/\/+$/, '')}/qrmenu</div>
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-3xl border border-slate-700/60 bg-slate-950/30 p-5">
-            <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Poster preview', 'Превью постера', 'Poster preview')}</div>
-            {qrMenuPosterDataUrl ? (
-              <img src={qrMenuPosterDataUrl} alt="QR Menu poster" className="mx-auto mt-4 w-full max-w-xs rounded-2xl ring-1 ring-white/10" />
-            ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-700/60 p-8 text-center text-slate-400">
-                {tx(lang, 'Poster hazırlanır...', 'Постер готовится...', 'Poster is being prepared...')}
-              </div>
-            )}
-          </div>
-          <div className="rounded-3xl border border-slate-700/60 bg-slate-950/30 p-5 text-sm text-slate-300">
-            <div className="font-semibold text-slate-100">{tx(lang, 'Public menyuda nələr görünəcək', 'Что будет видно в публичном меню', 'What will be visible in public menu')}</div>
-            <ul className="mt-4 space-y-2">
-              <li>{tx(lang, 'Tenant logo və rəngləri', 'Логотип и цвета tenant', 'Tenant logo and colors')}</li>
-              <li>{tx(lang, 'Kateqoriya filtri və axtarış', 'Фильтр категорий и поиск', 'Category filter and search')}</li>
-              <li>{tx(lang, 'Məhsul şəkli', 'Фото товара', 'Product image')}: {qrMenuSettings.show_images ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
-              <li>{tx(lang, 'Məhsul təsviri', 'Описание товара', 'Product description')}: {qrMenuSettings.show_descriptions ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
-              <li>{tx(lang, 'Qiymət', 'Цена', 'Price')}: {qrMenuSettings.show_prices ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
-            </ul>
-          </div>
-        </div>
-        {renderPanelSuccess('qr_menu')}
-
-        {/* ── Splash Screen Settings ── */}
-        <div className="border-t border-slate-700/40 pt-5 space-y-3">
-          <h3 className="text-lg font-bold text-slate-100">{tx(lang, '🎬 Splash Ekranı (menyu yüklənərkən)', '🎬 Splash-экран (при загрузке меню)', '🎬 Splash Screen (while menu loads)')}</h3>
-          <p className="text-sm text-slate-400">
-            {tx(lang, 'Müştəri QR scan etdikdə menyu yüklənənədək göstəriləcək video, şəkil və ya GIF. Restoran ambiance-ını premium şəkildə təqdim edin.', 'Видео, изображение или GIF, которое показывается пока загружается меню. Представьте атмосферу ресторана.', 'Video, image or GIF shown while menu loads. Showcase your restaurant ambiance.')}
-          </p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Splash tipi', 'Тип splash', 'Splash type')}</label>
-              <select className="neon-input" value={qrMenuSettings.splash_type || 'none'} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_type: e.target.value }))}>
-                <option value="none">{tx(lang, 'Söndürülüb (default skeleton)', 'Отключено (скелетон)', 'Disabled (default skeleton)')}</option>
-                <option value="image">{tx(lang, 'Şəkil (JPG/PNG/WebP)', 'Изображение', 'Image')}</option>
-                <option value="gif">{tx(lang, 'GIF (animasiya)', 'GIF (анимация)', 'GIF (animation)')}</option>
-                <option value="video">{tx(lang, 'Video (MP4, max 2MB)', 'Видео (MP4, макс 2МБ)', 'Video (MP4, max 2MB)')}</option>
-              </select>
-            </div>
-            <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Müddət (ms)', 'Длительность (мс)', 'Duration (ms)')}</label>
-              <input className="neon-input" type="number" min="1000" max="10000" step="500" value={qrMenuSettings.splash_duration_ms || 3000} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_duration_ms: Number(e.target.value) }))} />
-            </div>
-            <div className="field-stack md:col-span-2">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Şəkil/GIF (fayl yüklə və ya URL yapışdır)', 'Изображение/GIF (загрузите или вставьте URL)', 'Image/GIF (upload file or paste URL)')}</label>
-              <div className="flex gap-2">
-                <input className="neon-input flex-1" value={qrMenuSettings.splash_url || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_url: e.target.value }))} placeholder="https://example.com/splash.gif" />
-                <label className="shrink-0 cursor-pointer rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-500/20 active:scale-95">
-                  📁 {tx(lang, 'Yüklə', 'Загрузить', 'Upload')}
-                  <input
-                    type="file"
-                    accept="image/*,.gif,video/mp4"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const isVideo = file.type.startsWith('video/');
-                      const maxSize = isVideo ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
-                      if (file.size > maxSize) {
-                        notify('error', tx(lang, `Fayl çox böyükdür (max ${isVideo ? '2MB' : '5MB'})`, `Файл слишком большой (макс ${isVideo ? '2МБ' : '5МБ'})`, `File too large (max ${isVideo ? '2MB' : '5MB'})`));
-                        e.target.value = '';
-                        return;
-                      }
-                      try {
-                        notify('info', tx(lang, 'Serverə yüklənir...', 'Загрузка на сервер...', 'Uploading to server...'));
-                        // Upload file to server — returns a permanent URL
-                        const imageUrl = await upload_menu_image_live(file);
-                        setQrMenuSettings((p: any) => ({
-                          ...p,
-                          splash_url: imageUrl,
-                          ...(isVideo ? { splash_type: 'video' } : {}),
-                        }));
-                        notify('success', tx(lang, 'Splash media yükləndi', 'Splash медиа загружено', 'Splash media uploaded'));
-                      } catch (err: any) {
-                        notify('error', err?.message || tx(lang, 'Yükləmə uğursuz oldu. Backend aktiv olmalıdır.', 'Загрузка не удалась. Backend должен быть активен.', 'Upload failed. Backend must be active.'));
-                      }
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
-              {qrMenuSettings.splash_url && (
-                <div className="mt-2 flex items-center gap-3">
-                  {qrMenuSettings.splash_type === 'video' ? (
-                    <video src={qrMenuSettings.splash_url} className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" muted autoPlay loop playsInline />
-                  ) : (
-                    <img src={qrMenuSettings.splash_url} alt="splash preview" className="h-16 w-24 rounded-lg object-cover border border-slate-700/40" />
-                  )}
-                  <button type="button" onClick={() => setQrMenuSettings((p: any) => ({ ...p, splash_url: '' }))} className="text-xs text-rose-400 hover:text-rose-300">✕ {tx(lang, 'Sil', 'Удалить', 'Remove')}</button>
-                </div>
-              )}
-            </div>
-            <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Overlay text (opsional)', 'Текст поверх (необязательно)', 'Overlay text (optional)')}</label>
-              <input className="neon-input" value={qrMenuSettings.splash_overlay_text || ''} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_overlay_text: e.target.value }))} placeholder={tx(lang, 'Menyuya xoş gəlmisiniz', 'Добро пожаловать', 'Welcome to our menu')} />
-            </div>
-            <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
-              <input className="neon-input" type="color" value={qrMenuSettings.splash_bg_color || '#000000'} onChange={(e) => setQrMenuSettings((p: any) => ({ ...p, splash_bg_color: e.target.value }))} />
-            </div>
-          </div>
-          {qrMenuSettings.splash_type && qrMenuSettings.splash_type !== 'none' && qrMenuSettings.splash_url && (
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-              ✅ {tx(lang, 'Splash aktiv — müştəri menyu açanda bu media göstəriləcək', 'Splash активен — будет показан при открытии меню', 'Splash active — will be shown when menu opens')}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <button onClick={downloadQrPoster} className="neon-btn rounded-xl px-5 py-2 font-semibold">
-            {tx(lang, 'Poster yüklə', 'Скачать постер', 'Download poster')}
-          </button>
-          <button onClick={() => { void saveQrMenuSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
-          </button>
-        </div>
-      </div>
-
-      <div id="sec-feedback" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Müştəri Feedback Portalı', 'Портал отзывов клиентов', 'Customer feedback portal')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Çek və QR üzərindən müştəri rəyinə yönləndirmə üçün portal linklərini buradan idarə edin. Bu pəncərə Landing Studio-dan ayrıca işləyir.',
-            'Управляйте ссылками для отзывов с чека и QR отсюда. Это отдельное окно, не связано с Landing Studio.',
-            'Manage customer feedback links from receipt/QR here. This panel is separate from Landing Studio.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
-            <input
-              type="checkbox"
-              checked={feedbackSettings.enabled}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
-            />
-            <span>{tx(lang, 'Feedback portalını aktiv et', 'Включить feedback портал', 'Enable feedback portal')}</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
-            <input
-              type="checkbox"
-              checked={feedbackSettings.promo_enabled}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, promo_enabled: e.target.checked }))}
-            />
-            <span>{tx(lang, 'Promo / feedback kuponunu aktiv et', 'Включить promo / coupon за feedback', 'Enable promo / feedback coupon')}</span>
-          </label>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Feedback portal URL', 'URL feedback портала', 'Feedback portal URL')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.portal_url}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, portal_url: e.target.value }))}
-              placeholder={autoFeedbackPortalUrl}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-              <span>{tx(lang, 'Tövsiyə olunan daxili link', 'Рекомендуемая внутренняя ссылка', 'Recommended internal link')}: {autoFeedbackPortalUrl}</span>
-              <button
-                type="button"
-                onClick={() => setFeedbackSettings((prev) => ({ ...prev, portal_url: autoFeedbackPortalUrl }))}
-                className="neon-btn rounded-lg px-3 py-1 text-xs"
-              >
-                {tx(lang, 'Auto doldur', 'Автозаполнить', 'Auto fill')}
-              </button>
-            </div>
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Google review URL', 'URL Google review', 'Google review URL')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.google_review_url}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, google_review_url: e.target.value }))}
-              placeholder="https://g.page/r/..."
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Feedback kuponu endirim %', 'Скидка купона feedback %', 'Feedback coupon discount %')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={1}
-              max={100}
-              value={feedbackSettings.coupon_percent}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, coupon_percent: Number(e.target.value || 5) }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (AZ)', 'Текст кнопки на чеке (AZ)', 'Receipt button text (AZ)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.receipt_button_text_az}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_az: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (RU)', 'Текст кнопки на чеке (RU)', 'Receipt button text (RU)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.receipt_button_text_ru}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_ru: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (EN)', 'Текст кнопки на чеке (EN)', 'Receipt button text (EN)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.receipt_button_text_en}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_en: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Çek QR mesajı (AZ)', 'Текст QR на чеке (AZ)', 'Receipt QR message (AZ)')}</label>
-            <textarea
-              className="neon-input min-h-[90px]"
-              value={feedbackSettings.receipt_qr_prompt_az}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_qr_prompt_az: e.target.value }))}
-            />
-          </div>
-
-          {/* Vizual Brendinq və Mövzu */}
-          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
-            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Portalın Görünüşü və Brendinq', 'Внешний вид портала и брендинг', 'Portal Appearance & Branding')}</h3>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Əsas Rəng (Primary)', 'Основной цвет (Primary)', 'Primary Color')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                className="h-10 w-12 rounded border border-slate-600 bg-transparent cursor-pointer"
-                value={feedbackSettings.primary_color}
-                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, primary_color: e.target.value }))}
-              />
-              <input
-                type="text"
-                className="neon-input flex-1"
-                value={feedbackSettings.primary_color}
-                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, primary_color: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Accent Rəng', 'Акцентный цвет', 'Accent Color')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                className="h-10 w-12 rounded border border-slate-600 bg-transparent cursor-pointer"
-                value={feedbackSettings.accent_color}
-                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, accent_color: e.target.value }))}
-              />
-              <input
-                type="text"
-                className="neon-input flex-1"
-                value={feedbackSettings.accent_color}
-                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, accent_color: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Başlıq Emojisi', 'Эмодзи заголовка', 'Header Emoji Icon')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.emoji_icon}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, emoji_icon: e.target.value }))}
-              placeholder="☕"
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Fon Qradiyenti (CSS)', 'Градиент фона (CSS)', 'Background Gradient (CSS)')}</label>
-            <select
-              className="neon-input"
-              value={
-                ['linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
-                 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)',
-                 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)',
-                 'linear-gradient(135deg, #7c2d12 0%, #451a03 100%)'].includes(feedbackSettings.bg_gradient || '')
-                  ? feedbackSettings.bg_gradient
-                  : 'custom'
-              }
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val !== 'custom') {
-                  setFeedbackSettings((prev) => ({ ...prev, bg_gradient: val }));
-                }
-              }}
-            >
-              <option value="linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)">Vibrant Wave (Default)</option>
-              <option value="linear-gradient(135deg, #0f172a 0%, #1e293b 100%)">Dark Slate</option>
-              <option value="linear-gradient(135deg, #1e1b4b 0%, #311042 100%)">Deep Purple</option>
-              <option value="linear-gradient(135deg, #064e3b 0%, #022c22 100%)">Forest Emerald</option>
-              <option value="linear-gradient(135deg, #7c2d12 0%, #451a03 100%)">Warm Rust</option>
-              <option value="custom">Custom CSS Gradient...</option>
-            </select>
-          </div>
-
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Fərdi Fon Qradiyenti (CSS Kodu)', 'Свой градиент фона (CSS Код)', 'Custom Background Gradient (CSS Code)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.bg_gradient}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, bg_gradient: e.target.value }))}
-              placeholder="linear-gradient(135deg, #1e293b, #0f172a)"
-            />
-          </div>
-
-          {/* Qiymətləndirmə Hədləri */}
-          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
-            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Qiymətləndirmə Qaydaları', 'Правила оценки', 'Rating Thresholds & Rules')}</h3>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Google Review üçün minimum ulduz', 'Минимум звезд для Google Review', 'Min stars for Google Review button')}</label>
-            <select
-              className="neon-input"
-              value={feedbackSettings.min_stars_for_google_review}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, min_stars_for_google_review: Number(e.target.value) }))}
-            >
-              <option value={1}>1 ulduz və yuxarı</option>
-              <option value={2}>2 ulduz və yuxarı</option>
-              <option value={3}>3 ulduz və yuxarı</option>
-              <option value={4}>4 ulduz və yuxarı</option>
-              <option value={5}>Yalnız 5 ulduz</option>
-            </select>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Şərh daxil edilməsi məcburi olan hədd (ulduz)', 'Обязательный комментарий при оценке ниже', 'Mandatory comment rating threshold')}</label>
-            <select
-              className="neon-input"
-              value={feedbackSettings.required_comment_threshold}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, required_comment_threshold: Number(e.target.value) }))}
-            >
-              <option value={0}>Heç vaxt məcburi olmasın (Opsional)</option>
-              <option value={1}>1 ulduz və aşağı</option>
-              <option value={2}>2 ulduz və aşağı</option>
-              <option value={3}>3 ulduz və aşağı</option>
-              <option value={4}>4 ulduz və aşağı</option>
-              <option value={5}>Həmişə məcburi olsun</option>
-            </select>
-          </div>
-
-          {/* Səhifə Başlıqları */}
-          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
-            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Fərdi Başlıq və Mətnlər', 'Свои заголовки и тексты', 'Custom Titles & Headings')}</h3>
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (AZ)', 'Заголовок портала (AZ)', 'Portal Heading (AZ)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_heading_az}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_az: e.target.value }))}
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (AZ)', 'Подзаголовок портала (AZ)', 'Portal Subheading (AZ)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_subheading_az}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_az: e.target.value }))}
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (RU)', 'Заголовок портала (RU)', 'Portal Heading (RU)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_heading_ru}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_ru: e.target.value }))}
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (RU)', 'Подзаголовок портала (RU)', 'Portal Subheading (RU)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_subheading_ru}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_ru: e.target.value }))}
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (EN)', 'Заголовок портала (EN)', 'Portal Heading (EN)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_heading_en}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_en: e.target.value }))}
-            />
-          </div>
-
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (EN)', 'Подзаголовок портала (EN)', 'Portal Subheading (EN)')}</label>
-            <input
-              className="neon-input"
-              value={feedbackSettings.custom_subheading_en}
-              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_en: e.target.value }))}
-            />
-          </div>
-
-          {/* Hazır Tag Redaktoru */}
-          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
-            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Hazır Rəy Tag-ləri', 'Быстрые теги отзывов', 'Preset Feedback Tags')}</h3>
-          </div>
-
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Yeni Tag Əlavə Et', 'Добавить новый тег', 'Add New Tag')}</label>
-            <div className="flex gap-2">
-              <input
-                className="neon-input"
-                value={newFeedbackTag}
-                onChange={(e) => setNewFeedbackTag(e.target.value)}
-                placeholder="Məs: ☕ Süper qəhvə"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const tag = newFeedbackTag.trim();
-                    if (tag && !feedbackSettings.preset_tags.includes(tag)) {
-                      setFeedbackSettings((prev) => ({
-                        ...prev,
-                        preset_tags: [...prev.preset_tags, tag],
-                      }));
-                      setNewFeedbackTag('');
-                    }
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="neon-btn rounded-xl px-4 py-2 font-bold"
-                onClick={() => {
-                  const tag = newFeedbackTag.trim();
-                  if (tag && !feedbackSettings.preset_tags.includes(tag)) {
-                    setFeedbackSettings((prev) => ({
-                      ...prev,
-                      preset_tags: [...prev.preset_tags, tag],
-                    }));
-                    setNewFeedbackTag('');
-                  }
-                }}
-              >
-                {tx(lang, 'Əlavə et', 'Добавить', 'Add')}
-              </button>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 rounded-xl border border-slate-700/70 bg-slate-950/20 p-3">
-              {feedbackSettings.preset_tags.length === 0 && (
-                <span className="text-xs text-slate-500">{tx(lang, 'Hələ heç bir tag yoxdur.', 'Нет добавленных тегов.', 'No tags added yet.')}</span>
-              )}
-              {feedbackSettings.preset_tags.map((tag) => (
-                <div key={tag} className="flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800/40 px-3 py-1 text-xs text-slate-200">
-                  <span>{tag}</span>
-                  <button
-                    type="button"
-                    className="text-slate-400 hover:text-slate-100 font-bold"
-                    onClick={() => {
-                      setFeedbackSettings((prev) => ({
-                        ...prev,
-                        preset_tags: prev.preset_tags.filter((t) => t !== tag),
-                      }));
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        {renderPanelSuccess('feedback')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveFeedbackSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'Feedback ayarlarını saxla', 'Сохранить feedback настройки', 'Save feedback settings')}
-          </button>
-        </div>
-      </div>
-
-      <div id="sec-tables" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Masa Xidməti Ayarları', 'Настройки обслуживания столов', 'Table Service Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Masada xidmət üçün servis haqqını və nəfər başı depozit məbləğini buradan təyin edin. Depozit masa açılarkən kassaya daxil olur və hesab bağlananda yekun məbləğin içinə sayılır.',
-            'Здесь задаются сервисный сбор и депозит с человека для обслуживания за столом. Депозит сразу входит в кассу и затем учитывается при закрытии счета.',
-            'Configure table-service fee and per-guest deposit here. The deposit is recorded when the table opens and counted into the final bill on checkout.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={tableServiceSettings.service_fee_percent}
-              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, service_fee_percent: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={tableServiceSettings.deposit_per_guest_azn}
-              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, deposit_per_guest_azn: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Rezervə bağlama pəncərəsi (saat)', 'Окно блокировки резерва (часы)', 'Reservation lock window (hours)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.5"
-              value={tableServiceSettings.reservation_lock_hours}
-              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, reservation_lock_hours: e.target.value }))}
-            />
-            <div className="field-hint">
-              {tx(
-                lang,
-                'Bu saat aralığında rezerv olunmuş masa adi masa kimi açılmayacaq. 0 yazsanız rezerv bloklama söndürülər.',
-                'В этом окне забронированный стол нельзя открыть как обычный. 0 отключает блокировку.',
-                'Within this time window, a reserved table cannot be opened as a normal table. Set 0 to disable the reservation lock.',
-              )}
-            </div>
-          </div>
-        </div>
-        {renderPanelSuccess('table_service')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveTableServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-beverage" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İçki Servis Ayarları', 'Настройки подачи напитков', 'Beverage Service Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Kofe seçiləndə yalnız ölçü soruşulsun, yoxsa əlavə olaraq to go və ya masa/stəkan seçimi də açılsın — bunu buradan təyin edin.',
-            'Здесь можно выбрать: при выборе кофе спрашивать только размер или дополнительно способ подачи — to go / в стакане на стол.',
-            'Choose whether coffee selection should ask only for size or also for service mode like to-go or table glass.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Kofe seçim popup-u', 'Popup выбора кофе', 'Coffee selection popup')}</label>
-            <select
-              className="neon-input"
-              value={beverageServiceSettings.coffee_selection_mode}
-              onChange={(e) =>
-                setBeverageServiceSettings((prev) => ({
-                  ...prev,
-                  coffee_selection_mode: e.target.value === 'size_only' ? 'size_only' : 'size_and_service',
-                }))
-              }
-            >
-              <option value="size_and_service">{tx(lang, 'Ölçü + stəkan seçimi', 'Размер + выбор стакана', 'Size + cup choice')}</option>
-              <option value="size_only">{tx(lang, 'Yalnız ölçü seçimi', 'Только выбор размера', 'Size only')}</option>
-            </select>
-            <div className="field-hint">
-              {tx(
-                lang,
-                'Məsələn Amerikano seçiləndə ayrıca Kağız stəkan (to go) və ya Stəkan (masa) soruşmaq istəyirsinizsə birinci variantı seçin.',
-                'Если при выборе Американо нужно спрашивать Бумажный стакан (to go) или Стакан (table), выберите первый вариант.',
-                'Choose the first option if Americano should ask for Paper cup (to go) or Glass (table).',
-              )}
-            </div>
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Endirim tətbiqi sahəsi', 'Область применения скидки', 'Discount scope')}</label>
-            <select
-              className="neon-input"
-              value={beverageServiceSettings.discount_scope}
-              onChange={(e) =>
-                setBeverageServiceSettings((prev) => ({
-                  ...prev,
-                  discount_scope: e.target.value === 'coffee_only' ? 'coffee_only' : 'all_items',
-                }))
-              }
-            >
-              <option value="all_items">{tx(lang, 'Bütün məhsullara', 'Ко всем товарам', 'All items')}</option>
-              <option value="coffee_only">{tx(lang, 'Yalnız kofe məhsullarına', 'Только к кофейным товарам', 'Coffee items only')}</option>
-            </select>
-            <div className="field-hint">
-              {tx(
-                lang,
-                'Bu ayar manual endirimin tətbiq sahəsini idarə edir. Müştəri tipinə görə kofe endirimləri əvvəlki kimi qalır.',
-                'Эта настройка управляет ручной скидкой. Скидки по типу клиента для кофе остаются как раньше.',
-                'This controls manual discount scope. Coffee tier discounts by customer type remain unchanged.',
-              )}
-            </div>
-          </div>
-          <label className="form-card flex items-center justify-between gap-4">
-            <div>
-              <div className="field-label">{tx(lang, 'Masa seçiləndə kağız stəkanı çıxart', 'Убирать бумажный стакан для зала', 'Exclude paper cup for table service')}</div>
-              <div className="field-hint">
-                {tx(
-                  lang,
-                  'Stəkan (masa) seçiləndə reseptdəki kağız stəkan və qapaq sərfdən çıxarılmayacaq.',
-                  'Если выбран стакан для зала, бумажный стакан и крышка не будут списаны по рецепту.',
-                  'When table glass is selected, paper cup and lid will not be consumed from recipe stock.',
-                )}
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              className="h-5 w-5"
-              checked={beverageServiceSettings.remove_paper_packaging_for_table}
-              onChange={(e) =>
-                setBeverageServiceSettings((prev) => ({
-                  ...prev,
-                  remove_paper_packaging_for_table: e.target.checked,
-                }))
-              }
-            />
-          </label>
-          <label className="form-card flex items-center justify-between gap-4">
-            <div>
-              <div className="field-label">{tx(lang, 'Yaz kampaniyası (2-ci məhsul 50% endirimlə)', 'Летняя кампания (2-й товар 50% скидка)', 'Summer Campaign (2nd item 50% off)')}</div>
-              <div className="field-hint">
-                {tx(
-                  lang,
-                  'Soyuq içkilər, iced kofe, frappe və smuzilərə 1 alana 2-ci 50% endirim tətbiq edir.',
-                  'Применяет акцию 1+1 (2-й товар со скидкой 50%) для холодных напитков, айс кофе, фраппе и смузи.',
-                  'Applies the buy 1 get 2nd at 50% off promo for cold drinks, iced coffee, frappe, and smoothies.',
-                )}
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              className="h-5 w-5"
-              checked={beverageServiceSettings.summer_promo_enabled}
-              onChange={(e) =>
-                setBeverageServiceSettings((prev) => ({
-                  ...prev,
-                  summer_promo_enabled: e.target.checked,
-                }))
-              }
-            />
-          </label>
-        </div>
-        {renderPanelSuccess('beverage')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveBeverageServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-bankfee" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Bank Faiz Ayarları', 'Настройки банковских комиссий', 'Bank Fee Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Hər tenant öz bank faizlərini özü müəyyən edə bilər. Kartla edilən satış və kartdan çıxan/köçürülən pul üçün faizlər ayrıdır.',
-            'Каждый tenant может сам задать банковские комиссии. Для карточных продаж и вывода/перевода с карты проценты разделены.',
-            'Each tenant can define its own bank fee rules. Card sales and money moved out of card balance are configured separately.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={bankCommission.card_sale_percent}
-              onChange={(e) => setBankCommission((prev) => ({ ...prev, card_sale_percent: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={bankCommission.card_transfer_percent}
-              onChange={(e) => setBankCommission((prev) => ({ ...prev, card_transfer_percent: e.target.value }))}
-            />
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
-          {tx(
-            lang,
-            'Məntiq: kassada adi kart ödənişi üçün bir faiz, kartdan kassaya və ya borca köçürmə üçün ayrıca faiz tətbiq olunur. Kassadan karta, kassadan seyfə kimi hərəkətlərdə kart çıxışı olmadığı üçün bu faiz avtomatik tətbiq olunmur.',
-            'Логика: для обычной карточной оплаты в кассе один процент, для перевода/вывода с карты — отдельный. Для касса->карта и касса->сейф комиссия не применяется автоматически.',
-            'Logic: regular card sales use one percentage, while money moved out of card balance uses another. Cash->card and cash->safe do not get this fee automatically.',
-          )}
-        </div>
-        {renderPanelSuccess('bank')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveBankCommission(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-finance" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Maliyyə qayda ayarları', 'Настройки финансовой policy', 'Finance Policy Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Təsdiq, uyğunlaşdırma və risk xəbərdarlığı qaydalarını tenant səviyyəsində buradan idarə edin. Bu ayarlar Maliyyə modulunda təsdiq qutusu və xəbərdarlıq mexanizmi üçün istifadə olunur.',
-            'Управляйте правилами approval, reconciliation и risk alert на уровне tenant. Эти настройки используются в Finance approval inbox и alert engine.',
-            'Manage approval, reconciliation, and risk alert rules per tenant. These settings drive the Finance approval inbox and alert engine.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Böyük transfer limiti (AZN)', 'Лимит крупного перевода (AZN)', 'Large transfer threshold (AZN)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={financePolicy.large_transfer_threshold_azn}
-              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, large_transfer_threshold_azn: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Uyğunlaşdırma xəbərdarlıq həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={financePolicy.reconciliation_variance_alert_azn}
-              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, reconciliation_variance_alert_azn: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Mənfi balans alert toleransı (AZN)', 'Толеранс alert отрицательного баланса (AZN)', 'Negative balance alert tolerance (AZN)')}</label>
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={financePolicy.negative_balance_alert_azn}
-              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, negative_balance_alert_azn: e.target.value }))}
-            />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Təsdiq rolları', 'Роли approval', 'Approval roles')}</label>
-            <input
-              className="neon-input"
-              value={financePolicy.approver_roles}
-              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, approver_roles: e.target.value }))}
-              placeholder="manager, admin, finance_admin, super_admin"
-            />
-            <div className="field-hint">{tx(lang, 'Vergüllə ayırın.', 'Разделяйте запятыми.', 'Separate with commas.')}</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {[
-            ['investor_repayment_requires_approval', tx(lang, 'Investor ödənişi approval tələb etsin', 'Выплата инвестору требует approval', 'Investor repayment requires approval')],
-            ['cash_adjustment_requires_approval', tx(lang, 'Cash adjustment approval tələb etsin', 'Cash adjustment требует approval', 'Cash adjustment requires approval')],
-            ['reversal_requires_approval', tx(lang, 'Reversal approval tələb etsin', 'Reversal требует approval', 'Reversal requires approval')],
-            ['reconciliation_adjustment_requires_approval', tx(lang, 'Reconciliation adjustment approval tələb etsin', 'Reconciliation adjustment требует approval', 'Reconciliation adjustment requires approval')],
-          ].map(([key, label]) => (
-            <label key={key} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm font-bold text-slate-200">
-              <input
-                type="checkbox"
-                checked={Boolean((financePolicy as any)[key])}
-                onChange={(e) => setFinancePolicy((prev) => ({ ...prev, [key]: e.target.checked }))}
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-        {renderPanelSuccess('finance_policy')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveFinancePolicy(); }} className={saveButtonClass}>{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
-        </div>
-
-
-      </div>
-
-      <div id="sec-yield" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Standart İtki Faizi', 'Настройки yield management', 'Yield management')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Dönər və oxşar məhsullarda hazır porsiya satışını çiy xammal sərfinə çevirin. Gün sonu faktiki fərq icazə verilən həddi keçərsə, sistem bunu israf və ya şübhəli fərq kimi qeyd edir.',
-            'Преобразуйте продажу готовой порции в расход сырого мяса. В конце дня система пометит отклонение выше tolerance как waste/scam.',
-            'Convert ready-portion sales into raw-meat consumption. At day end, variance beyond tolerance is flagged as waste/scam.',
-          )}
-        </p>
-        <label className="flex items-center gap-3 text-sm text-slate-200">
-          <input
-            type="checkbox"
-            checked={yieldManagement.enabled}
-            onChange={(e) => setYieldManagement((prev) => ({ ...prev, enabled: e.target.checked }))}
-          />
-          {tx(lang, 'Standart itki faizi aktiv olsun', 'Включить yield management', 'Enable yield management')}
-        </label>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            step="0.01"
-            value={yieldManagement.variance_tolerance_percent}
-            onChange={(e) => setYieldManagement((prev) => ({ ...prev, variance_tolerance_percent: e.target.value }))}
-            placeholder={tx(lang, 'İcazə verilən fərq (%)', 'Допустимое отклонение (%)', 'Variance tolerance (%)')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={1}
-            step="0.01"
-            value={yieldManagement.beef_ratio}
-            onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_ratio: e.target.value }))}
-            placeholder={tx(lang, 'Mal əti üçün çiy / hazır nisbəti', 'Ratio говядины', 'Beef ratio')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={1}
-            step="0.01"
-            value={yieldManagement.chicken_ratio}
-            onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_ratio: e.target.value }))}
-            placeholder={tx(lang, 'Toyuq əti üçün çiy / hazır nisbəti', 'Ratio курицы', 'Chicken ratio')}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-semibold text-slate-100">{tx(lang, 'Mal əti standartı', 'Стандарт говядины', 'Beef standard')}</div>
-              <button type="button" onClick={() => applyYieldPreset('beef')} className="neon-btn rounded-lg px-3 py-1 text-xs">
-                {tx(lang, 'Standartı tətbiq et', 'Применить стандарт', 'Apply preset')}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
-              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-semibold text-slate-100">{tx(lang, 'Toyuq standartı', 'Стандарт курицы', 'Chicken standard')}</div>
-              <button type="button" onClick={() => applyYieldPreset('chicken')} className="neon-btn rounded-lg px-3 py-1 text-xs">
-                {tx(lang, 'Standartı tətbiq et', 'Применить стандарт', 'Apply preset')}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
-              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
-            </div>
-          </div>
-        </div>
-        {suggestedYieldItems.length > 0 ? (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
-            <div className="font-semibold text-emerald-200">{tx(lang, 'Ağıllı inventar təklifləri', 'Умные подсказки по инвентарю', 'Smart inventory suggestions')}</div>
-            <p className="text-xs text-emerald-100/80">
-              {tx(
-                lang,
-                'Sistem adı üzrə dönər, mal əti və toyuq məhsullarını avtomatik təklif edir. Bir kliklə izlənən inventara əlavə edə bilərsiniz.',
-                'Система автоматически предлагает позиции по названию. Вы можете добавить их в отслеживаемый список одним кликом.',
-                'The system suggests likely doner/beef/chicken inventory by name. Add them to tracked inventory with one click.',
-              )}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {suggestedYieldItems.map((item: any) => {
-                const alreadyTracked = yieldManagement.tracked_items.some((row) => row.inventory_name === item.name);
-                return (
-                  <button
-                    key={`suggest-${item.id || item.name}`}
-                    type="button"
-                    disabled={alreadyTracked}
-                    onClick={() => applySmartYieldSuggestion(String(item.name || ''))}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                      alreadyTracked
-                        ? 'border-slate-600/60 bg-slate-800/60 text-slate-400'
-                        : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
-                    }`}
-                  >
-                    {item.name}
-                    {alreadyTracked ? ` · ${tx(lang, 'əlavə edilib', 'добавлено', 'added')}` : ''}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
-          <div className="font-semibold text-slate-100">{tx(lang, 'İzlənəcək inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
-          <p className="text-xs text-slate-400">
-            {tx(
-              lang,
-              'Bura yalnız çiy ət kimi ciddi yield izləmək istədiyiniz məhsulları əlavə edin. Meyvə-tərəvəz üçün yalnız ayrıca gündəlik itki auditi aparırsınızsa istifadə etmək məntiqlidir.',
-              'Сюда добавляйте только позиции, по которым реально нужен yield-аудит. Для овощей и фруктов имеет смысл только при отдельном ежедневном учете потерь.',
-              'Add only inventory that truly needs yield audit, such as raw meat. For fruit and vegetables, use this only if you run a separate daily waste audit.',
-            )}
-          </p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input
-              className="neon-input"
-              value={yieldInventorySearch}
-              onChange={(e) => setYieldInventorySearch(e.target.value)}
-              placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search inventory...')}
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
-            <select
-              className="neon-input"
-              value={yieldInventoryCandidate}
-              onChange={(e) => setYieldInventoryCandidate(e.target.value)}
-            >
-              <option value="">{tx(lang, 'Anbardan məhsul seçin', 'Выберите товар со склада', 'Select inventory item')}</option>
-              {preferredYieldInventory.length > 0 ? (
-                <optgroup label={tx(lang, 'Ət / dönər üçün uyğun məhsullar', 'Подходящие мясные позиции', 'Preferred meat items')}>
-                  {filteredYieldInventory
-                    .filter((item: any) => preferredYieldInventory.some((preferred: any) => preferred.id === item.id || preferred.name === item.name))
-                    .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
-                    .map((item: any) => (
-                      <option key={item.id || item.name} value={String(item.name || '')}>
-                        {item.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-              {remainingYieldInventory.length > 0 ? (
-                <optgroup label={tx(lang, 'Digər inventar', 'Прочий инвентарь', 'Other inventory')}>
-                  {filteredYieldInventory
-                    .filter((item: any) => remainingYieldInventory.some((rest: any) => rest.id === item.id || rest.name === item.name))
-                    .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
-                    .map((item: any) => (
-                      <option key={item.id || item.name} value={String(item.name || '')}>
-                        {item.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-            </select>
-            <button type="button" onClick={addYieldTrackedInventory} className="glossy-gold rounded-xl px-4 py-2 font-bold">
-              {tx(lang, 'Siyahıya əlavə et', 'Добавить в список', 'Add to list')}
-            </button>
-          </div>
-          <div className="space-y-2">
-            {yieldManagement.tracked_items.length === 0 ? (
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3 text-sm text-slate-400">
-                {tx(lang, 'Hələ izlənən inventar seçilməyib', 'Пока не выбрана отслеживаемая позиция', 'No tracked inventory selected yet')}
-              </div>
-            ) : (
-              yieldManagement.tracked_items.map((tracked) => (
-                <div key={tracked.inventory_name} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 md:grid-cols-[1fr_120px_130px_auto] md:items-center">
-                  <div className="text-sm text-slate-200">{tracked.inventory_name}</div>
-                  <select
-                    className="neon-input"
-                    value={tracked.meat_type || 'beef'}
-                    onChange={(e) =>
-                      setYieldManagement((prev) => ({
-                        ...prev,
-                        tracked_items: prev.tracked_items.map((row) =>
-                          row.inventory_name === tracked.inventory_name ? { ...row, meat_type: e.target.value as 'beef' | 'chicken' } : row,
-                        ),
-                      }))
-                    }
-                  >
-                    <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
-                    <option value="chicken">{tx(lang, 'Toyuq əti', 'Курица', 'Chicken')}</option>
-                  </select>
-                  <input
-                    className="neon-input"
-                    type="number"
-                    min={1}
-                    step="0.01"
-                    value={tracked.raw_to_ready_ratio || ''}
-                    onChange={(e) =>
-                      setYieldManagement((prev) => ({
-                        ...prev,
-                        tracked_items: prev.tracked_items.map((row) =>
-                          row.inventory_name === tracked.inventory_name ? { ...row, raw_to_ready_ratio: e.target.value } : row,
-                        ),
-                      }))
-                    }
-                    placeholder={tx(lang, 'Çiy / hazır nisbəti', 'Соотношение сырой / готовой', 'Raw ratio')}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeYieldTrackedInventory(tracked.inventory_name)}
-                    className="rounded-lg border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10"
-                  >
-                    {tx(lang, 'Çıxar', 'Убрать', 'Remove')}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        {renderPanelSuccess('yield')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveYieldManagement(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      <div id="sec-interface" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İnterfeys Ayarları', 'Настройки интерфейса', 'Interface Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Görünüş və touch istifadə rahatlığı ilə bağlı ayarlar bu bölmədədir.',
-            'Параметры внешнего вида и удобства touch-использования находятся здесь.',
-            'Appearance and touch usability settings are managed here.',
-          )}
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-sm font-semibold text-slate-200">
-                {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
-              </div>
-              <button
-                type="button"
-                onClick={() => { void toggleVirtualKeyboard(!sessionSettings.virtual_keyboard_enabled); }}
-                className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
-                  sessionSettings.virtual_keyboard_enabled
-                    ? 'border-emerald-300/50 bg-emerald-500/20'
-                    : 'border-slate-600 bg-slate-800/70'
-                }`}
-                aria-pressed={sessionSettings.virtual_keyboard_enabled}
-              >
-                <span
-                  className={`absolute h-6 w-6 rounded-full bg-white shadow transition ${
-                    sessionSettings.virtual_keyboard_enabled ? 'left-9' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {tx(lang, 'Sensor ekranda input sahələrinə toxunanda öz klaviaturamız açılsın.', 'На сенсорном экране при нажатии на поле будет открываться встроенная клавиатура.', 'Show the built-in keyboard when a touch device focuses an input.')}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'Tema rejimi', 'Режим темы', 'Theme mode')}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {([
-                ['dark', tx(lang, 'Dark', 'Тёмная', 'Dark')],
-                ['light', tx(lang, 'Light (beta)', 'Светлая (beta)', 'Light (beta)')],
-              ] as Array<['dark' | 'light', string]>).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => { void changeThemeMode(mode); }}
-                  className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${
-                    sessionSettings.theme_mode === mode
-                      ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
-                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {tx(lang, 'Bu seçim bütün tətbiq üçün görünüşü dəyişir.', 'Этот выбор меняет внешний вид всего приложения.', 'This changes the look of the entire app.')}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'Satış UI rejimi', 'Режим UI продаж', 'Sales UI mode')}
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {tx(lang, 'Classic — standart görünüş. Modern — Aelia stilində POS + tam ekran masa sifariş paneli.', 'Classic — стандартный вид. Modern — POS в стиле Aelia + полноэкранная панель заказа.', 'Classic — standard view. Modern — Aelia-style POS + fullscreen table order panel.')}
-            </div>
-            <div className="mt-3 flex gap-2">
-              {(['classic', 'modern'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={async () => {
-                    setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
-                    try { localStorage.setItem('iw_tables_ui_mode', mode); localStorage.setItem('iw_pos_ui_mode', mode); } catch {}
-                    try {
-                      await update_session_settings_live({
-                        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-                        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
-                        staff_pin_length: sessionSettings.staff_pin_length,
-                        theme_mode: sessionSettings.theme_mode,
-                        ui_mode: 'old',
-                        tables_ui_mode: mode,
-                        login_background_url: sessionSettings.login_background_url || '',
-                      } as any);
-                      notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
-                      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-                    } catch (e: any) {
-                      setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode === 'modern' ? 'classic' : 'modern' } as any));
-                      notify('error', e?.message || 'Failed');
-                    }
-                  }}
-                  className={`min-h-11 rounded-xl border px-4 text-sm font-bold transition ${
-                    ((sessionSettings as any)?.tables_ui_mode || (typeof localStorage !== 'undefined' && localStorage.getItem('iw_tables_ui_mode')) || 'classic') === mode
-                      ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
-                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
-                  }`}
-                >
-                  {mode === 'classic' ? 'Classic' : 'Modern (BahaY)'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="sec-security" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sessiya Təhlükəsizliyi', 'Безопасность сессии', 'Session Security')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'İstifadəçi müəyyən müddət heç bir hərəkət etməsə sistem avtomatik çıxış etsin. 0 yazsanız bu funksiya söndürüləcək.',
-            'Если пользователь ничего не делает заданное время, система автоматически выйдет. 0 отключает функцию.',
-            'Automatically sign out after inactivity. Use 0 to disable this feature.',
-          )}
-        </p>
-        <div className="grid gap-4 md:grid-cols-2 md:items-end">
-          <label className="text-sm text-slate-300">
-            {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
-            <input
-              className="neon-input mt-1 w-full"
-              type="number"
-              min={0}
-              max={480}
-              inputMode="numeric"
-              data-virtual-keyboard-mode="numeric"
-              value={sessionSettings.idle_logout_minutes}
-              onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
-            />
-          </label>
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'Staff PIN uzunluğu', 'Длина PIN персонала', 'Staff PIN length')}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {([4, 6] as const).map((length) => (
-                <button
-                  key={length}
-                  type="button"
-                  onClick={() => setSessionSettings((prev) => ({ ...prev, staff_pin_length: length }))}
-                  className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${
-                    sessionSettings.staff_pin_length === length
-                      ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
-                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
-                  }`}
-                >
-                  {length === 4
-                    ? tx(lang, '4 rəqəm', '4 цифры', '4 digits')
-                    : tx(lang, '6 rəqəm', '6 цифр', '6 digits')}
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {tx(lang, '4 rəqəm daha sürətlidir, 6 rəqəm isə təhlükəsizlik üçün tövsiyə olunur.', '4 цифры быстрее, 6 цифр рекомендуются для безопасности.', '4 digits is faster; 6 digits is recommended for security.')}
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-slate-800/80 my-4" />
-
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'Giriş Ekranı Arxa Fon Şəkli', 'Фоновое изображение экрана входа', 'Login Screen Background Image')}
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {tx(
-                lang,
-                'Giriş ekranında (PIN) göstəriləcək şəkli URL olaraq daxil edin və ya cihazınızdan yükləyin (avtomatik olaraq optimal ölçüdə sıxılacaq).',
-                'Введите URL изображения или загрузите его со своего устройства для экрана входа (оно автоматически сжимается до оптимального размера).',
-                'Enter an image URL or upload one from your device for the login screen (it will be automatically compressed to optimal size).',
-              )}
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <label className="block text-xs text-slate-300 font-medium">
-                {tx(lang, 'Şəkil Linki (URL)', 'Ссылка на изображение (URL)', 'Image URL / Link')}
-                <input
-                  type="text"
-                  placeholder="https://example.com/image.jpg"
-                  className="neon-input mt-1 w-full text-xs"
-                  value={sessionSettings.login_background_url}
-                  onChange={(e) => setSessionSettings((prev) => ({ ...prev, login_background_url: e.target.value }))}
-                />
-              </label>
-              
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">{tx(lang, 'və ya', 'или', 'or')}</span>
-                <label className="cursor-pointer text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors underline decoration-dotted">
-                  {tx(lang, 'Şəkil yüklə', 'Загрузить изображение', 'Upload Image')}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        notify('info', tx(lang, 'Şəkil sıxılır...', 'Изображение сжимается...', 'Compressing image...'));
-                        const compressed = await prepareImageDataUrl(file, {
-                          maxDimension: 1920,
-                          outputQuality: 0.75,
-                          maxFileBytes: 15 * 1024 * 1024,
-                        });
-                        setSessionSettings((prev) => ({ ...prev, login_background_url: compressed }));
-                        notify('success', tx(lang, 'Şəkil uğurla sıxıldı və daxil edildi', 'Изображение сжато и загружено', 'Image successfully compressed and set'));
-                      } catch (err: any) {
-                        notify('error', err?.message || 'Compression failed');
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-900/40 p-3 min-h-[120px] relative overflow-hidden">
-              {sessionSettings.login_background_url ? (
-                <>
-                  <img
-                    src={sessionSettings.login_background_url}
-                    alt="Background preview"
-                    className="w-full h-full max-h-[140px] object-cover rounded-lg opacity-85"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setSessionSettings((prev) => ({ ...prev, login_background_url: '' }))}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-950/80 text-slate-400 hover:text-rose-400 transition"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </>
-              ) : (
-                <div className="text-center space-y-1">
-                  <div className="text-slate-500 text-xs">
-                    {tx(lang, 'Şəkil seçilməyib', 'Изображение не выбрано', 'No image selected')}
-                  </div>
-                  <div className="text-[10px] text-slate-600">
-                    {tx(lang, 'Varsayılan fon şəkli istifadə ediləcək', 'Будет использован фон по умолчанию', 'Default background will be used')}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <button onClick={() => { void saveSessionSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
-          </button>
-        </div>
-        {renderPanelSuccess('session')}
-      </div>
-
-      <div id="sec-staff" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Staff Limit Ayarları', 'Настройки лимита staff', 'Staff Benefit Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Hər müəssisə staff üçün günlük limitini və hansı məhsulların limiti istifadə edə biləcəyini özü seçə bilər.',
-            'Каждое заведение может само определить дневной лимит staff и какие товары покрываются льготой.',
-            'Each business can define the daily staff benefit and which product groups it covers.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input
-            className="neon-input md:col-span-2"
-            type="number"
-            min={0}
-            value={staffBenefits.daily_limit_azn}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, daily_limit_azn: e.target.value }))}
-            placeholder={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            value={staffBenefits.coffee_unit_cap_azn}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, coffee_unit_cap_azn: e.target.value }))}
-            placeholder={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            value={staffBenefits.other_unit_cap_azn}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, other_unit_cap_azn: e.target.value }))}
-            placeholder={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
-          />
-          <select
-            className="neon-input md:col-span-2"
-            value={staffBenefits.allowed_scope}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allowed_scope: e.target.value as any }))}
-          >
-            <option value="all">{tx(lang, 'Bütün məhsullar üçün keçərli olsun', 'Для всех товаров', 'Apply to all products')}</option>
-            <option value="categories">{tx(lang, 'Yalnız seçilmiş kateqoriyalar üçün', 'Только для выбранных категорий', 'Only selected categories')}</option>
-            <option value="items">{tx(lang, 'Yalnız seçilmiş məhsullar üçün', 'Только для выбранных товаров', 'Only selected items')}</option>
-          </select>
-        </div>
-        {staffBenefits.allowed_scope === 'categories' ? (
-          <div className="space-y-2">
-            <div className="text-sm text-slate-300">{tx(lang, 'Limitə daxil kateqoriyalar', 'Категории в лимите', 'Included categories')}</div>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(new Set(menuCatalog.map((item: any) => String(item.category || '').trim()).filter(Boolean))).map((category) => {
-                const active = staffBenefits.included_categories.includes(category);
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => setStaffBenefits((prev) => ({
-                      ...prev,
-                      included_categories: active
-                        ? prev.included_categories.filter((entry) => entry !== category)
-                        : [...prev.included_categories, category],
-                    }))}
-                    className={`rounded-full px-3 py-2 text-sm ${active ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        {staffBenefits.allowed_scope === 'items' ? (
-          <div className="space-y-2">
-            <div className="text-sm text-slate-300">{tx(lang, 'Limitə daxil məhsullar', 'Товары в лимите', 'Included products')}</div>
-            <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3">
-              {menuCatalog.map((item: any) => {
-                const name = String(item.item_name || '').trim();
-                const active = staffBenefits.included_items.includes(name);
-                return (
-                  <button
-                    key={item.id || name}
-                    type="button"
-                    onClick={() => setStaffBenefits((prev) => ({
-                      ...prev,
-                      included_items: active
-                        ? prev.included_items.filter((entry) => entry !== name)
-                        : [...prev.included_items, name],
-                    }))}
-                    className={`rounded-full px-3 py-2 text-sm ${active ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        {renderPanelSuccess('staff_benefits')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveStaffBenefits(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
-
-      {['admin', 'manager', 'super_admin'].includes(currentRole) ? (
-        <div id="sec-password" className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="metal-panel p-6 space-y-4">
-            <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Şifrə Yenilə', 'Смена пароля', 'Change Password')}</h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <input className="neon-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={tx(lang, 'Mövcud şifrə', 'Текущий пароль', 'Current password')} />
-              <input className="neon-input" type="password" value={newOwnPassword} onChange={(e) => setNewOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} />
-              <input className="neon-input" type="password" value={confirmOwnPassword} onChange={(e) => setConfirmOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə təkrarı', 'Повторите пароль', 'Confirm new password')} />
-            </div>
-            <div className="flex justify-end">
-              <button onClick={handleChangeOwnPassword} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Şifrəni Yenilə', 'Обновить пароль', 'Update Password')}</button>
-            </div>
-          </div>
-
-          <div className="metal-panel p-6 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Google Authenticator', 'Google Authenticator', 'Google Authenticator')}</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  {tx(
-                    lang,
-                    'Admin, Manager və Super Admin üçün real 6 rəqəmli TOTP qoruması.',
-                    'Реальная TOTP-защита с 6-значным кодом для Admin, Manager и Super Admin.',
-                    'Real 6-digit TOTP protection for Admin, Manager, and Super Admin.',
-                  )}
-                </p>
-              </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${totpEnabled ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-700/80 text-slate-300'}`}>
-                {totpEnabled
-                  ? tx(lang, 'Aktivdir', 'Активно', 'Enabled')
-                  : tx(lang, 'Aktiv deyil', 'Не активно', 'Disabled')}
-              </span>
-            </div>
-
-            {!totpEnabled ? (
-              <div className="space-y-4">
-                {!totpSetupUrl ? (
-                  <button onClick={() => { void handleStartTotpSetup(); }} className="glossy-gold rounded-xl px-5 py-2 font-bold">
-                    {tx(lang, 'Google Authenticator Qoş', 'Подключить Google Authenticator', 'Connect Google Authenticator')}
-                  </button>
-                ) : null}
-
-                {totpSetupUrl ? (
-                  <div className="space-y-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-4">
-                    <p className="text-sm text-slate-300">
-                      {tx(
-                        lang,
-                        'Google Authenticator tətbiqində QR kodu skan edin, sonra 6 rəqəmli kodu aşağıda təsdiqləyin.',
-                        'Отсканируйте QR-код в Google Authenticator и подтвердите 6-значный код ниже.',
-                        'Scan the QR code in Google Authenticator, then confirm the 6-digit code below.',
-                      )}
-                    </p>
-                    {totpQrDataUrl ? (
-                      <img src={totpQrDataUrl} alt="TOTP QR" className="h-44 w-44 rounded-2xl border border-slate-700 bg-white p-2" />
-                    ) : null}
-                    <div className="rounded-xl border border-slate-700/70 bg-slate-900/50 p-3 text-xs text-slate-300 break-all">
-                      <div className="font-semibold text-slate-200">{tx(lang, 'Manual secret', 'Ручной secret', 'Manual secret')}</div>
-                      <div className="mt-1">{totpSecret}</div>
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row">
-                      <input
-                        className="neon-input"
-                        value={totpCode}
-                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder={tx(lang, '6 rəqəmli kod', '6-значный код', '6-digit code')}
-                      />
-                      <button onClick={() => { void handleVerifyTotp(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">
-                        {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Verify')}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4">
-                <p className="text-sm text-slate-300">
-                  {tx(
-                    lang,
-                    '2FA aktivdir. Söndürmək üçün mövcud şifrənizi təsdiqləyin.',
-                    '2FA включена. Подтвердите текущий пароль, чтобы отключить ее.',
-                    '2FA is enabled. Confirm your current password to disable it.',
-                  )}
-                </p>
-                <div className="flex flex-col gap-3 md:flex-row">
-                  <input
-                    className="neon-input"
-                    type="password"
-                    value={totpDisablePassword}
-                    onChange={(e) => setTotpDisablePassword(e.target.value)}
-                    placeholder={tx(lang, 'Cari şifrə', 'Текущий пароль', 'Current password')}
-                  />
-                  <input
-                    className="neon-input"
-                    value={totpDisableCode}
-                    onChange={(e) => setTotpDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder={tx(lang, '2FA kodu (opsional)', 'Код 2FA (необязательно)', '2FA code (optional)')}
-                  />
-                  <button onClick={() => { void handleDisableTotp(); }} className="rounded-xl border border-red-400/50 px-5 py-2 font-semibold text-red-300 hover:bg-red-500/10">
-                    {tx(lang, '2FA Söndür', 'Отключить 2FA', 'Disable 2FA')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      <div id="sec-users" className="metal-panel overflow-hidden">
-        <div className="border-b border-slate-700/70 p-6">
-          <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İstifadəçi İdarəetməsi', 'Управление пользователями', 'User Management')}</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            {tx(
-              lang,
-              'Admin və Manager ad + şifrə ilə yaradılır. Staff və Kitchen ad + PIN ilə yaradılır.',
-              'Admin и Manager создаются с логином и паролем. Staff и Kitchen создаются с именем и PIN.',
-              'Admin and Manager are created with username + password. Staff and Kitchen are created with username + PIN.',
-            )}
-          </p>
-        </div>
-
-        <div className="space-y-6 p-6">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <input
-              value={newUserName}
-              onChange={(e) => setNewUserName(e.target.value)}
-              type="text"
-              placeholder={tx(lang, 'Ad / istifadəçi adı', 'Имя / логин', 'Name / username')}
-              className="neon-input"
-            />
-            <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)} className="neon-input bg-transparent">
-              <option value="staff">{tx(lang, 'Staff', 'Кассир', 'Staff')}</option>
-              <option value="kitchen">{tx(lang, 'Kitchen', 'Кухня', 'Kitchen')}</option>
-              <option value="manager">{tx(lang, 'Manager', 'Менеджер', 'Manager')}</option>
-              <option value="admin">{tx(lang, 'Admin', 'Админ', 'Admin')}</option>
-            </select>
-            {requiresPasswordForNewUser ? (
-              <input
-                value={newUserPassword}
-                onChange={(e) => setNewUserPassword(e.target.value)}
-                type="password"
-                placeholder={tx(lang, 'Şifrə', 'Пароль', 'Password')}
-                className="neon-input"
-              />
-            ) : (
-              <input
-                value={newUserPin}
-                onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                type="text"
-                placeholder={tx(lang, 'PIN', 'PIN', 'PIN')}
-                className="neon-input"
-              />
-            )}
-            <button onClick={() => { void handleCreateUser(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
-              {tx(lang, 'Yarat', 'Создать', 'Create')}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 pt-4">
-            {users.map((u) => (
-              <div key={u.id || u.username} className="flex items-center justify-between rounded-xl border border-slate-700 px-4 py-3">
-                <div>
-                  <div className="font-semibold text-slate-100">{u.username}</div>
-                  <div className="text-xs text-slate-400">{tx(lang, 'Rol', 'Роль', 'Role')}: {u.role}</div>
-                </div>
-                <button onClick={() => setDeleteUserName(u.username)} className="rounded-lg border border-red-400/50 px-3 py-1 text-sm text-red-300 hover:bg-red-500/10">
-                  {tx(lang, 'Sil', 'Удалить', 'Delete')}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 pt-4 md:grid-cols-3">
-            <select value={targetUser} onChange={(e) => setTargetUser(e.target.value)} className="neon-input">
-              <option value="">{tx(lang, 'PIN üçün staff seçin', 'Выберите staff для PIN', 'Select staff for PIN')}</option>
-              {pinUsers.map((u) => (
-                <option key={u.id || u.username} value={u.username}>{u.username}</option>
-              ))}
-            </select>
-            <input value={targetPin} onChange={(e) => setTargetPin(e.target.value.replace(/\D/g, '').slice(0, 15))} type="text" placeholder={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} className="neon-input" />
-            <button onClick={() => { void handleUpdatePin(); }} className="neon-btn px-4 py-2">{tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')}</button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 pt-4 md:grid-cols-3">
-            <select value={targetPasswordUser} onChange={(e) => setTargetPasswordUser(e.target.value)} className="neon-input">
-              <option value="">{tx(lang, 'Şifrə üçün admin seçin', 'Выберите admin для пароля', 'Select admin for password')}</option>
-              {passwordUsers.map((u) => (
-                <option key={u.id || u.username} value={u.username}>{u.username} ({u.role})</option>
-              ))}
-            </select>
-            <input value={targetPassword} onChange={(e) => setTargetPassword(e.target.value)} type="password" placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} className="neon-input" />
-            <button onClick={() => { void handleUpdatePasswordForUser(); }} className="neon-btn px-4 py-2">{tx(lang, 'Şifrə Dəyiş', 'Изменить пароль', 'Change Password')}</button>
-          </div>
-        </div>
-      </div>
-
-      {['admin', 'super_admin'].includes(currentRole) ? (
-        <div id="sec-danger" className="metal-panel p-6 space-y-4">
-          <h2 className="text-xl font-bold text-red-300">{tx(lang, 'Təhlükəli Əməliyyatlar', 'Опасные операции', 'Danger Zone')}</h2>
-          <p className="text-sm text-slate-400">
-            {tx(
-              lang,
-              'Bu bölmə cari tenantın bütün iş datasını sıfırlamaq üçündür. İstifadəçilər qalacaq, amma əməliyyat datası silinəcək.',
-              'Этот раздел нужен для полного сброса рабочих данных текущего tenant. Пользователи останутся, но рабочие данные будут удалены.',
-              'This section resets the current tenant operational data. Users remain, but operational data is erased.',
-            )}
-          </p>
-        <div className="rounded-2xl border border-red-400/20 bg-red-500/5 p-4">
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setResetModalOpen(true)}
-                className="rounded-xl border border-red-400/50 px-6 py-2 font-bold text-red-200 hover:bg-red-500/10"
-              >
-                {tx(lang, 'Bütün sistemi sıfırla', 'Сбросить систему', 'Reset entire system')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div id="sec-ai" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">🤖 {tx(lang, 'AI Resept Konfiqurasiyası', 'AI Конфигурация рецептов', 'AI Recipe Configuration')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(lang, 'Resept AI agenti üçün API key konfiqurasiyası. Key formatına görə provider avtomatik tanınır.', 'Конфигурация API key для AI агента рецептов. Провайдер определяется автоматически по формату ключа.', 'API key configuration for the recipe AI agent. Provider is auto-detected from key format.')}
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
-            <input className="neon-input w-full" type="password" value={aiApiKey} onChange={(e) => { setAiApiKey(e.target.value); writeScopedStorage('gemini_api_key', e.target.value); void update_api_key_live(e.target.value, {}); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
-            <p className="text-[10px] text-slate-500">{tx(lang, 'Key formatına görə provider avtomatik tanınır', 'Провайдер определяется автоматически', 'Provider is auto-detected from key format')}</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Aşkarlanan provider', 'Определённый провайдер', 'Detected provider')}</label>
-            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-200">
-              {aiApiKey ? `${aiProviderLabel(detectAiConfigFromApiKey(aiApiKey).provider)} · ${detectAiConfigFromApiKey(aiApiKey).model}` : tx(lang, 'Key daxil edilməyib', 'Ключ не введён', 'No key entered')}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-xs text-cyan-200/90 space-y-1">
-          <div className="font-bold">{tx(lang, 'Dəstəklənən providerlər:', 'Поддерживаемые провайдеры:', 'Supported providers:')}</div>
-          <div>• <strong>FreeModel.dev</strong> — Claude, GPT (pulsuz kredit)</div>
-          <div>• <strong>Google Gemini</strong> — AIza... key</div>
-          <div>• <strong>OpenRouter</strong> — sk-or-v1-... key</div>
-          <div>• <strong>OpenAI</strong> — sk-... key</div>
-          <div>• <strong>Anthropic</strong> — sk-ant-... key</div>
-        </div>
-      </div>
-
-      <div id="sec-roles" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol icazələri', 'Права ролей', 'Role permissions')}</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {(['staff', 'manager', 'kitchen'] as const).map((role) => (
-            <div key={role} className="rounded-xl border border-slate-700/70 bg-slate-900/30 p-4 space-y-2">
-              <h3 className="font-semibold uppercase tracking-wide text-slate-200">{roleLabelMap[role]}</h3>
-              {moduleCatalog.map((moduleKey) => (
-                <label key={`${role}_${moduleKey}`} className="flex items-center gap-2 text-sm text-slate-300">
-                  <input type="checkbox" checked={(roleModules[role] || []).includes(moduleKey)} onChange={() => toggleRoleModule(role, moduleKey)} />
-                  <span>{moduleLabelMap[moduleKey] || moduleKey}</span>
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-        {renderPanelSuccess('role_modules')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold transition-transform duration-100 active:translate-y-px active:scale-[0.98]">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
-        </div>
-      </div>
-
-      {/* backup logic removed */}
-
-      <ConfirmModal
-        open={Boolean(deleteUserName)}
-        title={tx(lang, 'İstifadəçini sil', 'Удалить пользователя', 'Delete user')}
-        message={tx(lang, `"${deleteUserName || ''}" istifadəçisini silmək istəyirsiniz?`, `Удалить пользователя "${deleteUserName || ''}"?`, `Delete user "${deleteUserName || ''}"?`)}
+      <OperationSettingsSection
         lang={lang}
-        onCancel={() => setDeleteUserName(null)}
-        onConfirm={() => {
-          if (deleteUserName) {
-            void handleDeleteUser(deleteUserName);
-          }
-        }}
+        saveButtonClass={saveButtonClass}
+        renderPanelSuccess={renderPanelSuccess}
+        notify={notify}
+        printSettings={printSettings}
+        setPrintSettings={setPrintSettings}
+        savePrintSettings={savePrintSettings}
+        systemPrinters={systemPrinters}
+        customPrinterMode={customPrinterMode}
+        setCustomPrinterMode={setCustomPrinterMode}
+        testingPrint={testingPrint}
+        handleTestPrint={handleTestPrint}
+        checkPrintAgentStatus={checkPrintAgentStatus}
+        printAgentHealth={printAgentHealth}
+        printAgentVersion={printAgentVersion}
+        printAgentMinVersion={printAgentMinVersion}
+        qzHealth={qzHealth}
+        qzPrintersCount={qzPrintersCount}
+        printAgentModalOpen={printAgentModalOpen}
+        setPrintAgentModalOpen={setPrintAgentModalOpen}
+        downloadPrintAgentWindowsZip={downloadPrintAgentWindowsZip}
+        downloadPrintAgentSetup={downloadPrintAgentSetup}
+        zReportReceiptSettings={zReportReceiptSettings}
+        setZReportReceiptSettings={setZReportReceiptSettings}
+        saveZReportReceiptSettings={saveZReportReceiptSettings}
+        tableServiceSettings={tableServiceSettings}
+        setTableServiceSettings={setTableServiceSettings}
+        saveTableServiceSettings={saveTableServiceSettings}
+        beverageServiceSettings={beverageServiceSettings}
+        setBeverageServiceSettings={setBeverageServiceSettings}
+        saveBeverageServiceSettings={saveBeverageServiceSettings}
       />
 
-      {printAgentModalOpen ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-100">
-                {tx(lang, 'Printer Agent quraşdırılması', 'Установка Printer Agent', 'Printer Agent setup')}
-              </h3>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
-                onClick={() => setPrintAgentModalOpen(false)}
-              >
-                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
-              </button>
-            </div>
+      <IntegrationsSettingsSection
+        lang={lang}
+        saveButtonClass={saveButtonClass}
+        renderPanelSuccess={renderPanelSuccess}
+        notify={notify}
+        tenantId={tenantId}
+        profile={profile}
+        deliveryIntegrations={deliveryIntegrations}
+        setDeliveryIntegrations={setDeliveryIntegrations}
+        saveDeliveryIntegrations={saveDeliveryIntegrations}
+        deliveryMenuMappings={deliveryMenuMappings}
+        deliveryMenuMappingsLoading={deliveryMenuMappingsLoading}
+        newDeliveryMenuMapping={newDeliveryMenuMapping}
+        setNewDeliveryMenuMapping={setNewDeliveryMenuMapping}
+        handleAddDeliveryMenuMapping={handleAddDeliveryMenuMapping}
+        handleDeleteDeliveryMenuMapping={handleDeleteDeliveryMenuMapping}
+        menuCatalog={menuCatalog}
+        qrMenuSettings={qrMenuSettings}
+        setQrMenuSettings={setQrMenuSettings}
+        saveQrMenuSettings={saveQrMenuSettings}
+        handleQrHeroUpload={handleQrHeroUpload}
+        handleQrPosterImageUpload={handleQrPosterImageUpload}
+        handleThemePresetChange={handleThemePresetChange}
+        feedbackSettings={feedbackSettings}
+        setFeedbackSettings={setFeedbackSettings}
+        saveFeedbackSettings={saveFeedbackSettings}
+        autoFeedbackPortalUrl={autoFeedbackPortalUrl}
+        newFeedbackTag={newFeedbackTag}
+        setNewFeedbackTag={setNewFeedbackTag}
+      />
 
-            <div className="mb-4 rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-300 space-y-2">
-              <div className="font-bold text-cyan-300">{tx(lang, 'Seçim A: Windows Bir-Kliklə Səssiz Qurulum (Tövsiyə olunur)', 'Вариант А: Тихая установка Windows в один клик (Рекомендуется)', 'Option A: Windows One-Click Silent Setup (Recommended)')}</div>
-              <ol className="list-decimal pl-4 space-y-1">
-                <li>{tx(lang, 'Qurulum ZIP arxivini kompüterinizə yükləyin və qovluğa çıxarın.', 'Скачайте установочный ZIP-архив на ПК и распакуйте в папку.', 'Download the setup ZIP archive to your PC and extract it to a folder.')}</li>
-                <li>{tx(lang, 'Qovluqdakı "setup.bat" faylına sadəcə cüt klikləyin (double-click).', 'Просто дважды кликните на файл "setup.bat" в папке.', 'Simply double-click the "setup.bat" file in the folder.')}</li>
-                <li>{tx(lang, 'Quraşdırma 1 saniyədə tamamlanacaq, agent startap-a yerləşib arxa fonda səssizcə işləyəcək (bloklanmadan).', 'Установка завершится за 1 секунду, агент добавится в автозапуск и будет бесшумно работать в фоне.', 'Setup will complete in 1 second, the agent will go to startup and run silently in the background.')}</li>
-              </ol>
-            </div>
+      <FinanceSettingsSection
+        lang={lang}
+        saveButtonClass={saveButtonClass}
+        renderPanelSuccess={renderPanelSuccess}
+        bankCommission={bankCommission}
+        setBankCommission={setBankCommission}
+        saveBankCommission={saveBankCommission}
+        financePolicy={financePolicy}
+        setFinancePolicy={setFinancePolicy}
+        saveFinancePolicy={saveFinancePolicy}
+        yieldManagement={yieldManagement}
+        setYieldManagement={setYieldManagement}
+        saveYieldManagement={saveYieldManagement}
+        inventoryCatalog={inventoryCatalog}
+      />
 
-            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/20 p-3 text-xs text-slate-400 space-y-2">
-              <div className="font-bold text-slate-300">{tx(lang, 'Seçim B: Standart EXE Yükləyici', 'Вариант Б: Стандартный установщик EXE', 'Option B: Standard EXE Installer')}</div>
-              <ol className="list-decimal pl-4 space-y-1">
-                <li>{tx(lang, 'Windows PC-də .exe yükləyicisini endirin.', 'Скачайте установщик .exe на Windows ПК.', 'Download the .exe installer on the Windows PC.')}</li>
-                <li>{tx(lang, 'Faylı işə salın və Next → Finish klikləyin.', 'Запустите файл и нажмите Next → Finish.', 'Run the file and click Next → Finish.')}</li>
-              </ol>
-            </div>
+      <InterfaceSettingsSection
+        lang={lang}
+        saveButtonClass={saveButtonClass}
+        renderPanelSuccess={renderPanelSuccess}
+        sessionSettings={sessionSettings}
+        setSessionSettings={setSessionSettings}
+        saveSessionSettings={saveSessionSettings}
+        changeThemeMode={changeThemeMode}
+        toggleVirtualKeyboard={toggleVirtualKeyboard}
+        notify={notify}
+        tenantId={tenantId}
+        saveTablesUiMode={saveTablesUiMode}
+      />
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void downloadPrintAgentWindowsZip()}
-                className="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
-              >
-                {tx(lang, 'Səssiz Qurulum (ZIP) Yüklə', 'Скачать тихую установку (ZIP)', 'Download Silent Setup (ZIP)')}
-              </button>
-              <button
-                type="button"
-                onClick={() => void downloadPrintAgentSetup()}
-                className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
-              >
-                {tx(lang, 'Standart .exe Yüklə', 'Скачать стандартный .exe', 'Download Standard .exe')}
-              </button>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200"
-                onClick={() => void checkPrintAgentStatus()}
-              >
-                {tx(lang, 'Statusu yoxla', 'Проверить статус', 'Check status')}
-              </button>
-            </div>
+      {['admin', 'super_admin'].includes(currentRole) && (
+        <SecuritySettingsSection
+          lang={lang}
+          saveButtonClass={saveButtonClass}
+          renderPanelSuccess={renderPanelSuccess}
+          notify={notify}
+          currentRole={currentRole}
+          sessionSettings={sessionSettings}
+          setSessionSettings={setSessionSettings}
+          saveSessionSettings={saveSessionSettings}
+          staffBenefits={staffBenefits}
+          setStaffBenefits={setStaffBenefits}
+          saveStaffBenefits={saveStaffBenefits}
+          menuCatalog={menuCatalog}
+          roleModules={roleModules}
+          setRoleModules={setRoleModules}
+          saveRoleModules={saveRoleModules}
+          users={users}
+          newUserName={newUserName}
+          setNewUserName={setNewUserName}
+          newUserRole={newUserRole}
+          setNewUserRole={setNewUserRole}
+          newUserPassword={newUserPassword}
+          setNewUserPassword={setNewUserPassword}
+          newUserPin={newUserPin}
+          setNewUserPin={setNewUserPin}
+          handleCreateUser={handleCreateUser}
+          handleDeleteUser={handleDeleteUser}
+          deleteUserName={deleteUserName}
+          setDeleteUserName={setDeleteUserName}
+          targetUser={targetUser}
+          setTargetUser={setTargetUser}
+          targetPin={targetPin}
+          setTargetPin={setTargetPin}
+          handleUpdatePin={handleUpdatePin}
+          targetPasswordUser={targetPasswordUser}
+          setTargetPasswordUser={setTargetPasswordUser}
+          targetPassword={targetPassword}
+          setTargetPassword={setTargetPassword}
+          handleUpdatePasswordForUser={handleUpdatePasswordForUser}
+          currentPassword={currentPassword}
+          setCurrentPassword={setCurrentPassword}
+          newOwnPassword={newOwnPassword}
+          setNewOwnPassword={setNewOwnPassword}
+          confirmOwnPassword={confirmOwnPassword}
+          setConfirmOwnPassword={setConfirmOwnPassword}
+          handleChangeOwnPassword={handleChangeOwnPassword}
+          totpEnabled={totpEnabled}
+          totpSetupUrl={totpSetupUrl}
+          totpSecret={totpSecret}
+          totpQrDataUrl={totpQrDataUrl}
+          totpCode={totpCode}
+          setTotpCode={setTotpCode}
+          totpDisablePassword={totpDisablePassword}
+          setTotpDisablePassword={setTotpDisablePassword}
+          totpDisableCode={totpDisableCode}
+          setTotpDisableCode={setTotpDisableCode}
+          handleStartTotpSetup={handleStartTotpSetup}
+          handleVerifyTotp={handleVerifyTotp}
+          handleDisableTotp={handleDisableTotp}
+          resetModalOpen={resetModalOpen}
+          setResetModalOpen={setResetModalOpen}
+          handleResetSystem={handleResetSystem}
+          resetPassword={resetPassword}
+          setResetPassword={setResetPassword}
+          resetTotpCode={resetTotpCode}
+          setResetTotpCode={setResetTotpCode}
+        />
+      )}
 
-            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
-              {printAgentHealth === 'online'
-                ? tx(lang, 'Agent işləyir: online ✅', 'Агент работает: online ✅', 'Agent is running: online ✅')
-                : printAgentHealth === 'offline'
-                  ? tx(lang, 'Agent tapılmadı: offline. Quraşdırmadan sonra bu pəncərədə yenidən status yoxlayın.', 'Агент не найден: offline. После установки снова проверьте статус.', 'Agent not found: offline. After install, check status again here.')
-                  : printAgentHealth === 'checking'
-                    ? tx(lang, 'Status yoxlanır...', 'Проверка статуса...', 'Checking status...')
-                    : tx(lang, 'Status hələ yoxlanmayıb.', 'Статус еще не проверен.', 'Status not checked yet.')}
-              {printAgentVersion ? (
-                <div className="mt-1">
-                  {tx(lang, 'Agent versiyası', 'Версия агента', 'Agent version')}: <span className="font-semibold">{printAgentVersion}</span>
-                </div>
-              ) : null}
-              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
-                <div className="mt-1 text-amber-300">
-                  {tx(
-                    lang,
-                    `Yeniləmə tövsiyə olunur (minimum: ${printAgentMinVersion}).`,
-                    `Рекомендуется обновление (минимум: ${printAgentMinVersion}).`,
-                    `Update recommended (minimum: ${printAgentMinVersion}).`,
-                  )}
-                </div>
-              ) : null}
-              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
-                <div className="mt-1 text-slate-300">
-                  {tx(
-                    lang,
-                    'Yenilə düyməsini basın, setup faylını run edin, sonra bu pəncərədə Statusu yoxla edin.',
-                    'Нажмите кнопку обновления, запустите setup, затем снова проверьте статус в этом окне.',
-                    'Click update, run the setup file, then check status again in this window.',
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AISettingsSection
+        lang={lang}
+        saveButtonClass={saveButtonClass}
+        renderPanelSuccess={renderPanelSuccess}
+        aiApiKey={aiApiKey}
+        setAiApiKey={(value: string) => { setAiApiKey(value); writeScopedStorage('gemini_api_key', value); void update_api_key_live(value, {}); }}
+        saveAiApiKey={saveAiApiKey}
+        menuCatalog={menuCatalog}
+        inventoryCatalog={inventoryCatalog}
+      />
     </div>
     </div>
   );
