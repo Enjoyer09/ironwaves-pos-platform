@@ -1916,8 +1916,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	              const serverDraftItems = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord?.draft_items || []) : [];
 	              const draftRows = detailCheck?.id ? serverDraftItems : roundDraft;
 	              const draftTotal = draftRows.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2);
-	              const sentDisplayItems = detailCheck?.id ? detailActiveItems : (detailActiveItems.length > 0 ? detailActiveItems : items);
-	              const fullOrderRows = detailCheck?.id ? [...draftRows, ...detailActiveItems] : (detailActiveItems.length > 0 ? detailActiveItems : items);
+	              const effectiveActiveItems = detailActiveItems.length > 0 ? detailActiveItems : items;
+	              const sentDisplayItems = effectiveActiveItems;
+	              const fullOrderRows = [...draftRows, ...effectiveActiveItems];
 	              const visibleCheckTotal = new Decimal(detailCheck?.total || (tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.check_total : null) || t.total || 0);
 	              const tableNeedsSafeCancel = Boolean(
 	                t.is_occupied &&

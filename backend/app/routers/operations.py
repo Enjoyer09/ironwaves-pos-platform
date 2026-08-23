@@ -5992,6 +5992,28 @@ def transfer_table(
     target.deposit_amount = Decimal(str(source.deposit_amount or 0)).quantize(Decimal("0.01"))
     target.deposit_seats_json = source.deposit_seats_json or "[]"
 
+    # Reassign active TableSessions and active OrderItems from source to target
+    active_sessions = (
+        db.query(TableSession)
+        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == source.id, TableSession.closed_at.is_(None))
+        .all()
+    )
+    for sess in active_sessions:
+        sess.table_id = target.id
+        target.active_session_id = sess.id
+
+    db.query(OrderItem).filter(
+        OrderItem.tenant_id == tenant.id,
+        OrderItem.table_id == source.id,
+        OrderItem.status.notin_(["CANCELLED", "VOID"])
+    ).update({"table_id": target.id}, synchronize_session=False)
+
+    db.query(Reservation).filter(
+        Reservation.tenant_id == tenant.id,
+        Reservation.assigned_table_id == source.id,
+        Reservation.status.in_(["CONFIRMED", "SEATED"])
+    ).update({"assigned_table_id": target.id}, synchronize_session=False)
+
     source.items_json = "[]"
     source.total = Decimal("0.00")
     source.is_occupied = False
@@ -6057,6 +6079,27 @@ def merge_tables(
     target_deposit_labels = [str(label or "").strip() for label in _json_load(target.deposit_seats_json, []) if str(label or "").strip()]
     source_deposit_labels = [str(label or "").strip() for label in _json_load(source.deposit_seats_json, []) if str(label or "").strip()]
     target.deposit_seats_json = json.dumps([*target_deposit_labels, *source_deposit_labels], ensure_ascii=False)
+
+    # Reassign active TableSessions and active OrderItems from source to target
+    source_sessions = (
+        db.query(TableSession)
+        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == source.id, TableSession.closed_at.is_(None))
+        .all()
+    )
+    for sess in source_sessions:
+        sess.table_id = target.id
+
+    db.query(OrderItem).filter(
+        OrderItem.tenant_id == tenant.id,
+        OrderItem.table_id == source.id,
+        OrderItem.status.notin_(["CANCELLED", "VOID"])
+    ).update({"table_id": target.id}, synchronize_session=False)
+
+    db.query(Reservation).filter(
+        Reservation.tenant_id == tenant.id,
+        Reservation.assigned_table_id == source.id,
+        Reservation.status.in_(["CONFIRMED", "SEATED"])
+    ).update({"assigned_table_id": target.id}, synchronize_session=False)
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
