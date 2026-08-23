@@ -1073,7 +1073,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const status = String(activeTable?.status || '').toUpperCase();
     const tableLockHolder = String((activeTable as any)?.locked_by || activeTable?.assigned_to || '').trim();
     const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
-    const lockedByAnother = Boolean(activeTable?.is_occupied && tableLockHolder && tableLockHolder !== user?.username && !isManagerUser);
+    const lockedByAnother = false;
 
     if (status === 'DIRTY') return;
     if (status === 'RESERVED' && !activeTable?.is_occupied) {
@@ -1909,7 +1909,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.check : null;
               const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.locked_by : null) || t.assigned_to || '').trim() || null;
               const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
-              const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
+              const userCanEditTable = true;
 	              const detailActiveItems = detailRounds.length > 0
 	                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
 	                : [];
