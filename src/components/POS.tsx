@@ -267,6 +267,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('Nəğd');
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
+  const [cashReceivedInput, setCashReceivedInput] = useState<string>('');
   const [variantPicker, setVariantPicker] = useState<VariantPickerState | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [pendingOfflineSales, setPendingOfflineSales] = useState<OfflineSaleSummary[]>([]);
@@ -2179,6 +2180,73 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'} ${selectedPayment === method ? 'pay-btn-active' : ''}`}>{method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
             ))}
           </div>
+          {selectedPayment === 'Nəğd' && (() => {
+            const exact = checkoutBaseTotal.toNumber();
+            const cashGiven = new Decimal(Number(cashReceivedInput) || 0);
+            const change = cashGiven.greaterThan(checkoutBaseTotal) ? cashGiven.minus(checkoutBaseTotal) : new Decimal(0);
+            const remaining = cashGiven.greaterThan(0) && cashGiven.lessThan(checkoutBaseTotal) ? checkoutBaseTotal.minus(cashGiven) : new Decimal(0);
+            const presets: number[] = [exact];
+            [5, 10, 20, 50, 100].forEach((val) => { if (val > exact && presets.length < 5) presets.push(val); });
+            while (presets.length < 5) { const last = presets[presets.length - 1] || exact; presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50); }
+            return (
+              <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs space-y-2.5">
+                <div className="flex items-center justify-between text-slate-300 font-semibold">
+                  <span>{tx(lang, 'Alınan nağd pul', 'Полученные наличные', 'Cash received')}</span>
+                  {cashGiven.greaterThan(0) && (
+                    <button type="button" onClick={() => setCashReceivedInput('')} className="text-[11px] font-bold text-amber-400 hover:text-amber-300">
+                      {tx(lang, 'Sıfırla', 'Сброс', 'Reset')}
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={cashReceivedInput}
+                    onChange={(e) => setCashReceivedInput(e.target.value)}
+                    placeholder={checkoutBaseTotal.toFixed(2)}
+                    className="neon-input flex-1 h-10 text-sm font-bold text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCashReceivedInput(checkoutBaseTotal.toFixed(2))}
+                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:border-amber-400/50 active:scale-95 transition"
+                  >
+                    {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {presets.slice(1).map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setCashReceivedInput(val.toFixed(2))}
+                      className={`flex-1 min-w-[44px] rounded-lg border py-1 px-1.5 text-xs font-bold transition active:scale-95 ${
+                        Number(cashReceivedInput) === val
+                          ? 'border-amber-300 bg-amber-400 text-slate-950 font-black'
+                          : 'border-slate-700/60 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {val} ₼
+                    </button>
+                  ))}
+                </div>
+                {cashGiven.greaterThan(checkoutBaseTotal) && (
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                    <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
+                    <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                  </div>
+                )}
+                {remaining.greaterThan(0) && (
+                  <div className="flex items-center justify-between rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                    <span>{tx(lang, 'Çatışmayan:', 'Недостающая:', 'Remaining:')}</span>
+                    <span>{remaining.toFixed(2)} ₼</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {selectedPayment === 'Split' && (
             <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
               <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
@@ -2826,6 +2894,73 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               ))}
               </div>
             </div>
+            {selectedPayment === 'Nəğd' && (() => {
+              const exact = checkoutBaseTotal.toNumber();
+              const cashGiven = new Decimal(Number(cashReceivedInput) || 0);
+              const change = cashGiven.greaterThan(checkoutBaseTotal) ? cashGiven.minus(checkoutBaseTotal) : new Decimal(0);
+              const remaining = cashGiven.greaterThan(0) && cashGiven.lessThan(checkoutBaseTotal) ? checkoutBaseTotal.minus(cashGiven) : new Decimal(0);
+              const presets: number[] = [exact];
+              [5, 10, 20, 50, 100].forEach((val) => { if (val > exact && presets.length < 5) presets.push(val); });
+              while (presets.length < 5) { const last = presets[presets.length - 1] || exact; presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50); }
+              return (
+                <div className="mt-2 rounded-xl border border-slate-700/70 bg-[#0e1520] p-3 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between text-slate-300 font-semibold">
+                    <span>{tx(lang, 'Alınan nağd pul', 'Полученные наличные', 'Cash received')}</span>
+                    {cashGiven.greaterThan(0) && (
+                      <button type="button" onClick={() => setCashReceivedInput('')} className="text-[11px] font-bold text-amber-400 hover:text-amber-300">
+                        {tx(lang, 'Sıfırla', 'Сброс', 'Reset')}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={cashReceivedInput}
+                      onChange={(e) => setCashReceivedInput(e.target.value)}
+                      placeholder={checkoutBaseTotal.toFixed(2)}
+                      className="neon-input flex-1 h-10 text-sm font-bold text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCashReceivedInput(checkoutBaseTotal.toFixed(2))}
+                      className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:border-amber-400/50 active:scale-95 transition"
+                    >
+                      {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {presets.slice(1).map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setCashReceivedInput(val.toFixed(2))}
+                        className={`flex-1 min-w-[44px] rounded-lg border py-1 px-1.5 text-xs font-bold transition active:scale-95 ${
+                          Number(cashReceivedInput) === val
+                            ? 'border-amber-300 bg-amber-400 text-slate-950 font-black'
+                            : 'border-slate-700/60 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {val} ₼
+                      </button>
+                    ))}
+                  </div>
+                  {cashGiven.greaterThan(checkoutBaseTotal) && (
+                    <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                      <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
+                      <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                    </div>
+                  )}
+                  {remaining.greaterThan(0) && (
+                    <div className="flex items-center justify-between rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                      <span>{tx(lang, 'Çatışmayan:', 'Недостающая:', 'Remaining:')}</span>
+                      <span>{remaining.toFixed(2)} ₼</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {selectedPayment === 'Split' && (
               <div className="mt-2 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
                 <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
@@ -3217,6 +3352,74 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 <button disabled={isLoading} onClick={() => setSelectedPayment('Split')} className={`pay-btn ${selectedPayment === 'Split' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Bölünmüş', 'Разделено', 'Split')}</button>
                 <button disabled={isLoading} onClick={() => setSelectedPayment('Staff')} className={`pay-btn ${selectedPayment === 'Staff' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
               </div>
+
+              {selectedPayment === 'Nəğd' && (() => {
+                const exact = checkoutBaseTotal.toNumber();
+                const cashGiven = new Decimal(Number(cashReceivedInput) || 0);
+                const change = cashGiven.greaterThan(checkoutBaseTotal) ? cashGiven.minus(checkoutBaseTotal) : new Decimal(0);
+                const remaining = cashGiven.greaterThan(0) && cashGiven.lessThan(checkoutBaseTotal) ? checkoutBaseTotal.minus(cashGiven) : new Decimal(0);
+                const presets: number[] = [exact];
+                [5, 10, 20, 50, 100].forEach((val) => { if (val > exact && presets.length < 5) presets.push(val); });
+                while (presets.length < 5) { const last = presets[presets.length - 1] || exact; presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50); }
+                return (
+                  <div className="rounded-xl border border-slate-700/70 bg-[#0e1520] p-3 text-xs space-y-2.5">
+                    <div className="flex items-center justify-between text-slate-300 font-semibold">
+                      <span>{tx(lang, 'Alınan nağd pul', 'Полученные наличные', 'Cash received')}</span>
+                      {cashGiven.greaterThan(0) && (
+                        <button type="button" onClick={() => setCashReceivedInput('')} className="text-[11px] font-bold text-amber-400 hover:text-amber-300">
+                          {tx(lang, 'Sıfırla', 'Сброс', 'Reset')}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={cashReceivedInput}
+                        onChange={(e) => setCashReceivedInput(e.target.value)}
+                        placeholder={checkoutBaseTotal.toFixed(2)}
+                        className="neon-input flex-1 h-10 text-sm font-bold text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCashReceivedInput(checkoutBaseTotal.toFixed(2))}
+                        className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:border-amber-400/50 active:scale-95 transition"
+                      >
+                        {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {presets.slice(1).map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setCashReceivedInput(val.toFixed(2))}
+                          className={`flex-1 min-w-[44px] rounded-lg border py-1 px-1.5 text-xs font-bold transition active:scale-95 ${
+                            Number(cashReceivedInput) === val
+                              ? 'border-amber-300 bg-amber-400 text-slate-950 font-black'
+                              : 'border-slate-700/60 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          {val} ₼
+                        </button>
+                      ))}
+                    </div>
+                    {cashGiven.greaterThan(checkoutBaseTotal) && (
+                      <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                        <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
+                        <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                      </div>
+                    )}
+                    {remaining.greaterThan(0) && (
+                      <div className="flex items-center justify-between rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                        <span>{tx(lang, 'Çatışmayan:', 'Недостающая:', 'Remaining:')}</span>
+                        <span>{remaining.toFixed(2)} ₼</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {selectedPayment === 'Split' && (
                 <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">

@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Users } from 'lucide-react';
+import { Users, Clock } from 'lucide-react';
 import { tx, type Lang } from '../../i18n';
 import { getWaiterColor } from '../../utils/tables/tableUtils';
 import { TABLE_STATUS_LABELS, TABLE_STATUS_THEME, type FloorSummary } from '../../utils/tables/floorUtils';
@@ -461,7 +461,28 @@ function FloorView(props: FloorViewProps) {
                   gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
                 }}
               >
-                <div className="font-bold">{table.label}</div>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="font-bold">{table.label}</div>
+                  {(() => {
+                    const lockedAt = (displayTable as any).locked_at || (table as any).locked_at || null;
+                    const isOccupied = Boolean((displayTable as any).is_occupied || Number((displayTable as any).total || 0) > 0 || String(table.status || '').toUpperCase() === 'ACTIVE_CHECK');
+                    if (!isOccupied || !lockedAt) return null;
+                    const elapsed = Math.max(1, Math.floor((Date.now() - new Date(lockedAt).getTime()) / 60000));
+                    if (elapsed <= 0 || elapsed > 1440) return null;
+                    return (
+                      <span className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold ${
+                        elapsed >= 75
+                          ? 'bg-rose-500/30 text-rose-200 border border-rose-400/40 animate-pulse'
+                          : elapsed >= 35
+                            ? 'bg-amber-500/25 text-amber-200 border border-amber-400/30'
+                            : 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
+                      }`}>
+                        <Clock size={8} />
+                        {elapsed >= 60 ? `${Math.floor(elapsed / 60)}s ${elapsed % 60}d` : `${elapsed}d`}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <div className="mt-2 text-xs flex items-center justify-between gap-1 flex-wrap">
                   <span><Users size={12} className="mr-1 inline" />{Number(displayTable.guest_count || 0)} / {Number(table.capacity || 0)}</span>
                   {(displayTable as any).assigned_to && (
