@@ -45,18 +45,27 @@
   --card-foreground: 222 35% 12%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 35% 12%;
+  --primary: 47.9 95.8% 38%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 210 26% 93%;
   --secondary-foreground: 222 35% 12%;
   --muted: 210 26% 93%;
   --muted-foreground: 222 16% 40%;
+  --accent: 38 92% 38%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 50%;
+  --destructive-foreground: 0 0% 100%;
   --border: 214 22% 82%;
   --input: 214 22% 82%;
+  --ring: 47.9 95.8% 38%;
   --hero-heading: 222 35% 12%;
   --hero-sub: 222 20% 30%;
   --metal-bg: #f1f5f9;
   --metal-panel: #ffffff;
   --metal-stroke: #e2e8f0;
   --metal-highlight: rgba(255, 255, 255, 0.9);
+  --gold-a: #b45309;
+  --gold-b: #92400e;
 }
 
 :root[data-ui-mode='new'] {
@@ -2270,6 +2279,12 @@ html {
     background-color: #f1f5f9 !important;
     border-color: #d1d5db !important;
     color: #475569 !important;
+  }
+
+  html[data-theme='light'] .table-card-glass,
+  html[data-theme='light'] .floor-table-cell {
+    background: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
 
   /* ─── Deep Backgrounds ─── */
