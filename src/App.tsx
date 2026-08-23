@@ -29,7 +29,7 @@ import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
 import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
 import type { Settings } from './types/pos';
-import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, type ModuleKey } from './lib/navigation';
+import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, isPublicAppRoute, type ModuleKey } from './lib/navigation';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -1351,14 +1351,8 @@ export default function App() {
   }, [sessionRole, currentModule, visibleModuleKeys]);
 
   useEffect(() => {
-    // Don't override URL for public routes (menu, receipt, feedback, etc.)
-    if (isPublicMenuRoute(window.location.pathname) ||
-        window.location.pathname === '/menu' || window.location.pathname === '/menu/' ||
-        window.location.pathname === '/qrmenu' || window.location.pathname === '/qrmenu/' ||
-        window.location.pathname === '/qr-menu' || window.location.pathname === '/qr-menu/' ||
-        window.location.pathname === '/feedback' || window.location.pathname === '/feedback/' ||
-        window.location.pathname === '/landing' || window.location.pathname === '/landing/' ||
-        window.location.pathname.startsWith('/receipt') || window.location.pathname.startsWith('/customer')) {
+    // Don't override URL for public routes (menu, receipt, feedback, customer loyalty portal, etc.)
+    if (isPublicAppRoute(window.location.pathname)) {
       return;
     }
     setMountedModules((prev) => (prev.includes(resolvedModule) ? prev : [...prev, resolvedModule]));
@@ -1367,14 +1361,7 @@ export default function App() {
 
   useEffect(() => {
     // Don't override URL for public routes
-    if (isPublicMenuRoute(window.location.pathname) ||
-        window.location.pathname.startsWith('/menu') ||
-        window.location.pathname.startsWith('/qrmenu') ||
-        window.location.pathname.startsWith('/qr-menu') ||
-        window.location.pathname.startsWith('/feedback') ||
-        window.location.pathname.startsWith('/receipt') ||
-        window.location.pathname.startsWith('/customer') ||
-        window.location.pathname === '/landing' || window.location.pathname === '/landing/') {
+    if (isPublicAppRoute(window.location.pathname)) {
       return;
     }
     const urlModule = typeof window !== 'undefined' ? getModuleFromPathname(window.location.pathname) : null;

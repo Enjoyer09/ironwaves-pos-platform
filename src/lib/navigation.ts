@@ -125,6 +125,20 @@ export function isPublicMenuRoute(pathname: string): boolean {
 }
 
 /**
+ * Checks if the current pathname is any public route (menu, receipt, feedback, landing, customer loyalty portal).
+ * Note: '/customerapp' is an internal staff/admin module, NOT a public route.
+ */
+export function isPublicAppRoute(pathname: string): boolean {
+  if (typeof pathname !== 'string') return false;
+  const clean = pathname.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const segment = clean.split('/')[0] || '';
+  if (isPublicMenuRoute(pathname)) return true;
+  if (segment === 'receipt' || segment === 'feedback' || segment === 'landing') return true;
+  if (segment === 'customer') return true;
+  return false;
+}
+
+/**
  * Extracts a tenant slug from paths like /menu/chaidan, /qrmenu/chaidan, /m/chaidan, /qr-menu/chaidan.
  */
 export function extractMenuTenantSlug(pathname: string): string | null {
