@@ -440,6 +440,37 @@ def _ensure_active_session_and_check(db: Session, tenant_id: str, table: Table) 
         status="OPEN",
     )
     db.add(active_check)
+    db.flush()
+
+    if legacy_items:
+        round_row = OrderRound(
+            tenant_id=tenant_id,
+            check_id=active_check.id,
+            round_no=1,
+            course_no=1,
+            status="SENT",
+            sent_by=table.assigned_to or "system",
+            sent_at=datetime.utcnow(),
+        )
+        db.add(round_row)
+        db.flush()
+        for idx, item in enumerate(legacy_items):
+            item_price = Decimal(str(item.get("price") or 0)).quantize(Decimal("0.01"))
+            item_qty = int(item.get("qty") or 1)
+            order_item = OrderItem(
+                tenant_id=tenant_id,
+                check_id=active_check.id,
+                round_id=round_row.id,
+                table_id=table.id,
+                seat_no=int(item.get("seat_no") or 0) if item.get("seat_no") else None,
+                item_name=str(item.get("item_name") or item.get("name") or f"Item {idx + 1}"),
+                qty=item_qty,
+                price=item_price,
+                status="SENT",
+                sent_at=datetime.utcnow(),
+            )
+            db.add(order_item)
+
     db.add(
         AuditLog(
             tenant_id=tenant_id,
