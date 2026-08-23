@@ -635,15 +635,21 @@ export default function SettingsPanel() {
     if (sessionSettings.theme_mode === nextMode) return;
     const previous = sessionSettings.theme_mode;
     setSessionSettings((prev) => ({ ...prev, theme_mode: nextMode }));
+    document.documentElement.setAttribute('data-theme', nextMode);
+    document.documentElement.style.colorScheme = nextMode;
+    try {
+      localStorage.setItem('iw_theme_mode', nextMode);
+    } catch {}
     try {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
         virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: nextMode,
-        ui_mode: 'old',
+        ui_mode: (sessionSettings as any)?.ui_mode || 'old',
+        tables_ui_mode: (sessionSettings as any)?.tables_ui_mode || 'classic',
         login_background_url: sessionSettings.login_background_url || '',
-      });
+      } as any);
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
         nextMode === 'light'
@@ -652,6 +658,11 @@ export default function SettingsPanel() {
       );
     } catch (e: any) {
       setSessionSettings((prev) => ({ ...prev, theme_mode: previous }));
+      document.documentElement.setAttribute('data-theme', previous);
+      document.documentElement.style.colorScheme = previous;
+      try {
+        localStorage.setItem('iw_theme_mode', previous);
+      } catch {}
       notify('error', e?.message || tx(lang, 'Tema ayarı saxlanmadı', 'Настройка темы не сохранена', 'Theme setting was not saved'));
     }
   };

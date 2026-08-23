@@ -708,7 +708,15 @@ export default function App() {
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
   const idleLogoutMinutes = Math.max(0, Number(settings?.session_settings?.idle_logout_minutes || 0));
   const virtualKeyboardEnabled = settings?.session_settings?.virtual_keyboard_enabled !== false;
-  const themeMode: 'dark' | 'light' = settings?.session_settings?.theme_mode === 'light' ? 'light' : 'dark';
+  const themeMode: 'dark' | 'light' = (() => {
+    const fromSettings = settings?.session_settings?.theme_mode;
+    if (fromSettings === 'light' || fromSettings === 'dark') return fromSettings;
+    try {
+      const stored = localStorage.getItem('iw_theme_mode');
+      if (stored === 'light' || stored === 'dark') return stored;
+    } catch {}
+    return 'dark';
+  })();
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
     staff: (() => {
@@ -728,6 +736,9 @@ export default function App() {
     const root = document.documentElement;
     root.setAttribute('data-theme', themeMode);
     root.style.colorScheme = themeMode;
+    try {
+      localStorage.setItem('iw_theme_mode', themeMode);
+    } catch {}
   }, [themeMode]);
 
   // Glass UI / modern look is gated by the tenant setting (session_settings.ui_mode).
