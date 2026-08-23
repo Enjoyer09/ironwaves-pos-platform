@@ -26,9 +26,23 @@ export default function OperationsPanel({
 }: OperationsPanelProps) {
   const [transferTargetId, setTransferTargetId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
+  const [searchTarget, setSearchTarget] = useState('');
+
+  const filteredOtherTables = otherTables.filter((row) =>
+    !searchTarget.trim() || String(row.label || '').toLowerCase().includes(searchTarget.trim().toLowerCase())
+  );
 
   return (
-    <div className="min-h-0 overflow-y-auto">
+    <div className="min-h-0 overflow-y-auto space-y-3">
+      {otherTables.length > 6 && (
+        <input
+          type="text"
+          value={searchTarget}
+          onChange={(e) => setSearchTarget(e.target.value)}
+          placeholder={tx(lang, 'Hədəf masanı axtar...', 'Поиск целевого стола...', 'Search target table...')}
+          className="neon-input h-10 w-full text-xs"
+        />
+      )}
       <div className="grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
         <div className="grid gap-3 lg:grid-cols-4">
           {/* Transfer */}
@@ -36,8 +50,8 @@ export default function OperationsPanel({
             <div>
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
               <div className="text-xs text-slate-300">{tx(lang, 'Açıq check-i başqa boş masaya keçir', 'Переносит открытый чек на другой свободный стол', 'Move the open check to another empty table')}</div>
-              <div className="mt-3 flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto p-1 bg-black/15 rounded-lg scrollbar-none">
-                {otherTables.filter((row) => !row.is_occupied).map((row) => (
+              <div className="mt-3 flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1 bg-black/15 rounded-lg scrollbar-none">
+                {filteredOtherTables.filter((row) => !row.is_occupied).map((row) => (
                   <button
                     key={row.id}
                     type="button"
@@ -74,8 +88,8 @@ export default function OperationsPanel({
             <div>
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200">{tx(lang, 'Masaları birləşdir', 'Объединить столы', 'Combine tables')}</div>
               <div className="text-xs text-slate-300">{tx(lang, 'Yanaşı masaları bir check altında birləşdir', 'Объединяет соседние столы под одним чеком', 'Combine nearby tables under one check')}</div>
-              <div className="mt-3 flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto p-1 bg-black/15 rounded-lg scrollbar-none">
-                {otherTables.map((row) => (
+              <div className="mt-3 flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1 bg-black/15 rounded-lg scrollbar-none">
+                {filteredOtherTables.map((row) => (
                   <button
                     key={row.id}
                     type="button"
@@ -92,7 +106,7 @@ export default function OperationsPanel({
                     {row.is_occupied && <span className="ml-1 text-[9px] opacity-75">({tx(lang, 'dolu', 'занят', 'occ')})</span>}
                   </button>
                 ))}
-                {otherTables.length === 0 && (
+                {filteredOtherTables.length === 0 && (
                   <div className="text-[10px] text-slate-500 p-2 w-full text-center">{tx(lang, 'Masa tapılmadı', 'Столы не найдены', 'No tables found')}</div>
                 )}
               </div>

@@ -205,10 +205,34 @@ function TableGrid({
                 </span>
               </div>
 
-              {/* Guest + capacity */}
-              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
-                <Users size={11} />
-                <span className={guestCount > 0 ? 'font-semibold text-slate-200' : ''}>{guestCount}/{capacity}</span>
+              {/* Guest + capacity + Seated Elapsed Time */}
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <Users size={11} />
+                  <span className={guestCount > 0 ? 'font-semibold text-slate-200' : ''}>{guestCount}/{capacity}</span>
+                </div>
+                {(() => {
+                  const lockedAt = (activeTableState as any).locked_at || (table as any).locked_at || null;
+                  const isOccupiedState = hasLocalActiveCheck || status === 'ACTIVE_CHECK' || status === 'OCCUPIED' || status === 'SEATED';
+                  if (!isOccupiedState || !lockedAt) return null;
+                  const elapsed = Math.max(1, Math.floor((Date.now() - new Date(lockedAt).getTime()) / 60000));
+                  if (elapsed <= 0 || elapsed > 1440) return null;
+                  return (
+                    <div
+                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                        elapsed >= 75
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-400/30 animate-pulse'
+                          : elapsed >= 35
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                            : 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
+                      }`}
+                      title={tx(lang, `Masa ${elapsed} dəqiqədir açıqdır`, `Стол открыт ${elapsed} мин`, `Table open for ${elapsed} min`)}
+                    >
+                      <Clock size={10} />
+                      <span>{elapsed >= 60 ? `${Math.floor(elapsed / 60)}s ${elapsed % 60}d` : `${elapsed}d`}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Total amount */}
