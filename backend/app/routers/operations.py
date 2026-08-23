@@ -5168,6 +5168,8 @@ def open_table(
     row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Table not found")
+    if row.is_occupied and row.assigned_to and row.assigned_to != user.username:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
     if row.is_occupied and (len(_json_load(row.items_json, [])) > 0 or Decimal(str(row.deposit_amount or 0)) > 0):
         raise HTTPException(status_code=400, detail="Table is already open")
     table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2})
@@ -5281,6 +5283,8 @@ def send_to_kitchen(
         raise HTTPException(status_code=404, detail="Table not found")
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
+    if row.is_occupied and row.assigned_to and row.assigned_to != user.username:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
 
     active_orders = (
         db.query(KitchenOrder)
@@ -5571,6 +5575,10 @@ def abort_table(
         raise HTTPException(status_code=404, detail="Table not found")
     if not row.is_occupied:
         raise HTTPException(status_code=400, detail="Masa artıq bağlıdır")
+
+    role = str(user.role or "").lower()
+    if row.assigned_to and row.assigned_to != user.username and role not in {"admin", "manager", "super_admin"}:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
 
     # Check for kitchen-sent items — cannot abort if kitchen already received order
     items = _json_load(row.items_json, [])
