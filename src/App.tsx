@@ -728,6 +728,9 @@ export default function App() {
     const root = document.documentElement;
     root.setAttribute('data-theme', themeMode);
     root.style.colorScheme = themeMode;
+    try {
+      localStorage.setItem('iw_theme_mode', themeMode);
+    } catch {}
   }, [themeMode]);
 
   // Glass UI / modern look is gated by the tenant setting (session_settings.ui_mode).
