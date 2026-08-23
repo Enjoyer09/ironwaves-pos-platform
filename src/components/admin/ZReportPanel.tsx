@@ -35,7 +35,7 @@ import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime24, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../../lib/receipt_print_css';
-import { printViaLocalAgent } from '../../lib/local_print_agent';
+import { printDirectOrFallback, printViaLocalAgent } from '../../lib/local_print_agent';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -844,29 +844,30 @@ export default function ZReportPanel() {
     }
   };
 
-  const printZReceiptOnly = async () => {
-    if (safeZReceiptHtml) {
-      try {
-        await printViaLocalAgent(safeZReceiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap göndərildi', 'Печать отправлена через iRonWaves Print Agent'));
-        return;
-      } catch {
-        // Local agent is optional; fall back to QZ/browser print.
+  const printZReceiptOnly = async (htmlToPrint?: string) => {
+    const html = htmlToPrint || safeZReceiptHtml || zReceiptHtml;
+    if (!html) return;
+    try {
+      const res = await printDirectOrFallback(html, {
+        printerName: printSettings.printer_name,
+        useQz: printSettings.use_qz,
+        paperWidth: printSettings.paper_width,
+        allowBrowserFallback: true,
+      });
+      if (res.success) {
+        if (res.method === 'agent') {
+          notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
+        } else if (res.method === 'qz') {
+          notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
+        } else {
+          notify('success', tx(lang, 'Çap pəncərəsi açıldı', 'Окно печати открыто', 'Print window opened'));
+        }
+      } else {
+        notify('error', tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
       }
+    } catch (e: any) {
+      notify('error', tx(lang, `Çap xətası: ${e?.message || e}`, `Ошибка печати: ${e?.message || e}`, `Print error: ${e?.message || e}`));
     }
-    if (printSettings.use_qz && safeZReceiptHtml) {
-      try {
-        await qzPrintHtml(safeZReceiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray'));
-        return;
-      } catch (e: any) {
-        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`));
-      }
-    }
-    const frame = zReceiptRef.current;
-    if (!frame?.contentWindow) return;
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
   };
 
   const handleListPrinters = async () => {
@@ -894,35 +895,6 @@ export default function ZReportPanel() {
     }
     return summaryCashSales.plus(summaryCardSales);
   }, [summary.ledger_sales_total, summaryCashSales, summaryCardSales]);
-
-  if (zReceiptHtml) {
-    return (
-      <div className="h-full w-full overflow-y-auto bg-[#121922] p-4 md:p-6">
-        <div className="mx-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#101722]">
-          <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-4 md:px-5">
-            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Yekun Z-Hesabat Çeki', 'Итоговый чек Z-отчета')}</h3>
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden p-4 md:p-5">
-            <iframe
-              ref={zReceiptRef}
-              title="z-report-receipt"
-              srcDoc={safeZReceiptHtml}
-              sandbox="allow-same-origin allow-modals allow-popups"
-              className="h-full min-h-[60vh] w-full rounded-lg bg-white"
-            />
-          </div>
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-700/70 bg-[#101722] px-4 py-4 md:px-5">
-            <button onClick={() => setZReceiptHtml(null)} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200">
-              {tx(lang, 'Bağla', 'Закрыть')}
-            </button>
-            <button onClick={printZReceiptOnly} className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900">
-              {tx(lang, 'Çap Et', 'Печать')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -1085,14 +1057,25 @@ export default function ZReportPanel() {
                       ID: {String(row.id || '').slice(0, 8).toUpperCase()} · {tx(lang, 'Bağlayan', 'Закрыл', 'Closed by')}: {row.closed_by || '-'} · {tx(lang, 'Faktiki', 'Факт', 'Actual')}: {new Decimal(row.actual_cash || 0).toFixed(2)} ₼
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setZReceiptHtml(row.z_report_html || '')}
-                    className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-semibold text-slate-900"
-                    disabled={!row.z_report_html}
-                  >
-                    {tx(lang, 'Yenidən çap', 'Повторная печать', 'Reprint')}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setZReceiptHtml(row.z_report_html || '')}
+                      className="rounded-lg border border-slate-600 bg-slate-800/80 px-3 py-2 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-slate-700 active:scale-95 transition"
+                      disabled={!row.z_report_html}
+                    >
+                      👁️ {tx(lang, 'Baxış', 'Просмотр', 'Preview')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void printZReceiptOnly(row.z_report_html || '')}
+                      className="flex items-center gap-1.5 rounded-lg bg-yellow-400 px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-950 shadow-md hover:bg-yellow-300 active:scale-95 transition"
+                      disabled={!row.z_report_html}
+                    >
+                      <span>🖨️</span>
+                      <span>{tx(lang, 'Çap et', 'Печать', 'Print')}</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1522,6 +1505,69 @@ export default function ZReportPanel() {
           </tbody>
         </table>
       </div>
+
+      {/* ─── Z Receipt Preview & Print Modal ─── */}
+      {zReceiptHtml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-6 backdrop-blur-md animate-fade-in">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#101722] shadow-2xl animate-slide-up">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-3.5 sm:px-6">
+              <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                <span>🧾</span>
+                <span>{tx(lang, 'Yekun Z-Hesabat Çeki', 'Итоговый чек Z-отчета', 'Final Z-Report Receipt')}</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void printZReceiptOnly()}
+                  className="flex items-center gap-1.5 rounded-xl bg-yellow-400 px-4 py-2 text-xs sm:text-sm font-bold text-slate-950 shadow-md hover:bg-yellow-300 active:scale-95 transition-transform"
+                >
+                  <span>🖨️</span>
+                  <span>{tx(lang, 'Çap Et', 'Печать', 'Print')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZReceiptHtml(null)}
+                  className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Receipt Body */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900/50">
+              <div className="mx-auto max-w-sm overflow-hidden rounded-xl border border-slate-200 shadow-lg bg-white">
+                <iframe
+                  ref={zReceiptRef}
+                  title="z-report-receipt"
+                  srcDoc={safeZReceiptHtml}
+                  className="h-[60vh] w-full border-0 bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t border-slate-700/70 bg-[#101722] px-4 py-3.5 sm:px-6">
+              <button
+                type="button"
+                onClick={() => setZReceiptHtml(null)}
+                className="rounded-xl border border-slate-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-slate-800"
+              >
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void printZReceiptOnly()}
+                className="flex items-center gap-2 rounded-xl bg-yellow-400 px-6 py-2.5 text-sm font-black text-slate-950 shadow-xl hover:bg-yellow-300 active:scale-95 transition-transform"
+              >
+                <span>🖨️</span>
+                <span>{tx(lang, 'Çap Et', 'Печать', 'Print')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
