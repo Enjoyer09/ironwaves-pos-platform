@@ -770,6 +770,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
         </div>
         
         <Suspense fallback={<div className="rounded-2xl border border-slate-700/60 bg-slate-900/30 p-6 text-sm text-slate-300">{tx(lang, 'Panel yüklənir...', 'Панель загружается...', 'Loading panel...')}</div>}>
+        <div key={activeTab} className="admin-tab-pane min-h-0 flex-1">
         {activeTab === 'dashboard' && <DashboardPanel onOpenTab={setActiveTabSoft} />}
 
         {activeTab === 'analytics' && (
@@ -1650,6 +1651,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
         )}
         {activeTab === 'settings' && <SettingsPanel />}
         {activeTab === 'database' && <DatabasePanel />}
+        </div>
         </Suspense>
 
       </div>

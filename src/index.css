@@ -846,6 +846,22 @@ html {
     animation: tab-fade-in 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
   }
 
+  /* ── Admin sub-tabs smooth fluid transition ───────────────────────── */
+  @keyframes admin-tab-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.996);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .admin-tab-pane {
+    animation: admin-tab-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
   html[data-ui-mode='new'] .metal-app {
     color: #f8fafc;
     background:
