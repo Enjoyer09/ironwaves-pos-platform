@@ -471,7 +471,7 @@ export default function LogsPanel() {
       return `${details.table_label || 'Masa'}: ${tx(lang, 'Yeni sifariş açıldı', 'Открыт новый заказ', 'New order opened')} • ${tx(lang, 'Qonaq', 'Гости', 'Guests')}: ${details.guest_count || 1}`;
     }
     if (action === 'ROUND_SENT') {
-      return `${details.table || 'Masa'}: ${tx(lang, 'Raund', 'Раунд', 'Round')} ${details.round_no || 1} • ${details.item_count || 0} ${tx(lang, 'məhsul mətbəxə', 'блюд на кухню', 'items to kitchen')}`;
+      return `${details.table || 'Masa'}: ${tx(lang, 'Göndəriş', 'Отправка', 'Dispatch')} ${details.round_no || 1} • ${details.item_count || 0} ${tx(lang, 'məhsul mətbəxə', 'блюд на кухню', 'items to kitchen')}`;
     }
     if (action === 'ORDER_DRAFT_ITEM_ADDED') {
       return `${tx(lang, 'Əlavə edildi', 'Добавлено', 'Added')}: ${details.item_name || ''} • ${details.qty || 1} ${tx(lang, 'ədəd', 'шт.', 'pcs')}`;
