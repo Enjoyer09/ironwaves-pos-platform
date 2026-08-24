@@ -34,6 +34,7 @@ import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai
 import { fetch_agent_insights, mark_agent_insight_read, type BackgroundAgentInsight } from '../../api/agent_api';
 
 type DashboardTab = 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai';
+type DashView = 'overview' | 'analytics' | 'labor' | 'customers' | 'staff';
 type AlertTone = 'critical' | 'warning' | 'info';
 type RangePreset = 'daily' | 'weekly' | 'monthly' | 'custom';
 
@@ -147,7 +148,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     loading: true,
   });
 
-  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [dashTab, setDashTab] = useState<DashView>('overview');
 
   useEffect(() => {
     const now = new Date();
@@ -567,6 +568,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
           onRefresh={() => void loadDashboard()}
           loading={snapshot.loading}
         />
+        <DashboardTabs active={dashTab} onChange={setDashTab} lang={lang} />
       </div>
 
       <section className="rounded-[20px] border border-slate-800 bg-slate-900 p-4 shadow-[0_10px_34px_rgba(0,0,0,0.28)]">
@@ -642,44 +644,51 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         onRefresh={() => void loadDashboard()}
       />
 
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={() => setShowAnalytics((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:border-orange-400/40 active:scale-95"
-        >
-          <TrendingUp size={16} />
-          {showAnalytics
-            ? tx(lang, 'Analitikası gizlət', 'Скрыть аналитику', 'Hide analytics')
-            : tx(lang, 'Ətraflı analitika', 'Подробная аналитика', 'Detailed analytics')}
-          <ArrowRight size={16} className={showAnalytics ? 'rotate-90' : '-rotate-90'} />
-        </button>
-      </div>
-      {showAnalytics && !snapshot.loading && (
-        <Suspense
-          fallback={
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-4">
-              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
-            </div>
-          }
-        >
-          <AnalyticsCenter lang={lang} summary={snapshot.summary} expenses={snapshot.expenses} />
-        </Suspense>
+      {dashTab === 'overview' && (
+        <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
+          <section className="space-y-5">
+            <PanelCard
+              title={tx(lang, 'Canlı satışlar', 'Live продажи', 'Live Sales')}
+              subtitle={tx(lang, 'Son əməliyyatlar, real-time yenilənir', 'Последние операции, обновляется real-time', 'Recent operations, realtime refreshed')}
+              actionLabel={tx(lang, 'Analitikaya keç', 'Открыть аналитику', 'Open analytics')}
+              onAction={() => setDashTab('analytics')}
+            >
+              <LiveFeed sales={snapshot.sales.slice(0, 8)} lang={lang} />
+            </PanelCard>
+          </section>
+
+          <section className="space-y-5">
+            <ControlPanel
+              lang={lang}
+              balances={snapshot.balances}
+              anomalies={financeAnomalies}
+              onOpenFinance={() => onOpenTab('finance')}
+            />
+
+            <PanelCard
+              title={tx(lang, 'Xəbərdarlıq bölgüsü', 'Разбор предупреждений', 'Alerts breakdown')}
+              subtitle={tx(lang, 'Kritik / xəbərdarlıq / məlumat bölgüsü', 'Критические / warning / info', 'Critical / warning / info split')}
+            >
+              <AlertsBreakdown breakdown={alertBreakdown} financeAuditLogs={financeAuditLogs} lang={lang} onOpenFinance={() => onOpenTab('finance')} />
+            </PanelCard>
+          </section>
+        </main>
       )}
 
-      <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
-        <section className="space-y-5">
-          <PanelCard
-            title={tx(lang, 'Canlı satışlar', 'Live продажи', 'Live Sales')}
-            subtitle={tx(lang, 'Son əməliyyatlar, real-time yenilənir', 'Последние операции, обновляется real-time', 'Recent operations, realtime refreshed')}
-            actionLabel={tx(lang, 'Analitikaya keç', 'Открыть аналитику', 'Open analytics')}
-            onAction={() => onOpenTab('analytics')}
+      {dashTab === 'analytics' && (
+        <main className="space-y-5">
+          <Suspense
+            fallback={
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-4">
+                <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+                <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+                <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+                <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+              </div>
+            }
           >
-            <LiveFeed sales={snapshot.sales.slice(0, 8)} lang={lang} />
-          </PanelCard>
+            <AnalyticsCenter lang={lang} summary={snapshot.summary} expenses={snapshot.expenses} />
+          </Suspense>
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <PanelCard title={tx(lang, 'Top məhsullar', 'Топ продукты', 'Top products')} subtitle={activeRange.label}>
@@ -696,7 +705,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
             </PanelCard>
           </div>
 
-          {/* P1 — Hourly sales drill-down */}
           <PanelCard title={tx(lang, 'Saatlıq satış bölgüsü', 'Почасовая разбивка продаж', 'Hourly sales breakdown')} subtitle={activeRange.label}>
             {hourly.length === 0 ? (
               <EmptyState text={tx(lang, 'Satış yoxdur', 'Нет продаж', 'No sales')} />
@@ -714,38 +722,47 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
               </div>
             )}
           </PanelCard>
+        </main>
+      )}
 
-          {/* P1 — Labor cost vs sales */}
-          <PanelCard title={tx(lang, 'Əmək haqqı vs Satış', 'Зарплата против продаж', 'Labor vs Sales')} subtitle={activeRange.label}>
-            <LaborVsSales revenue={revenueValue} labor={snapshot.labor} lang={lang} />
+      {dashTab === 'labor' && (
+        <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
+          <section className="space-y-5">
+            <PanelCard title={tx(lang, 'Əmək haqqı vs Satış', 'Зарплата против продаж', 'Labor vs Sales')} subtitle={activeRange.label}>
+              <LaborVsSales revenue={revenueValue} labor={snapshot.labor} lang={lang} />
+            </PanelCard>
+          </section>
+          <section className="space-y-5">
+            <ControlPanel
+              lang={lang}
+              balances={snapshot.balances}
+              anomalies={financeAnomalies}
+              onOpenFinance={() => onOpenTab('finance')}
+            />
+          </section>
+        </main>
+      )}
+
+      {dashTab === 'customers' && (
+        <main className="space-y-5">
+          <PanelCard
+            title={tx(lang, 'Top müştərilər', 'Топ клиенты', 'Top customers')}
+            subtitle={activeRange.label}
+            actionLabel={tx(lang, 'CRM-ə keç', 'Открыть CRM', 'Open CRM')}
+            onAction={() => onOpenTab('crm')}
+          >
+            <TopCustomers data={snapshot.topCustomers} lang={lang} />
           </PanelCard>
-        </section>
+        </main>
+      )}
 
-        <section className="space-y-5">
-          <ControlPanel
-            lang={lang}
-            balances={snapshot.balances}
-            anomalies={financeAnomalies}
-            onOpenFinance={() => onOpenTab('finance')}
-          />
-
+      {dashTab === 'staff' && (
+        <main className="space-y-5">
           <PanelCard title={tx(lang, 'Heyət performansı', 'Эффективность персонала', 'Staff performance')} subtitle={activeRange.label}>
             <StaffStats rows={staffStats} lang={lang} />
           </PanelCard>
-
-          {/* P1 — Top customers */}
-          <PanelCard title={tx(lang, 'Top müştərilər', 'Топ клиенты', 'Top customers')} subtitle={activeRange.label}>
-            <TopCustomers data={snapshot.topCustomers} lang={lang} />
-          </PanelCard>
-
-          <PanelCard
-            title={tx(lang, 'Xəbərdarlıq bölgüsü', 'Разбор предупреждений', 'Alerts breakdown')}
-            subtitle={tx(lang, 'Kritik / xəbərdarlıq / məlumat bölgüsü', 'Критические / warning / info', 'Critical / warning / info split')}
-          >
-            <AlertsBreakdown breakdown={alertBreakdown} financeAuditLogs={financeAuditLogs} lang={lang} onOpenFinance={() => onOpenTab('finance')} />
-          </PanelCard>
-        </section>
-      </main>
+        </main>
+      )}
     </DashboardLayout>
   );
 }
@@ -756,6 +773,38 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="relative z-10 space-y-5">
         {children}
       </div>
+    </div>
+  );
+}
+
+function DashboardTabs({
+  active,
+  onChange,
+  lang,
+}: {
+  active: DashView;
+  onChange: (t: DashView) => void;
+  lang: string;
+}) {
+  const tabs: Array<[DashView, string, string, string]> = [
+    ['overview', 'İcmal', 'Обзор', 'Overview'],
+    ['analytics', 'Analitika', 'Аналитика', 'Analytics'],
+    ['labor', 'Əmək', 'Труд', 'Labor'],
+    ['customers', 'Müştərilər', 'Клиенты', 'Customers'],
+    ['staff', 'Heyət', 'Персонал', 'Staff'],
+  ];
+  return (
+    <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto pb-1">
+      {tabs.map(([key, az, ru, en]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`min-h-11 shrink-0 rounded-2xl px-4 text-sm font-black transition active:scale-95 ${active === key ? 'bg-orange-400 text-slate-950' : 'border border-slate-700 bg-slate-900 text-slate-300 hover:text-white'}`}
+        >
+          {tx(lang, az, ru, en)}
+        </button>
+      ))}
     </div>
   );
 }
