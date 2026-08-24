@@ -186,6 +186,29 @@ export default function HomeTab({
     return days >= 0 && days <= 7;
   })();
 
+  // P1 — personalization + gamification
+  const [surpriseOpen, setSurpriseOpen] = React.useState(false);
+  const baristaTip = (() => {
+    const h = new Date().getHours();
+    if (h < 11) return tx(safeLang, 'Sabahın ilk qəhvəsi: Flat White ilə başla', 'Начни утро с Flat White', 'Start your morning with a Flat White');
+    if (h < 15) return tx(safeLang, 'Gün ortası: mocha ilə enerjini artır', 'Середина дня: мокка добавит энергии', 'Midday: a mocha boosts your energy');
+    if (h < 19) return tx(safeLang, 'Gün batımı: caramel latte ilə fasilə et', 'На закате: caramel latte на перерыв', 'Sunset: take a break with a caramel latte');
+    return tx(safeLang, 'Axşam: decaf ilə rahatla', 'Вечер: расслабись с decaf', 'Evening: unwind with a decaf');
+  })();
+  const surpriseMessages = [
+    tx(safeLang, 'Bu həftə aktiv ol: hər sifarişdə ulduz qazan!', 'Будь активен: звезды за каждый заказ!', 'Stay active: earn stars on every order!'),
+    tx(safeLang, 'Dostunu dəvət et, hər ikinizə ulduz!', 'Пригласи друга — звёзды вам обоим!', 'Invite a friend — stars for both!'),
+    tx(safeLang, 'Doğum günündə pulsuz içki səni gözləyir 🎂', 'В день рождения — бесплатный напиток 🎂', 'On your birthday a free drink awaits 🎂'),
+    tx(safeLang, 'Səhər 11-dən qabaq sifarişə 2x ulduz!', 'Заказ до 11 утра — 2x звёзды!', 'Order before 11am — 2x stars!'),
+  ];
+  const surpriseMessage = surpriseMessages[new Date().getDate() % surpriseMessages.length];
+  const reorderAll = async () => {
+    for (const it of (recentItems || []).slice(0, 6)) {
+      onReorderItem(it);
+    }
+    await nativeHapticImpact(ImpactStyle.Medium);
+  };
+
   // Starbucks-style activated rewards: prefer the all-status claim history from
   // the backend; fall back to pending claims (older API responses).
   const claimList = (Array.isArray(claims) && claims.length > 0) ? claims : pendingClaims;
@@ -389,6 +412,32 @@ export default function HomeTab({
           </div>
         </div>
       )}
+
+      {/* Barista personalization (P1) */}
+      <div className="px-1 mb-4">
+        <button type="button" onClick={() => setActiveTab('ai')}
+          className="w-full rounded-[20px] p-4 flex items-center gap-3 text-left text-white shadow-[0_10px_30px_rgba(255,139,38,0.25)] active:scale-[0.99] transition-all duration-150"
+          style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}>
+          <span className="text-2xl">☕</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-bold text-white">{tx(safeLang, 'Barista tövsiyəsi', 'Совет бариста', 'Barista tip')}</p>
+            <p className="text-[11px] text-white/85">{baristaTip}</p>
+          </div>
+          <span className="text-[11px] font-bold text-white/90 shrink-0">{tx(safeLang, 'Soruş →', 'Спросить →', 'Ask →')}</span>
+        </button>
+      </div>
+
+      {/* Gamification — daily surprise (P1) */}
+      <div className="px-1 mb-4">
+        <button type="button" onClick={() => { setSurpriseOpen((o) => !o); void nativeHapticImpact(ImpactStyle.Light); }}
+          className="w-full rounded-[20px] border border-dashed border-[#FF8B26]/40 bg-[#FF8B26]/[0.06] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150">
+          <span className="text-2xl">{surpriseOpen ? '🎉' : '🎁'}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-bold text-[#F48C24]">{tx(safeLang, 'Günün sürprizi', 'Сюрприз дня', "Today's surprise")}</p>
+            <p className="text-[11px] text-slate-700 dark:text-slate-200">{surpriseOpen ? surpriseMessage : tx(safeLang, 'Açmaq üçün toxun', 'Нажми, чтобы открыть', 'Tap to reveal')}</p>
+          </div>
+        </button>
+      </div>
 
       {/* Active order — energetic brand progress pill */}
       {Array.isArray(activeOrders) && activeOrders.length > 0 && (
@@ -789,6 +838,10 @@ export default function HomeTab({
                 {tx(safeLang, 'Son sifarişlərinizə əsasən', 'На основе ваших заказов', 'Based on your recent orders')}
               </p>
             </div>
+            <button type="button" onClick={() => void reorderAll()}
+              className="ml-auto shrink-0 rounded-full bg-[#FF8B26] px-3 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all">
+              {tx(safeLang, 'Hamısını təkrarla', 'Повторить всё', 'Reorder all')}
+            </button>
           </div>
           <div className="space-y-2.5">
             {recentItems.map((item: any, idx: number) => (

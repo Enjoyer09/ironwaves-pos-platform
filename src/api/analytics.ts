@@ -592,3 +592,74 @@ export async function partial_refund_sale_live(
     body: { refund_amount, reason },
   });
 }
+
+// ---- P1 (backend-backed): Top customers aggregation ----
+// Mirrors GET /api/v1/analytics/top-customers. Aggregates net sales by
+// customer_card_id and enriches with Customer (name/type/stars).
+export function get_top_customers(tenant_id: string, date_from: string, date_to: string, limit = 8) {
+  const tenantCustomers = getDB<any>(`${tenant_id}_customers`);
+  const sharedCustomers = filterTenantRecords(getDB<any>('customers'), tenant_id);
+  const customers = tenantCustomers.length > 0 ? tenantCustomers : sharedCustomers;
+  const sales = getSalesLocal(tenant_id).filter(
+    (s) => isNetSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to) && s.customer_card_id,
+  );
+  const byCard = new Map<string, { visits: number; revenue: Decimal }>();
+  sales.forEach((s: any) => {
+    const card = String(s.customer_card_id);
+    const row = byCard.get(card) || { visits: 0, revenue: new Decimal(0) };
+    row.visits += 1;
+    row.revenue = row.revenue.plus(new Decimal(s.total || 0));
+    byCard.set(card, row);
+  });
+  const list = Array.from(byCard.entries()).map(([card_id, row]) => {
+    const c = customers.find((x: any) => x.card_id === card_id);
+    return {
+      card_id,
+      name: c?.name || null,
+      type: c?.type || 'Normal',
+      stars: c?.stars || 0,
+      visits: row.visits,
+      total_revenue: row.revenue.toFixed(2),
+      avg_ticket: row.visits > 0 ? row.revenue.div(row.visits).toFixed(2) : '0.00',
+      last_visit: null,
+    };
+  });
+  list.sort((a, b) => new Decimal(b.total_revenue).minus(new Decimal(a.total_revenue)).toNumber());
+  const customers_list = list.slice(0, limit);
+  return { customers: customers_list, count: customers_list.length };
+}
+
+export async function get_top_customers_live(
+  tenant_id: string,
+  date_from: string,
+  date_to: string,
+  limit = 8,
+) {
+  if (!isBackendEnabled()) return get_top_customers(tenant_id, date_from, date_to, limit);
+  const qs = new URLSearchParams({ date_from, date_to, limit: String(limit) });
+  return apiRequest<{ customers: any[]; count: number }>(`/api/v1/analytics/top-customers?${qs.toString()}`, { tenantId: null });
+}
+
+// ---- P1 (backend-backed): Labor cost (Maaş) summary ----
+// Mirrors GET /api/v1/analytics/labor. Sums FinanceEntry type=out, category="Maaş".
+export function get_labor_summary(tenant_id: string, date_from: string, date_to: string) {
+  const finance = getFinanceLocal(tenant_id).filter(
+    (f: any) => f.type === 'out' && f.category === 'Maaş' && inDateRange(f.created_at, date_from, date_to),
+  );
+  const total = finance.reduce((acc: Decimal, f: any) => acc.plus(new Decimal(f.amount || 0)), new Decimal(0));
+  return {
+    labor_cost: total.toFixed(2),
+    labor_cost_num: total.toNumber(),
+    category: 'Maaş',
+  };
+}
+
+export async function get_labor_summary_live(
+  tenant_id: string,
+  date_from: string,
+  date_to: string,
+) {
+  if (!isBackendEnabled()) return get_labor_summary(tenant_id, date_from, date_to);
+  const qs = new URLSearchParams({ date_from, date_to });
+  return apiRequest<any>(`/api/v1/analytics/labor?${qs.toString()}`, { tenantId: null });
+}
