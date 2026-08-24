@@ -19,7 +19,7 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
+import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1497,6 +1497,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             items: cart.map((c) => ({
               item_name: c.item_name,
               qty: c.qty,
+              // A1/P0-1: POS quick-sale cart has no modifier/note UI today, so these are
+              // undefined — a forward-compatible passthrough kept in parity with Tables/KDS.
+              notes: (c as any).note ?? (c as any).notes,
+              ...parseModifierJson((c as any).modifier_json),
               seat_label: c.seat_label,
               cup_mode: c.cup_mode || ctx.cupMode,
             })),

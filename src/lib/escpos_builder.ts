@@ -26,6 +26,50 @@ export function sanitizeEscPosText(text: string): string {
     .replace(/ç/g, 'c');
 }
 
+/**
+ * Normalizes a stored `modifier_json` string into ticket-ready modifier fields.
+ * Safe on null / non-JSON / unexpected shapes (returns {}). Accepts an array of
+ * strings, an array of `{name|label, price?}` objects, or a `{modifiers|selected}`
+ * wrapper. Today `modifier_json` is unpopulated (café quick-mods live in `note`);
+ * this keeps the send-time ticket forward-compatible with structured modifiers.
+ */
+export function parseModifierJson(input?: string | null): {
+  modifiers?: Array<{ name: string; price?: number | string }>;
+  selected_modifiers?: string[];
+} {
+  if (!input || typeof input !== 'string') return {};
+  let parsed: any;
+  try {
+    parsed = JSON.parse(input);
+  } catch {
+    return {};
+  }
+  if (!parsed) return {};
+  const arr = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.modifiers)
+      ? parsed.modifiers
+      : Array.isArray(parsed?.selected)
+        ? parsed.selected
+        : null;
+  if (!arr) return {};
+  const names: string[] = [];
+  const objs: Array<{ name: string; price?: number | string }> = [];
+  for (const el of arr) {
+    if (typeof el === 'string') {
+      const name = el.trim();
+      if (name) names.push(name);
+    } else if (el && typeof el === 'object' && (el.name || el.label)) {
+      const name = String(el.name || el.label).trim();
+      if (name) objs.push({ name, price: el.price });
+    }
+  }
+  const out: { modifiers?: Array<{ name: string; price?: number | string }>; selected_modifiers?: string[] } = {};
+  if (objs.length) out.modifiers = objs;
+  if (names.length) out.selected_modifiers = names;
+  return out;
+}
+
 export interface EscPosTicketItem {
   item_name?: string;
   name?: string;

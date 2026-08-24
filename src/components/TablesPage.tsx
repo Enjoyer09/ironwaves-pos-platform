@@ -18,7 +18,7 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
+import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -863,7 +863,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               items: serverDraftItems.map((c: any) => ({
                 item_name: c.item_name || c.name,
                 qty: Number(c.qty || c.quantity || 1),
-                notes: c.notes,
+                // A1/P0-1: backend serializes the per-item note as `note` (singular);
+                // the old `c.notes` was always undefined so café mods (sugar/milk) were dropped.
+                notes: c.note ?? c.notes,
+                ...parseModifierJson(c.modifier_json),
                 seat_label: c.seat_label,
                 cup_mode: c.cup_mode,
               })),
@@ -930,6 +933,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             items: roundDraft.map((row: any) => ({
               item_name: row.item_name,
               qty: Number(row.qty || 1),
+              // A1/P0-1: local-round branch dropped notes+modifiers entirely. The Tables
+              // composer stores café quick-mods (Şəkərsiz, Badam südü, …) in `note`.
+              notes: row.note ?? row.notes,
+              ...parseModifierJson(row.modifier_json),
               seat_label: row.seat_label,
               cup_mode: row.cup_mode,
             })),
