@@ -956,3 +956,108 @@ def partial_refund_sale(
             )
     db.commit()
     return {"success": True, "remaining_total": str(row.total)}
+
+
+@router.get("/top-customers")
+def get_top_customers(
+    date_from: str,
+    date_to: str,
+    limit: int = Query(default=8, ge=1, le=50),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Aggregate net sales by customer_card_id and enrich with Customer profile.
+
+    Returns the highest-revenue customers for the active range. No new schema
+    required: Sale.customer_card_id joins Customer (name, type, stars).
+    """
+    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
+    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    sale_is_net = ~_sale_is_void_expr(tenant.id)
+
+    rows = (
+        db.query(
+            Sale.customer_card_id,
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total), 0),
+            func.max(Sale.created_at),
+        )
+        .filter(
+            Sale.tenant_id == tenant.id,
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Sale.customer_card_id.isnot(None),
+            sale_is_net,
+        )
+        .group_by(Sale.customer_card_id)
+        .all()
+    )
+
+    card_ids = [str(r[0]) for r in rows]
+    customers_by_card: dict[str, Customer] = {}
+    if card_ids:
+        customers_by_card = {
+            str(c.card_id): c
+            for c in db.query(Customer)
+            .filter(Customer.tenant_id == tenant.id, Customer.card_id.in_(card_ids))
+            .all()
+        }
+
+    result = []
+    for card_id, visit_count, total_rev, last_visit in rows:
+        card_id = str(card_id)
+        customer = customers_by_card.get(card_id)
+        total_dec = Decimal(str(total_rev or 0)).quantize(Decimal("0.01"))
+        visits = int(visit_count)
+        result.append(
+            {
+                "card_id": card_id,
+                "name": customer.name if customer else None,
+                "type": customer.type if customer else "Normal",
+                "stars": int(customer.stars) if customer else 0,
+                "visits": visits,
+                "total_revenue": str(total_dec),
+                "avg_ticket": str((total_dec / visits).quantize(Decimal("0.01"))) if visits > 0 else str(total_dec),
+                "last_visit": last_visit.isoformat() if last_visit else None,
+            }
+        )
+
+    result.sort(key=lambda x: Decimal(x["total_revenue"]), reverse=True)
+    result = result[:limit]
+    return {"customers": result, "count": len(result)}
+
+
+@router.get("/labor")
+def get_labor_summary(
+    date_from: str,
+    date_to: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Sum payroll (category='Maaş', type='out') in the date range.
+
+    Labor is posted to finance_transactions on shift close and mirrored into the
+    finance_entries ledger, which is the canonical source the dashboard already uses
+    for the expenses summary. No new schema required.
+    """
+    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
+    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    total_raw = (
+        db.query(func.coalesce(func.sum(FinanceEntry.amount), 0))
+        .filter(
+            FinanceEntry.tenant_id == tenant.id,
+            FinanceEntry.type == "out",
+            FinanceEntry.category == "Maaş",
+            FinanceEntry.created_at >= start,
+            FinanceEntry.created_at < end,
+        )
+        .scalar()
+    )
+    labor_total = Decimal(str(total_raw or 0)).quantize(Decimal("0.01"))
+    return {
+        "labor_cost": str(labor_total),
+        "labor_cost_num": float(labor_total),
+        "category": "Maaş",
+    }

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ChefHat,
   CreditCard,
+  Download,
   PackageSearch,
   Receipt,
   RefreshCw,
@@ -20,7 +21,7 @@ import {
 const AnalyticsCenter = lazy(() => import('./AnalyticsCenter'));
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live } from '../../api/analytics';
+import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live, get_top_customers, get_top_customers_live, get_labor_summary, get_labor_summary_live } from '../../api/analytics';
 import { fetch_finance_anomalies, fetch_finance_balances, fetch_finance_entries, get_balance, get_period_expenses_summary, type FinanceAnomalies, type PeriodExpensesSummary } from '../../api/finance';
 import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
@@ -49,6 +50,8 @@ type DashboardSnapshot = {
   auditLogs: any[];
   agentInsights: BackgroundAgentInsight[];
   expenses?: PeriodExpensesSummary | null;
+  topCustomers?: { customers: any[]; count: number } | null;
+  labor?: { labor_cost: string; labor_cost_num: number; category: string } | null;
   loading: boolean;
 };
 
@@ -190,6 +193,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         auditLogs,
         agentInsights,
         expenses,
+        topCustomers,
+        labor,
       ] = await Promise.all([
         get_sales_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
           get_sales_summary(tenant_id, activeRange.fromIso, activeRange.toIso),
@@ -207,6 +212,12 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         get_logs_live(tenant_id, 80).catch(() => []),
         fetch_agent_insights(),
         get_period_expenses_summary(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() => null),
+        get_top_customers_live(tenant_id, activeRange.fromIso, activeRange.toIso, 8).catch(() =>
+          get_top_customers(tenant_id, activeRange.fromIso, activeRange.toIso, 8),
+        ),
+        get_labor_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
+          get_labor_summary(tenant_id, activeRange.fromIso, activeRange.toIso),
+        ),
       ]);
 
       setSnapshot({
@@ -222,6 +233,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         auditLogs,
         agentInsights,
         expenses,
+        topCustomers,
+        labor,
         loading: false,
       });
       setFinanceAnomalies(anomalies);
@@ -498,6 +511,41 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       : '0.0';
   }, [totalRevenueVal, totalCogsVal]);
 
+  // P1 — CSV export of the current sales list
+  const exportCsv = () => {
+    const header = ['Tarix', 'Mebleg_AZN', 'Odeme', 'Nov', 'Kassa'];
+    const lines = snapshot.sales.map((s: any) => [
+      new Date(s.created_at).toLocaleString('az-AZ'),
+      Number(s.total || 0).toFixed(2),
+      s.payment_method || '',
+      s.order_type || '',
+      s.cashier || '',
+    ].join(','));
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `satislar_${activeRange.fromIso.slice(0, 10)}_${activeRange.toIso.slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // P1 — hourly sales breakdown (drill-down of "Today sales")
+  const hourly = useMemo(() => {
+    const map = new Map<number, number>();
+    snapshot.sales.forEach((s: any) => {
+      const h = new Date(s.created_at).getHours();
+      map.set(h, (map.get(h) || 0) + Number(s.total || 0));
+    });
+    const nowH = new Date().getHours();
+    return Array.from({ length: 24 }, (_, h) => ({ h, total: map.get(h) || 0 }))
+      .filter((x) => x.total > 0 || x.h <= nowH);
+  }, [snapshot.sales]);
+  const hourlyMax = hourly.reduce((m, x) => Math.max(m, x.total), 0);
+
   const openInsightModule = (module: AiDecisionInsight['module']) => {
     if (module === 'finance') return onOpenTab('finance');
     if (module === 'inventory') return onOpenTab('inventory');
@@ -537,15 +585,21 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
               )}
             </p>
           </div>
-          <RangeControls
-            lang={lang}
-            rangePreset={rangePreset}
-            fromDate={fromDate}
-            toDate={toDate}
-            setRangePreset={setRangePreset}
-            setFromDate={setFromDate}
-            setToDate={setToDate}
-          />
+          <div className="flex flex-col gap-2 xl:items-end">
+            <RangeControls
+              lang={lang}
+              rangePreset={rangePreset}
+              fromDate={fromDate}
+              toDate={toDate}
+              setRangePreset={setRangePreset}
+              setFromDate={setFromDate}
+              setToDate={setToDate}
+            />
+            <button type="button" onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-bold text-slate-200 transition hover:border-emerald-400/40 active:scale-95">
+              <Download size={14} /> {tx(lang, 'CSV yüklə', 'Скачать CSV', 'Export CSV')}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -624,6 +678,30 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
               <OpenChecksPreview tables={openChecks.slice(0, 8)} lang={lang} />
             </PanelCard>
           </div>
+
+          {/* P1 — Hourly sales drill-down */}
+          <PanelCard title={tx(lang, 'Saatlıq satış bölgüsü', 'Почасовая разбивка продаж', 'Hourly sales breakdown')} subtitle={activeRange.label}>
+            {hourly.length === 0 ? (
+              <EmptyState text={tx(lang, 'Satış yoxdur', 'Нет продаж', 'No sales')} />
+            ) : (
+              <div className="space-y-1.5">
+                {hourly.map((x) => (
+                  <div key={x.h} className="flex items-center gap-2">
+                    <span className="w-10 shrink-0 text-right text-[10px] font-semibold text-slate-500">{String(x.h).padStart(2, '0')}:00</span>
+                    <div className="flex-1 h-3 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-3 rounded-full" style={{ width: `${hourlyMax > 0 ? (x.total / hourlyMax) * 100 : 0}%`, background: 'linear-gradient(90deg, #F48C24, #FF8B26)' }} />
+                    </div>
+                    <span className="w-16 shrink-0 text-right text-[10px] font-semibold text-slate-300">{x.total.toFixed(0)} ₼</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PanelCard>
+
+          {/* P1 — Labor cost vs sales */}
+          <PanelCard title={tx(lang, 'Əmək haqqı vs Satış', 'Зарплата против продаж', 'Labor vs Sales')} subtitle={activeRange.label}>
+            <LaborVsSales revenue={revenueValue} labor={snapshot.labor} lang={lang} />
+          </PanelCard>
         </section>
 
         <section className="space-y-5">
@@ -636,6 +714,11 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 
           <PanelCard title={tx(lang, 'Heyət performansı', 'Эффективность персонала', 'Staff performance')} subtitle={activeRange.label}>
             <StaffStats rows={staffStats} lang={lang} />
+          </PanelCard>
+
+          {/* P1 — Top customers */}
+          <PanelCard title={tx(lang, 'Top müştərilər', 'Топ клиенты', 'Top customers')} subtitle={activeRange.label}>
+            <TopCustomers data={snapshot.topCustomers} lang={lang} />
           </PanelCard>
 
           <PanelCard
@@ -1288,6 +1371,74 @@ function StaffStats({ rows, lang }: { rows: Array<{ cashier: string; sales: numb
               <div className="mt-1 text-xs text-slate-500">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} · {tx(lang, 'orta çek', 'средний чек', 'avg')} {money(row.avg)}</div>
             </div>
             <div className="text-lg font-black text-white">{money(row.revenue)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LaborVsSales({ revenue, labor, lang }: { revenue: number; labor: any; lang: string }) {
+  const laborCost = Number(labor?.labor_cost_num || 0);
+  const ratio = revenue > 0 ? (laborCost / revenue) * 100 : 0;
+  const pct = Math.max(0, Math.min(100, ratio));
+  const high = ratio > 30;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <MiniMetric label={tx(lang, 'Satış', 'Продажи', 'Sales')} value={money(revenue)} />
+        <MiniMetric label={tx(lang, 'Əmək xərci', 'Зарплата', 'Labor cost')} value={money(laborCost)} />
+      </div>
+      <div>
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+          <span>{tx(lang, 'Əmək / Satış nisbəti', 'Доля зарплаты', 'Labor share of sales')}</span>
+          <span className={`font-black ${high ? 'text-orange-300' : 'text-emerald-300'}`}>{ratio.toFixed(1)}%</span>
+        </div>
+        <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-800">
+          <div className="h-3 rounded-full" style={{ width: `${pct}%`, background: high ? 'linear-gradient(90deg,#F48C24,#FF8B26)' : 'linear-gradient(90deg,#34d399,#10b981)' }} />
+        </div>
+        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+          {high
+            ? tx(lang, 'Əmək xərci yüksəkdir (30%+). Səmərəliliyi yoxlayın.', 'Зарплата высокая (30%+), проверьте эффективность.', 'Labor cost is high (30%+), review efficiency.')
+            : tx(lang, 'Əmək xərci sağlam aralığdadır.', 'Зарплата в норме.', 'Labor cost is in a healthy range.')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TopCustomers({ data, lang }: { data: { customers: any[]; count: number } | null | undefined; lang: string }) {
+  const list = data?.customers || [];
+  if (!list.length) return <EmptyState text={tx(lang, 'Müştəri məlumatı yoxdur', 'Нет данных о клиентах', 'No customer data')} />;
+  const max = Math.max(...list.map((c: any) => Number(c.total_revenue || 0)), 1);
+  const typeLabel = (t: string) => {
+    const map: Record<string, string> = {
+      VIP: tx(lang, 'VIP', 'VIP', 'VIP'),
+      Normal: tx(lang, 'Normal', 'Обычный', 'Normal'),
+      New: tx(lang, 'Yeni', 'Новый', 'New'),
+    };
+    return map[t] || t || 'Normal';
+  };
+  return (
+    <div className="space-y-3">
+      {list.map((c: any, i: number) => (
+        <div key={c.card_id} className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-500">{i + 1}</span>
+                <span className="truncate font-bold text-white">{c.name || c.card_id}</span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300">{typeLabel(c.type)}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full rounded-full bg-orange-400" style={{ width: `${Math.max(8, (Number(c.total_revenue || 0) / max) * 100)}%` }} />
+              </div>
+              <div className="mt-1 text-xs text-slate-500">{c.visits} {tx(lang, 'vizit', 'визитов', 'visits')} · {Number(c.stars || 0)}★</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-black text-white">{money(c.total_revenue)}</div>
+              <div className="text-xs text-slate-500">{tx(lang, 'orta', 'сред', 'avg')} {money(c.avg_ticket)}</div>
+            </div>
           </div>
         </div>
       ))}
