@@ -99,14 +99,19 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
 `;
 
 // Paper width override: 58mm printers fit ~48-52mm of printable content, 80mm ~72-76mm.
+// Returns BARE CSS rules (no <style> wrapper). Every caller embeds this inside an
+// already-open <style> block, so wrapping it in its own <style> tag closed that block
+// early — the HTML parser stopped at the nested </style>, dropped the html/body rule as
+// an invalid selector, and leaked any trailing CSS (e.g. kitchen ticket's .kitchen-*
+// rules) as visible text at the top of the ticket. Keep this unwrapped.
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
   const contentWidth = paperWidth === '80mm' ? '76mm' : '52mm';
   const fontSize = paperWidth === '80mm' ? '14px' : '12.5px';
-  return `<style data-iw-thermal-paper-width="1">
+  return `
     html, body { max-width: ${contentWidth} !important; font-size: ${fontSize} !important; }
     table { font-size: ${fontSize} !important; }
     .line { font-size: ${fontSize} !important; }
-  </style>`;
+  `;
 }
 
 export function withThermalReceiptPrintCss(html: string): string {
