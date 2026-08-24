@@ -147,6 +147,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     loading: true,
   });
 
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   useEffect(() => {
     const now = new Date();
     const start = new Date(now);
@@ -557,7 +559,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 
   return (
     <DashboardLayout>
-      <div className="sticky top-0 z-20 -mx-1 rounded-b-[28px] bg-slate-950/92 px-1 pb-3 pt-1 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 -mx-1 rounded-b-[20px] bg-slate-950/92 px-1 pb-3 pt-1 backdrop-blur-xl">
         <AlertBar
           alerts={criticalAlerts}
           lang={lang}
@@ -567,10 +569,10 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         />
       </div>
 
-      <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+      <section className="rounded-[20px] border border-slate-800 bg-slate-900 p-4 shadow-[0_10px_34px_rgba(0,0,0,0.28)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-orange-400">
               {tx(lang, 'Canlı idarəetmə paneli', 'Живая панель управления', 'Live command center')}
             </div>
             <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">
@@ -632,20 +634,35 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         onSetGoal={saveGoal}
       />
 
-      <AIManagerStrip
-        insights={aiManagerInsights}
+      <AIPanel
+        decisions={aiManagerInsights}
+        background={snapshot.agentInsights}
         lang={lang}
         onOpen={(module) => openInsightModule(module)}
+        onRefresh={() => void loadDashboard()}
       />
 
-      {!snapshot.loading && (
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setShowAnalytics((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:border-orange-400/40 active:scale-95"
+        >
+          <TrendingUp size={16} />
+          {showAnalytics
+            ? tx(lang, 'Analitikası gizlət', 'Скрыть аналитику', 'Hide analytics')
+            : tx(lang, 'Ətraflı analitika', 'Подробная аналитика', 'Detailed analytics')}
+          <ArrowRight size={16} className={showAnalytics ? 'rotate-90' : '-rotate-90'} />
+        </button>
+      </div>
+      {showAnalytics && !snapshot.loading && (
         <Suspense
           fallback={
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-4">
-              <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
-              <div className="h-[300px] animate-pulse rounded-[28px] border border-slate-800 bg-slate-900/60 p-5" />
+              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
+              <div className="h-[300px] animate-pulse rounded-[20px] border border-slate-800 bg-slate-900/60 p-5" />
             </div>
           }
         >
@@ -729,14 +746,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
           </PanelCard>
         </section>
       </main>
-
-      {snapshot.agentInsights.length > 0 && (
-        <BackgroundAgentStrip
-          insights={snapshot.agentInsights}
-          lang={lang}
-          onRefresh={() => void loadDashboard()}
-        />
-      )}
     </DashboardLayout>
   );
 }
@@ -744,8 +753,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative space-y-5 bg-slate-950/20 text-slate-100">
-      <div className="web-aurora-subtle" />
-      <div className="web-noise-overlay" />
       <div className="relative z-10 space-y-5">
         {children}
       </div>
@@ -753,17 +760,21 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BackgroundAgentStrip({
-  insights,
+function AIPanel({
+  decisions,
+  background,
   lang,
+  onOpen,
   onRefresh,
 }: {
-  insights: BackgroundAgentInsight[];
+  decisions: AiDecisionInsight[];
+  background: BackgroundAgentInsight[];
   lang: string;
+  onOpen: (module: AiDecisionInsight['module']) => void;
   onRefresh: () => void;
 }) {
+  const [bgOpen, setBgOpen] = useState(false);
   const [marking, setMarking] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
 
   const handleMarkRead = async (id: string) => {
     setMarking(id);
@@ -772,139 +783,112 @@ function BackgroundAgentStrip({
     onRefresh();
   };
 
-  const unreadCount = insights.filter((ins) => !ins.is_read).length;
+  const unreadCount = background.filter((ins) => !ins.is_read).length;
+  if (decisions.length === 0 && background.length === 0) return null;
 
-  return (
-    <section className="rounded-[28px] border border-fuchsia-400/25 bg-slate-950 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.18)]">
-      <div
-        className="flex cursor-pointer flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-400/12 text-fuchsia-200">
-            <Bot size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">
-                {tx(lang, 'Background AI Agent', 'Фоновый AI Агент', 'Background AI Agent')}
-              </span>
-              {unreadCount > 0 && (
-                <span className="rounded-full bg-fuchsia-500 px-2 py-0.5 text-[10px] font-black text-white animate-pulse">
-                  {unreadCount} {tx(lang, 'yeni', 'новые', 'new')}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-slate-400">
-              {tx(lang, 'Serverdə arxa planda işləyən agentdən son analizlər', 'Последние анализы от фонового агента на сервере', 'Latest analysis from background agent on the server')}
-            </p>
-          </div>
-        </div>
-        <button
-          className="min-h-11 rounded-2xl border border-fuchsia-400/35 bg-fuchsia-500/10 px-4 text-xs font-black text-fuchsia-200"
-        >
-          {isOpen
-            ? tx(lang, 'Gizlə', 'Скрыть', 'Collapse')
-            : tx(lang, 'Göstər', 'Показать', 'Expand')}
-        </button>
-      </div>
-
-      {isOpen && (
-        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {insights.map((insight) => (
-            <div
-              key={insight.id}
-              className={`rounded-2xl border p-4 transition ${insight.is_read ? 'border-slate-700/50 bg-slate-900/30' : 'border-fuchsia-400/30 bg-fuchsia-950/30'}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
-                  {insight.type}
-                </div>
-                <div className="text-xs font-bold text-slate-400">{formatServerUtcTime(insight.created_at, lang)}</div>
-              </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{insight.content}</p>
-              {!insight.is_read && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleMarkRead(insight.id);
-                  }}
-                  disabled={marking === insight.id}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-fuchsia-500/20 px-3 py-1.5 text-xs font-bold text-fuchsia-100 hover:bg-fuchsia-500/30 disabled:opacity-50"
-                >
-                  {marking === insight.id ? tx(lang, 'Gözləyin...', 'Подождите...', 'Wait...') : tx(lang, 'Oxundu', 'Прочитано', 'Mark as read')}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function AIManagerStrip({
-  insights,
-  lang,
-  onOpen,
-}: {
-  insights: AiDecisionInsight[];
-  lang: string;
-  onOpen: (module: AiDecisionInsight['module']) => void;
-}) {
   const tone = (severity: AiDecisionInsight['severity']) => {
     if (severity === 'critical') return 'border-rose-400/40 bg-rose-950/45';
     if (severity === 'warning') return 'border-amber-400/40 bg-amber-950/35';
-    if (severity === 'opportunity') return 'border-cyan-400/40 bg-cyan-950/35';
+    if (severity === 'opportunity') return 'border-violet-400/40 bg-violet-950/35';
     if (severity === 'good') return 'border-emerald-400/40 bg-emerald-950/35';
     return 'border-slate-700 bg-slate-900/60';
   };
 
-  if (!insights.length) return null;
-
   return (
-    <section className="rounded-[28px] border border-cyan-400/25 bg-slate-950 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.18)]">
+    <section className="rounded-[20px] border border-violet-400/25 bg-slate-950 p-4 shadow-[0_10px_34px_rgba(0,0,0,0.28)]">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/12 text-cyan-200">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-400/12 text-violet-200">
             <Bot size={22} />
           </div>
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
-              {tx(lang, 'AI menecer tövsiyələri', 'AI рекомендации менеджера', 'AI manager recommendations')}
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">
+              {tx(lang, 'AI asistanı', 'AI ассистент', 'AI assistant')}
             </div>
             <p className="mt-1 text-sm text-slate-400">
-              {tx(lang, 'Risklər və fürsətlər prioritet sırası ilə göstərilir.', 'Риски и возможности показаны по приоритету.', 'Risks and opportunities are shown by priority.')}
+              {tx(lang, 'Menecer tövsiyələri və arxa plan agentinin təhlilləri bir yerdə.', 'Рекомендации менеджера и анализы фонового агента вместе.', 'Manager recommendations and background-agent analysis, combined.')}
             </p>
           </div>
         </div>
-        <button onClick={() => onOpen('ai')} className="min-h-11 rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 text-sm font-black text-cyan-100">
+        <button onClick={() => onOpen('ai')} className="min-h-11 rounded-2xl border border-violet-400/35 bg-violet-500/10 px-4 text-sm font-black text-violet-100">
           {tx(lang, 'AI paneli aç', 'Открыть AI панель', 'Open AI panel')}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-        {insights.map((insight) => (
-          <button
-            key={insight.id}
-            onClick={() => onOpen(insight.module)}
-            className={`min-h-[150px] rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${tone(insight.severity)}`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
-                {insight.metric || insight.phase}
+      {decisions.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+          {decisions.map((insight) => (
+            <button
+              key={insight.id}
+              onClick={() => onOpen(insight.module)}
+              className={`min-h-[150px] rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${tone(insight.severity)}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
+                  {insight.metric || insight.phase}
+                </div>
+                <div className="text-xl font-black text-white">{insight.score}</div>
               </div>
-              <div className="text-xl font-black text-white">{insight.score}</div>
+              <h3 className="mt-3 text-base font-black text-white">{insight.title}</h3>
+              <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">{insight.body}</p>
+              <div className="mt-3 inline-flex items-center gap-1 text-xs font-black text-violet-100">
+                {insight.action_label}
+                <ArrowRight size={14} />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {background.length > 0 && (
+        <div className={`${decisions.length > 0 ? 'mt-4' : ''} rounded-2xl border border-slate-800 bg-slate-900/50 p-3`}>
+          <div
+            className="flex cursor-pointer items-center justify-between gap-3"
+            onClick={() => setBgOpen(!bgOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
+                {tx(lang, 'Arxa plan agenti', 'Фоновый агент', 'Background agent')}
+              </span>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-black text-white animate-pulse">
+                  {unreadCount} {tx(lang, 'yeni', 'новые', 'new')}
+                </span>
+              )}
             </div>
-            <h3 className="mt-3 text-base font-black text-white">{insight.title}</h3>
-            <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">{insight.body}</p>
-            <div className="mt-3 inline-flex items-center gap-1 text-xs font-black text-cyan-100">
-              {insight.action_label}
-              <ArrowRight size={14} />
+            <button className="min-h-9 rounded-xl border border-slate-700 bg-slate-950 px-3 text-xs font-bold text-slate-200">
+              {bgOpen ? tx(lang, 'Gizlə', 'Скрыть', 'Collapse') : tx(lang, 'Göstər', 'Показать', 'Expand')}
+            </button>
+          </div>
+          {bgOpen && (
+            <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {background.map((insight) => (
+                <div
+                  key={insight.id}
+                  className={`rounded-2xl border p-4 transition ${insight.is_read ? 'border-slate-700/50 bg-slate-900/30' : 'border-violet-400/30 bg-violet-950/30'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
+                      {insight.type}
+                    </div>
+                    <div className="text-xs font-bold text-slate-400">{formatServerUtcTime(insight.created_at, lang)}</div>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{insight.content}</p>
+                  {!insight.is_read && (
+                    <button
+                      onClick={() => void handleMarkRead(insight.id)}
+                      disabled={marking === insight.id}
+                      className="mt-3 inline-flex items-center gap-2 rounded-xl bg-violet-500/20 px-3 py-1.5 text-xs font-bold text-violet-100 hover:bg-violet-500/30 disabled:opacity-50"
+                    >
+                      {marking === insight.id ? tx(lang, 'Gözləyin...', 'Подождите...', 'Wait...') : tx(lang, 'Oxundu', 'Прочитано', 'Mark as read')}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          </button>
-        ))}
-      </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -924,7 +908,7 @@ function AlertBar({
 }) {
   const empty = alerts.length === 0;
   return (
-    <section className={`rounded-[24px] border px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.3)] ${empty ? 'border-emerald-500/25 bg-emerald-950/35' : 'border-rose-500/30 bg-slate-950'}`}>
+    <section className={`rounded-[20px] border px-4 py-3 shadow-[0_10px_34px_rgba(0,0,0,0.28)] ${empty ? 'border-emerald-500/25 bg-emerald-950/35' : 'border-rose-500/30 bg-slate-950'}`}>
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${empty ? 'bg-emerald-400/15 text-emerald-200' : 'bg-rose-500/15 text-rose-200'}`}>
@@ -1093,6 +1077,7 @@ function KPISection({
   goalProgress?: number;
   onSetGoal?: (v: any) => void;
 }) {
+  const [showAllKpis, setShowAllKpis] = useState(false);
   const salesHelper =
     cashSales && cardSales
       ? `${tx(lang, 'Nağd', 'Нал', 'Cash')}: ${cashSales} · ${tx(lang, 'Kart', 'Карта', 'Card')}: ${cardSales}`
@@ -1116,42 +1101,44 @@ function KPISection({
           </label>
         )}
       </div>
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10">
-      <KpiCard
-        title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
-        value={revenue}
-        helper={salesHelper}
-        icon={<Receipt size={22} />}
-        tone="emerald"
-        delta={revenueDelta}
-        goalRing={goalProgress != null ? { progress: goalProgress, label: `${Math.round(goalProgress)}%` } : undefined}
-        onClick={() => onOpenTab('analytics')}
-      />
-      <KpiCard
-        title={tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')}
-        value={expensesTotal || '0.00 ₼'}
-        helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`}
-        icon={<Wallet size={22} />}
-        tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'}
-        delta={expensesDelta}
-        onClick={() => onOpenTab('finance')}
-      />
-      <KpiCard
-        title={tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}
-        value={netProfit || '0.00 ₼'}
-        helper={tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')}
-        icon={<TrendingUp size={22} />}
-        tone={netProfit && netProfit.startsWith('-') ? 'rose' : 'emerald'}
-        onClick={() => onOpenTab('analytics')}
-      />
-      <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
-      <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
-      <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={22} />} tone="slate" onClick={() => onOpenTab('inventory')} />
-      <KpiCard         title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {/* Primary 6 — always visible at a glance */}
+        <KpiCard
+          title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
+          value={revenue}
+          helper={salesHelper}
+          icon={<Receipt size={22} />}
+          tone="emerald"
+          delta={revenueDelta}
+          goalRing={goalProgress != null ? { progress: goalProgress, label: `${Math.round(goalProgress)}%` } : undefined}
+          onClick={() => onOpenTab('analytics')}
+        />
+        <KpiCard title={tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')} value={netProfit || '0.00 ₼'} helper={tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')} icon={<TrendingUp size={22} />} tone={netProfit && netProfit.startsWith('-') ? 'rose' : 'emerald'} onClick={() => onOpenTab('analytics')} />
+        <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
+        <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
+
+        {/* Secondary 4 — behind the toggle to keep the first screen calm */}
+        {showAllKpis && (<>
+          <KpiCard title={tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')} value={expensesTotal || '0.00 ₼'} helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`} icon={<Wallet size={22} />} tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'} delta={expensesDelta} onClick={() => onOpenTab('finance')} />
+          <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
+          <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={22} />} tone="slate" onClick={() => onOpenTab('inventory')} />
+          <KpiCard title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+        </>)}
       </section>
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setShowAllKpis((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:border-violet-400/40 active:scale-95"
+        >
+          {showAllKpis
+            ? tx(lang, 'Az göstərici', 'Меньше показателей', 'Fewer metrics')
+            : tx(lang, 'Daha çox göstərici', 'Больше показателей', 'More metrics')}
+          <ArrowRight size={16} className={showAllKpis ? 'rotate-90' : '-rotate-90'} />
+        </button>
+      </div>
     </>
   );
 }
@@ -1185,7 +1172,7 @@ function KpiCard({
   } as const;
   const ringPct = goalRing ? Math.max(0, Math.min(100, goalRing.progress)) : 0;
   return (
-    <button onClick={onClick} className={`relative min-h-[150px] rounded-[28px] border p-5 text-left shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
+    <button onClick={onClick} className={`relative min-h-[150px] rounded-[20px] border p-5 text-left shadow-[0_10px_34px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
         <ArrowRight size={18} className="opacity-50" />
@@ -1229,7 +1216,7 @@ function PanelCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)]">
+    <section className="rounded-[20px] border border-slate-800 bg-slate-900 p-5 shadow-[0_10px_34px_rgba(0,0,0,0.28)]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-black text-white">{title}</h3>
