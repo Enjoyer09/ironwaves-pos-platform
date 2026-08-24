@@ -704,11 +704,11 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
               <div className="space-y-1.5">
                 {hourly.map((x) => (
                   <div key={x.h} className="flex items-center gap-2">
-                    <span className="w-10 shrink-0 text-right text-[10px] font-semibold text-slate-500">{String(x.h).padStart(2, '0')}:00</span>
+                    <span className="w-10 shrink-0 text-right text-[11px] font-semibold text-slate-400">{String(x.h).padStart(2, '0')}:00</span>
                     <div className="flex-1 h-3 overflow-hidden rounded-full bg-slate-800">
                       <div className="h-3 rounded-full" style={{ width: `${hourlyMax > 0 ? (x.total / hourlyMax) * 100 : 0}%`, background: 'linear-gradient(90deg, #F48C24, #FF8B26)' }} />
                     </div>
-                    <span className="w-16 shrink-0 text-right text-[10px] font-semibold text-slate-300">{x.total.toFixed(0)} ₼</span>
+                    <span className="w-16 shrink-0 text-right text-[11px] font-semibold text-slate-300">{x.total.toFixed(0)} ₼</span>
                   </div>
                 ))}
               </div>
@@ -918,7 +918,7 @@ function AlertBar({
             <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">
               {empty ? tx(lang, 'Kritik xəbərdarlıq yoxdur', 'Критических alert нет', 'No critical alerts') : tx(lang, 'Kritik xəbərdarlıq zolağı', 'Critical alert bar', 'Critical alert bar')}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-400">
               {loading ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : tx(lang, 'Avto-yeniləmə və real-time hadisələr aktivdir', 'Auto-refresh + real-time активны', 'Auto-refresh + realtime events are active')}
             </div>
           </div>
@@ -1086,7 +1086,7 @@ function KPISection({
   return (
     <>
       <div className="flex items-center justify-between gap-3 px-1 mb-1">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-50">{tx(lang, 'Göstəricilər', 'Показатели', 'Key metrics')}</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Göstəricilər', 'Показатели', 'Key metrics')}</p>
         {onSetGoal && (
           <label className="flex items-center gap-1.5 text-[11px] opacity-70">
             <span>{tx(lang, 'Günlük hədəf', 'Дневная цель', 'Daily goal')}:</span>
@@ -1117,7 +1117,7 @@ function KPISection({
         <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
         <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
         <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
-        <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="slate" onClick={() => onOpenTab('tables')} />
 
         {/* Secondary 4 — behind the toggle to keep the first screen calm */}
         {showAllKpis && (<>
@@ -1220,7 +1220,7 @@ function PanelCard({
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-black text-white">{title}</h3>
-          {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
         </div>
         {onAction && actionLabel ? (
           <button onClick={onAction} className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-200">
@@ -1241,11 +1241,11 @@ function LiveFeed({ sales, lang }: { sales: any[]; lang: string }) {
         <div key={sale.id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
           <div>
             <div className="font-bold text-white">{sale.cashier || '-'}</div>
-            <div className="mt-1 text-xs text-slate-500">{formatServerUtcTime(sale.created_at, lang)} · {orderTypeLabel(sale.order_type || 'DINE_IN', lang)}</div>
+            <div className="mt-1 text-xs text-slate-400">{formatServerUtcTime(sale.created_at, lang)} · {orderTypeLabel(sale.order_type || 'DINE_IN', lang)}</div>
           </div>
           <div className="text-right">
             <div className="text-lg font-black text-white">{money(sale.total)}</div>
-            <div className="text-xs text-slate-500">{paymentMethodLabel(sale.payment_method, lang)}</div>
+            <div className="text-xs text-slate-400">{paymentMethodLabel(sale.payment_method, lang)}</div>
           </div>
         </div>
       ))}
@@ -1284,7 +1284,7 @@ function OpenChecksPreview({ tables, lang }: { tables: any[]; lang: string }) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-bold text-white">{table.label || table.name || '-'}</div>
-              <div className="mt-1 text-xs text-slate-500">{Number(table.guest_count || table.guests || 0)} {tx(lang, 'nəfər', 'гостей', 'guests')}</div>
+              <div className="mt-1 text-xs text-slate-400">{Number(table.guest_count || table.guests || 0)} {tx(lang, 'nəfər', 'гостей', 'guests')}</div>
             </div>
             <div className="text-right">
               <div className="text-lg font-black text-white">{money(table.check_total || table.total || 0)}</div>
@@ -1340,7 +1340,7 @@ function ControlPanel({
 function MiniMetric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
   return (
     <div className={`rounded-2xl border p-4 ${danger ? 'border-rose-400/35 bg-rose-950/40' : 'border-slate-800 bg-slate-950'}`}>
-      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
       <div className={`mt-2 text-xl font-black ${danger ? 'text-rose-100' : 'text-white'}`}>{value}</div>
     </div>
   );
@@ -1355,7 +1355,7 @@ function StaffStats({ rows, lang }: { rows: Array<{ cashier: string; sales: numb
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-bold text-white">{row.cashier}</div>
-              <div className="mt-1 text-xs text-slate-500">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} · {tx(lang, 'orta çek', 'средний чек', 'avg')} {money(row.avg)}</div>
+              <div className="mt-1 text-xs text-slate-400">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} · {tx(lang, 'orta çek', 'средний чек', 'avg')} {money(row.avg)}</div>
             </div>
             <div className="text-lg font-black text-white">{money(row.revenue)}</div>
           </div>
@@ -1384,7 +1384,7 @@ function LaborVsSales({ revenue, labor, lang }: { revenue: number; labor: any; l
         <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-800">
           <div className="h-3 rounded-full" style={{ width: `${pct}%`, background: high ? 'linear-gradient(90deg,#F48C24,#FF8B26)' : 'linear-gradient(90deg,#34d399,#10b981)' }} />
         </div>
-        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+        <p className="mt-2 text-xs leading-5 text-slate-400">
           {high
             ? tx(lang, 'Əmək xərci yüksəkdir (30%+). Səmərəliliyi yoxlayın.', 'Зарплата высокая (30%+), проверьте эффективность.', 'Labor cost is high (30%+), review efficiency.')
             : tx(lang, 'Əmək xərci sağlam aralığdadır.', 'Зарплата в норме.', 'Labor cost is in a healthy range.')}
@@ -1413,18 +1413,18 @@ function TopCustomers({ data, lang }: { data: { customers: any[]; count: number 
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-500">{i + 1}</span>
+                <span className="text-xs font-black text-slate-400">{i + 1}</span>
                 <span className="truncate font-bold text-white">{c.name || c.card_id}</span>
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300">{typeLabel(c.type)}</span>
               </div>
               <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
                 <div className="h-full rounded-full bg-orange-400" style={{ width: `${Math.max(8, (Number(c.total_revenue || 0) / max) * 100)}%` }} />
               </div>
-              <div className="mt-1 text-xs text-slate-500">{c.visits} {tx(lang, 'vizit', 'визитов', 'visits')} · {Number(c.stars || 0)}★</div>
+              <div className="mt-1 text-xs text-slate-400">{c.visits} {tx(lang, 'vizit', 'визитов', 'visits')} · {Number(c.stars || 0)}★</div>
             </div>
             <div className="text-right">
               <div className="text-lg font-black text-white">{money(c.total_revenue)}</div>
-              <div className="text-xs text-slate-500">{tx(lang, 'orta', 'сред', 'avg')} {money(c.avg_ticket)}</div>
+              <div className="text-xs text-slate-400">{tx(lang, 'orta', 'сред', 'avg')} {money(c.avg_ticket)}</div>
             </div>
           </div>
         </div>
@@ -1455,7 +1455,7 @@ function AlertsBreakdown({
         {financeAuditLogs.map((log: any) => (
           <div key={log.id} className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
             <div className="font-bold text-white">{tx(lang, 'Maliyyə anomaliyası', 'Финансовая аномалия', 'Finance anomaly')}</div>
-            <div className="mt-1 text-xs text-slate-500">{formatServerUtcTime(log.created_at, lang)}</div>
+            <div className="mt-1 text-xs text-slate-400">{formatServerUtcTime(log.created_at, lang)}</div>
           </div>
         ))}
         {!financeAuditLogs.length ? <EmptyState text={tx(lang, 'Audit snapshot yoxdur', 'Нет audit snapshot', 'No audit snapshots')} /> : null}
@@ -1469,7 +1469,7 @@ function AlertsBreakdown({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950 px-4 py-8 text-center text-sm font-semibold text-slate-500">
+    <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950 px-4 py-8 text-center text-sm font-semibold text-slate-400">
       {text}
     </div>
   );
