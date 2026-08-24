@@ -2,6 +2,20 @@ import { withThermalReceiptPrintCss } from './receipt_print_css';
 
 const AGENT_BASE_URL = 'http://127.0.0.1:17777';
 const REQUEST_TIMEOUT_MS = 15000;
+// Local agent prints via a Chrome→PDF→spool chain that can exceed 2.5s on macOS.
+// A too-short timeout aborts a print the agent actually accepted, dropping the
+// browser back to the QZ branch → the SAME ticket prints twice (P1-2). 8s covers
+// the slow-agent case while still failing fast if the agent is genuinely down.
+const AGENT_PRINT_TIMEOUT_MS = 8000;
+
+// Cyrillic (Basic + Supplement). Raw ESC/POS is forced to code page PC437, which
+// cannot represent Cyrillic → mojibake on the thermal printer (P0-2). When the
+// ticket contains Cyrillic we route through the Unicode-safe pixel/HTML path.
+const CYRILLIC_RE = /[Ѐ-ӿ]/;
+
+export function containsCyrillic(text: string): boolean {
+  return CYRILLIC_RE.test(String(text || ''));
+}
 
 function timeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
@@ -66,7 +80,7 @@ export async function printViaLocalAgent(html: string, printerName?: string): Pr
         html: safeHtml,
         printer_name: String(printerName || '').trim() || undefined,
       }),
-      signal: timeoutSignal(2500),
+      signal: timeoutSignal(AGENT_PRINT_TIMEOUT_MS),
     });
     return response.ok;
   } catch {
@@ -96,8 +110,14 @@ export async function printDirectOrFallback(
   // 2. Try QZ Tray (supports explicit printer, paperWidth and raw ESC/POS commands)
   try {
     const { qzPrintHtml, qzPrintRaw } = await import('./qz');
-    if (options?.printEngine === 'raw_escpos' && options?.rawCommands) {
-      await qzPrintRaw(options.rawCommands, options?.printerName);
+    // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
+    // must go through pixel/HTML (Unicode-safe) even if raw_escpos is selected (P0-2).
+    const rawSafe =
+      options?.printEngine === 'raw_escpos' &&
+      Boolean(options?.rawCommands) &&
+      !containsCyrillic(html);
+    if (rawSafe) {
+      await qzPrintRaw(options!.rawCommands as string, options?.printerName);
       return { method: 'qz', success: true };
     } else {
       await qzPrintHtml(html, {

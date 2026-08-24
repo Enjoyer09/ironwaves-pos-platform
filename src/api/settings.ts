@@ -1396,7 +1396,11 @@ export async function get_settings_live(tenant_id?: string) {
     auto_print_kitchen_ticket: data?.print_settings?.auto_print_kitchen_ticket ?? localCached?.print_settings?.auto_print_kitchen_ticket ?? true,
     auto_print_receipt: data?.print_settings?.auto_print_receipt ?? localCached?.print_settings?.auto_print_receipt ?? true,
     paper_width: (data?.print_settings?.paper_width || localCached?.print_settings?.paper_width || '58mm') as '58mm' | '80mm',
-    print_engine: (data?.print_settings?.print_engine || localCached?.print_settings?.print_engine || 'pixel_html') as 'pixel_html' | 'raw_escpos',
+    // A5: default must match the Admin UI (SettingsPanel), the POS/Tables send-time
+    // fallback, and KDS — all of which use 'raw_escpos'. Keeping this normalized read on
+    // a different default silently flipped the engine between send-time and KDS reprints.
+    // Cyrillic safety on the raw path is handled by containsCyrillic() in local_print_agent.
+    print_engine: (data?.print_settings?.print_engine || localCached?.print_settings?.print_engine || 'raw_escpos') as 'pixel_html' | 'raw_escpos',
   };
 
   const merged: Settings = {

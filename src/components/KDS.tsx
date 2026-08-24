@@ -10,7 +10,8 @@ import { approve_void_request_live, get_pending_approvals_live, reject_void_requ
 import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
 import { printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos } from '../lib/escpos_builder';
+import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { wasTicketPrinted, markTicketPrinted, clearTicketPrinted } from '../lib/print_dedupe';
 import { get_settings_live } from '../api/settings';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
@@ -66,7 +67,17 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
     }
   };
 
-  const handlePrintOrderTicket = async (orderGroup: any) => {
+  const handlePrintOrderTicket = async (orderGroup: any, opts?: { dedupe?: boolean }) => {
+    // Auto-print idempotency (P1-1): a realtime push and the 8s poll can both surface a
+    // freshly-arrived order before previousOrderIdsRef updates, and a remount can replay it.
+    // Claim the key up front so only one auto-print wins; manual reprints pass no dedupe flag
+    // and always print. Per-device only (localStorage) — cross-device is Faza B's job.
+    const dedupeTicketId = String(orderGroup?.ids?.[0] || orderGroup?.id || '');
+    const dedupeKey = opts?.dedupe && dedupeTicketId ? `kds:${kitchenPrinter || 'default'}:${dedupeTicketId}` : '';
+    if (dedupeKey) {
+      if (wasTicketPrinted(dedupeKey)) return;
+      markTicketPrinted(dedupeKey);
+    }
     try {
       const normalized = normalizeItems(orderGroup);
 
@@ -89,14 +100,17 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         order_type: orderGroup.order_type,
         created_at: orderGroup.created_at,
         server_name: orderGroup.server_name,
-        items: (orderGroup.items || normalized).map((it: any) => ({
-          item_name: it.item_name || it.name,
-          qty: Number(it.qty || it.quantity || 1),
-          seat_label: it.seat_label,
-          notes: it.note || it.notes || it.reason || undefined,
-          modifiers: it.modifiers,
-          selected_modifiers: it.selected_modifiers,
-        })),
+        items: (orderGroup.items || normalized).map((it: any) => {
+          const parsedMods = parseModifierJson(it.modifier_json);
+          return {
+            item_name: it.item_name || it.name,
+            qty: Number(it.qty || it.quantity || 1),
+            seat_label: it.seat_label,
+            notes: it.note || it.notes || it.reason || undefined,
+            modifiers: it.modifiers ?? parsedMods.modifiers,
+            selected_modifiers: it.selected_modifiers ?? parsedMods.selected_modifiers,
+          };
+        }),
       };
 
       const html = buildKitchenTicketHtml({
@@ -125,9 +139,11 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
             : tx(lang, 'Mətbəx çeki çapa göndərildi 🖨️', 'Чек кухни отправлен на печать 🖨️', 'Kitchen ticket sent to printer 🖨️'),
         );
       } else {
+        if (dedupeKey) clearTicketPrinted(dedupeKey);
         useAppStore.getState().notify('error', tx(lang, 'Çap pəncərəsi açıla bilmədi', 'Не удалось открыть печать', 'Failed to open print dialog'));
       }
     } catch (e: any) {
+      if (dedupeKey) clearTicketPrinted(dedupeKey);
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'print_ticket' });
       useAppStore.getState().notify('error', tx(lang, 'Çap xətası baş verdi', 'Ошибка печати', 'Print error occurred'));
     }
@@ -179,7 +195,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
       playKitchenBell();
       if (autoPrint) {
         newlyArrivedOrders.forEach((newOrder) => {
-          void handlePrintOrderTicket(newOrder);
+          void handlePrintOrderTicket(newOrder, { dedupe: true });
         });
       }
     }
