@@ -423,9 +423,9 @@ export async function buildTableReceiptEscPos({
   paperWidth?: '58mm' | '80mm';
 }): Promise<string> {
   const is58 = (paperWidth || '58mm') === '58mm';
-  // 58mm paper: 32 columns full width
+  // 58mm paper: 40 columns (printer font pitch at actual 58mm printhead)
   // 80mm paper: 42 columns full width
-  const lineChars = is58 ? 32 : 42;
+  const lineChars = is58 ? 40 : 42;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
 
@@ -515,7 +515,7 @@ export async function buildTableReceiptEscPos({
 
   // ── Feedback QR Code ─────────────────────────────────────────────
   if (feedbackUrl) {
-    const qrBitmapCmd = await generateEscPosQrBitmap(feedbackUrl, is58 ? 4 : 5);
+    const qrBitmapCmd = await generateEscPosQrBitmap(feedbackUrl, is58 ? 3 : 4);
     if (qrBitmapCmd) {
       cmd += dashLine;
       cmd += CTR;
@@ -553,7 +553,7 @@ export async function buildSaleReceiptEscPos({
   paperWidth?: '58mm' | '80mm';
 }): Promise<string> {
   const is58 = (paperWidth || '58mm') === '58mm';
-  const lineChars = is58 ? 32 : 42;
+  const lineChars = is58 ? 40 : 42;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
 
@@ -630,7 +630,7 @@ export async function buildSaleReceiptEscPos({
 
   // Feedback QR Code (Universal Raster Bitmap)
   if (feedbackUrl) {
-    const qrBitmapCmd = await generateEscPosQrBitmap(feedbackUrl, is58 ? 4 : 5);
+    const qrBitmapCmd = await generateEscPosQrBitmap(feedbackUrl, is58 ? 3 : 4);
     if (qrBitmapCmd) {
       cmd += dashLine;
       cmd += '\n' + qrBitmapCmd + '\n';
