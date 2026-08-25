@@ -1197,11 +1197,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       // Show receipt
       setTableReceiptHtml(receiptMarkup);
 
-      // Auto print receipt silently if enabled
+      // Auto print receipt silently if enabled — same strategy as KDS ticket print:
+      // respect use_qz from settings, pass paper_width so QZ sizes the receipt correctly,
+      // and keep the browser dialog OFF (silent auto-print; failures surface as notify).
       if (printSettings.auto_print_receipt !== false) {
         void printDirectOrFallback(receiptMarkup, {
           printerName: printSettings.printer_name,
-          useQz: true,
+          useQz: Boolean(printSettings.use_qz),
+          paperWidth: printSettings.paper_width || '58mm',
+          printEngine: printSettings.print_engine || 'pixel_html',
           allowBrowserFallback: false,
         }).then((res) => {
           if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1592,8 +1596,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     if (!safeTableReceiptHtml) return;
     const res = await printDirectOrFallback(safeTableReceiptHtml, {
       printerName: printSettings.printer_name,
-      useQz: true,
-      paperWidth: printSettings.paper_width,
+      useQz: Boolean(printSettings.use_qz),
+      paperWidth: printSettings.paper_width || '58mm',
+      printEngine: printSettings.print_engine || 'pixel_html',
       allowBrowserFallback: true,
     });
     if (res.success) {
