@@ -270,7 +270,8 @@ export const qzPrintHtml = async (
     size: { width: widthMm },
     units: 'mm',
     margins: 0,
-    scaleContent: true,
+    scaleContent: false,
+    rasterize: false,
   });
 
   const data = [

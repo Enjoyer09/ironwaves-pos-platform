@@ -19,7 +19,7 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { buildKitchenTicketEscPos, buildSaleReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -265,6 +265,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [category, setCategory] = useState('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
+  const [receiptRawCommands, setReceiptRawCommands] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('Nəğd');
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
   const [cashReceivedInput, setCashReceivedInput] = useState<string>('');
@@ -1427,7 +1428,27 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </body>
           </html>
         `;
+        const rawCmds = buildSaleReceiptEscPos({
+          sale: {
+            ...sale,
+            items: receiptCart.map((i) => ({
+              item_name: i.item_name,
+              qty: i.qty,
+              price: i.price,
+              line_total: toDecimalSafe(i.price).times(i.qty).toNumber(),
+            })),
+            original_total: saleRaw.toNumber(),
+            discount_amount: saleDiscount.toNumber(),
+            total: saleFinal.toNumber(),
+            payment_method: paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod,
+          },
+          profile: businessProfile,
+          operator: user.username,
+          paperWidth: printSettings.paper_width || '58mm',
+        });
+
         setReceiptHtml(receiptMarkup);
+        setReceiptRawCommands(rawCmds);
         if (isBackendEnabled() && !queuedOffline && String(sale.sale_id || '').trim()) {
           void save_sale_receipt_html_live(String(sale.sale_id), receiptMarkup).catch(() => undefined);
         }
@@ -1437,6 +1458,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             useQz: Boolean(printSettings.use_qz),
             paperWidth: printSettings.paper_width || '58mm',
             printEngine: printSettings.print_engine || 'pixel_html',
+            rawCommands: rawCmds,
             allowBrowserFallback: false,
           }).then((res) => {
             if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1817,6 +1839,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       useQz: Boolean(printSettings.use_qz),
       paperWidth: printSettings.paper_width || '58mm',
       printEngine: printSettings.print_engine || 'pixel_html',
+      rawCommands: receiptRawCommands || undefined,
       allowBrowserFallback: true,
     });
     if (res.success) {
