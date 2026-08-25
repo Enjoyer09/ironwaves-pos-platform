@@ -35,36 +35,54 @@ function timeoutSignal(ms: number): AbortSignal {
 export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '80mm'): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   try {
-    const pageWidthMm = paperWidth === '80mm' ? '80mm' : '58mm';
-    const contentWidthMm = paperWidth === '80mm' ? 72 : 48;
-    // Inject page size + auto-print script — mirrors how analytics "past receipts"
-    // opens a full browser window which renders the receipt correctly at any width.
-    const pageOverride = `<style>@page { size: ${pageWidthMm} 300mm; margin: 2mm; } html, body { width: ${contentWidthMm}mm !important; max-width: ${contentWidthMm}mm !important; overflow: visible !important; margin: 0 auto !important; font-size: 12px !important; }</style>`;
-    const autoScript = `<script>window.onload=function(){window.print();setTimeout(function(){try{window.close();}catch(e){}},2000);};<\/script>`;
-    let docHtml = String(html)
-      .replace(/<\/head>/i, `${pageOverride}</head>`)
-      .replace(/<\/body>/i, `${autoScript}</body>`);
+    // Remove any previous print frame to guarantee exactly 1 print dialog
+    const existing = document.getElementById('iw-print-frame');
+    if (existing && existing.parentNode) {
+      try { existing.parentNode.removeChild(existing); } catch {}
+    }
 
-    // Open in a new window via blob URL — popup blocker won't fire on user-initiated events.
-    const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const popup = window.open(blobUrl, '_blank', 'width=480,height=720,noopener');
-    // Release the object URL after enough time for the window to load.
-    setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch {} }, 30000);
-
-    if (popup) return true;
-
-    // Popup was blocked — fall back to the original hidden-iframe approach.
     const iframe = document.createElement('iframe');
-    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', opacity: '0', pointerEvents: 'none' });
+    iframe.id = 'iw-print-frame';
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      top: '-9999px',
+      left: '-9999px',
+      width: '1px',
+      height: '1px',
+      border: '0',
+      opacity: '0',
+      pointerEvents: 'none',
+      visibility: 'hidden',
+    });
     document.body.appendChild(iframe);
+
     const doc = iframe.contentWindow?.document;
-    if (!doc) { document.body.removeChild(iframe); return false; }
-    doc.open(); doc.write(docHtml); doc.close();
+    if (!doc) {
+      try { document.body.removeChild(iframe); } catch {}
+      return false;
+    }
+
+    const cleanHtml = withThermalReceiptPrintCss(html);
+    doc.open();
+    doc.write(cleanHtml);
+    doc.close();
+
     setTimeout(() => {
-      try { iframe.contentWindow?.print(); } catch {}
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 3000);
-    }, 300);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Browser print execution failed:', e);
+      } finally {
+        setTimeout(() => {
+          try {
+            const el = document.getElementById('iw-print-frame');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+          } catch {}
+        }, 5000);
+      }
+    }, 250);
+
     return true;
   } catch (err) {
     console.warn('Browser print fallback error:', err);
