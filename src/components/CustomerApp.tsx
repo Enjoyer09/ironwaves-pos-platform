@@ -7,7 +7,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { activate_customer_campaign_live, claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live } from '../api/crm';
+import { activate_customer_campaign_live, claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live, sortStoresByDistance, get_nearest_branches_live } from '../api/crm';
 import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 import HomeTab from './customer/HomeTab';
@@ -166,9 +166,44 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       return '';
     }
   });
-  const stores = Array.isArray((data as any)?.stores) && (data as any).stores.length > 0
+  // Geolocation: resolved once per app open; stores are re-sorted by distance
+  // when the location arrives. Denied/unsupported falls back to server order.
+  const [locCoords, setLocCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [remoteNearest, setRemoteNearest] = React.useState<any[] | null>(null);
+  React.useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => setLocCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* permission denied — keep original store order */ },
+      { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
+    );
+  }, []);
+  const baseStores = Array.isArray((data as any)?.stores) && (data as any).stores.length > 0
     ? (data as any).stores
     : [{ id: (data as any)?.tenant_id || '', name: (data as any)?.branding?.company_name || '', address: (data as any)?.branding?.address || '', phone: (data as any)?.branding?.phone || '', is_default: true }];
+  React.useEffect(() => {
+    if (!locCoords) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const nearest = await get_nearest_branches_live((data as any)?.tenant_id, locCoords.lat, locCoords.lng, 20);
+        if (!cancelled && Array.isArray(nearest) && nearest.length > 0) {
+          setRemoteNearest(nearest);
+          setSelectedStoreId((prev) => prev || String(nearest[0]?.id) || '');
+        }
+      } catch {
+        if (!cancelled) setRemoteNearest(null); // offline — local sort below
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locCoords, data]);
+  const stores = React.useMemo(() => {
+    if (remoteNearest && remoteNearest.length > 0) return remoteNearest;
+    if (locCoords) return sortStoresByDistance(baseStores, locCoords.lat, locCoords.lng);
+    return baseStores;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteNearest, locCoords, baseStores]);
   const selectedStore = stores.find((s: any) => String(s.id) === String(selectedStoreId)) || stores[0] || null;
   const setSelectedStore = React.useCallback((id: string) => {
     setSelectedStoreId(id);
