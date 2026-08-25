@@ -23,7 +23,16 @@ function timeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
-export function printHtmlViaBrowserIframe(html: string): boolean {
+/**
+ * Browser print fallback. The receipt CSS sizes content in mm, so the
+ * @page rule MUST match the real thermal paper — a default `size: auto`
+ * on the driver's A4/Letter paper cuts the content on both sides
+ * (IMG_0492: "Tarix" wraps char-by-char, amounts vanish at the right
+ * edge). Inject an explicit @page width override when the caller passes
+ * paperWidth so the dialog renders to the actual paper. Explicit 2-length
+ * size (58mm x 300mm) because CSS Paged Media disallows `58mm auto`.
+ */
+export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '80mm'): boolean {
   if (typeof document === 'undefined') return false;
   try {
     const iframe = document.createElement('iframe');
@@ -43,8 +52,12 @@ export function printHtmlViaBrowserIframe(html: string): boolean {
       return false;
     }
 
+    const pageWidthMm = paperWidth === '80mm' ? '80mm' : '58mm';
+    const pageOverride = `<style>@page { size: ${pageWidthMm} 300mm; margin: 0mm; } html, body { width: 100%; max-width: 100%; }</style>`;
+    const docHtml = String(html).replace(/<\/head>/i, `${pageOverride}</head>`);
+
     doc.open();
-    doc.write(html);
+    doc.write(docHtml);
     doc.close();
 
     iframe.contentWindow?.focus();
@@ -98,13 +111,16 @@ export type PrintDirectResult = {
 function friendlyQzError(err: unknown): string {
   const raw = String((err as any)?.message || err || '');
   if (!raw) return 'QZ Tray çapı alınmadı';
+  if (/script load failed|script not loaded|library not available|blocked/i.test(raw)) {
+    return 'QZ Tray quraşdırılmayıb və ya bloklanıb — QZ Tray proqramını quraşdırın/yeniləyin';
+  }
   if (/connect|websocket|qoşul|localhost|ECONN/i.test(raw)) {
     return 'QZ Tray-ə qoşmaq mümkün olmadı — QZ Tray proqramının açıq olduğunu yoxlayın';
   }
   if (/printer|not found|tapılmadı/i.test(raw)) {
     return 'QZ Tray printeri tapa bilmədi — cihaz printerini yoxlayın';
   }
-  if (/certificate|signature|security/i.test(raw)) {
+  if (/certificate|signature|security|crypto/i.test(raw)) {
     return 'QZ Tray sertifikat xətası — QZ Tray sertifikatı yeniləyin';
   }
   return `QZ çap alınmadı: ${raw.slice(0, 160)}`;
@@ -121,12 +137,19 @@ export async function printDirectOrFallback(
     allowBrowserFallback?: boolean;
   }
 ): Promise<PrintDirectResult> {
-  // Priority: QZ first when useQz is set (explicit printer + paper width), then
-  // local agent, then browser print. Without useQz, agent is tried first for
-  // existing café setups (their default printer stays untouched).
+  // useQz:  true → QZ is the intended printer (cafés with QZ Tray). Failure is
+  //         surfaced to the user — a browser dialog must NOT open, its mm CSS
+  //         renders broken on A4/US-Letter preview and the receipt comes out cut
+  //         (user complaint: “QZ machine still opens the print window”).
+  //         false → QZ is skipped entirely (caller chose agent/browser).
+  //         undefined → legacy: agent first, QZ second, window last.
+  // The browser dialog is only the rescue for machines where QZ honestly does
+  // NOT exist (script can't load at all) and the caller allowed the fallback.
   const qzFirst = options?.useQz === true;
 
-  async function tryQz(): Promise<{ ok: boolean; error?: string }> {
+  let qzScriptUnavailable = false;
+
+  async function tryQz(): Promise<{ ok: boolean; error?: string; scriptUnavailable?: boolean }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
       // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
@@ -146,20 +169,42 @@ export async function printDirectOrFallback(
       return { ok: true };
     } catch (err) {
       console.warn('QZ Tray print attempted but failed:', err);
-      return { ok: false, error: friendlyQzError(err) };
+      const raw = String((err as any)?.message || err || '');
+      const scriptUnavailable = /script load failed|script not loaded|library not available/i.test(raw);
+      if (scriptUnavailable) qzScriptUnavailable = true;
+      return { ok: false, error: friendlyQzError(err), scriptUnavailable };
     }
   }
 
   let lastError: string | undefined;
 
-  // 1. QZ first when useQz
+  // 1. QZ first when useQz is set (explicit printer + paper width), then local
+  //    agent as silent rescue, then a clear error — never the browser dialog.
   if (qzFirst) {
     const qz = await tryQz();
     if (qz.ok) return { method: 'qz', success: true };
     lastError = qz.error;
+
+    try {
+      const agentSuccess = await printViaLocalAgent(html, options?.printerName);
+      if (agentSuccess) {
+        return { method: 'agent', success: true };
+      }
+    } catch {}
+
+    // QZ is the operator's chosen channel. Broken QZ (not running, cert not
+    // accepted, signature failed) → error, and only a missing QZ install gets
+    // the dialog… and only when the caller allows it.
+    if (options?.allowBrowserFallback === true && qzScriptUnavailable) {
+      const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
+      if (browserSuccess) {
+        return { method: 'browser', success: true };
+      }
+    }
+    return { method: 'none', success: false, error: lastError || 'QZ Tray çapı alınmadı' };
   }
 
-  // 2. Try local Print Agent
+  // 2-3. Without QZ-first: local Print Agent, then (legacy) QZ second.
   try {
     const agentSuccess = await printViaLocalAgent(html, options?.printerName);
     if (agentSuccess) {
@@ -167,40 +212,24 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  // 3. QZ second (when not useQz-first), or skipped if already failed above
-  if (!qzFirst) {
-    const qz = await tryQz();
-    if (qz.ok) return { method: 'qz', success: true };
-    lastError = qz.error;
+  if (options?.useQz === false) {
+    // Caller explicitly disabled QZ — it must not be attempted on the side.
+    if (options?.allowBrowserFallback === true) {
+      const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
+      if (browserSuccess) {
+        return { method: 'browser', success: true };
+      }
+    }
+    return { method: 'none', success: false, error: 'Çap mediası əlçan deyil' };
   }
 
-  // 4. Browser print dialog ONLY when the caller explicitly opts in.
-  //    If the flow is QZ-first (useQz:true) we probe whether QZ Tray is actually
-  //    available: when QZ is present but printing failed, the ticket must NOT
-  //    fall back to the browser dialog (CSS widths are in mm and render broken
-  //    on A4/US-Letter preview → cut-off receipt). Instead the caller shows the
-  //    QZ error. When QZ is not installed at all, the dialog remains the only
-  //    print path, so it stays allowed for legacy setups.
-  let qzActuallyAvailable = false;
-  if (options?.useQz === true && options?.allowBrowserFallback === true) {
-    try {
-      const { qzCheckStatus } = await import('./qz');
-      const status = await qzCheckStatus();
-      qzActuallyAvailable = status.online === true;
-    } catch {
-      qzActuallyAvailable = false;
-    }
-    if (qzActuallyAvailable) {
-      return {
-        method: 'none',
-        success: false,
-        error: lastError || 'QZ Tray çapı alınmadı — printer bağlantısını yoxlayın',
-      };
-    }
-  }
+  // Legacy (undefined): QZ second, then browser dialog as the classic final rescue.
+  const qz = await tryQz();
+  if (qz.ok) return { method: 'qz', success: true };
+  lastError = qz.error;
 
-  if (options?.allowBrowserFallback === true && !qzActuallyAvailable) {
-    const browserSuccess = printHtmlViaBrowserIframe(html);
+  if (options?.allowBrowserFallback === true && qzScriptUnavailable) {
+    const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
     if (browserSuccess) {
       return { method: 'browser', success: true };
     }
