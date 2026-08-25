@@ -1434,7 +1434,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         if (printSettings.auto_print_receipt !== false) {
           void printDirectOrFallback(receiptMarkup, {
             printerName: printSettings.printer_name,
-            useQz: true,
+            useQz: Boolean(printSettings.use_qz),
+            paperWidth: printSettings.paper_width || '58mm',
+            printEngine: printSettings.print_engine || 'pixel_html',
             allowBrowserFallback: false,
           }).then((res) => {
             if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1812,8 +1814,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     if (!safeReceiptHtml) return;
     const res = await printDirectOrFallback(safeReceiptHtml, {
       printerName: printSettings.printer_name,
-      useQz: true,
-      paperWidth: printSettings.paper_width,
+      useQz: Boolean(printSettings.use_qz),
+      paperWidth: printSettings.paper_width || '58mm',
+      printEngine: printSettings.print_engine || 'pixel_html',
       allowBrowserFallback: true,
     });
     if (res.success) {
