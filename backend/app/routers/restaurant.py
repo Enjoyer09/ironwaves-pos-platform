@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Shift, Table, TableSession, Tenant, User
-from app.realtime import broadcast_tenant_event
+from app.realtime import broadcast_tenant_event, emit_realtime_sync
 from app.services.finance_service import (
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
     post_sale_cogs as _post_sale_cogs,
@@ -120,10 +120,7 @@ def _normalize_item_action(action: str | None) -> str:
 
 
 def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> None:
-    try:
-        from_thread.run(broadcast_tenant_event, tenant_id, event, payload or {})
-    except Exception:
-        pass
+    emit_realtime_sync(tenant_id, event, payload or {})
 
 
 def _log_item_status(

@@ -670,6 +670,7 @@ export async function settle_table_check_live(
         amount: row.amount,
       })),
     },
+    timeoutMs: 30000,
   });
 }
 
