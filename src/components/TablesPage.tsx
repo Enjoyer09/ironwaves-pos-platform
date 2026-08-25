@@ -1157,6 +1157,35 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       // Generate receipt HTML
       const { itemsTotal: rItemsTotal, discountPercent: rDiscountPercent, discountAmount: rDiscountAmount, serviceFee: rServiceFee, deposit: rDeposit, finalTotal: rFinalTotal, dueNow: rDueNow } = getTableBillBreakdown(table);
       const payItems = getTablePaymentItems(table);
+      // Construct feedback URL for QR
+      const configuredBase = String(tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
+      const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
+      const tenantDomainRows = getTenantDomains();
+      const tenantDomain =
+        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenant_id && Boolean(row?.is_primary))?.domain ||
+        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenant_id)?.domain ||
+        '';
+      const tenantBaseUrl = tenantDomain ? `https://${String(tenantDomain).trim().replace(/^https?:\/\//, '')}` : baseUrl;
+      const feedbackSettings = tenantSettings?.feedback_settings || {};
+      const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
+      const feedbackBaseUrl = String(feedbackSettings?.portal_url || defaultFeedbackPortalUrl || '').trim();
+      let feedbackUrl = '';
+      if (feedbackBaseUrl) {
+        try {
+          const u = new URL(feedbackBaseUrl, tenantBaseUrl);
+          if (tenantDomain && u.hostname === 'super.ironwaves.store') {
+            u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
+          }
+          u.pathname = '/feedback';
+          u.searchParams.set('tenant_id', tenant_id);
+          if (result?.sale_id) u.searchParams.set('sale_id', String(result.sale_id));
+          u.searchParams.set('table', table.label);
+          feedbackUrl = u.toString();
+        } catch {
+          feedbackUrl = feedbackBaseUrl;
+        }
+      }
+
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
@@ -1176,6 +1205,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         },
         profile: businessProfile,
         lang,
+        feedbackUrl,
         paperWidth: printSettings.paper_width || '58mm',
       });
 
@@ -1196,10 +1226,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           finalTotal: rFinalTotal.toNumber(),
           dueNow: rDueNow.toNumber(),
         },
-        companyName: businessProfile?.company_name,
+        companyName: businessProfile?.company_name || 'iRonWaves Platform',
         voen: businessProfile?.voen,
         phone: businessProfile?.phone,
         address: businessProfile?.address,
+        feedbackUrl,
         footer: businessProfile?.receipt_footer,
         paperWidth: printSettings.paper_width || '58mm',
       });
