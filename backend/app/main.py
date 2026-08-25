@@ -1233,6 +1233,10 @@ def _run_data_retention_cleanup():
 @app.on_event("startup")
 async def on_startup():
     try:
+        realtime_hub.set_loop(asyncio.get_running_loop())
+    except Exception:
+        pass
+    try:
         limiter = anyio.to_thread.current_default_thread_limiter()
         limiter.total_tokens = max(int(settings.thread_pool_tokens or 64), 8)
     except Exception:
