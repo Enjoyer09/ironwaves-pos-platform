@@ -82,7 +82,10 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     font-weight: 700;
   }
   td:first-child { overflow-wrap: anywhere; padding-right: 6px; white-space: normal; }
-  td:nth-child(2) {
+  /* Qty column: only applies to 3+ column tables (e.g. table-check receipts).
+     POS receipts are 2-column (name+qty | price) — the qty lives inside the
+     name cell, so the price cell below is their only right column. */
+  td:nth-child(2):not(:last-child) {
     width: 10mm;
     text-align: center;
     white-space: nowrap;

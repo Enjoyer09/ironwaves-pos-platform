@@ -863,7 +863,7 @@ export default function ZReportPanel() {
           notify('success', tx(lang, 'Çap pəncərəsi açıldı', 'Окно печати открыто', 'Print window opened'));
         }
       } else {
-        notify('error', tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
+        notify('error', tx(lang, res.error || 'Çap alınmadı', res.error || 'Ошибка печати', res.error || 'Printing failed'));
       }
     } catch (e: any) {
       notify('error', tx(lang, `Çap xətası: ${e?.message || e}`, `Ошибка печати: ${e?.message || e}`, `Print error: ${e?.message || e}`));

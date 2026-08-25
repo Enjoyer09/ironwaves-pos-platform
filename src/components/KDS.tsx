@@ -140,7 +140,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         );
       } else {
         if (dedupeKey) clearTicketPrinted(dedupeKey);
-        useAppStore.getState().notify('error', tx(lang, 'Çap pəncərəsi açıla bilmədi', 'Не удалось открыть печать', 'Failed to open print dialog'));
+        useAppStore.getState().notify('error', tx(lang, res.error || 'Çap pəncərəsi açıla bilmədi', res.error || 'Не удалось открыть печать', res.error || 'Failed to open print dialog'));
       }
     } catch (e: any) {
       if (dedupeKey) clearTicketPrinted(dedupeKey);

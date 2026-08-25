@@ -88,6 +88,28 @@ export async function printViaLocalAgent(html: string, printerName?: string): Pr
   }
 }
 
+export type PrintDirectResult = {
+  method: 'agent' | 'qz' | 'browser' | 'none';
+  success: boolean;
+  /** Filled when printing failed and the caller should surface it to the user. */
+  error?: string;
+};
+
+function friendlyQzError(err: unknown): string {
+  const raw = String((err as any)?.message || err || '');
+  if (!raw) return 'QZ Tray çapı alınmadı';
+  if (/connect|websocket|qoşul|localhost|ECONN/i.test(raw)) {
+    return 'QZ Tray-ə qoşmaq mümkün olmadı — QZ Tray proqramının açıq olduğunu yoxlayın';
+  }
+  if (/printer|not found|tapılmadı/i.test(raw)) {
+    return 'QZ Tray printeri tapa bilmədi — cihaz printerini yoxlayın';
+  }
+  if (/certificate|signature|security/i.test(raw)) {
+    return 'QZ Tray sertifikat xətası — QZ Tray sertifikatı yeniləyin';
+  }
+  return `QZ çap alınmadı: ${raw.slice(0, 160)}`;
+}
+
 export async function printDirectOrFallback(
   html: string,
   options?: {
@@ -98,13 +120,13 @@ export async function printDirectOrFallback(
     rawCommands?: string;
     allowBrowserFallback?: boolean;
   }
-): Promise<{ method: 'agent' | 'qz' | 'browser' | 'none'; success: boolean }> {
+): Promise<PrintDirectResult> {
   // Priority: QZ first when useQz is set (explicit printer + paper width), then
-  // local agent, then browser dialog. Without useQz, agent is tried first for
+  // local agent, then browser print. Without useQz, agent is tried first for
   // existing café setups (their default printer stays untouched).
   const qzFirst = options?.useQz === true;
 
-  async function tryQz(): Promise<boolean> {
+  async function tryQz(): Promise<{ ok: boolean; error?: string }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
       // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
@@ -121,16 +143,20 @@ export async function printDirectOrFallback(
           paperWidth: options?.paperWidth || '58mm',
         });
       }
-      return true;
+      return { ok: true };
     } catch (err) {
       console.warn('QZ Tray print attempted but failed:', err);
-      return false;
+      return { ok: false, error: friendlyQzError(err) };
     }
   }
 
+  let lastError: string | undefined;
+
   // 1. QZ first when useQz
   if (qzFirst) {
-    if (await tryQz()) return { method: 'qz', success: true };
+    const qz = await tryQz();
+    if (qz.ok) return { method: 'qz', success: true };
+    lastError = qz.error;
   }
 
   // 2. Try local Print Agent
@@ -143,18 +169,22 @@ export async function printDirectOrFallback(
 
   // 3. QZ second (when not useQz-first), or skipped if already failed above
   if (!qzFirst) {
-    if (await tryQz()) return { method: 'qz', success: true };
+    const qz = await tryQz();
+    if (qz.ok) return { method: 'qz', success: true };
+    lastError = qz.error;
   }
 
-  // 4. Fallback to Browser Print Dialog (Save to PDF / Native Print) only if allowed
-  if (options?.allowBrowserFallback !== false) {
+  // 4. Browser print dialog ONLY when the caller explicitly opts in.
+  //    QZ-first flows (useQz:true) must NOT open the print window on failure —
+  //    the caller shows the returned error instead.
+  if (options?.allowBrowserFallback === true) {
     const browserSuccess = printHtmlViaBrowserIframe(html);
     if (browserSuccess) {
       return { method: 'browser', success: true };
     }
   }
 
-  return { method: 'none', success: false };
+  return { method: 'none', success: false, error: lastError || 'Çap mediası əlçatan deyil' };
 }
 
 export async function localPrintAgentHealth(): Promise<boolean> {
