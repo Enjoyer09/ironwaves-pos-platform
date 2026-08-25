@@ -49,9 +49,11 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .line span:first-child {
     flex: 1 1 auto;
-    min-width: max-content;
+    min-width: 0;
     padding-right: 4px;
-    overflow-wrap: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .line span:last-child {
     text-align: right;
