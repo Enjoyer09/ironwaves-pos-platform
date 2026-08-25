@@ -113,8 +113,8 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
   const contentWidth = paperWidth === '80mm' ? '72mm' : '48mm';
   const fontSize = paperWidth === '80mm' ? '13.5px' : '11.5px';
   return `
-    html, body { max-width: ${contentWidth} !important; font-size: ${fontSize} !important; }
-    table { font-size: ${fontSize} !important; }
+    html, body { width: ${contentWidth} !important; max-width: ${contentWidth} !important; font-size: ${fontSize} !important; overflow: hidden !important; }
+    table { width: 100% !important; font-size: ${fontSize} !important; }
     .line { font-size: ${fontSize} !important; }
   `;
 }

@@ -188,12 +188,17 @@ export async function buildSaleReceiptHtml({
     }
   }
 
+  const printWidthPx = (paperWidth || '58mm') === '80mm' ? 576 : 384;
+
   return `
     <html>
       <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=${printWidthPx}" />
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
             ${thermalPaperWidthOverride(paperWidth)}
+            html, body { width: ${printWidthPx}px !important; max-width: ${printWidthPx}px !important; overflow: hidden !important; }
           </style>
       </head>
       <body>
@@ -316,14 +321,18 @@ export async function buildTableReceiptHtml({
     }
   }
 
+  const printWidthPx = (paperWidth || '58mm') === '80mm' ? 576 : 384; // 72mm@203dpi : 48mm@203dpi
+
   return `<!DOCTYPE html>
 <html lang="${lang}">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=${printWidthPx}" />
     <title>Table Receipt - ${esc(tableLabel)}</title>
     <style>
       ${THERMAL_RECEIPT_PRINT_CSS}
       ${thermalPaperWidthOverride(paperWidth)}
+      html, body { width: ${printWidthPx}px !important; max-width: ${printWidthPx}px !important; overflow: hidden !important; }
     </style>
   </head>
   <body>
