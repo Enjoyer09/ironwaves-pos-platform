@@ -341,6 +341,11 @@ class BusinessProfile(Base):
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     receipt_footer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    voen: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tax_regime: Mapped[str] = mapped_column(String(32), default="simplified", server_default="simplified")
+    vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("18"), server_default="18")
+    nka_registration_no: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fiscal_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class TenantBranch(Base):
