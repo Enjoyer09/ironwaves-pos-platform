@@ -295,12 +295,16 @@ export const qzPrintRaw = async (commands: string, printerName?: string) => {
     copies: 1,
   });
 
+  // IMPORTANT: Use base64 flavor to safely transmit binary ESC/POS data.
+  // flavor:'plain' encodes the string as UTF-8 over WebSocket, which corrupts
+  // any bytes ≥ 0x80 (common in QR bitmaps built with String.fromCharCode).
+  // btoa() works because every byte in our ESC/POS string is in 0x00-0xFF range.
   const data = [
     {
       type: 'raw',
       format: 'command',
-      flavor: 'plain',
-      data: commands,
+      flavor: 'base64',
+      data: btoa(commands),
     },
   ];
 
