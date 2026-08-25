@@ -1428,7 +1428,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </body>
           </html>
         `;
-        const rawCmds = buildSaleReceiptEscPos({
+        const rawCmds = await buildSaleReceiptEscPos({
           sale: {
             ...sale,
             items: receiptCart.map((i) => ({
