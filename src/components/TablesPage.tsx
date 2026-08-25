@@ -1263,8 +1263,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           printerName: printSettings.printer_name,
           useQz: Boolean(printSettings.use_qz),
           paperWidth: printSettings.paper_width || '58mm',
-          printEngine: printSettings.print_engine || 'pixel_html',
-          rawCommands: rawCmds,
+          printEngine: 'pixel_html',
           allowBrowserFallback: false,
         }).then((res) => {
           if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1657,8 +1656,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       printerName: printSettings.printer_name,
       useQz: Boolean(printSettings.use_qz),
       paperWidth: printSettings.paper_width || '58mm',
-      printEngine: printSettings.print_engine || 'pixel_html',
-      rawCommands: tableReceiptRawCommands || undefined,
+      printEngine: 'pixel_html',
       allowBrowserFallback: true,
     });
     if (res.success) {
