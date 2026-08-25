@@ -3,7 +3,7 @@
 **Tarix:** 2026-08-24
 **Müəllif:** WorkBuddy AI (kod-səviyyəli audit)
 **Əhatə:** ESC/POS builder, QZ Tray, yerli print-agent, KDS, çap trigger axını (POS / TablesPage / KDS)
-**Status:** Audit tamamlandı, düzəliş planı təqdim olunur (kod hələ yazılmayıb)
+**Status:** Audit tamamlandı. P1-7, P1-8 ✅ hazır; digər P0/P1 maddələri planlanır (kod hələ yazılmayıb)
 
 ---
 
@@ -121,13 +121,13 @@ printDirectOrFallback(...)  ──► eyni nəqliyyatlar, eyni kitchen_printer_n
 Yalnız bir `kitchen_printer_name` mövcuddur (`SettingsPanel.tsx`). Kahve→bar, yemək→mətbəx ayrıla bilməz.
 **Düzəliş:** Kateqoriya/stansiya üzrə printer təyinatı; builder item-ləri kateqoriyaya görə bölüb ayrı çeklər çap etsin.
 
-#### P1-7. `use_qz` tənzimləməsi əsas axında ölüdür
+#### P1-7. `use_qz` tənzimləməsi əsas axında ölür
 `printDirectOrFallback` (`local_print_agent.ts:77–122`) heç vaxt `options.useQz` oxumur — agent həmişə ilk sınanır, sonra QZ. Admin paneldə `use_qz=false` etmək POS/Tables axınında heç nə dəyişməz (yalnız AdminPanel hörmət edir).
-**Düzəliş:** `printDirectOrFallback` `useQz`-i hörmət etsin (false olanda QZ budağını keç), yaxud tənzimləməni sil.
+**Düzəliş:** `printDirectOrFallback` `useQz`-i hörmət etsin (false olanda QZ budağını keç), yaxud tənzimləməni sil. ✅ **HAZIR** (2026-08-25): `useQz === true` olduqda QZ **birinci** sıralanır (agent 8s gözləməsi yoxdur); `false` olduqda QZ budağı keçilir. QZ fail-də `error` mesajı qaytarılır və çağırıcılar notify edir.
 
 #### P1-8. Checkout/settle çeklərində `allowBrowserFallback:false`
 `POS.tsx:1520` və `TablesPage.tsx:887,952` çeklərdə brauzer ehtiyatı söndürülüb. Agent və QZ yoxkən çek səssizcə itir.
-**Düzəliş:** Ən azı brauzer ehtiyatına icazə ver, yaxud aydın "çek çap olunmadı" xətası göstər + növbəyə al.
+**Düzəliş:** Ən azı brauzer ehtiyatına icazə ver, yaxud aydın "çek çap olunmadı" xətası göstər + növbəyə al. ✅ **HAZIR** (2026-08-25): `allowBrowserFallback` yalnız `true` olduqda açılır (əvvəlki `!== false` default-u QZ-first axınlarında pəncərə açırdı). Uğursuzluqda `error` (QZ qoşulma/printer/sertifikat dostu mesaj) qaytarılır və bütün çağıranlar `notify('error')` ilə göstərir — çek səssiz itmir, səbəb görünür.
 
 ---
 
@@ -174,8 +174,8 @@ Yalnız bir `kitchen_printer_name` mövcuddur (`SettingsPanel.tsx`). Kahve→bar
 6. macOS `@page` ölçüsünü düzəlt (P1-4).
 7. Windows default-printer yarışını aradan qaldır (P1-5).
 8. Kateqoriya üzrə printer yönləndirmə (P1-6).
-9. `use_qz` ölü tənzimləməsini düzəlt (P1-7).
-10. Checkout/settle çeklərində brauzer ehtiyatına icazə ver (P1-8).
+9. `use_qz` ölü tənzimləməsini düzəlt (P1-7). ✅ hazır
+10. Checkout/settle çeklərində brauzer ehtiyatına icazə ver (P1-8). ✅ hazır
 
 **Üçüncü (P2):** təhlükəsizlik/gigiyena (P2-1…P2-9).
 
