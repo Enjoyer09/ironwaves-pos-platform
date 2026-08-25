@@ -1593,6 +1593,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const res = await printDirectOrFallback(safeTableReceiptHtml, {
       printerName: printSettings.printer_name,
       useQz: true,
+      paperWidth: printSettings.paper_width,
       allowBrowserFallback: true,
     });
     if (res.success) {

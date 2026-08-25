@@ -4,7 +4,12 @@ type QzTrayWindow = Window & {
   qz?: any;
 };
 
-const QZ_SCRIPT_SRC = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
+// Local copy first: café machines often have slow/blocked internet, and a
+// CDN timeout silently makes QZ "unavailable" → browser print window opens even
+// though QZ Tray is installed. The vendored copy is in public/qz-tray.js
+// (same 2.2.4 build); the CDN is only a fallback behind the local file.
+const QZ_SCRIPT_SRC_LOCAL = '/qz-tray.js';
+const QZ_SCRIPT_SRC_CDN = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
 
 const QZ_CERT = `-----BEGIN CERTIFICATE-----
 MIIDIzCCAgugAwIBAgIUODM1NZjgXFuCsFwm9s46EvGwqJQwDQYJKoZIhvcNAQEL
@@ -87,13 +92,26 @@ const loadQzScript = async () => {
       return;
     }
 
-    const script = document.createElement('script');
-    script.src = QZ_SCRIPT_SRC;
-    script.async = true;
-    script.dataset.qzTray = '1';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('QZ script load failed'));
-    document.head.appendChild(script);
+    const sources = [QZ_SCRIPT_SRC_LOCAL, QZ_SCRIPT_SRC_CDN];
+    let index = 0;
+    const tryNext = (): void => {
+      if (index >= sources.length) {
+        reject(new Error('QZ script load failed'));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = sources[index];
+      script.async = true;
+      script.dataset.qzTray = '1';
+      script.onload = () => resolve();
+      script.onerror = () => {
+        script.remove();
+        index += 1;
+        tryNext();
+      };
+      document.head.appendChild(script);
+    };
+    tryNext();
   });
 
   if (!(window as QzTrayWindow).qz) {
@@ -164,6 +182,7 @@ export const qzCheckStatus = async (): Promise<{
   version?: string;
   printers: string[];
   error?: string;
+  errorKind?: 'script' | 'connection' | 'signature';
 }> => {
   try {
     const qz = await loadQzScript();
@@ -177,10 +196,18 @@ export const qzCheckStatus = async (): Promise<{
       printers,
     };
   } catch (err: any) {
+    const msg = err?.message || String(err);
+    let errorKind: 'script' | 'connection' | 'signature' = 'connection';
+    if (/script load failed|script not loaded/i.test(msg)) {
+      errorKind = 'script';
+    } else if (/signature|security|certificate|crypto/i.test(msg)) {
+      errorKind = 'signature';
+    }
     return {
       online: false,
       printers: [],
-      error: err?.message || String(err),
+      error: msg,
+      errorKind,
     };
   }
 };

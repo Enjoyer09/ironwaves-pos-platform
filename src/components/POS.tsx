@@ -1813,6 +1813,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     const res = await printDirectOrFallback(safeReceiptHtml, {
       printerName: printSettings.printer_name,
       useQz: true,
+      paperWidth: printSettings.paper_width,
       allowBrowserFallback: true,
     });
     if (res.success) {
