@@ -1458,7 +1458,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             printerName: printSettings.printer_name,
             useQz: Boolean(printSettings.use_qz),
             paperWidth: printSettings.paper_width || '58mm',
-            printEngine: 'pixel_html',
+            printEngine: 'raw_escpos',
+            rawCommands: rawCmds,
             allowBrowserFallback: false,
           }).then((res) => {
             if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1838,7 +1839,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       printerName: printSettings.printer_name,
       useQz: Boolean(printSettings.use_qz),
       paperWidth: printSettings.paper_width || '58mm',
-      printEngine: 'pixel_html',
+      printEngine: 'raw_escpos',
+      rawCommands: receiptRawCommands || undefined,
       allowBrowserFallback: true,
     });
     if (res.success) {
