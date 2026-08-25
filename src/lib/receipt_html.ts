@@ -251,3 +251,130 @@ export async function buildSaleReceiptHtml({
     </html>
   `;
 }
+
+export async function buildTableReceiptHtml({
+  tableLabel,
+  operator,
+  items,
+  breakdown,
+  profile,
+  lang = 'az',
+  feedbackUrl = '',
+  paperWidth,
+}: {
+  tableLabel: string;
+  operator: string;
+  items: Array<{ item_name: string; qty: number; price: number | string }>;
+  breakdown: {
+    itemsTotal: number;
+    discountPercent: number;
+    discountAmount: number;
+    serviceFee: number;
+    deposit: number;
+    finalTotal: number;
+    dueNow: number;
+  };
+  profile?: any;
+  lang?: ReceiptLang;
+  feedbackUrl?: string;
+  paperWidth?: '58mm' | '80mm';
+}): Promise<string> {
+  const companyName = profile?.company_name || 'IRONWAVES POS';
+  const createdAt = new Date().toLocaleString('az-AZ', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const lines = items
+    .map((item) => {
+      const qty = Number(item.qty || 1);
+      const name = esc(item.item_name || '-');
+      const lineTotal = Number(item.price || 0) * qty;
+      return `
+        <tr>
+          <td>${qty}x ${name}</td>
+          <td>${money(lineTotal)} ₼</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  let qrDataUrl = '';
+  if (feedbackUrl) {
+    try {
+      qrDataUrl = await QRCode.toDataURL(feedbackUrl, {
+        width: 130,
+        margin: 2,
+        errorCorrectionLevel: 'L',
+        color: { dark: '#000000', light: '#FFFFFF' },
+      });
+    } catch {
+      qrDataUrl = '';
+    }
+  }
+
+  return `<!DOCTYPE html>
+<html lang="${lang}">
+  <head>
+    <meta charset="utf-8" />
+    <title>Table Receipt - ${esc(tableLabel)}</title>
+    <style>
+      ${THERMAL_RECEIPT_PRINT_CSS}
+      ${thermalPaperWidthOverride(paperWidth)}
+    </style>
+  </head>
+  <body>
+    ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
+    <div class="bold" style="font-size:14px">${esc(companyName)}</div>
+    <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
+    <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
+    <div class="muted">${esc(profile?.address || '-')}</div>
+    <hr />
+    <div class="section-title" style="text-align:center">*** ${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')} ***</div>
+    <hr />
+    <div class="line"><span>${tx(lang, 'Masa', 'Стол', 'Table')}</span><span class="bold">${esc(tableLabel)}</span></div>
+    <div class="line"><span>${tx(lang, 'Xidmət', 'Официант', 'Server')}</span><span>${esc(operator || 'staff')}</span></div>
+    <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
+    <hr />
+    <table>${lines || `<tr><td>${tx(lang, 'Sifariş yoxdur', 'Нет позиций', 'No items')}</td><td>0.00 ₼</td></tr>`}</table>
+    <hr />
+    <div class="line"><span>${tx(lang, 'Sifariş cəmi', 'Сумма заказа', 'Items Total')}</span><span>${money(breakdown.itemsTotal)} ₼</span></div>
+    ${
+      breakdown.discountAmount > 0
+        ? `<div class="line"><span>${tx(lang, `Endirim (${breakdown.discountPercent}%)`, `Скидка (${breakdown.discountPercent}%)`, `Discount (${breakdown.discountPercent}%)`)}</span><span>-${money(breakdown.discountAmount)} ₼</span></div>`
+        : ''
+    }
+    ${
+      breakdown.serviceFee > 0
+        ? `<div class="line"><span>${tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service Fee')}</span><span>${money(breakdown.serviceFee)} ₼</span></div>`
+        : ''
+    }
+    ${
+      breakdown.deposit > 0
+        ? `<div class="line"><span>${tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>${money(breakdown.deposit)} ₼</span></div>`
+        : ''
+    }
+    <div class="line"><span>${tx(lang, 'Əlavə ödəniş', 'К доплате', 'Due Now')}</span><span>${money(breakdown.dueNow)} ₼</span></div>
+    <div class="line bold" style="font-size:13px;margin-top:4px;">
+      <span>${tx(lang, 'YEKUN', 'ИТОГО', 'TOTAL')}</span>
+      <span>${money(breakdown.finalTotal)} ₼</span>
+    </div>
+    ${
+      qrDataUrl
+        ? `
+      <hr />
+      <div style="display:flex;justify-content:center;margin:6px 0">
+        <img src="${qrDataUrl}" alt="qr" style="width:96px;height:96px" />
+      </div>
+      <div class="muted" style="font-size:9.5px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün önəmlidir!', 'Ваш отзыв важен для нас!', 'Your feedback is important!')}</div>
+      `
+        : ''
+    }
+    <hr />
+    <div class="muted" style="text-align:center">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
+  </body>
+</html>`;
+}

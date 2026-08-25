@@ -1401,7 +1401,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <hr />
               <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
               <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
-              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString('az-AZ')}</span></div>
+              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
               <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${receiptOrderType}</span></div>
               <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
               <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>

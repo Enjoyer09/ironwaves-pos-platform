@@ -16,6 +16,7 @@ import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
+import { buildTableReceiptHtml } from '../lib/receipt_html';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
 import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
@@ -1153,30 +1154,29 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       });
 
       // Generate receipt HTML
-      const { itemsTotal: rItemsTotal, discountPercent: rDiscountPercent, discountAmount: rDiscountAmount, discountedItemsTotal: rDiscountedTotal, serviceFee: rServiceFee, deposit: rDeposit, finalTotal: rFinalTotal, dueNow: rDueNow } = getTableBillBreakdown(table);
+      const { itemsTotal: rItemsTotal, discountPercent: rDiscountPercent, discountAmount: rDiscountAmount, serviceFee: rServiceFee, deposit: rDeposit, finalTotal: rFinalTotal, dueNow: rDueNow } = getTableBillBreakdown(table);
       const payItems = getTablePaymentItems(table);
-      const itemsHtml = payItems.map((row: any) => `<tr><td>${row.item_name}</td><td>${row.qty}x</td><td>${new Decimal(row.price || 0).times(row.qty || 0).toFixed(2)} ₼</td></tr>`).join('');
-      const receiptMarkup = `<html><head><style>${THERMAL_RECEIPT_PRINT_CSS}</style></head><body>
-        ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-        <h2 style="margin:0 0 4px;font-size:16px">${businessProfile?.company_name || 'IRONWAVES POS'}</h2>
-        <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
-        <div class="muted">${businessProfile?.address || '-'}</div>
-        <hr/>
-        <div class="line"><span>Masa</span><span class="bold">${table.label}</span></div>
-        <div class="line"><span>Operator</span><span>${user?.username || 'staff'}</span></div>
-        <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
-        <hr/>
-        <table>${itemsHtml}</table>
-        <hr style="margin:12px 0"/>
-        <div class="line"><span>Sifariş cəmi</span><span>${rItemsTotal.toFixed(2)} ₼</span></div>
-        ${rDiscountAmount.greaterThan(0) ? `<div class="line"><span>Endirim (${rDiscountPercent.toFixed(0)}%)</span><span>-${rDiscountAmount.toFixed(2)} ₼</span></div>` : ''}
-        <div class="line"><span>Servis haqqı</span><span>${rServiceFee.toFixed(2)} ₼</span></div>
-        <div class="line"><span>Depozit</span><span>${rDeposit.toFixed(2)} ₼</span></div>
-        <div class="line"><span>Əlavə ödəniş</span><span>${rDueNow.toFixed(2)} ₼</span></div>
-        <div class="line bold"><span>YEKUN</span><span>${rFinalTotal.toFixed(2)} ₼</span></div>
-        <hr/>
-        <div class="muted">${businessProfile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
-      </body></html>`;
+      const receiptMarkup = await buildTableReceiptHtml({
+        tableLabel: table.label,
+        operator: user?.username || 'staff',
+        items: payItems.map((row: any) => ({
+          item_name: row.item_name,
+          qty: row.qty,
+          price: row.price,
+        })),
+        breakdown: {
+          itemsTotal: rItemsTotal.toNumber(),
+          discountPercent: rDiscountPercent.toNumber(),
+          discountAmount: rDiscountAmount.toNumber(),
+          serviceFee: rServiceFee.toNumber(),
+          deposit: rDeposit.toNumber(),
+          finalTotal: rFinalTotal.toNumber(),
+          dueNow: rDueNow.toNumber(),
+        },
+        profile: businessProfile,
+        lang,
+        paperWidth: printSettings.paper_width || '58mm',
+      });
 
       if (isBackendEnabled() && String(result.sale_id || '').trim()) {
         void save_sale_receipt_html_live(String(result.sale_id), receiptMarkup).catch(() => undefined);
