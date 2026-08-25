@@ -429,25 +429,34 @@ export async function buildTableReceiptEscPos({
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
 
-  const boldOn = ESC + 'E\x01';
+  const CTR  = ESC + 'a\x01'; // center
+  const LEFT = ESC + 'a\x00'; // left
+  const boldOn  = ESC + 'E\x01';
   const boldOff = ESC + 'E\x00';
-  const doubleHeightOn = GS + '!\x01';
-  const sizeReset = GS + '!\x00';
+  // Double-width (approx 15% wider feel, 2x actual) — used for shop name & total
+  const dblWidOn  = GS + '!\x10';
+  const dblWidOff = GS + '!\x00';
 
   let cmd = '';
-  cmd += ESC + '@';
-  cmd += ESC + 't\x00';
+  cmd += ESC + '@';         // full reset
+  cmd += ESC + 't\x00';    // code page PC437
+  cmd += '\n';              // one feed so printer doesn't clip first byte
 
-  // Header Center
-  cmd += ESC + 'a\x01';
-  const comp = (companyName || 'iRonWaves Platform').trim();
-  cmd += boldOn;
-  cmd += sanitizeEscPosText(comp) + '\n';
-  cmd += boldOff;
+  // ── Header (centered) ───────────────────────────────────────────
+  cmd += CTR;
+  const comp = sanitizeEscPosText((companyName || 'IronWaves POS').trim());
+  if (comp) {
+    cmd += boldOn + dblWidOn;
+    cmd += centerText(comp, Math.floor(lineChars / 2)) + '\n';
+    cmd += dblWidOff + boldOff;
+  }
 
-  cmd += `VOEN: ${sanitizeEscPosText(voen || '-')}\n`;
-  cmd += `Tel: ${sanitizeEscPosText(phone || '-')}\n`;
-  if (address && address !== '-') cmd += `${sanitizeEscPosText(address)}\n`;
+  const safeVoen    = sanitizeEscPosText((voen    || '').trim());
+  const safePhone   = sanitizeEscPosText((phone   || '').trim());
+  const safeAddress = sanitizeEscPosText((address || '').trim());
+  if (safeVoen)    cmd += `VOEN: ${safeVoen}\n`;
+  if (safePhone)   cmd += `Tel: ${safePhone}\n`;
+  if (safeAddress) cmd += `${safeAddress}\n`;
 
   cmd += dashLine;
   cmd += boldOn;
@@ -455,8 +464,8 @@ export async function buildTableReceiptEscPos({
   cmd += boldOff;
   cmd += dashLine;
 
-  // Info rows
-  cmd += ESC + 'a\x00';
+  // ── Info rows (left-aligned two-column) ─────────────────────────
+  cmd += LEFT;
   cmd += formatEscPosTwoColumns('Masa:', sanitizeEscPosText(tableLabel), lineChars);
   cmd += formatEscPosTwoColumns('Xidmet:', sanitizeEscPosText(operator || 'staff'), lineChars);
 
@@ -467,19 +476,20 @@ export async function buildTableReceiptEscPos({
 
   cmd += solidLine;
 
-  // Items
+  // ── Items ───────────────────────────────────────────────────────
+  cmd += LEFT;
   items.forEach((item) => {
     const qty = Number(item.qty || item.quantity || 1);
     const rawName = sanitizeEscPosText(String(item.item_name || item.name || 'Mehsul'));
     const linePrice = Number(item.price || 0) * qty;
     const priceStr = `${linePrice.toFixed(2)} M`;
     const label = `${qty}x ${rawName}`;
-    cmd += formatEscPosTwoColumns(label, priceStr, lineChars);
+    cmd += boldOn + formatEscPosTwoColumns(label, priceStr, lineChars) + boldOff;
   });
 
   cmd += solidLine;
 
-  // Breakdown
+  // ── Breakdown ───────────────────────────────────────────────────
   cmd += formatEscPosTwoColumns('Sifaris cemi:', `${Number(breakdown.itemsTotal || 0).toFixed(2)} M`, lineChars);
   if (Number(breakdown.discountAmount || 0) > 0) {
     const discLabel = `Endirim (${Number(breakdown.discountPercent || 0).toFixed(0)}%):`;
@@ -497,31 +507,31 @@ export async function buildTableReceiptEscPos({
 
   cmd += solidLine;
 
-  // Total
-  cmd += doubleHeightOn;
-  cmd += boldOn;
-  cmd += formatEscPosTwoColumns('YEKUN:', `${Number(breakdown.finalTotal || 0).toFixed(2)} M`, lineChars);
-  cmd += boldOff;
-  cmd += sizeReset;
+  // ── YEKUN — double-width centered ───────────────────────────────
+  cmd += CTR + boldOn + dblWidOn;
+  const totalStr = `${Number(breakdown.finalTotal || 0).toFixed(2)} M`;
+  cmd += `YEKUN: ${totalStr}\n`;
+  cmd += dblWidOff + boldOff;
 
-  // Feedback QR Code (Universal Raster Bitmap)
+  // ── Feedback QR Code ─────────────────────────────────────────────
   if (feedbackUrl) {
     const qrBitmapCmd = await generateEscPosQrBitmap(feedbackUrl, is58 ? 4 : 5);
     if (qrBitmapCmd) {
       cmd += dashLine;
+      cmd += CTR;
       cmd += '\n' + qrBitmapCmd + '\n';
-      cmd += ESC + 'a\x01';
-      cmd += 'Reyiniz bizim ucun onemlidir!\n';
+      cmd += boldOn + 'Reyiniz bizim ucun onemlidir!\n' + boldOff;
       cmd += 'QR skan edib reyinizi bildirin.\n';
     }
   }
 
+  // ── Footer ───────────────────────────────────────────────────────
   cmd += dashLine;
-  cmd += ESC + 'a\x01';
+  cmd += CTR;
   cmd += sanitizeEscPosText(footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
   cmd += '\n\n\n\n';
-  cmd += GS + 'V\x41\x03';
+  cmd += GS + 'V\x41\x03'; // auto-cut
 
   return cmd;
 }
