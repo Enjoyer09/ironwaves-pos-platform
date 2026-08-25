@@ -72,18 +72,27 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
     font-size: 12.5px !important;
     line-height: 1.25 !important;
+    table-layout: auto;
   }
   td {
     vertical-align: top;
     padding: 4px 0;
     font-weight: 700;
   }
-  td:first-child { overflow-wrap: anywhere; padding-right: 6px; }
+  td:first-child { overflow-wrap: anywhere; padding-right: 6px; white-space: normal; }
+  td:nth-child(2) {
+    width: 10mm;
+    text-align: center;
+    white-space: nowrap;
+    font-weight: 800;
+    padding-right: 4px;
+  }
   td:last-child {
-    width: 25mm;
+    width: 16mm;
+    margin-right: 0;
+    min-width: 16mm;
     text-align: right;
     white-space: nowrap;
     font-weight: 900;

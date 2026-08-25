@@ -99,7 +99,41 @@ export async function printDirectOrFallback(
     allowBrowserFallback?: boolean;
   }
 ): Promise<{ method: 'agent' | 'qz' | 'browser' | 'none'; success: boolean }> {
-  // 1. Try local Print Agent first
+  // Priority: QZ first when useQz is set (explicit printer + paper width), then
+  // local agent, then browser dialog. Without useQz, agent is tried first for
+  // existing café setups (their default printer stays untouched).
+  const qzFirst = options?.useQz === true;
+
+  async function tryQz(): Promise<boolean> {
+    try {
+      const { qzPrintHtml, qzPrintRaw } = await import('./qz');
+      // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
+      // must go through pixel/HTML (Unicode-safe) even if raw_escpos is selected (P0-2).
+      const rawSafe =
+        options?.printEngine === 'raw_escpos' &&
+        Boolean(options?.rawCommands) &&
+        !containsCyrillic(html);
+      if (rawSafe) {
+        await qzPrintRaw(options!.rawCommands as string, options?.printerName);
+      } else {
+        await qzPrintHtml(html, {
+          printerName: options?.printerName,
+          paperWidth: options?.paperWidth || '58mm',
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn('QZ Tray print attempted but failed:', err);
+      return false;
+    }
+  }
+
+  // 1. QZ first when useQz
+  if (qzFirst) {
+    if (await tryQz()) return { method: 'qz', success: true };
+  }
+
+  // 2. Try local Print Agent
   try {
     const agentSuccess = await printViaLocalAgent(html, options?.printerName);
     if (agentSuccess) {
@@ -107,30 +141,12 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  // 2. Try QZ Tray (supports explicit printer, paperWidth and raw ESC/POS commands)
-  try {
-    const { qzPrintHtml, qzPrintRaw } = await import('./qz');
-    // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
-    // must go through pixel/HTML (Unicode-safe) even if raw_escpos is selected (P0-2).
-    const rawSafe =
-      options?.printEngine === 'raw_escpos' &&
-      Boolean(options?.rawCommands) &&
-      !containsCyrillic(html);
-    if (rawSafe) {
-      await qzPrintRaw(options!.rawCommands as string, options?.printerName);
-      return { method: 'qz', success: true };
-    } else {
-      await qzPrintHtml(html, {
-        printerName: options?.printerName,
-        paperWidth: options?.paperWidth || '58mm',
-      });
-      return { method: 'qz', success: true };
-    }
-  } catch (err) {
-    console.warn('QZ Tray print attempted but failed:', err);
+  // 3. QZ second (when not useQz-first), or skipped if already failed above
+  if (!qzFirst) {
+    if (await tryQz()) return { method: 'qz', success: true };
   }
 
-  // 3. Fallback to Browser Print Dialog (Save to PDF / Native Print) only if allowed
+  // 4. Fallback to Browser Print Dialog (Save to PDF / Native Print) only if allowed
   if (options?.allowBrowserFallback !== false) {
     const browserSuccess = printHtmlViaBrowserIframe(html);
     if (browserSuccess) {
