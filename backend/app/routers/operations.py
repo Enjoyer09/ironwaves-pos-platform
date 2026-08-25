@@ -66,6 +66,7 @@ from app.models import (
     Table,
     TableSession,
     Tenant,
+    TenantBranch,
     User,
     WasteLog,
 )
@@ -4116,6 +4117,40 @@ def _compute_tier(lifetime_stars: int, tiers: list[dict] | None) -> dict:
     }
 
 
+def _customer_stores(db: Session, tenant: Tenant, branding: BusinessProfile | None) -> list[dict]:
+    """Stores list for the customer app: tenant_branches rows (active),
+    falling back to the tenant/branding itself when no branches exist
+    (e.g. migration backfill not yet run)."""
+    branch_rows = (
+        db.query(TenantBranch)
+        .filter(TenantBranch.tenant_id == tenant.id, TenantBranch.is_active == True)  # noqa: E712
+        .order_by(TenantBranch.is_default.desc(), TenantBranch.sort_order, TenantBranch.name)
+        .all()
+    )
+    if branch_rows:
+        return [
+            {
+                "id": b.id,
+                "name": b.name,
+                "address": b.address or "",
+                "phone": b.phone or "",
+                "latitude": b.latitude,
+                "longitude": b.longitude,
+                "is_default": b.is_default,
+            }
+            for b in branch_rows
+        ]
+    return [
+        {
+            "id": tenant.id,
+            "name": (branding.company_name if branding else tenant.name) or tenant.name,
+            "address": (branding.address if branding else "") or "",
+            "phone": (branding.phone if branding else "") or "",
+            "is_default": True,
+        }
+    ]
+
+
 @router.get("/customer-app/session")
 def get_customer_app_session(
     id: str = Query(...),
@@ -4258,15 +4293,7 @@ def get_customer_app_session(
             "address": (branding.address if branding else "") or "",
             "phone": (branding.phone if branding else "") or "",
         },
-        "stores": [
-            {
-                "id": tenant.id,
-                "name": (branding.company_name if branding else tenant.name) or tenant.name,
-                "address": (branding.address if branding else "") or "",
-                "phone": (branding.phone if branding else "") or "",
-                "is_default": True,
-            }
-        ],
+        "stores": _customer_stores(db, tenant, branding),
         "customer": {
             "card_id": customer.card_id,
             "type": customer.type,
