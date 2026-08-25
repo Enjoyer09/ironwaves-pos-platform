@@ -1568,6 +1568,50 @@ export async function update_customer_app_settings_live(payload: {
   return { success: true };
 }
 
+export interface TenantBranchPayload {
+  name: string;
+  address?: string;
+  phone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_active?: boolean;
+  is_default?: boolean;
+  open_hour?: number;
+  close_hour?: number;
+  sort_order?: number;
+}
+
+export async function list_branches_live(tenantId: string) {
+  if (!isBackendEnabled()) return { branches: [] as any[] };
+  return apiRequest<any>(`/api/v1/branches/${encodeURIComponent(tenantId)}`, { tenantId: null });
+}
+
+export async function create_branch_live(tenantId: string, payload: TenantBranchPayload) {
+  if (!isBackendEnabled()) throw new Error('Backend aktiv deyil — filial yalnız online rejimdə əlavə oluna bilər');
+  return apiRequest<any>(`/api/v1/branches/${encodeURIComponent(tenantId)}`, {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function update_branch_live(tenantId: string, branchId: string, payload: TenantBranchPayload) {
+  if (!isBackendEnabled()) throw new Error('Backend aktiv deyil');
+  return apiRequest<any>(`/api/v1/branches/${encodeURIComponent(tenantId)}/${encodeURIComponent(branchId)}`, {
+    method: 'PUT',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function delete_branch_live(tenantId: string, branchId: string) {
+  if (!isBackendEnabled()) throw new Error('Backend aktiv deyil');
+  return apiRequest<any>(`/api/v1/branches/${encodeURIComponent(tenantId)}/${encodeURIComponent(branchId)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
+}
+
 export async function update_pos_layout_settings_live(payload: NonNullable<Settings['pos_layout']>) {
   if (!isBackendEnabled()) return update_pos_layout_settings(payload);
   await apiRequest('/api/v1/ops/settings/pos-layout', { method: 'PATCH', tenantId: null, body: payload });
