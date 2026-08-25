@@ -965,9 +965,9 @@ export default function SettingsPanel() {
           'error',
           tx(
             lang,
-            'Çap alınmadı. Zəhmət olmasa QZ Tray statusunu və printer adını yoxlayın.',
-            'Печать не удалась. Проверьте статус QZ Tray и имя принтера.',
-            'Print failed. Please verify QZ Tray status and printer name.'
+            `${res.error || 'Çap alınmadı'}. Printer adını və QZ Tray statusunu yoxlayın.`,
+            `${res.error || 'Печать не удалась'}. Проверьте имя принтера и статус QZ Tray.`,
+            `${res.error || 'Print failed'}. Check the printer name and QZ Tray status.`
           )
         );
       }

@@ -1206,6 +1206,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }).then((res) => {
           if (res.success && (res.method === 'agent' || res.method === 'qz')) {
             notify('success', tx(lang, 'Çek avtomatik printerə göndərildi', 'Чек автоматически отправлен на принтер', 'Receipt auto-sent to printer'));
+          } else if (!res.success) {
+            notify('error', tx(lang, res.error || 'Çap alınmadı — printeri yoxlayın', res.error || 'Печать не удалась — проверьте принтер', res.error || 'Print failed — check your printer'));
           }
         });
       }
@@ -1600,7 +1602,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
       }
     } else {
-      notify('error', tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
+      notify('error', tx(lang, res.error || 'Çap alınmadı', res.error || 'Ошибка печати', res.error || 'Printing failed'));
     }
   };
 
