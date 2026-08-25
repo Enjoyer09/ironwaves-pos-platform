@@ -1209,7 +1209,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         paperWidth: printSettings.paper_width || '58mm',
       });
 
-      const rawCmds = buildTableReceiptEscPos({
+      const rawCmds = await buildTableReceiptEscPos({
         tableLabel: table.label,
         operator: user?.username || 'staff',
         items: payItems.map((row: any) => ({
