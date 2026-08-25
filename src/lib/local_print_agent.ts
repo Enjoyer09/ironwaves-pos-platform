@@ -175,16 +175,38 @@ export async function printDirectOrFallback(
   }
 
   // 4. Browser print dialog ONLY when the caller explicitly opts in.
-  //    QZ-first flows (useQz:true) must NOT open the print window on failure —
-  //    the caller shows the returned error instead.
-  if (options?.allowBrowserFallback === true) {
+  //    If the flow is QZ-first (useQz:true) we probe whether QZ Tray is actually
+  //    available: when QZ is present but printing failed, the ticket must NOT
+  //    fall back to the browser dialog (CSS widths are in mm and render broken
+  //    on A4/US-Letter preview → cut-off receipt). Instead the caller shows the
+  //    QZ error. When QZ is not installed at all, the dialog remains the only
+  //    print path, so it stays allowed for legacy setups.
+  let qzActuallyAvailable = false;
+  if (options?.useQz === true && options?.allowBrowserFallback === true) {
+    try {
+      const { qzCheckStatus } = await import('./qz');
+      const status = await qzCheckStatus();
+      qzActuallyAvailable = status.online === true;
+    } catch {
+      qzActuallyAvailable = false;
+    }
+    if (qzActuallyAvailable) {
+      return {
+        method: 'none',
+        success: false,
+        error: lastError || 'QZ Tray çapı alınmadı — printer bağlantısını yoxlayın',
+      };
+    }
+  }
+
+  if (options?.allowBrowserFallback === true && !qzActuallyAvailable) {
     const browserSuccess = printHtmlViaBrowserIframe(html);
     if (browserSuccess) {
       return { method: 'browser', success: true };
     }
   }
 
-  return { method: 'none', success: false, error: lastError || 'Çap mediası əlçatan deyil' };
+  return { method: 'none', success: false, error: lastError || 'Çap mediası əlçan deyil' };
 }
 
 export async function localPrintAgentHealth(): Promise<boolean> {
