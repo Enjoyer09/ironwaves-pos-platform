@@ -20,8 +20,9 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import TenantBranch
+from app.db import get_db
+from app.deps import get_current_user
+from app.models import TenantBranch, User
 
 router = APIRouter(tags=["branches"])
 
@@ -97,7 +98,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------------------------------------------------------
 
 @router.get("/api/v1/branches/{tenant_id}")
-def list_branches(tenant_id: str, db: Session = Depends(get_db)):
+def list_branches(tenant_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     rows = (
         db.query(TenantBranch)
         .filter(TenantBranch.tenant_id == tenant_id)
@@ -108,7 +109,7 @@ def list_branches(tenant_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/api/v1/branches/{tenant_id}")
-def create_branch(tenant_id: str, body: BranchCreate, db: Session = Depends(get_db)):
+def create_branch(tenant_id: str, body: BranchCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     # Validate: only one default per tenant
     if body.is_default:
         db.query(TenantBranch).filter(
@@ -144,6 +145,7 @@ def update_branch(
     branch_id: str,
     body: BranchUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     branch = (
         db.query(TenantBranch)
@@ -175,7 +177,7 @@ def update_branch(
 
 
 @router.delete("/api/v1/branches/{tenant_id}/{branch_id}")
-def delete_branch(tenant_id: str, branch_id: str, db: Session = Depends(get_db)):
+def delete_branch(tenant_id: str, branch_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     branch = (
         db.query(TenantBranch)
         .filter(TenantBranch.id == branch_id, TenantBranch.tenant_id == tenant_id)
@@ -269,5 +271,5 @@ def nearest_branches(
         })
 
     # Sort: branches with distance first (ascending), then branches without coords
-    result.sort(key=lambda b: (b["distance_km"] is None, b["distance_km"] or 9999))
+    result.sort(key=lambda b: (b["distance_km"] is None, 9999 if b["distance_km"] is None else b["distance_km"]))
     return {"branches": result[:limit]}
