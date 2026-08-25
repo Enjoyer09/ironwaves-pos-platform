@@ -337,6 +337,27 @@ function formatEscPosTwoColumns(left: string, right: string, width: number): str
   return res;
 }
 
+export function buildEscPosQrCode(data: string, size = 5): string {
+  if (!data) return '';
+  const len = data.length + 3;
+  const pL = String.fromCharCode(len % 256);
+  const pH = String.fromCharCode(Math.floor(len / 256));
+
+  let q = '';
+  q += ESC + 'a\x01'; // Center align
+  // 1. Function 165: Select QR Code model 2
+  q += GS + '(k\x04\x00\x31\x41\x32\x00';
+  // 2. Function 167: Set QR Code module size (1-16 dots)
+  q += GS + `(k\x03\x00\x31\x43${String.fromCharCode(size)}`;
+  // 3. Function 169: Set error correction level (L=48)
+  q += GS + '(k\x03\x00\x31\x45\x30';
+  // 4. Function 180: Store data in symbol storage area
+  q += GS + `(k${pL}${pH}\x31\x50\x30` + data;
+  // 5. Function 181: Print symbol
+  q += GS + '(k\x03\x00\x31\x51\x30';
+  return q;
+}
+
 /**
  * Builds native ESC/POS thermal printer commands for Table Check Receipts
  */
@@ -345,10 +366,11 @@ export function buildTableReceiptEscPos({
   operator,
   items,
   breakdown,
-  companyName = 'IRONWAVES POS',
+  companyName = 'iRonWaves Platform',
   voen = '',
   phone = '',
   address = '',
+  feedbackUrl = '',
   footer = 'Bizi secdiyiniz ucun tesekkur edirik!',
   paperWidth = '58mm',
 }: {
@@ -368,6 +390,7 @@ export function buildTableReceiptEscPos({
   voen?: string;
   phone?: string;
   address?: string;
+  feedbackUrl?: string;
   footer?: string;
   paperWidth?: '58mm' | '80mm';
 }): string {
@@ -387,14 +410,14 @@ export function buildTableReceiptEscPos({
 
   // Header Center
   cmd += ESC + 'a\x01';
-  if (companyName) {
-    cmd += boldOn;
-    cmd += sanitizeEscPosText(companyName).toUpperCase() + '\n';
-    cmd += boldOff;
-  }
-  if (voen) cmd += `VOEN: ${sanitizeEscPosText(voen)}\n`;
-  if (phone) cmd += `Tel: ${sanitizeEscPosText(phone)}\n`;
-  if (address) cmd += `${sanitizeEscPosText(address)}\n`;
+  const comp = (companyName || 'iRonWaves Platform').trim();
+  cmd += boldOn;
+  cmd += sanitizeEscPosText(comp) + '\n';
+  cmd += boldOff;
+
+  cmd += `VOEN: ${sanitizeEscPosText(voen || '-')}\n`;
+  cmd += `Tel: ${sanitizeEscPosText(phone || '-')}\n`;
+  if (address && address !== '-') cmd += `${sanitizeEscPosText(address)}\n`;
 
   cmd += dashLine;
   cmd += boldOn;
@@ -451,9 +474,18 @@ export function buildTableReceiptEscPos({
   cmd += boldOff;
   cmd += sizeReset;
 
+  // Feedback QR Code
+  if (feedbackUrl) {
+    cmd += dashLine;
+    cmd += buildEscPosQrCode(feedbackUrl, is58 ? 5 : 6);
+    cmd += ESC + 'a\x01';
+    cmd += 'Reyiniz bizim ucun onemlidir!\n';
+    cmd += 'QR skan edib reyinizi bildirin.\n';
+  }
+
   cmd += dashLine;
   cmd += ESC + 'a\x01';
-  cmd += sanitizeEscPosText(footer) + '\n';
+  cmd += sanitizeEscPosText(footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
   cmd += '\n\n\n\n';
   cmd += GS + 'V\x41\x03';
@@ -468,11 +500,13 @@ export function buildSaleReceiptEscPos({
   sale,
   profile,
   operator,
+  feedbackUrl = '',
   paperWidth = '58mm',
 }: {
   sale: any;
   profile?: any;
   operator?: string;
+  feedbackUrl?: string;
   paperWidth?: '58mm' | '80mm';
 }): string {
   const is58 = (paperWidth || '58mm') === '58mm';
@@ -491,14 +525,14 @@ export function buildSaleReceiptEscPos({
 
   // Header Center
   cmd += ESC + 'a\x01';
-  const comp = profile?.company_name || 'IRONWAVES POS';
+  const comp = profile?.company_name || 'iRonWaves Platform';
   cmd += boldOn;
-  cmd += sanitizeEscPosText(comp).toUpperCase() + '\n';
+  cmd += sanitizeEscPosText(comp) + '\n';
   cmd += boldOff;
 
-  if (profile?.voen) cmd += `VOEN: ${sanitizeEscPosText(profile.voen)}\n`;
-  if (profile?.phone) cmd += `Tel: ${sanitizeEscPosText(profile.phone)}\n`;
-  if (profile?.address) cmd += `${sanitizeEscPosText(profile.address)}\n`;
+  cmd += `VOEN: ${sanitizeEscPosText(profile?.voen || '-')}\n`;
+  cmd += `Tel: ${sanitizeEscPosText(profile?.phone || '-')}\n`;
+  if (profile?.address && profile.address !== '-') cmd += `${sanitizeEscPosText(profile.address)}\n`;
 
   cmd += dashLine;
   cmd += boldOn;
@@ -550,6 +584,15 @@ export function buildSaleReceiptEscPos({
 
   const payMethod = sanitizeEscPosText(String(sale?.payment_method || 'Nagd'));
   cmd += formatEscPosTwoColumns('Odenis:', payMethod, lineChars);
+
+  // Feedback QR Code
+  if (feedbackUrl) {
+    cmd += dashLine;
+    cmd += buildEscPosQrCode(feedbackUrl, is58 ? 5 : 6);
+    cmd += ESC + 'a\x01';
+    cmd += 'Reyiniz bizim ucun onemlidir!\n';
+    cmd += 'QR skan edib reyinizi bildirin.\n';
+  }
 
   cmd += dashLine;
   cmd += ESC + 'a\x01';

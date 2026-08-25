@@ -1444,6 +1444,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           },
           profile: businessProfile,
           operator: user.username,
+          feedbackUrl,
           paperWidth: printSettings.paper_width || '58mm',
         });
 
