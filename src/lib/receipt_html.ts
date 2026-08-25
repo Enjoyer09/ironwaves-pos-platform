@@ -204,9 +204,9 @@ export async function buildSaleReceiptHtml({
       <body>
         ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
         <div class="bold" style="font-size:15px">${esc(companyName)}</div>
-        <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
-        <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
-        <div class="muted">${esc(profile?.address || '-')}</div>
+        ${profile?.voen ? `<div class="muted">VÖEN: ${esc(profile.voen)}</div>` : ''}
+        ${profile?.phone ? `<div class="muted">Tel: ${esc(profile.phone)}</div>` : ''}
+        ${profile?.address ? `<div class="muted">${esc(profile.address)}</div>` : ''}
         <hr />
         <div class="section-title" style="text-align:center">${receiptTypeLabel}</div>
         ${!fiscalEnabled ? `<div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>` : ''}
@@ -338,9 +338,9 @@ export async function buildTableReceiptHtml({
   <body>
     ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
     <div class="bold" style="font-size:14px">${esc(companyName)}</div>
-    <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
-    <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
-    <div class="muted">${esc(profile?.address || '-')}</div>
+    ${profile?.voen ? `<div class="muted">VÖEN: ${esc(profile.voen)}</div>` : ''}
+    ${profile?.phone ? `<div class="muted">Tel: ${esc(profile.phone)}</div>` : ''}
+    ${profile?.address ? `<div class="muted">${esc(profile.address)}</div>` : ''}
     <hr />
     <div class="section-title" style="text-align:center">*** ${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')} ***</div>
     <hr />

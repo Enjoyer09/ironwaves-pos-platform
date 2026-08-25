@@ -53,7 +53,8 @@ export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '8
     }
 
     const pageWidthMm = paperWidth === '80mm' ? '80mm' : '58mm';
-    const pageOverride = `<style>@page { size: ${pageWidthMm} 300mm; margin: 0mm; } html, body { width: 100%; max-width: 100%; }</style>`;
+    const contentWidthMm = paperWidth === '80mm' ? 72 : 48;
+    const pageOverride = `<style>@page { size: ${pageWidthMm} 300mm; margin: 2mm; } html, body { width: ${contentWidthMm}mm !important; max-width: ${contentWidthMm}mm !important; overflow: visible !important; margin: 0 auto !important; font-size: 12px !important; }</style>`;
     const docHtml = String(html).replace(/<\/head>/i, `${pageOverride}</head>`);
 
     doc.open();
