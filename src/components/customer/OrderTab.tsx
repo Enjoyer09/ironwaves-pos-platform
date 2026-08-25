@@ -809,6 +809,11 @@ export default function OrderTab({
                       <span className={`block truncate text-sm font-black ${textPrimary}`}>{s.name}</span>
                       {s.address ? <span className={`block truncate text-[11px] ${textSecond}`}>{s.address}</span> : null}
                     </span>
+                    {typeof s.distance_km === 'number' && (
+                      <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-bold ${isLight ? 'bg-black/5 text-slate-500' : 'bg-white/8 text-white/50'}`}>
+                        {s.distance_km < 1 ? `${Math.round(s.distance_km * 1000)} m` : `${s.distance_km.toFixed(1)} km`}
+                      </span>
+                    )}
                     {active && (
                       <svg className="h-5 w-5 flex-none text-[#F48C24]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />

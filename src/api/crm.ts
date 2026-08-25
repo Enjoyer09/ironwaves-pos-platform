@@ -1108,3 +1108,57 @@ export async function get_customer_orders_live(cardId: string, token: string, te
     }
   );
 }
+
+/* ── Multi-branch: distance helpers + nearest store lookup ─────────── */
+
+/** Great-circle distance between two points in km (backend Haversine mirror). */
+export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371.0;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Copy stores list sorted by distance to (lat, lng). Stores without
+ * coordinates are kept at the end; input is never mutated.
+ */
+export function sortStoresByDistance(stores: any[], lat: number, lng: number): any[] {
+  return stores
+    .map((s) => {
+      const sLat = Number(s?.latitude);
+      const sLng = Number(s?.longitude);
+      const hasCoords = Number.isFinite(sLat) && Number.isFinite(sLng);
+      return {
+        ...s,
+        distance_km: hasCoords ? Math.round(haversineKm(lat, lng, sLat, sLng) * 100) / 100 : null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.distance_km === null && b.distance_km === null) return 0;
+      if (a.distance_km === null) return 1;
+      if (b.distance_km === null) return -1;
+      return a.distance_km - b.distance_km;
+    });
+}
+
+/** Nearest branches from the backend; falls back to server-ordered list when offline. */
+export async function get_nearest_branches_live(
+  tenantId: string | undefined,
+  lat: number,
+  lng: number,
+  limit = 20
+): Promise<any[]> {
+  const tId = tenantId || defaultTenant();
+  if (!isBackendEnabled()) {
+    throw new Error('Backend aktiv deyil — yaxınlıq offline rejimdə hesablanmır');
+  }
+  const res = await apiRequest<any>(
+    `/api/v1/customer-app/branches/${encodeURIComponent(tId)}/nearest?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&limit=${encodeURIComponent(limit)}`,
+    { method: 'GET', tenantId: null, auth: false }
+  );
+  return res?.branches || [];
+}

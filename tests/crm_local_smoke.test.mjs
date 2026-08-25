@@ -40,6 +40,11 @@ import {
   buildReorderItem,
   mergeReorderItem,
 } from '../src/lib/reorderItem';
+import {
+  haversineKm,
+  sortStoresByDistance,
+  get_nearest_branches_live,
+} from '../src/api/crm';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -909,4 +914,82 @@ test('order status: get_customer_orders_live returns table_label for store-aware
   const orders = await get_customer_orders_live('QR-ORDER1', 'tok-1', 't1');
   assert.equal(orders.length, 1);
   assert.equal(orders[0].table_label, 'Online Order · BahaY Coffee');
+});
+
+test('haversine: same point is 0 km, central Baku pair is 1.5-4 km', () => {
+  assert.equal(haversineKm(40.4093, 49.8671, 40.4093, 49.8671), 0);
+  const d = haversineKm(40.4093, 49.8671, 40.3958, 49.8822);
+  assert.ok(d > 1.5 && d < 4.0, `distance ${d} out of range`);
+});
+
+test('sortStoresByDistance: nearest first, coords-less last, input untouched', () => {
+  const stores = [
+    { id: 'far', name: 'Uzaq', latitude: 40.5, longitude: 49.9 },
+    { id: 'near', name: 'Yaxın', latitude: 40.4093, longitude: 49.8671 },
+    { id: 'nocoords', name: 'Koordinatsız' },
+  ];
+  const sorted = sortStoresByDistance(stores, 40.4093, 49.8671);
+  assert.deepEqual(sorted.map((s) => s.id), ['near', 'far', 'nocoords']);
+  assert.equal(sorted[0].distance_km, 0);
+  assert.equal(sorted[2].distance_km, null);
+  // original array must not be mutated (no in-place reorder)
+  assert.deepEqual(stores.map((s) => s.id), ['far', 'near', 'nocoords']);
+});
+
+test('sortStoresByDistance: distance rendering values', () => {
+  const sorted = sortStoresByDistance(
+    [{ id: 'a', latitude: 40.4093, longitude: 49.8671 }],
+    40.4093, 49.8671
+  );
+  assert.equal(sorted[0].distance_km, 0);
+  assert.ok(Number.isFinite(sorted[0].distance_km));
+});
+
+test('sortStoresByDistance: stable for equal distances and flat fallback', () => {
+  const flat = sortStoresByDistance([{ id: 'x' }, { id: 'y' }], 40.4, 49.8);
+  assert.deepEqual(flat.map((s) => s.id), ['x', 'y']);
+  assert.equal(flat[0].distance_km, null);
+});
+
+test('get_nearest_branches_live: offline rejects (frontend falls back to local sort)', async () => {
+  // In the smoke environment the backend is disabled, so the nearest
+  // endpoint throws and CustomerApp falls back to sortStoresByDistance.
+  await assert.rejects(
+    () => get_nearest_branches_live('t1', 40.4093, 49.8671, 20),
+    /Backend aktiv deyil/
+  );
+});
+
+test('local fallback session exposes stores list usable by sort helper', async () => {
+  // Mimic: get_customer_app_session_live local payload shape (crm.ts ~462)
+  // with two branches so ordering by distance is meaningful.
+  const sessionStores = [
+    { id: 't1', name: 'BahaY Coffee', address: 'Nizami 1', phone: '+99450', is_default: true },
+    { id: 'b2', name: 'BahaY Mall', address: 'Ganjlik Mall', phone: '+99451', latitude: 40.4093, longitude: 49.8671 },
+  ];
+  const sorted = sortStoresByDistance(sessionStores, 40.4093, 49.8671);
+  assert.equal(sorted.length, 2);
+  // branch with coords (b2) now first; coord-less default stays last
+  assert.equal(sorted[0].id, 'b2');
+  assert.equal(sorted[0].distance_km, 0);
+  assert.equal(sorted[1].id, 't1');
+  assert.equal(sorted[1].distance_km, null);
+});
+
+test('local fallback session store without coords stays last even when default', () => {
+  const stores = [
+    { id: 'far', latitude: 40.5, longitude: 49.9 },
+    { id: 'defaultNoCoords', is_default: true },
+  ];
+  const sorted = sortStoresByDistance(stores, 40.4093, 49.8671);
+  assert.deepEqual(sorted.map((s) => s.id), ['far', 'defaultNoCoords']);
+});
+
+test('readCustomerSessionCache roundtrip keeps stores array for offline retry', () => {
+  writeCustomerSessionCache('QR-X', 'tok', { stores: [{ id: 's1', name: 'X' }] });
+  const cached = readCustomerSessionCache('QR-X', 'tok');
+  assert.ok(cached && Array.isArray(cached.session.stores));
+  assert.equal(cached.session.stores.length, 1);
+  assert.equal(cached.session.stores[0].id, 's1');
+  clearCustomerSessionCache('QR-X', 'tok');
 });
