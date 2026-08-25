@@ -586,6 +586,10 @@ export default function SettingsPanel() {
       website: profile.website,
       logo_url: profile.logo_url,
       receipt_footer: profile.receipt_footer,
+      tax_regime: profile.tax_regime === 'vat' ? 'vat' : 'simplified',
+      vat_rate: Number(profile.vat_rate ?? 18),
+      nka_registration_no: profile.nka_registration_no,
+      fiscal_enabled: profile.fiscal_enabled === true,
     }, user?.username || 'admin');
     await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'), 'business_profile');

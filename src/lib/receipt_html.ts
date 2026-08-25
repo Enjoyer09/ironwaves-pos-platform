@@ -148,6 +148,46 @@ export async function buildSaleReceiptHtml({
   const barcodeSvg = generateReceiptBarcodeSvg(`SALE:${displayId}`);
   const companyName = profile?.company_name || 'IRONWAVES POS';
 
+  // --- Fiskal / vergi (forward-compatible; təhlükəsiz default-lar) ---
+  // Fiskal inteqrasiya YOXDUR (fiscal_enabled=false) → çek AÇIQ "QEYRİ-FİSKAL" etiketi ilə çap olunur.
+  // Sertifikatlı e-kassa (NKA) inteqrasiyası gələndə fiscal_enabled=true olur və sale-ə fiskal ID/QR düşür.
+  const fiscalEnabled = profile?.fiscal_enabled === true;
+  const receiptTypeLabel = fiscalEnabled
+    ? tx(lang, 'KASSA ÇEKİ', 'КАССОВЫЙ ЧЕК', 'CASHIER RECEIPT')
+    : tx(lang, 'QEYRİ-FİSKAL QƏBZ', 'НЕФИСКАЛЬНЫЙ ЧЕК', 'NON-FISCAL RECEIPT');
+
+  // ƏDV (VAT) — AZ konvensiyası: qiymətə DAXİL. Default rejim 'simplified' → ƏDV sətri çap olunmur.
+  const taxRegime = String(profile?.tax_regime || 'simplified').toLowerCase();
+  const vatRate = numeric(profile?.vat_rate) || 18;
+  const isVat = taxRegime === 'vat' && vatRate > 0 && total > 0 && !isVoided;
+  const vatNet = isVat ? total / (1 + vatRate / 100) : 0;
+  const vatAmount = isVat ? total - vatNet : 0;
+
+  // Alınan/Qaytarılan (tendered/change) — Sale-də hələ sahə yoxdur → yalnız gələcəkdə mövcud olduqda çap olunur.
+  const tendered = numeric(sale?.cash_tendered ?? sale?.amount_tendered ?? sale?.tendered);
+  const showTender = !isVoided && tendered > 0 && tendered >= total;
+  const changeDue = showTender ? tendered - total : 0;
+
+  // Fiskal blok — yalnız inteqrasiya aktiv VƏ fiskal data mövcud olduqda (bugün heç vaxt).
+  const fiscalId = String(sale?.fiscal_id || '').trim();
+  const fiscalDocNo = String(sale?.fiscal_doc_no || '').trim();
+  const nkaRegNo = String(profile?.nka_registration_no || '').trim();
+  const fiscalQrValue = String(sale?.fiscal_qr || '').trim();
+  const showFiscal = fiscalEnabled && Boolean(fiscalId || fiscalQrValue);
+  let fiscalQrDataUrl = '';
+  if (showFiscal && fiscalQrValue) {
+    try {
+      fiscalQrDataUrl = await QRCode.toDataURL(fiscalQrValue, {
+        width: 156,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#000000', light: '#FFFFFF' },
+      });
+    } catch {
+      fiscalQrDataUrl = '';
+    }
+  }
+
   return `
     <html>
       <head>
@@ -162,6 +202,9 @@ export async function buildSaleReceiptHtml({
         <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
         <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
         <div class="muted">${esc(profile?.address || '-')}</div>
+        <hr />
+        <div class="section-title" style="text-align:center">${receiptTypeLabel}</div>
+        ${!fiscalEnabled ? `<div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>` : ''}
         <hr />
         <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${esc(displayId)}</span></div>
         <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
@@ -179,15 +222,28 @@ export async function buildSaleReceiptHtml({
         ${customerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${esc(customerId)}</span></div>` : ''}
         ${customerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${starsAfter}</span></div>` : ''}
         <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
+        ${isVat ? `<div class="line"><span>${tx(lang, `o cümlədən ƏDV (${vatRate}%)`, `в т.ч. НДС (${vatRate}%)`, `incl. VAT (${vatRate}%)`)}</span><span>${money(vatAmount)} ₼</span></div>` : ''}
+        ${isVat ? `<div class="line"><span>${tx(lang, 'ƏDV-siz məbləğ', 'Сумма без НДС', 'Amount excl. VAT')}</span><span>${money(vatNet)} ₼</span></div>` : ''}
+        ${(!isVat && taxRegime === 'simplified' && !isVoided) ? `<div class="muted">${tx(lang, 'Sadələşdirilmiş vergi rejimi', 'Упрощённый налоговый режим', 'Simplified tax regime')}</div>` : ''}
         <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${esc((paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod) || '-')}</span></div>
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${money(split.cash)} ₼</span></div>` : ''}
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${money(split.card)} ₼</span></div>` : ''}
+        ${showTender ? `<div class="line"><span>${tx(lang, 'Alınan', 'Получено', 'Tendered')}</span><span>${money(tendered)} ₼</span></div>` : ''}
+        ${showTender ? `<div class="line bold"><span>${tx(lang, 'Qaytarılan', 'Сдача', 'Change')}</span><span>${money(changeDue)} ₼</span></div>` : ''}
         <hr />
         ${!isVoided ? `
         <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
           <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
         </div>
         <div class="muted" style="font-size:10px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
+        ` : ''}
+        ${showFiscal ? `
+        <hr />
+        <div class="section-title" style="text-align:center">${tx(lang, 'FİSKAL MƏLUMAT', 'ФИСКАЛЬНЫЕ ДАННЫЕ', 'FISCAL DATA')}</div>
+        ${fiscalId ? `<div class="line"><span>${tx(lang, 'Fiskal ID', 'Фискальный ID', 'Fiscal ID')}</span><span>${esc(fiscalId)}</span></div>` : ''}
+        ${fiscalDocNo ? `<div class="line"><span>${tx(lang, 'Sənəd №', 'Документ №', 'Doc No')}</span><span>${esc(fiscalDocNo)}</span></div>` : ''}
+        ${nkaRegNo ? `<div class="line"><span>${tx(lang, 'NKA qeydiyyat №', 'Рег. № ККА', 'NKA Reg. No')}</span><span>${esc(nkaRegNo)}</span></div>` : ''}
+        ${fiscalQrDataUrl ? `<div style="display:flex;justify-content:center;margin:6px 0"><img src="${fiscalQrDataUrl}" alt="fiscal qr" style="width:108px;height:108px" /></div>` : ''}
         ` : ''}
         <hr />
         <div class="muted">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>

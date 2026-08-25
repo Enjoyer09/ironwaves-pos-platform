@@ -40,6 +40,18 @@ export function BusinessProfileSection({
         </div>
         <div className="field-stack form-card">
           <label className="field-label">
+            {tx(lang, 'VÖEN', 'ВÖEN (ИНН)', 'VÖEN (TIN)')}
+          </label>
+          <input
+            className="neon-input"
+            value={profile?.voen || ''}
+            onChange={(e) =>
+              setProfile((prev: any) => ({ ...(prev || {}), voen: e.target.value }))
+            }
+          />
+        </div>
+        <div className="field-stack form-card">
+          <label className="field-label">
             {tx(lang, 'Telefon', 'Телефон', 'Phone')}
           </label>
           <input
@@ -97,6 +109,82 @@ export function BusinessProfileSection({
               setProfile((prev: any) => ({ ...(prev || {}), receipt_footer: e.target.value }))
             }
           />
+        </div>
+        <div className="md:col-span-2 mt-2 border-t border-slate-700 pt-3">
+          <h3 className="text-sm font-bold text-slate-300">
+            {tx(lang, 'Vergi / Fiskal', 'Налоги / Фискал', 'Tax / Fiscal')}
+          </h3>
+        </div>
+        <div className="field-stack form-card">
+          <label className="field-label">
+            {tx(lang, 'Vergi rejimi', 'Налоговый режим', 'Tax regime')}
+          </label>
+          <select
+            className="neon-input"
+            value={profile?.tax_regime || 'simplified'}
+            onChange={(e) =>
+              setProfile((prev: any) => ({ ...(prev || {}), tax_regime: e.target.value }))
+            }
+          >
+            <option value="simplified">
+              {tx(lang, 'Sadələşdirilmiş (ƏDV yox)', 'Упрощённый (без НДС)', 'Simplified (no VAT)')}
+            </option>
+            <option value="vat">
+              {tx(lang, 'ƏDV ödəyicisi', 'Плательщик НДС', 'VAT payer')}
+            </option>
+          </select>
+        </div>
+        {profile?.tax_regime === 'vat' && (
+          <div className="field-stack form-card">
+            <label className="field-label">
+              {tx(lang, 'ƏDV dərəcəsi (%)', 'Ставка НДС (%)', 'VAT rate (%)')}
+            </label>
+            <input
+              className="neon-input"
+              type="number"
+              min="0"
+              max="100"
+              value={profile?.vat_rate ?? 18}
+              onChange={(e) =>
+                setProfile((prev: any) => ({ ...(prev || {}), vat_rate: Number(e.target.value) }))
+              }
+            />
+          </div>
+        )}
+        <div className="field-stack form-card">
+          <label className="field-label">
+            {tx(lang, 'NKA qeydiyyat №', 'Рег. № ККА', 'NKA registration No')}
+          </label>
+          <input
+            className="neon-input"
+            value={profile?.nka_registration_no || ''}
+            onChange={(e) =>
+              setProfile((prev: any) => ({ ...(prev || {}), nka_registration_no: e.target.value }))
+            }
+          />
+        </div>
+        <div className="field-stack form-card md:col-span-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={profile?.fiscal_enabled === true}
+              onChange={(e) =>
+                setProfile((prev: any) => ({ ...(prev || {}), fiscal_enabled: e.target.checked }))
+              }
+            />
+            <span className="field-label !mb-0">
+              {tx(lang, 'Fiskal inteqrasiya aktiv', 'Фискальная интеграция включена', 'Fiscal integration enabled')}
+            </span>
+          </label>
+          <p className="text-xs text-slate-400 mt-1">
+            {tx(
+              lang,
+              'Sertifikatlı e-kassa (NKA) inteqrasiyası üçün. Söndürülü ikən çek "QEYRİ-FİSKAL QƏBZ" kimi çap olunur. Fiskal ID/QR yalnız təsdiqlənmiş modul qoşulanda görünür.',
+              'Для интеграции с сертифицированной онлайн-кассой (ККА). При выключении чек печатается как «НЕФИСКАЛЬНЫЙ». Фискальный ID/QR появляется только при подключённом модуле.',
+              'For certified e-kassa (NKA) integration. While off, the receipt prints as "NON-FISCAL". Fiscal ID/QR appears only when an approved module is connected.',
+            )}
+          </p>
         </div>
         <input
           className="neon-input md:col-span-2"

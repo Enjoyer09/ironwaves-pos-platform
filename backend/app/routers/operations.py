@@ -954,6 +954,11 @@ class BusinessProfileIn(BaseModel):
     website: str | None = None
     logo_url: str | None = None
     receipt_footer: str | None = None
+    voen: str | None = None
+    tax_regime: str | None = "simplified"
+    vat_rate: Decimal | float | None = 18
+    nka_registration_no: str | None = None
+    fiscal_enabled: bool | None = False
 
 
 class DonerBatchOpenIn(BaseModel):
@@ -3567,16 +3572,24 @@ def get_business_profile(
             "website": f"https://{tenant.domain}",
             "logo_url": "",
             "receipt_footer": "Bizi secdiyiniz ucun tesekkur edirik!",
+            "tax_regime": "simplified",
+            "vat_rate": 18,
+            "nka_registration_no": "",
+            "fiscal_enabled": False,
         }
     return {
         "tenant_id": tenant.id,
         "company_name": row.company_name,
-        "voen": "",
+        "voen": row.voen or "",
         "phone": row.phone or "",
         "address": row.address or "",
         "website": row.website or "",
         "logo_url": row.logo_url or "",
         "receipt_footer": row.receipt_footer or "",
+        "tax_regime": getattr(row, "tax_regime", "simplified") or "simplified",
+        "vat_rate": float(getattr(row, "vat_rate", 18) if getattr(row, "vat_rate", None) is not None else 18),
+        "nka_registration_no": getattr(row, "nka_registration_no", "") or "",
+        "fiscal_enabled": bool(getattr(row, "fiscal_enabled", False)),
     }
 
 
@@ -4988,6 +5001,12 @@ def put_business_profile(
 ):
     _ensure_admin(user)
     row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    tax_regime = "vat" if (payload.tax_regime or "").lower() == "vat" else "simplified"
+    vat_rate = Decimal(str(payload.vat_rate if payload.vat_rate is not None else 18))
+    fiscal_enabled = bool(payload.fiscal_enabled)
+    voen = payload.voen.strip() if payload.voen else None
+    nka_registration_no = payload.nka_registration_no.strip() if payload.nka_registration_no else None
+
     if not row:
         row = BusinessProfile(
             tenant_id=tenant.id,
@@ -4997,6 +5016,11 @@ def put_business_profile(
             website=payload.website or None,
             logo_url=_normalize_image_url(payload.logo_url) or None,
             receipt_footer=payload.receipt_footer or None,
+            voen=voen,
+            tax_regime=tax_regime,
+            vat_rate=vat_rate,
+            nka_registration_no=nka_registration_no,
+            fiscal_enabled=fiscal_enabled,
         )
         db.add(row)
     else:
@@ -5006,6 +5030,11 @@ def put_business_profile(
         row.website = payload.website or None
         row.logo_url = _normalize_image_url(payload.logo_url) or None
         row.receipt_footer = payload.receipt_footer or None
+        row.voen = voen
+        row.tax_regime = tax_regime
+        row.vat_rate = vat_rate
+        row.nka_registration_no = nka_registration_no
+        row.fiscal_enabled = fiscal_enabled
     db.commit()
     return {"success": True}
 

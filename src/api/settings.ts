@@ -1825,7 +1825,12 @@ export function get_business_profile(tenant_id?: string) {
     address: '',
     website: 'https://super.ironwaves.store',
     logo_url: '',
-    receipt_footer: 'Bizi secdiyiniz ucun tesekkur edirik!'
+    receipt_footer: 'Bizi secdiyiniz ucun tesekkur edirik!',
+    // Vergi / fiskal (forward-compatible). Default: sadələşdirilmiş, fiskal inteqrasiya söndürülüb.
+    tax_regime: 'simplified' as 'simplified' | 'vat',
+    vat_rate: 18,
+    nka_registration_no: '',
+    fiscal_enabled: false,
   };
   profiles.push(created);
   setDB('business_profile', profiles);
@@ -1840,6 +1845,10 @@ export function update_business_profile(tenant_id: string, payload: {
   website: string;
   logo_url?: string;
   receipt_footer?: string;
+  tax_regime?: 'simplified' | 'vat';
+  vat_rate?: number;
+  nka_registration_no?: string;
+  fiscal_enabled?: boolean;
 }, updated_by: string = 'admin') {
   const profiles = getDB<any>('business_profile');
   const resolvedTenant = resolveTenant(tenant_id);
@@ -1902,6 +1911,10 @@ export async function update_business_profile_live(tenant_id: string, payload: {
   website: string;
   logo_url?: string;
   receipt_footer?: string;
+  tax_regime?: 'simplified' | 'vat';
+  vat_rate?: number;
+  nka_registration_no?: string;
+  fiscal_enabled?: boolean;
 }, updated_by: string = 'admin') {
   if (!isBackendEnabled()) return update_business_profile(tenant_id, payload, updated_by);
   await apiRequest('/api/v1/ops/business-profile', { method: 'PUT', tenantId: null, body: payload });
