@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Palette, Sparkles } from 'lucide-react';
+import { MapPin, Palette, Plus, Sparkles, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_settings_live, update_customer_app_settings_live } from '../../api/settings';
+import { get_settings_live, update_customer_app_settings_live, list_branches_live, create_branch_live, update_branch_live, delete_branch_live } from '../../api/settings';
 import { prepareImageDataUrl } from '../../lib/image_upload';
 
 const CRM_MEMBER_TYPES = [
@@ -21,6 +21,18 @@ export default function CustomerAppPanel() {
   const colorPresets = ['#14b8a6', '#22d3ee', '#7c3aed', '#f97316', '#facc15', '#ef4444', '#111827', '#ec4899'];
   const [success, setSuccess] = useState('');
   const [joinQr, setJoinQr] = useState('');
+  const [branches, setBranches] = useState<any[]>([]);
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    latitude: '',
+    longitude: '',
+    open_hour: '8',
+    close_hour: '23',
+    is_default: false,
+  });
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [form, setForm] = useState({
     enabled: true,
     program_mode: 'points' as 'points' | 'cashback',
@@ -115,6 +127,77 @@ export default function CustomerAppPanel() {
   const flash = (msg: string) => {
     setSuccess(msg);
     window.setTimeout(() => setSuccess(''), 2500);
+  };
+
+  const loadBranches = async () => {
+    try {
+      const res = await list_branches_live(tenantId);
+      setBranches(res?.branches || []);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Filiallar yüklənə bilmədi', 'Не удалось загрузить филиалы', 'Could not load branches'));
+    }
+  };
+
+  useEffect(() => {
+    void loadBranches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
+  const startEditBranch = (b: any) => {
+    setEditingBranchId(b.id);
+    setBranchForm({
+      name: b.name || '',
+      address: b.address || '',
+      phone: b.phone || '',
+      latitude: b.latitude != null ? String(b.latitude) : '',
+      longitude: b.longitude != null ? String(b.longitude) : '',
+      open_hour: String(b.open_hour ?? 8),
+      close_hour: String(b.close_hour ?? 23),
+      is_default: Boolean(b.is_default),
+    });
+  };
+
+  const saveBranch = async () => {
+    if (!branchForm.name.trim()) {
+      notify('error', tx(lang, 'Filial adı boş ola bilməz', 'Название филиала не может быть пустым', 'Branch name is required'));
+      return;
+    }
+    const payload = {
+      name: branchForm.name.trim(),
+      address: branchForm.address.trim() || undefined,
+      phone: branchForm.phone.trim() || undefined,
+      latitude: branchForm.latitude.trim() ? Number(branchForm.latitude) : null,
+      longitude: branchForm.longitude.trim() ? Number(branchForm.longitude) : null,
+      open_hour: Number(branchForm.open_hour || 8),
+      close_hour: Number(branchForm.close_hour || 23),
+      is_default: branchForm.is_default,
+    };
+    try {
+      if (editingBranchId) {
+        await update_branch_live(tenantId, editingBranchId, payload);
+      } else {
+        await create_branch_live(tenantId, payload);
+      }
+      setBranchForm({ name: '', address: '', phone: '', latitude: '', longitude: '', open_hour: '8', close_hour: '23', is_default: false });
+      setEditingBranchId(null);
+      await loadBranches();
+      flash(tx(lang, 'Filial yadda saxlanıldı', 'Филиал сохранен', 'Branch saved'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Filial saxlanıla bilmdi', 'Не удалось сохранить филиал', 'Could not save branch'));
+    }
+  };
+
+  const removeBranch = async (branchId: string) => {
+    if (typeof window !== 'undefined' && !window.confirm(tx(lang, 'Bu filialı silmək istəyirsiniz?', 'Удалить этот филиал?', 'Delete this branch?'))) {
+      return;
+    }
+    try {
+      await delete_branch_live(tenantId, branchId);
+      await loadBranches();
+      flash(tx(lang, 'Filial silindi', 'Филиал удален', 'Branch deleted'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Filal silinə bilmdi', 'Не удалось удалить филиал', 'Could not delete branch'));
+    }
   };
 
   const handleImage = async (field: 'hero_image_url' | 'background_image_url', file?: File | null) => {
@@ -412,6 +495,94 @@ export default function CustomerAppPanel() {
           <button type="button" onClick={downloadJoinQr} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
             {tx(lang, 'QR yüklə', 'Скачать QR', 'Download QR')}
           </button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><MapPin size={18} /> {tx(lang, 'Filiallar', 'Филиалы', 'Branches')}</div>
+        <p className="text-sm text-slate-400">{tx(lang, 'Customer app-də göstərilən götürmə mağazaları. Boş olarsa tenant-ın özü istifadə olunur.', 'Магазины выдачи в customer app. Если пусто — используется сам tenant.', 'Pickup stores shown in the customer app. Falls back to the tenant itself when empty.')}</p>
+
+        <div className="space-y-2">
+          {branches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-700/70 p-4 text-sm text-slate-400">
+              {tx(lang, 'Hələ filial yoxdur — aşağıdan əlavə edin.', 'Филиалов пока нет — добавьте ниже.', 'No branches yet — add one below.')}
+            </div>
+          ) : branches.map((b: any) => (
+            <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-slate-100">{b.name}</span>
+                  {b.is_default ? <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">DEFAULT</span> : null}
+                  {!b.is_active ? <span className="rounded-full bg-rose-400/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">OFF</span> : null}
+                </div>
+                <div className="mt-0.5 truncate text-xs text-slate-400">
+                  {[b.address, b.phone].filter(Boolean).join(' · ') || '—'}
+                  {b.latitude != null && b.longitude != null ? ` · ${Number(b.latitude).toFixed(4)}, ${Number(b.longitude).toFixed(4)}` : ''}
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500">{`${b.open_hour ?? 8}:00 – ${b.close_hour ?? 23}:00`}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => startEditBranch(b)} className="rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200">
+                  {tx(lang, 'Düzəlt', 'Изменить', 'Edit')}
+                </button>
+                <button type="button" onClick={() => removeBranch(b.id)} className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-300">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4 space-y-3">
+          <div className="text-sm font-semibold text-slate-200">
+            {editingBranchId ? tx(lang, 'Filialı düzəlt', 'Изменить филиал', 'Edit branch') : (
+              <span className="inline-flex items-center gap-1"><Plus size={14} /> {tx(lang, 'Yeni filial', 'Новый филиал', 'New branch')}</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="field-stack form-card md:col-span-2">
+              <span className="field-label">{tx(lang, 'Ad *', 'Название *', 'Name *')}</span>
+              <input className="neon-input" value={branchForm.name} onChange={(e) => setBranchForm((p) => ({ ...p, name: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Ünvan', 'Адрес', 'Address')}</span>
+              <input className="neon-input" value={branchForm.address} onChange={(e) => setBranchForm((p) => ({ ...p, address: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Telefon', 'Телефон', 'Phone')}</span>
+              <input className="neon-input" value={branchForm.phone} onChange={(e) => setBranchForm((p) => ({ ...p, phone: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Enlem (latitude)', 'Широта', 'Latitude')}</span>
+              <input className="neon-input" type="number" step="any" value={branchForm.latitude} onChange={(e) => setBranchForm((p) => ({ ...p, latitude: e.target.value }))} placeholder="40.4093" />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Uzunluq (longitude)', 'Долгота', 'Longitude')}</span>
+              <input className="neon-input" type="number" step="any" value={branchForm.longitude} onChange={(e) => setBranchForm((p) => ({ ...p, longitude: e.target.value }))} placeholder="49.8671" />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Açılış (saat)', 'Открытие (час)', 'Open (hour)')}</span>
+              <input className="neon-input" type="number" min={0} max={23} value={branchForm.open_hour} onChange={(e) => setBranchForm((p) => ({ ...p, open_hour: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Bağlanış (sa)', 'Закрытие (час)', 'Close (hour)')}</span>
+              <input className="neon-input" type="number" min={0} max={23} value={branchForm.close_hour} onChange={(e) => setBranchForm((p) => ({ ...p, close_hour: e.target.value }))} />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+              <input type="checkbox" checked={branchForm.is_default} onChange={(e) => setBranchForm((p) => ({ ...p, is_default: e.target.checked }))} />
+              <span>{tx(lang, 'Default filial (ilk sırada)', 'Филиал по умолчанию (первый)', 'Default branch (listed first)')}</span>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { void saveBranch(); }} className="glossy-gold rounded-xl px-5 py-2 text-sm font-bold">
+              {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+            </button>
+            {editingBranchId ? (
+              <button type="button" onClick={() => { setEditingBranchId(null); setBranchForm({ name: '', address: '', phone: '', latitude: '', longitude: '', open_hour: '8', close_hour: '23', is_default: false }); }} className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-bold text-slate-300">
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
