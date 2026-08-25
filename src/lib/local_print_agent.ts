@@ -152,12 +152,10 @@ export async function printDirectOrFallback(
   async function tryQz(): Promise<{ ok: boolean; error?: string; scriptUnavailable?: boolean }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
-      // Only take the raw ESC/POS path when the content is PC437-safe. Cyrillic tickets
-      // must go through pixel/HTML (Unicode-safe) even if raw_escpos is selected (P0-2).
-      const rawSafe =
-        options?.printEngine === 'raw_escpos' &&
-        Boolean(options?.rawCommands) &&
-        !containsCyrillic(html);
+      // Use raw ESC/POS path whenever rawCommands are provided — the commands
+      // are already ASCII-sanitized by sanitizeEscPosText so no Cyrillic issue.
+      // HTML pixel mode is reserved only for cases where no raw commands exist.
+      const rawSafe = Boolean(options?.rawCommands);
       if (rawSafe) {
         await qzPrintRaw(options!.rawCommands as string, options?.printerName);
       } else {
