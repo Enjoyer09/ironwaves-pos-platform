@@ -322,6 +322,245 @@ export function buildKitchenTicketEscPos(
   return cmd;
 }
 
+function formatEscPosTwoColumns(left: string, right: string, width: number): string {
+  const rightStr = right.trim();
+  const maxLeftLen = Math.max(1, width - rightStr.length - 1);
+  if (left.length <= maxLeftLen) {
+    const spaces = Math.max(1, width - left.length - rightStr.length);
+    return left + ' '.repeat(spaces) + rightStr + '\n';
+  }
+  const lines = wrapEscPosText(left, maxLeftLen);
+  let res = lines[0] + ' '.repeat(Math.max(1, width - lines[0].length - rightStr.length)) + rightStr + '\n';
+  for (let i = 1; i < lines.length; i++) {
+    res += lines[i] + '\n';
+  }
+  return res;
+}
+
+/**
+ * Builds native ESC/POS thermal printer commands for Table Check Receipts
+ */
+export function buildTableReceiptEscPos({
+  tableLabel,
+  operator,
+  items,
+  breakdown,
+  companyName = 'IRONWAVES POS',
+  voen = '',
+  phone = '',
+  address = '',
+  footer = 'Bizi secdiyiniz ucun tesekkur edirik!',
+  paperWidth = '58mm',
+}: {
+  tableLabel: string;
+  operator: string;
+  items: Array<{ item_name?: string; name?: string; qty?: number; quantity?: number; price?: number | string }>;
+  breakdown: {
+    itemsTotal: number;
+    discountPercent?: number;
+    discountAmount?: number;
+    serviceFee?: number;
+    deposit?: number;
+    finalTotal: number;
+    dueNow: number;
+  };
+  companyName?: string;
+  voen?: string;
+  phone?: string;
+  address?: string;
+  footer?: string;
+  paperWidth?: '58mm' | '80mm';
+}): string {
+  const is58 = (paperWidth || '58mm') === '58mm';
+  const lineChars = is58 ? 30 : 40;
+  const solidLine = '='.repeat(lineChars) + '\n';
+  const dashLine = '-'.repeat(lineChars) + '\n';
+
+  const boldOn = ESC + 'E\x01';
+  const boldOff = ESC + 'E\x00';
+  const doubleHeightOn = GS + '!\x01';
+  const sizeReset = GS + '!\x00';
+
+  let cmd = '';
+  cmd += ESC + '@';
+  cmd += ESC + 't\x00';
+
+  // Header Center
+  cmd += ESC + 'a\x01';
+  if (companyName) {
+    cmd += boldOn;
+    cmd += sanitizeEscPosText(companyName).toUpperCase() + '\n';
+    cmd += boldOff;
+  }
+  if (voen) cmd += `VOEN: ${sanitizeEscPosText(voen)}\n`;
+  if (phone) cmd += `Tel: ${sanitizeEscPosText(phone)}\n`;
+  if (address) cmd += `${sanitizeEscPosText(address)}\n`;
+
+  cmd += dashLine;
+  cmd += boldOn;
+  cmd += centerText('*** MASA HESABI ***', lineChars) + '\n';
+  cmd += boldOff;
+  cmd += dashLine;
+
+  // Info rows
+  cmd += ESC + 'a\x00';
+  cmd += formatEscPosTwoColumns('Masa:', sanitizeEscPosText(tableLabel), lineChars);
+  cmd += formatEscPosTwoColumns('Xidmet:', sanitizeEscPosText(operator || 'staff'), lineChars);
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
+  cmd += formatEscPosTwoColumns('Tarix:', `${dateStr} ${timeStr}`, lineChars);
+
+  cmd += solidLine;
+
+  // Items
+  items.forEach((item) => {
+    const qty = Number(item.qty || item.quantity || 1);
+    const rawName = sanitizeEscPosText(String(item.item_name || item.name || 'Mehsul'));
+    const linePrice = Number(item.price || 0) * qty;
+    const priceStr = `${linePrice.toFixed(2)} M`;
+    const label = `${qty}x ${rawName}`;
+    cmd += formatEscPosTwoColumns(label, priceStr, lineChars);
+  });
+
+  cmd += solidLine;
+
+  // Breakdown
+  cmd += formatEscPosTwoColumns('Sifaris cemi:', `${Number(breakdown.itemsTotal || 0).toFixed(2)} M`, lineChars);
+  if (Number(breakdown.discountAmount || 0) > 0) {
+    const discLabel = `Endirim (${Number(breakdown.discountPercent || 0).toFixed(0)}%):`;
+    cmd += formatEscPosTwoColumns(discLabel, `-${Number(breakdown.discountAmount || 0).toFixed(2)} M`, lineChars);
+  }
+  if (Number(breakdown.serviceFee || 0) > 0) {
+    cmd += formatEscPosTwoColumns('Servis haqqi:', `${Number(breakdown.serviceFee || 0).toFixed(2)} M`, lineChars);
+  }
+  if (Number(breakdown.deposit || 0) > 0) {
+    cmd += formatEscPosTwoColumns('Depozit:', `${Number(breakdown.deposit || 0).toFixed(2)} M`, lineChars);
+  }
+  if (Number(breakdown.dueNow || 0) !== Number(breakdown.finalTotal || 0)) {
+    cmd += formatEscPosTwoColumns('Elave odenis:', `${Number(breakdown.dueNow || 0).toFixed(2)} M`, lineChars);
+  }
+
+  cmd += solidLine;
+
+  // Total
+  cmd += doubleHeightOn;
+  cmd += boldOn;
+  cmd += formatEscPosTwoColumns('YEKUN:', `${Number(breakdown.finalTotal || 0).toFixed(2)} M`, lineChars);
+  cmd += boldOff;
+  cmd += sizeReset;
+
+  cmd += dashLine;
+  cmd += ESC + 'a\x01';
+  cmd += sanitizeEscPosText(footer) + '\n';
+
+  cmd += '\n\n\n\n';
+  cmd += GS + 'V\x41\x03';
+
+  return cmd;
+}
+
+/**
+ * Builds native ESC/POS thermal printer commands for POS Sales Receipts
+ */
+export function buildSaleReceiptEscPos({
+  sale,
+  profile,
+  operator,
+  paperWidth = '58mm',
+}: {
+  sale: any;
+  profile?: any;
+  operator?: string;
+  paperWidth?: '58mm' | '80mm';
+}): string {
+  const is58 = (paperWidth || '58mm') === '58mm';
+  const lineChars = is58 ? 30 : 40;
+  const solidLine = '='.repeat(lineChars) + '\n';
+  const dashLine = '-'.repeat(lineChars) + '\n';
+
+  const boldOn = ESC + 'E\x01';
+  const boldOff = ESC + 'E\x00';
+  const doubleHeightOn = GS + '!\x01';
+  const sizeReset = GS + '!\x00';
+
+  let cmd = '';
+  cmd += ESC + '@';
+  cmd += ESC + 't\x00';
+
+  // Header Center
+  cmd += ESC + 'a\x01';
+  const comp = profile?.company_name || 'IRONWAVES POS';
+  cmd += boldOn;
+  cmd += sanitizeEscPosText(comp).toUpperCase() + '\n';
+  cmd += boldOff;
+
+  if (profile?.voen) cmd += `VOEN: ${sanitizeEscPosText(profile.voen)}\n`;
+  if (profile?.phone) cmd += `Tel: ${sanitizeEscPosText(profile.phone)}\n`;
+  if (profile?.address) cmd += `${sanitizeEscPosText(profile.address)}\n`;
+
+  cmd += dashLine;
+  cmd += boldOn;
+  cmd += centerText('*** KASSA CEKI (DAXILI) ***', lineChars) + '\n';
+  cmd += boldOff;
+  cmd += dashLine;
+
+  // Metadata Left
+  cmd += ESC + 'a\x00';
+  const saleId = String(sale?.sale_id || sale?.id || '').split('-')[0].toUpperCase();
+  if (saleId) cmd += formatEscPosTwoColumns('Satis ID:', `#${saleId}`, lineChars);
+  cmd += formatEscPosTwoColumns('Operator:', sanitizeEscPosText(operator || sale?.cashier || 'staff'), lineChars);
+
+  const now = sale?.created_at ? new Date(sale.created_at) : new Date();
+  const timeStr = now.toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
+  cmd += formatEscPosTwoColumns('Tarix:', `${dateStr} ${timeStr}`, lineChars);
+  cmd += formatEscPosTwoColumns('Tip:', sanitizeEscPosText(sale?.order_type || 'Take Away'), lineChars);
+
+  cmd += solidLine;
+
+  const items = Array.isArray(sale?.items) ? sale.items : [];
+  items.forEach((item: any) => {
+    const qty = Number(item.qty || item.quantity || 1);
+    const rawName = sanitizeEscPosText(String(item.item_name || item.name || 'Mehsul'));
+    const lineTotal = Number(item.line_total ?? item.total ?? 0) || (Number(item.price || 0) * qty);
+    const label = `${qty}x ${rawName}`;
+    cmd += formatEscPosTwoColumns(label, `${lineTotal.toFixed(2)} M`, lineChars);
+  });
+
+  cmd += solidLine;
+
+  const subtotal = Number(sale?.original_total ?? 0) || (Number(sale?.total || 0) + Number(sale?.discount_amount || 0));
+  const discount = Number(sale?.discount_amount || 0);
+  const total = Number(sale?.total || 0);
+
+  cmd += formatEscPosTwoColumns('Ara cem:', `${subtotal.toFixed(2)} M`, lineChars);
+  if (discount > 0) {
+    cmd += formatEscPosTwoColumns('Endirim:', `-${discount.toFixed(2)} M`, lineChars);
+  }
+
+  cmd += solidLine;
+
+  cmd += doubleHeightOn;
+  cmd += boldOn;
+  cmd += formatEscPosTwoColumns('YEKUN:', `${total.toFixed(2)} M`, lineChars);
+  cmd += boldOff;
+  cmd += sizeReset;
+
+  const payMethod = sanitizeEscPosText(String(sale?.payment_method || 'Nagd'));
+  cmd += formatEscPosTwoColumns('Odenis:', payMethod, lineChars);
+
+  cmd += dashLine;
+  cmd += ESC + 'a\x01';
+  cmd += sanitizeEscPosText(profile?.receipt_footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
+
+  cmd += '\n\n\n\n';
+  cmd += GS + 'V\x41\x03';
+
+  return cmd;
+}
+
 /**
  * Builds a simple test receipt for POS / Kitchen testing
  */
@@ -339,8 +578,8 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += `Printer: ${sanitizeEscPosText(printerName || 'Default')}\n`;
   cmd += `Saat: ${new Date().toLocaleTimeString()}\n`;
   cmd += '--------------------------------\n';
-  cmd += '1x Test Mehsul 1\n';
-  cmd += '2x Test Mehsul 2\n';
+  cmd += '1x Test Mehsul 1         2.50 M\n';
+  cmd += '2x Test Mehsul 2         5.00 M\n';
   cmd += '--------------------------------\n';
   cmd += 'QZ Tray Baglantisi Ugurludur!\n';
   cmd += '\n\n\n\n';

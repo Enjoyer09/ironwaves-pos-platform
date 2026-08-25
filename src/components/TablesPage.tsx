@@ -19,7 +19,7 @@ import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { buildTableReceiptHtml } from '../lib/receipt_html';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
 import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { buildKitchenTicketEscPos, buildTableReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -148,6 +148,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [itemActionQuantityDelta, setItemActionQuantityDelta] = useState('1');
   const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
+  const [tableReceiptRawCommands, setTableReceiptRawCommands] = useState<string | null>(null);
   const safeTableReceiptHtml = useMemo(() => sanitizeHtmlForIframe(tableReceiptHtml), [tableReceiptHtml]);
   const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[]; hasSentItems: boolean } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
@@ -1178,6 +1179,31 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         paperWidth: printSettings.paper_width || '58mm',
       });
 
+      const rawCmds = buildTableReceiptEscPos({
+        tableLabel: table.label,
+        operator: user?.username || 'staff',
+        items: payItems.map((row: any) => ({
+          item_name: row.item_name,
+          qty: row.qty,
+          price: row.price,
+        })),
+        breakdown: {
+          itemsTotal: rItemsTotal.toNumber(),
+          discountPercent: rDiscountPercent.toNumber(),
+          discountAmount: rDiscountAmount.toNumber(),
+          serviceFee: rServiceFee.toNumber(),
+          deposit: rDeposit.toNumber(),
+          finalTotal: rFinalTotal.toNumber(),
+          dueNow: rDueNow.toNumber(),
+        },
+        companyName: businessProfile?.company_name,
+        voen: businessProfile?.voen,
+        phone: businessProfile?.phone,
+        address: businessProfile?.address,
+        footer: businessProfile?.receipt_footer,
+        paperWidth: printSettings.paper_width || '58mm',
+      });
+
       if (isBackendEnabled() && String(result.sale_id || '').trim()) {
         void save_sale_receipt_html_live(String(result.sale_id), receiptMarkup).catch(() => undefined);
       }
@@ -1196,6 +1222,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setTableDiscountPercent('0');
       // Show receipt
       setTableReceiptHtml(receiptMarkup);
+      setTableReceiptRawCommands(rawCmds);
 
       // Auto print receipt silently if enabled — same strategy as KDS ticket print:
       // respect use_qz from settings, pass paper_width so QZ sizes the receipt correctly,
@@ -1206,6 +1233,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           useQz: Boolean(printSettings.use_qz),
           paperWidth: printSettings.paper_width || '58mm',
           printEngine: printSettings.print_engine || 'pixel_html',
+          rawCommands: rawCmds,
           allowBrowserFallback: false,
         }).then((res) => {
           if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1599,6 +1627,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       useQz: Boolean(printSettings.use_qz),
       paperWidth: printSettings.paper_width || '58mm',
       printEngine: printSettings.print_engine || 'pixel_html',
+      rawCommands: tableReceiptRawCommands || undefined,
       allowBrowserFallback: true,
     });
     if (res.success) {
