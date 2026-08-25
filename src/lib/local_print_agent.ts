@@ -190,10 +190,11 @@ export async function printDirectOrFallback(
       }
     } catch {}
 
-    // QZ is the operator's chosen channel. Broken QZ (not running, cert not
-    // accepted, signature failed) → error, and only a missing QZ install gets
-    // the dialog… and only when the caller allows it.
-    if (options?.allowBrowserFallback === true && qzScriptUnavailable) {
+    // QZ is the operator's chosen channel. When QZ fails for any reason
+    // (not running, cert not accepted, connection refused) and the caller
+    // allows browser fallback, open the browser print dialog as last resort.
+    // Without this, non-QZ machines silently get no print at all.
+    if (options?.allowBrowserFallback === true) {
       const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
       if (browserSuccess) {
         return { method: 'browser', success: true };
@@ -226,7 +227,7 @@ export async function printDirectOrFallback(
   if (qz.ok) return { method: 'qz', success: true };
   lastError = qz.error;
 
-  if (options?.allowBrowserFallback === true && qzScriptUnavailable) {
+  if (options?.allowBrowserFallback === true) {
     const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
     if (browserSuccess) {
       return { method: 'browser', success: true };
