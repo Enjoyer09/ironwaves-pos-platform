@@ -198,7 +198,6 @@ export async function buildSaleReceiptHtml({
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
             ${thermalPaperWidthOverride(paperWidth)}
-            html, body { width: ${printWidthPx}px !important; max-width: ${printWidthPx}px !important; overflow: hidden !important; }
           </style>
       </head>
       <body>
@@ -328,7 +327,6 @@ export async function buildTableReceiptHtml({
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
             ${thermalPaperWidthOverride(paperWidth)}
-            html, body { width: ${printWidthPx}px !important; max-width: ${printWidthPx}px !important; overflow: hidden !important; }
           </style>
       </head>
       <body>
