@@ -33,49 +33,38 @@ function timeoutSignal(ms: number): AbortSignal {
  * size (58mm x 300mm) because CSS Paged Media disallows `58mm auto`.
  */
 export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '80mm'): boolean {
-  if (typeof document === 'undefined') return false;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   try {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      document.body.removeChild(iframe);
-      return false;
-    }
-
     const pageWidthMm = paperWidth === '80mm' ? '80mm' : '58mm';
     const contentWidthMm = paperWidth === '80mm' ? 72 : 48;
+    // Inject page size + auto-print script — mirrors how analytics "past receipts"
+    // opens a full browser window which renders the receipt correctly at any width.
     const pageOverride = `<style>@page { size: ${pageWidthMm} 300mm; margin: 2mm; } html, body { width: ${contentWidthMm}mm !important; max-width: ${contentWidthMm}mm !important; overflow: visible !important; margin: 0 auto !important; font-size: 12px !important; }</style>`;
-    const docHtml = String(html).replace(/<\/head>/i, `${pageOverride}</head>`);
+    const autoScript = `<script>window.onload=function(){window.print();setTimeout(function(){try{window.close();}catch(e){}},2000);};<\/script>`;
+    let docHtml = String(html)
+      .replace(/<\/head>/i, `${pageOverride}</head>`)
+      .replace(/<\/body>/i, `${autoScript}</body>`);
 
-    doc.open();
-    doc.write(docHtml);
-    doc.close();
+    // Open in a new window via blob URL — popup blocker won't fire on user-initiated events.
+    const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const popup = window.open(blobUrl, '_blank', 'width=480,height=720,noopener');
+    // Release the object URL after enough time for the window to load.
+    setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch {} }, 30000);
 
-    iframe.contentWindow?.focus();
+    if (popup) return true;
+
+    // Popup was blocked — fall back to the original hidden-iframe approach.
+    const iframe = document.createElement('iframe');
+    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', opacity: '0', pointerEvents: 'none' });
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (!doc) { document.body.removeChild(iframe); return false; }
+    doc.open(); doc.write(docHtml); doc.close();
     setTimeout(() => {
-      try {
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.warn('iframe print error:', e);
-      } finally {
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch {}
-        }, 3000);
-      }
-    }, 250);
-
+      try { iframe.contentWindow?.print(); } catch {}
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 3000);
+    }, 300);
     return true;
   } catch (err) {
     console.warn('Browser print fallback error:', err);
