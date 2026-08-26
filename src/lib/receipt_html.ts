@@ -78,23 +78,46 @@ export function generateReceiptBarcodeSvg(value: string): string {
   }
 }
 
-// Başlıqsız 1D barkod (CODE128) — çap üçün daha etibarlı olması üçün birbaşa
-// PNG data-URL şəklində qaytarırıq. Headless Chrome-da inline SVG bəzən düzgün
-// çap olunmur; raster şəkil həmişə görünür.
-export function generateReceiptBarcodeDataUrl(value: string): string {
-  try {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, value, {
-      format: 'CODE128',
-      displayValue: false,
-      margin: 0,
-      width: 2,
-      height: 50,
-    });
-    return canvas.toDataURL('image/png');
-  } catch {
+// Satış ID üçün 1D barkod (CODE128). Çapda görünməməsinin qarşısını almaq üçün
+// əvvəlcə PNG data-URL (headless Chrome-da ən etibarlı), alınmazsa inline SVG
+// ehtiyat yolunu istifadə edir. Mərkəzləşdirilmiş olaraq SALE:<id> yazısı ilə gəlir.
+export function generateReceiptBarcodeHtml(value: string): string {
+  const tryPng = (): string => {
+    try {
+      const canvas = document.createElement('canvas');
+      JsBarcode(canvas, value, {
+        format: 'CODE128',
+        displayValue: false,
+        margin: 0,
+        width: 2,
+        height: 50,
+      });
+      const url = canvas.toDataURL('image/png');
+      if (url && url.length > 50) {
+        return `<img src="${url}" alt="barcode" style="height:50px;display:block;margin:0 auto" />`;
+      }
+    } catch {
+      /* fall through to SVG */
+    }
     return '';
-  }
+  };
+  const trySvg = (): string => {
+    try {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      JsBarcode(svg, value, {
+        format: 'CODE128',
+        displayValue: false,
+        margin: 0,
+        width: 2,
+        height: 50,
+      });
+      svg.setAttribute('style', 'height:50px;width:100%;max-width:100%;display:block;margin:0 auto');
+      return svg.outerHTML;
+    } catch {
+      return '';
+    }
+  };
+  return tryPng() || trySvg();
 }
 
 export async function buildSaleReceiptHtml({
@@ -164,7 +187,7 @@ export async function buildSaleReceiptHtml({
     ? new Date(sale.created_at).toLocaleString('az-AZ')
     : new Date().toLocaleString('az-AZ');
   // Encode the short display ID — must match the human-readable text under the barcode.
-  const barcodeDataUrl = generateReceiptBarcodeDataUrl(`SALE:${displayId}`);
+  const barcodeHtml = generateReceiptBarcodeHtml(`SALE:${displayId}`);
   const companyName = profile?.company_name || 'IRONWAVES POS';
 
   // --- Fiskal / vergi (forward-compatible; təhlükəsiz default-lar) ---
@@ -213,7 +236,7 @@ export async function buildSaleReceiptHtml({
     <html>
       <head>
           <meta charset="utf-8" />
-          <meta name="viewport" content="width=${printWidthPx}" />
+          <meta name="viewport" content="width=device-width" />
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
             ${thermalPaperWidthOverride(paperWidth)}
@@ -234,9 +257,7 @@ export async function buildSaleReceiptHtml({
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
         <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
         ${isVoided ? `<div class="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
-        <div style="margin-top:8px;text-align:center">
-          ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="barcode" style="height:50px;display:block;margin:0 auto" />` : ''}
-        </div>
+        <div style="margin-top:8px;text-align:center">${barcodeHtml}</div>
         <div class="muted" style="text-align:center">SALE:${esc(displayId)}</div>
         <hr />
         <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td></tr>`}</table>
@@ -343,7 +364,7 @@ export async function buildTableReceiptHtml({
     <html>
       <head>
           <meta charset="utf-8" />
-          <meta name="viewport" content="width=${printWidthPx}" />
+          <meta name="viewport" content="width=device-width" />
           <title>Table Receipt - ${esc(tableLabel)}</title>
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
