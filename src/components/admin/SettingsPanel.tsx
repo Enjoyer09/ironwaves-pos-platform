@@ -1094,6 +1094,56 @@ export default function SettingsPanel() {
     }
   };
 
+  const printAgentMacArch =
+    typeof navigator !== 'undefined' && /Intel|x86_64|x86-64/i.test(navigator.platform || navigator.userAgent)
+      ? 'x64'
+      : 'arm64';
+  const printAgentMacPkgUrl = `${window.location.origin.replace(/\/+$/, '')}/downloads/ironwaves-print-agent-macos-${printAgentMacArch}.pkg`;
+
+  const downloadPrintAgentMacPkg = async () => {
+    try {
+      const probe = await fetch(printAgentMacPkgUrl, { method: 'HEAD', cache: 'no-store' });
+      if (!probe.ok) {
+        notify(
+          'error',
+          tx(
+            lang,
+            'macOS Printer Agent paketi serverdə tapılmadı. Support ilə əlaqə saxlayın.',
+            'Пакет macOS Printer Agent не найден на сервере. Обратитесь в поддержку.',
+            'macOS Printer Agent package was not found on the server. Please contact support.',
+          ),
+        );
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = printAgentMacPkgUrl;
+      link.download = `ironwaves-print-agent-macos-${printAgentMacArch}.pkg`;
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      notify(
+        'success',
+        tx(
+          lang,
+          'Yükləmə başladı. .pkg faylını açıb quraşdırın (agent avtomatik başlayacaq).',
+          'Загрузка началась. Откройте .pkg и установите (агент запустится автоматически).',
+          'Download started. Open the .pkg and install (agent will start automatically).',
+        ),
+      );
+    } catch {
+      notify(
+        'error',
+        tx(
+          lang,
+          'Yükləmə başlamadı. İnternet bağlantısını yoxlayın.',
+          'Загрузка не началась. Проверьте подключение к интернету.',
+          'Download did not start. Check internet connection.',
+        ),
+      );
+    }
+  };
+
   const saveZReportReceiptSettings = async () => {
     await update_z_report_receipt_settings_live(zReportReceiptSettings);
     flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
@@ -1473,6 +1523,7 @@ export default function SettingsPanel() {
         setPrintAgentModalOpen={setPrintAgentModalOpen}
         downloadPrintAgentWindowsZip={downloadPrintAgentWindowsZip}
         downloadPrintAgentSetup={downloadPrintAgentSetup}
+        downloadPrintAgentMacPkg={downloadPrintAgentMacPkg}
         zReportReceiptSettings={zReportReceiptSettings}
         setZReportReceiptSettings={setZReportReceiptSettings}
         saveZReportReceiptSettings={saveZReportReceiptSettings}
