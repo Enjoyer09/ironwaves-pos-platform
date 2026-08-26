@@ -78,6 +78,25 @@ export function generateReceiptBarcodeSvg(value: string): string {
   }
 }
 
+// Başlıqsız 1D barkod (CODE128) — çap üçün daha etibarlı olması üçün birbaşa
+// PNG data-URL şəklində qaytarırıq. Headless Chrome-da inline SVG bəzən düzgün
+// çap olunmur; raster şəkil həmişə görünür.
+export function generateReceiptBarcodeDataUrl(value: string): string {
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, value, {
+      format: 'CODE128',
+      displayValue: false,
+      margin: 0,
+      width: 2,
+      height: 50,
+    });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return '';
+  }
+}
+
 export async function buildSaleReceiptHtml({
   sale,
   profile,
@@ -145,7 +164,7 @@ export async function buildSaleReceiptHtml({
     ? new Date(sale.created_at).toLocaleString('az-AZ')
     : new Date().toLocaleString('az-AZ');
   // Encode the short display ID — must match the human-readable text under the barcode.
-  const barcodeSvg = generateReceiptBarcodeSvg(`SALE:${displayId}`);
+  const barcodeDataUrl = generateReceiptBarcodeDataUrl(`SALE:${displayId}`);
   const companyName = profile?.company_name || 'IRONWAVES POS';
 
   // --- Fiskal / vergi (forward-compatible; təhlükəsiz default-lar) ---
@@ -215,7 +234,9 @@ export async function buildSaleReceiptHtml({
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
         <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
         ${isVoided ? `<div class="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
-        <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
+        <div style="margin-top:8px;text-align:center">
+          ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="barcode" style="height:50px;display:block;margin:0 auto" />` : ''}
+        </div>
         <div class="muted" style="text-align:center">SALE:${esc(displayId)}</div>
         <hr />
         <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td></tr>`}</table>
@@ -336,7 +357,7 @@ export async function buildTableReceiptHtml({
         <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
         <div class="muted">${esc(profile?.address || '-')}</div>
         <hr />
-        <div class="section-title" style="text-align:center">*** ${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')} ***</div>
+        <div class="section-title" style="text-align:center">${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')}</div>
         <div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>
         <hr />
         <div class="line"><span>${tx(lang, 'Masa', 'Стол', 'Table')}</span><span class="bold">${esc(tableLabel)}</span></div>

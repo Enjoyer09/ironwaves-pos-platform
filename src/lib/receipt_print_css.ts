@@ -15,7 +15,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
     font-size: 12px !important;
-    line-height: 1.25 !important;
+    line-height: 1.35 !important;
     font-weight: 600 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
@@ -124,7 +124,8 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
   const is80 = (paperWidth || '80mm') === '80mm';
   const paperMm = is80 ? 80 : 58;
   const printableMm = is80 ? 72 : 48;
-  const fontSize = is80 ? '12px' : '11px';
+  // ~15–20% böyük şrift (80mm üçün 12px → 13.5px) oxunaqlılıq üçün.
+  const fontSize = is80 ? '13.5px' : '12px';
   return `
     @page { size: ${paperMm}mm auto; margin: 0mm; }
     html, body {
@@ -132,6 +133,7 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
       max-width: ${printableMm}mm !important;
       padding: 2mm 3mm !important;
       font-size: ${fontSize} !important;
+      line-height: 1.35 !important;
     }
     table, .line { font-size: ${fontSize} !important; }
   `;

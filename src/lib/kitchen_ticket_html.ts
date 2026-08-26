@@ -173,7 +173,9 @@ export function buildKitchenTicketHtml({
       font-weight: 700;
       line-height: 1.2;
       margin: 1px 0;
+      white-space: nowrap;
     }
+    .kitchen-meta-row span { white-space: nowrap; }
   </style>
 </head>
 <body>
