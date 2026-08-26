@@ -465,6 +465,70 @@ export async function act_on_order_item_live(
   },
 ) {
   if (!isBackendEnabled()) {
+    // LOCAL REJİM: masa sətrinin və metbəx sifarişinin vəziyyətini yaz ki,
+    // KDS ekranında LƏĞV / YENİDƏN DÜZƏLT / XƏTA və s. əks olunsun.
+    const action = String(payload.action || '').toUpperCase();
+    const delta = Number(payload.quantity_delta || 0);
+
+    const mapToKitchenStatus = (a: string): string => {
+      switch (a) {
+        case 'VOID':
+        case 'CANCEL':
+        case 'VOID_REQUESTED':
+          return 'VOID_REQUESTED';
+        case 'REMAKE':
+          return 'REMAKE';
+        case 'WASTE':
+          return 'WASTE';
+        case 'COMP':
+        case 'COMPED':
+          return 'COMPED';
+        default:
+          return a;
+      }
+    };
+    const newStatus = mapToKitchenStatus(action);
+
+    const applyToItem = (it: any) => {
+      const updated = { ...it };
+      updated.action = action;
+      updated.status = newStatus;
+      if (payload.reason != null) updated.note = payload.reason;
+      if (payload.remake_note != null) updated.remake_note = payload.remake_note;
+      if (action === 'DECREASE' && delta > 0) {
+        updated.qty = Math.max(0, Number(it.qty || 0) - delta);
+      }
+      return updated;
+    };
+
+    // 1) Masa sətrini (tables DB) yenilə
+    const tables = getDB<any>('tables');
+    let tableChanged = false;
+    for (const t of tables) {
+      if (!Array.isArray(t.items)) continue;
+      const idx = t.items.findIndex((it: any) => it.id === itemId);
+      if (idx >= 0) {
+        t.items[idx] = applyToItem(t.items[idx]);
+        tableChanged = true;
+      }
+    }
+    if (tableChanged) setDB('tables', tables);
+
+    // 2) Metbəx sifarişini (kitchen_orders DB) yenilə — KDS oxuyur
+    // Qeyd: sifarişin ÜMUMI statusunu dəyişmirik (NEW/PREPARING/READY qalır),
+    // yalnız item-in statusunu yazırıq ki, sifariş KDS siyahısından çıxmasın.
+    const kitchen_orders = getDB<any>('kitchen_orders');
+    let koChanged = false;
+    for (const ko of kitchen_orders) {
+      if (!Array.isArray(ko.items)) continue;
+      const idx = ko.items.findIndex((it: any) => it.id === itemId);
+      if (idx >= 0) {
+        ko.items[idx] = applyToItem(ko.items[idx]);
+        koChanged = true;
+      }
+    }
+    if (koChanged) setDB('kitchen_orders', kitchen_orders);
+
     return { ok: true, item_id: itemId, status: payload.action };
   }
   return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/action`, {
