@@ -1,7 +1,8 @@
 {
   "name": "ironwaves-print-agent",
   "latest_version": "0.2.0",
-  "minimum_version": "0.1.0",
+  "minimum_version": "0.2.0",
   "installer_path": "/downloads/ironwaves-print-agent-setup.exe",
-  "published_at": "2026-05-07T12:00:00Z"
+  "zip_path": "/downloads/ironwaves-print-agent-windows.zip",
+  "published_at": "2026-08-26T12:00:00Z"
 }

@@ -11,7 +11,10 @@
     "build:mac:exe:x64": "pkg ironwaves-print-agent.js --targets node18-macos-x64 --output dist/ironwaves-print-agent-macos-x64 --public",
     "build:mac:pkg": "bash ./build/macos/build-macos-pkg.sh",
     "build:installer": "powershell -ExecutionPolicy Bypass -File ./build/build-installer.ps1",
-    "build:all": "npm run build:exe && npm run build:installer",
+    "build:installer:nsis": "bash ./build/build-installer-nsis.sh",
+    "build:zip": "bash ./build/build-zip.sh",
+    "build:all": "npm run build:exe && npm run build:zip && npm run build:installer:nsis",
+    "build:publish": "cp build/ironwaves-print-agent-setup.exe ../../public/downloads/ && cp ironwaves-print-agent-windows.zip ../../public/downloads/",
     "build:mac:all": "npm run build:mac:exe:arm64 && npm run build:mac:pkg"
   },
   "devDependencies": {
