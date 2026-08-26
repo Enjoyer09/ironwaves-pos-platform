@@ -6,6 +6,17 @@ import { PaymentMethod } from '../types/pos';
 import { get_tables, pay_table } from './tables';
 import { get_settings } from './settings';
 
+// Local rejimdə `local_check_<tableId>` formatında check id istifadə olunur.
+// Bu köməkçi checkId-dən masa sətrini tapan zaman local metbəx göndərməsini
+// legacy `send_to_kitchen` davranışı ilə uyumlu edir.
+const localTableByCheckId = (checkId: string): { table: any; index: number } | null => {
+  const tables = getDB<any>('tables');
+  const tableId = String(checkId || '').replace(/^local_check_/, '');
+  const index = tables.findIndex((t: any) => t.id === tableId);
+  if (index < 0) return null;
+  return { table: tables[index], index };
+};
+
 export type FloorPlanRecord = {
   id: string;
   name: string;
@@ -468,6 +479,29 @@ export async function add_check_draft_item_live(
   payload: { id?: string; item_name: string; price: string; qty: number; category?: string; is_coffee?: boolean; seat_no?: number | null; course_no?: number; note?: string | null; modifier_json?: string | null },
 ) {
   if (!isBackendEnabled()) {
+    const found = localTableByCheckId(checkId);
+    if (found) {
+      const tables = getDB<any>('tables');
+      const itemId = uuidv4();
+      const newItem = {
+        id: itemId,
+        item_name: payload.item_name,
+        price: payload.price,
+        qty: Number(payload.qty || 1),
+        category: payload.category || '',
+        is_coffee: Boolean(payload.is_coffee),
+        note: payload.note ?? null,
+        modifier_json: payload.modifier_json ?? null,
+        seat_label: payload.seat_no != null ? `Yer-${payload.seat_no}` : null,
+        cup_mode: undefined,
+        kitchen_sent: false,
+      };
+      const row = { ...found.table };
+      row.items = [...(Array.isArray(row.items) ? row.items : []), newItem];
+      tables[found.index] = row;
+      setDB('tables', tables);
+      return { ok: true, item_id: itemId, status: 'DRAFT' };
+    }
     return { ok: true, item_id: uuidv4(), status: 'DRAFT' };
   }
   return apiRequest(`/api/v1/restaurant/checks/${encodeURIComponent(checkId)}/draft-items`, {
@@ -482,6 +516,36 @@ export async function send_check_drafts_live(
   payload: { sent_by?: string; course_no?: number } = {},
 ) {
   if (!isBackendEnabled()) {
+    const found = localTableByCheckId(checkId);
+    if (found) {
+      const tables = getDB<any>('tables');
+      const table = tables[found.index];
+      const items = Array.isArray(table.items) ? table.items : [];
+      if (items.length > 0) {
+        const kitchen_orders = getDB<any>('kitchen_orders');
+        kitchen_orders.push({
+          id: uuidv4(),
+          tenant_id: table.tenant_id,
+          sale_id: `table-${table.id}-${Date.now()}`,
+          table_label: table.label,
+          status: 'NEW',
+          priority: 'NORMAL',
+          items,
+          created_at: new Date().toISOString(),
+        });
+        setDB('kitchen_orders', kitchen_orders);
+        table.items = items.map((it: any) => ({ ...it, kitchen_sent: true }));
+        tables[found.index] = table;
+        setDB('tables', tables);
+      }
+      return {
+        ok: true,
+        round_id: uuidv4(),
+        round_no: 1,
+        sent_count: items.length,
+        check_total: String(table.total || '0.00'),
+      };
+    }
     return { ok: true, round_id: uuidv4(), round_no: 1, sent_count: 0, check_total: '0.00' };
   }
   return apiRequest(`/api/v1/restaurant/checks/${encodeURIComponent(checkId)}/send`, {
@@ -493,6 +557,22 @@ export async function send_check_drafts_live(
 
 export async function update_draft_item_live(itemId: string, payload: { qty?: number; note?: string | null; modifier_json?: string | null }) {
   if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    for (const t of tables) {
+      const items = Array.isArray(t.items) ? t.items : [];
+      const idx = items.findIndex((it: any) => it.id === itemId);
+      if (idx >= 0) {
+        items[idx] = {
+          ...items[idx],
+          qty: payload.qty ?? items[idx].qty,
+          note: payload.note ?? items[idx].note,
+          modifier_json: payload.modifier_json ?? items[idx].modifier_json,
+        };
+        t.items = items;
+        setDB('tables', tables);
+        return { ok: true, item_id: itemId, status: 'DRAFT', qty: payload.qty || 1 };
+      }
+    }
     return { ok: true, item_id: itemId, status: 'DRAFT', qty: payload.qty || 1 };
   }
   return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/draft`, {
@@ -504,6 +584,15 @@ export async function update_draft_item_live(itemId: string, payload: { qty?: nu
 
 export async function delete_draft_item_live(itemId: string) {
   if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    let changed = false;
+    for (const t of tables) {
+      if (Array.isArray(t.items) && t.items.some((it: any) => it.id === itemId)) {
+        t.items = t.items.filter((it: any) => it.id !== itemId);
+        changed = true;
+      }
+    }
+    if (changed) setDB('tables', tables);
     return { ok: true, item_id: itemId, status: 'VOIDED' };
   }
   return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/draft`, {
@@ -547,7 +636,7 @@ export async function get_table_detail_live(tenant_id: string, tableId: string):
         tax_amount: '0',
         total: row.total || '0',
       } : null,
-      draft_items: [],
+      draft_items: Array.isArray(row.items) ? row.items : [],
     };
   }
   return apiRequest<TableDetailRecord>(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/detail`, { tenantId: null });
@@ -562,6 +651,53 @@ export async function send_table_round_live(
   }
 ) {
   if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const index = tables.findIndex((t: any) => t.id === tableId);
+    if (index >= 0) {
+      const table = tables[index];
+      const roundItems = (payload.items || []).map((it: any) => ({
+        id: it.id || uuidv4(),
+        item_name: it.item_name,
+        price: it.price,
+        qty: Number(it.qty || 1),
+        category: it.category || '',
+        is_coffee: Boolean(it.is_coffee),
+        note: it.note ?? null,
+        modifier_json: it.modifier_json ?? null,
+        seat_label: it.seat_no != null ? `Yer-${it.seat_no}` : (it.seat_label ?? null),
+        cup_mode: it.cup_mode ?? null,
+        kitchen_sent: true,
+      }));
+      if (roundItems.length > 0) {
+        const kitchen_orders = getDB<any>('kitchen_orders');
+        kitchen_orders.push({
+          id: uuidv4(),
+          tenant_id: table.tenant_id,
+          sale_id: `table-${table.id}-${Date.now()}`,
+          table_label: table.label,
+          status: 'NEW',
+          priority: 'NORMAL',
+          items: roundItems,
+          created_at: new Date().toISOString(),
+        });
+        setDB('kitchen_orders', kitchen_orders);
+        const existing = Array.isArray(table.items) ? table.items : [];
+        const merged = [...existing];
+        roundItems.forEach((inc: any) => {
+          const i = merged.findIndex(
+            (m: any) => m.id === inc.id || (m.item_name === inc.item_name && String(m.seat_label || '') === String(inc.seat_label || '')),
+          );
+          if (i >= 0) {
+            merged[i] = { ...merged[i], qty: Number(merged[i].qty || 0) + Number(inc.qty || 0), kitchen_sent: true };
+          } else {
+            merged.push(inc);
+          }
+        });
+        table.items = merged;
+        tables[index] = table;
+        setDB('tables', tables);
+      }
+    }
     return { ok: true, round_id: uuidv4(), round_no: 1, check_total: '0.00' };
   }
   return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/send-round`, {

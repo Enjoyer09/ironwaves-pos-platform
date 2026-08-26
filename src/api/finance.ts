@@ -35,7 +35,7 @@ const getFinanceLocal = (tenant_id: string): FinanceEntry[] => {
   return getDB<FinanceEntry>('finance').filter((f) => f.tenant_id === tenant_id && !f.is_deleted);
 };
 
-const saveFinanceLocal = (tenant_id: string, rows: FinanceEntry[]) => {
+export const saveFinanceLocal = (tenant_id: string, rows: FinanceEntry[]) => {
   const safeRows = (Array.isArray(rows) ? rows : []).map((row) => ({
     ...row,
     tenant_id,

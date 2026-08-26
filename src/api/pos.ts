@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { SalePayload, Sale, FinanceEntry, KitchenOrder, OfflineSale } from '../types/pos';
 import { get_settings } from './settings';
+import { get_finance_entries, saveFinanceLocal } from './finance';
 import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
@@ -559,7 +560,9 @@ export const create_sale = (payload: SalePayload) => {
       }
 
       // 2. Transaction: Save Finance
-      const finances = getDB<FinanceEntry>('finance');
+      // Scoped-kontekstli oxu: əgər `${tenant_id}_finance` mövcuddursa, o üstünlük verilir
+      // (getFinanceLocal ilə eyni davranış). Beləliklə satışlar maliyyə baxışlarından "yox olmur".
+      const finances = get_finance_entries(payload.tenant_id);
       
       if (
         payload.payment_method === 'Split' &&
@@ -658,7 +661,8 @@ export const create_sale = (payload: SalePayload) => {
           }
         }
       }
-      setDB('finance', finances);
+      // Həm qlobal 'finance', həm də `${tenant_id}_finance` açarını sinxron yaz.
+      saveFinanceLocal(payload.tenant_id, finances);
     }
 
       // 3. Transaction: Kitchen Order (Take Away sifarişləri KDS-ə düşmür)

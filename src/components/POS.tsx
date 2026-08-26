@@ -18,8 +18,9 @@ import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
-import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos, buildSaleReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { buildSaleReceiptHtml } from '../lib/receipt_html';
+import { printKitchenTicket } from '../lib/print_kitchen_ticket';
+import { buildSaleReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1305,10 +1306,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         }
       }
 
-      const saleRaw = toDecimalSafe((sale as any)?.totals?.raw_total ?? rawTotal);
-      const saleDiscount = toDecimalSafe((sale as any)?.totals?.discount_amount ?? discountAmount);
-      const saleFinal = toDecimalSafe((sale as any)?.totals?.final_total ?? payableTotal);
-      const saleFreeCoffees = Number((sale as any)?.totals?.free_coffees ?? totals.free_coffees ?? 0);
+      // Backend rejimində serverin hesabladığı `total` etibarlı mənbədir.
+      // `sale.total` (backend cavabı) və ya `sale.totals.final_total` (local) üstünlük verilir.
+      const saleRaw = toDecimalSafe((sale as any)?.totals?.raw_total ?? (sale as any)?.original_total ?? rawTotal);
+      const saleDiscount = toDecimalSafe((sale as any)?.totals?.discount_amount ?? (sale as any)?.discount_amount ?? discountAmount);
+      const saleFinal = toDecimalSafe((sale as any)?.total ?? (sale as any)?.totals?.final_total ?? payableTotal);
+      const saleFreeCoffees = Number((sale as any)?.free_coffees_applied ?? (sale as any)?.totals?.free_coffees ?? totals.free_coffees ?? 0);
 
       const receiptCart = cart.map((item) => ({ ...item }));
       const receiptCustomer = ctx.customer;
@@ -1317,14 +1320,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         ? tenantSettings
         : (get_settings(tenantId) || {});
       const renderReceipt = async () => {
-        const lines = receiptCart
-          .map(
-            (item) =>
-              `<tr><td>${item.qty}x ${item.item_name}</td><td>${toDecimalSafe(item.price)
-                .times(item.qty)
-                .toFixed(2)} ₼</td></tr>`,
-          )
-          .join('');
         const configuredBase = String(settingsSnapshot?.qr_settings?.base_url || businessProfile?.website || '').trim();
         const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
         const tenantDomainRows = getTenantDomains();
@@ -1372,62 +1367,46 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             feedbackUrl = feedbackBaseUrl;
           }
         }
-        const barcodeSvg = generateBarcodeSvg(`SALE:${formatDisplayId(sale.sale_id)}`);
         const receiptCustomerId = String((sale as any)?.customer_card_id || receiptCustomer?.card_id || '').trim();
         const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
-        const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl, {
-          width: 156,
-          margin: 2,
-          errorCorrectionLevel: 'L',
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF',
-          },
-        });
 
-        const receiptMarkup = `
-          <html>
-            <head>
-              <style>
-                ${THERMAL_RECEIPT_PRINT_CSS}
-                ${thermalPaperWidthOverride(printSettings.paper_width)}
-              </style>
-            </head>
-            <body>
-              ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-              <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'IRONWAVES POS'}</div>
-              <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
-              <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
-              <div class="muted">${businessProfile?.address || '-'}</div>
-              <hr />
-              <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
-              <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
-              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
-              <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${receiptOrderType}</span></div>
-              <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
-              <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
-              <hr />
-              <table>${lines}</table>
-              <hr />
-              <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
-              <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
-              ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${saleFreeCoffees}</span></div>` : ''}
-              ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
-              ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
-              <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
-              <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod}</span></div>
-              ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${(splitCash || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}
-              ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${(splitCard || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}
-              <hr />
-              <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
-                <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
-              </div>
-              ${feedbackEnabled ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
-              <hr />
-              <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
-            </body>
-          </html>
-        `;
+        // Vahid çek şablonu: buildSaleReceiptHtml (PublicReceipt / AdminPanel ilə eyni).
+        // Promo sətirləri, ƏDV və fiskal blok bu builder-də mövcuddur.
+        const receiptSale = {
+          ...(sale as any),
+          sale_id: sale.sale_id,
+          total: saleFinal.toNumber(),
+          original_total: saleRaw.toNumber(),
+          discount_amount: saleDiscount.toNumber(),
+          free_coffees_applied: saleFreeCoffees,
+          customer_stars_after: receiptStarsAfter,
+          customer_card_id: receiptCustomerId,
+          payment_method: paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod,
+          order_type: receiptOrderType,
+          status: (sale as any)?.status || 'PAID',
+          created_at: (sale as any)?.created_at || new Date().toISOString(),
+          split_cash: splitCash ? splitCash.toNumber() : (sale as any)?.split_cash,
+          split_card: splitCard ? splitCard.toNumber() : (sale as any)?.split_card,
+          items: receiptCart.map((item: any, idx: number) => {
+            const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+            return {
+              ...item,
+              item_name: item.item_name,
+              qty: item.qty,
+              price: item.price,
+              promo_discount: promoD && promoD.gt(0) ? Number(promoD.toString()) : 0,
+            };
+          }),
+        };
+        const receiptMarkup = await buildSaleReceiptHtml({
+          sale: receiptSale,
+          profile: businessProfile,
+          lang: safeLang,
+          receiptUrl,
+          feedbackUrl,
+          operator: user.username,
+          paperWidth: printSettings.paper_width || '58mm',
+        });
         const rawCmds = await buildSaleReceiptEscPos({
           sale: {
             ...sale,
@@ -1532,22 +1511,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               cup_mode: c.cup_mode || ctx.cupMode,
             })),
           };
-          const kitchenHtml = buildKitchenTicketHtml({
+          const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+          await printKitchenTicket({
             ticket: ticketData,
             lang: safeLang,
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
             paperWidth: printSettings.paper_width || '58mm',
-          });
-          const rawCmds = buildKitchenTicketEscPos(ticketData, {
-            paperWidth: printSettings.paper_width || '58mm',
-          });
-          const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
-          await printDirectOrFallback(kitchenHtml, {
             printerName: targetPrinter,
             useQz: Boolean(printSettings.use_qz),
-            paperWidth: printSettings.paper_width || '58mm',
             printEngine: printSettings.print_engine || 'raw_escpos',
-            rawCommands: rawCmds,
             allowBrowserFallback: false,
           });
         } catch (printErr) {
