@@ -136,13 +136,20 @@ function friendlyQzError(err: unknown): string {
 
 export async function printDirectOrFallback(
   html: string,
-  options?: {
+    options?: {
     printerName?: string;
     useQz?: boolean;
     paperWidth?: '58mm' | '80mm';
     printEngine?: 'pixel_html' | 'raw_escpos';
     rawCommands?: string;
     allowBrowserFallback?: boolean;
+    /**
+     * Çapçı (QZ Tray və ya lokal agent) üçün həmişə HTML renderindən istifadə et.
+     * rawCommands verilsə də, onu ötürür və HTML-ə üstünlük verir. Bu, QZ Tray
+     * ilə Legacy lokal çapın eyni dizaynda (loqo, barkod, QR, rənglər) olmasını
+     * təmin edir — raw ESC/POS şəkli/QR/barkod ifadə edə bilmir.
+     */
+    preferHtml?: boolean;
   }
 ): Promise<PrintDirectResult> {
   // useQz:  true → QZ is the intended printer (cafés with QZ Tray). Failure is
@@ -163,7 +170,9 @@ export async function printDirectOrFallback(
       // Use raw ESC/POS path whenever rawCommands are provided — the commands
       // are already ASCII-sanitized by sanitizeEscPosText so no Cyrillic issue.
       // HTML pixel mode is reserved only for cases where no raw commands exist.
-      const rawSafe = Boolean(options?.rawCommands);
+      // preferHtml=true olduqda isə (məsələn satış çeki) hətta rawCommands olsa
+      // da HTML renderindən istifadə olunur ki, QZ ilə lokal çap eyni dizaynda olsun.
+      const rawSafe = Boolean(options?.rawCommands) && !options?.preferHtml;
       if (rawSafe) {
         await qzPrintRaw(options!.rawCommands as string, options?.printerName);
       } else {
