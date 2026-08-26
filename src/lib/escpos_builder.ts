@@ -330,7 +330,7 @@ export function buildKitchenTicketEscPos(
 
   // ── FEED + CUT ────────────────────────────────────
   cmd += '\n\n\n\n';
-  cmd += GS + 'V\x41\x03';  // Full cut
+  cmd += GS + 'V\x42\x00';  // Full cut (GS V 66 0)
 
   return cmd;
 }
@@ -623,7 +623,7 @@ export async function buildTableReceiptEscPos({
   cmd += sanitizeEscPosText(footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
   cmd += '\n\n\n\n';
-  cmd += GS + 'V\x41\x03'; // auto-cut
+  cmd += GS + 'V\x42\x00'; // full auto-cut (GS V 66 0)
 
   return cmd;
 }
@@ -747,7 +747,8 @@ export async function buildSaleReceiptEscPos({
   cmd += sanitizeEscPosText(profile?.receipt_footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
   cmd += '\n\n\n\n';
-  cmd += GS + 'V\x41\x03';
+  // Tam avto-kəsmə (full cut): GS V 66 0 (0x1D 0x56 0x42 0x00).
+  cmd += GS + 'V\x42\x00';
 
   return cmd;
 }
@@ -774,6 +775,6 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += '--------------------------------\n';
   cmd += 'QZ Tray Baglantisi Ugurludur!\n';
   cmd += '\n\n\n\n';
-  cmd += GS + 'V' + '\x41' + '\x03';
+  cmd += GS + 'V' + '\x42' + '\x00';
   return cmd;
 }

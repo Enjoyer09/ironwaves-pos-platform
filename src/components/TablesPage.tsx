@@ -1650,7 +1650,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       rawCommands: tableReceiptRawCommands || undefined,
       // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
       preferHtml: true,
-      allowBrowserFallback: true,
+      // Masa çeki termaldır — brauzer dialoquna (A4 + başlıq + kəsmə yox) düşməsin.
+      allowBrowserFallback: false,
     });
     if (res.success) {
       if (res.method === 'agent') {
@@ -1934,9 +1935,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                     useQz: Boolean(printSettings.use_qz),
                     printEngine: printSettings.print_engine || 'raw_escpos',
-                    // Dəyişiklik (STOP/LƏĞV) çeki kritikdir: ixtisaslaşdırılmış printer
-                    // və ya QZ yoxdursa belə, brauzer çapı dialoqu ilə kağız çıxmalıdır.
-                    allowBrowserFallback: true,
+                    // Dəyişiklik (STOP/LƏĞV) çeki kritikdir, amma o da termaldır:
+                    // brauzer dialoqu A4 + başlıq çəkir və avto-kəsmir, ona görə
+                    // burada da brauzer ehtiyatı SÖNDÜRÜLÜB. Agent/QZ yoxkən səhv
+                    // qaytarılır ki, Print Agent işə salınsın.
+                    allowBrowserFallback: false,
                   });
                 } catch (printErr) {
                   console.warn('Kitchen change ticket print warning:', printErr);
