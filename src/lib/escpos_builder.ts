@@ -139,10 +139,10 @@ export function buildKitchenTicketEscPos(
   ticket: EscPosTicketData | KitchenTicketData,
   options?: { paperWidth?: '58mm' | '80mm' }
 ): string {
-  const is58 = (options?.paperWidth || '58mm') === '58mm';
-  // 58mm paper: Font A = 32 chars max, use 30 for safety
-  // 80mm paper: Font A = 42 chars max, use 40 for safety
-  const lineChars = is58 ? 30 : 40;
+  const is58 = options?.paperWidth === '58mm';
+  // 58mm paper: Font A = 32 chars
+  // 80mm paper: Font A = 48 chars
+  const lineChars = is58 ? 32 : 48;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
   const dotLine = '. '.repeat(Math.floor(lineChars / 2)).trimEnd() + '\n';
@@ -400,6 +400,85 @@ export async function generateEscPosQrBitmap(text: string, moduleSize = 4): Prom
 }
 
 /**
+ * Rasterizes an already-black-on-white HTMLCanvasElement into an ESC/POS
+ * raster bitmap command (GS v 0) — centered when preceded by ESC a 1.
+ * Reused by both the QR and the 1D barcode generators so the two produce
+ * identical, correctly-scaled output.
+ */
+async function canvasToEscPosBitmap(canvas: HTMLCanvasElement): Promise<string> {
+  try {
+    if (typeof document === 'undefined' || !canvas || !canvas.getContext) return '';
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    const width = canvas.width;
+    const height = canvas.height;
+    const img = ctx.getImageData(0, 0, width, height).data;
+    const bytesWidth = Math.ceil(width / 8);
+    const buffer = new Uint8Array(bytesWidth * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const lum = (img[idx] + img[idx + 1] + img[idx + 2]) / 3;
+        // Dark pixel (<128) → set bit (ESC/POS prints set bits as black).
+        if (lum < 128) {
+          const byteIndex = y * bytesWidth + Math.floor(x / 8);
+          const bitIndex = 7 - (x % 8);
+          buffer[byteIndex] |= 1 << bitIndex;
+        }
+      }
+    }
+    let bin = '';
+    for (let i = 0; i < buffer.length; i++) bin += String.fromCharCode(buffer[i]);
+    const xL = bytesWidth % 256;
+    const xH = Math.floor(bytesWidth / 256);
+    const yL = height % 256;
+    const yH = Math.floor(height / 256);
+    return GS + 'v0' + '\x00' + String.fromCharCode(xL, xH, yL, yH) + bin;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Generates a 1D CODE128 barcode as an ESC/POS raster bitmap (GS v 0) — the
+ * same universal raster path used by the QR generator, so it prints on 100% of
+ * POS thermal printers regardless of firmware 1D-barcode support. Returns a
+ * centered bitmap command (ESC a 1 … ESC a 0) suitable for dropping into the
+ * receipt right under the Sale ID.
+ */
+export async function generateEscPosBarcodeBitmap(value: string): Promise<string> {
+  if (!value || typeof document === 'undefined') return '';
+  try {
+    const JsBarcode = (await import('jsbarcode')).default;
+    const src = document.createElement('canvas');
+    JsBarcode(src, value, {
+      format: 'CODE128',
+      displayValue: false,
+      margin: 0,
+      width: 2,
+      height: 64,
+    });
+    const w = src.width;
+    const h = src.height;
+    if (!w || !h) return '';
+    // Flatten onto a white background (JsBarcode canvas may be transparent).
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const octx = out.getContext('2d');
+    if (!octx) return '';
+    octx.fillStyle = '#ffffff';
+    octx.fillRect(0, 0, w, h);
+    octx.drawImage(src, 0, 0);
+    const bitmap = await canvasToEscPosBitmap(out);
+    if (!bitmap) return '';
+    return ESC + 'a\x01' + bitmap + ESC + 'a\x00';
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Builds native ESC/POS thermal printer commands for Table Check Receipts
  */
 export async function buildTableReceiptEscPos({
@@ -435,10 +514,10 @@ export async function buildTableReceiptEscPos({
   footer?: string;
   paperWidth?: '58mm' | '80mm';
 }): Promise<string> {
-  const is58 = (paperWidth || '58mm') === '58mm';
+  const is58 = paperWidth === '58mm';
   // 58mm paper: 40 columns (printer font pitch at actual 58mm printhead)
-  // 80mm paper: 42 columns full width
-  const lineChars = is58 ? 40 : 42;
+  // 80mm paper: 48 columns full width
+  const lineChars = is58 ? 40 : 48;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
 
@@ -565,8 +644,8 @@ export async function buildSaleReceiptEscPos({
   feedbackUrl?: string;
   paperWidth?: '58mm' | '80mm';
 }): Promise<string> {
-  const is58 = (paperWidth || '58mm') === '58mm';
-  const lineChars = is58 ? 40 : 42;
+  const is58 = paperWidth === '58mm';
+  const lineChars = is58 ? 40 : 48;
   const solidLine = '='.repeat(lineChars) + '\n';
   const dashLine = '-'.repeat(lineChars) + '\n';
 
@@ -607,6 +686,16 @@ export async function buildSaleReceiptEscPos({
   const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
   cmd += formatEscPosTwoColumns('Tarix:', `${dateStr} ${timeStr}`, lineChars);
   cmd += formatEscPosTwoColumns('Tip:', sanitizeEscPosText(sale?.order_type || 'Take Away'), lineChars);
+
+  // ── 1D Barkod (SALE:<id>) ── dərhal Satış ID-nin altında, mərkəzdə
+  const saleBarcodeValue = `SALE:${saleId}`;
+  const saleBarcodeCmd = await generateEscPosBarcodeBitmap(saleBarcodeValue);
+  if (saleBarcodeCmd) {
+    cmd += '\n';
+    cmd += saleBarcodeCmd;
+    cmd += centerText(saleBarcodeValue, lineChars) + '\n';
+    cmd += '\n';
+  }
 
   cmd += solidLine;
 

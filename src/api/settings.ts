@@ -1395,7 +1395,7 @@ export async function get_settings_live(tenant_id?: string) {
     kitchen_printer_name: String(data?.print_settings?.kitchen_printer_name ?? localCached?.print_settings?.kitchen_printer_name ?? ''),
     auto_print_kitchen_ticket: data?.print_settings?.auto_print_kitchen_ticket ?? localCached?.print_settings?.auto_print_kitchen_ticket ?? true,
     auto_print_receipt: data?.print_settings?.auto_print_receipt ?? localCached?.print_settings?.auto_print_receipt ?? true,
-    paper_width: (data?.print_settings?.paper_width || localCached?.print_settings?.paper_width || '58mm') as '58mm' | '80mm',
+    paper_width: (data?.print_settings?.paper_width || localCached?.print_settings?.paper_width || '80mm') as '58mm' | '80mm',
     // A5: default must match the Admin UI (SettingsPanel), the POS/Tables send-time
     // fallback, and KDS — all of which use 'raw_escpos'. Keeping this normalized read on
     // a different default silently flipped the engine between send-time and KDS reprints.

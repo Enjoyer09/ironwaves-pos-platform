@@ -878,7 +878,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               ticket: ticketData,
               lang: lang as any,
               companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
-              paperWidth: printSettings.paper_width || '58mm',
+              paperWidth: printSettings.paper_width || '80mm',
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
@@ -941,7 +941,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               ticket: ticketData,
               lang: lang as any,
               companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
-              paperWidth: printSettings.paper_width || '58mm',
+              paperWidth: printSettings.paper_width || '80mm',
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
@@ -1193,7 +1193,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         profile: businessProfile,
         lang,
         feedbackUrl,
-        paperWidth: printSettings.paper_width || '58mm',
+        paperWidth: printSettings.paper_width || '80mm',
       });
 
       const rawCmds = await buildTableReceiptEscPos({
@@ -1219,7 +1219,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         address: businessProfile?.address,
         feedbackUrl,
         footer: businessProfile?.receipt_footer,
-        paperWidth: printSettings.paper_width || '58mm',
+        paperWidth: printSettings.paper_width || '80mm',
       });
 
       if (isBackendEnabled() && String(result.sale_id || '').trim()) {
@@ -1249,7 +1249,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         void printDirectOrFallback(receiptMarkup, {
           printerName: printSettings.printer_name,
           useQz: Boolean(printSettings.use_qz),
-          paperWidth: printSettings.paper_width || '58mm',
+          paperWidth: printSettings.paper_width || '80mm',
           printEngine: 'raw_escpos',
           rawCommands: rawCmds,
           // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
@@ -1645,7 +1645,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const res = await printDirectOrFallback(safeTableReceiptHtml, {
       printerName: printSettings.printer_name,
       useQz: Boolean(printSettings.use_qz),
-      paperWidth: printSettings.paper_width || '58mm',
+      paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: tableReceiptRawCommands || undefined,
       // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
@@ -1930,7 +1930,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     },
                     lang: lang as any,
                     companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
-                    paperWidth: printSettings.paper_width || '58mm',
+                    paperWidth: printSettings.paper_width || '80mm',
                     printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                     useQz: Boolean(printSettings.use_qz),
                     printEngine: printSettings.print_engine || 'raw_escpos',

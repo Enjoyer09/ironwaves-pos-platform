@@ -262,9 +262,9 @@ export const qzPrintHtml = async (
   await ensureQzConnection(qz);
   const printer = await resolveQzPrinter(qz, targetName);
 
-  const is58 = (paperWidth || '58mm') === '58mm';
+  const is58 = paperWidth === '58mm';
   const widthMm = is58 ? 48 : 72;
-  // Kağızın effektiv piksel eni (≈203 DPI).
+  // Kağızın effektiv piksel eni (≈203 DPI: 80mm -> 576px, 58mm -> 384px).
   const pxWidth = is58 ? 384 : 576;
 
   // thermal CSS "html,body{width:100%!important}" təyin edir. QZ-in daxili HTML
@@ -274,6 +274,8 @@ export const qzPrintHtml = async (
   let styled = withThermalReceiptPrintCss(html);
   const widthOverride = `<style data-qz-width="1">html,body{width:${pxWidth}px!important;max-width:${pxWidth}px!important;}</style>`;
   styled = styled.replace(/<\/head>/i, `${widthOverride}</head>`);
+
+  const ESC_POS_CUT_BASE64 = btoa('\n\n\n\n\x1D\x56\x42\x00');
 
   // Strategiya: HTML-i brauzerdə sabit enə render edib html2canvas ilə PNG-yə
   // çeviririk, sonra QZ-ə ŞƏKİL kimi göndəririk. Bu, QZ-in HTML raster xətalarını
@@ -304,6 +306,21 @@ export const qzPrintHtml = async (
       },
     ];
     await qz.print(config, data);
+
+    // Auto-cut: Feed 4 lines + GS V 66 0
+    try {
+      const cutConfig = qz.configs.create(printer);
+      await qz.print(cutConfig, [
+        {
+          type: 'raw',
+          format: 'command',
+          flavor: 'base64',
+          data: ESC_POS_CUT_BASE64,
+        },
+      ]);
+    } catch (cutErr) {
+      console.warn('QZ auto-cut command skipped:', cutErr);
+    }
     return;
   } catch (rasterErr) {
     // Ehtiyat: şəkil yolu alınmadısa (html2canvas dəstəklənməyən CSS və s.),
@@ -331,6 +348,21 @@ export const qzPrintHtml = async (
     },
   ];
   await qz.print(config, data);
+
+  // Auto-cut after fallback HTML print
+  try {
+    const cutConfig = qz.configs.create(printer);
+    await qz.print(cutConfig, [
+      {
+        type: 'raw',
+        format: 'command',
+        flavor: 'base64',
+        data: ESC_POS_CUT_BASE64,
+      },
+    ]);
+  } catch (cutErr) {
+    console.warn('QZ auto-cut command skipped:', cutErr);
+  }
 };
 
 // HTML-i verilmiş en daxilində render edib Canvas-a çevirir (html2canvas istifadə edir).
@@ -422,6 +454,11 @@ export const qzPrintRaw = async (commands: string, printerName?: string) => {
     copies: 1,
   });
 
+  let raw = String(commands || '');
+  if (!raw.includes('\x1D\x56') && !raw.includes('\x1DV')) {
+    raw += '\n\n\n\n\x1D\x56\x42\x00';
+  }
+
   // IMPORTANT: Use base64 flavor to safely transmit binary ESC/POS data.
   // flavor:'plain' encodes the string as UTF-8 over WebSocket, which corrupts
   // any bytes ≥ 0x80 (common in QR bitmaps built with String.fromCharCode).
@@ -431,7 +468,7 @@ export const qzPrintRaw = async (commands: string, printerName?: string) => {
       type: 'raw',
       format: 'command',
       flavor: 'base64',
-      data: btoa(commands),
+      data: btoa(raw),
     },
   ];
 
