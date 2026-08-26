@@ -199,6 +199,10 @@ async function printHtml(payload) {
     throw new Error('Print Agent currently supports Windows and macOS');
   }
 
+  const t0 = Date.now();
+  const log = (m) => console.log(`[print] +${Date.now() - t0}ms ${m}`);
+  log(`request start (platform=${process.platform})`);
+
   let html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
 
@@ -207,8 +211,10 @@ async function printHtml(payload) {
                     (html.match(/<tr>/g) || []).length +
                     (html.match(/<div class="row"/g) || []).length +
                     (html.match(/<br/g) || []).length;
-  // Standard receipt base is around 110mm (generous space for headers, QR code, barcode, and footers), plus 6.5mm per text line
-  const estimatedHeight = Math.max(120, Math.min(500, Math.round(110 + (lineCount * 6.5))));
+  // Standard receipt base is generous, plus per-line height. The receipt is
+  // rendered ~35% larger (CSS zoom:1.35) so we scale the line height too —
+  // otherwise Chrome falls back to a shorter page and clips the bottom of the ticket.
+  const estimatedHeight = Math.max(170, Math.min(800, Math.round(160 + lineCount * 9)));
 
   // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
   html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, `size: $1 ${estimatedHeight}mm`);
@@ -378,6 +384,7 @@ async function printHtml(payload) {
   if (!browser) throw new Error('Chrome or Microsoft Edge was not found');
 
   const chromePid = await spawnBrowserForPrint(browser, file, userDir);
+  log(`chrome spawned pid=${chromePid}`);
 
   // Restore previous default printer after Chrome has time to spool the job
   const RESTORE_DELAY_MS = 9000;
@@ -385,6 +392,7 @@ async function printHtml(payload) {
     if (previousDefault && previousDefault !== printerName) {
       setDefaultPrinter(previousDefault).catch(() => {});
     }
+    log('default printer restored');
   }, RESTORE_DELAY_MS);
 
   // Kill the Chrome instance we spawned after it has had time to send the print job.
@@ -395,9 +403,11 @@ async function printHtml(payload) {
         execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
       } catch (_) {}
     }
+    log('chrome killed + temp cleaned');
     fs.rm(dir, { recursive: true, force: true }, () => {});
   }, KILL_DELAY_MS);
 
+  log('response sent (agent queued the job; paper output depends on Chrome + spooler)');
   return {
     queued: true,
     method: 'chrome-kiosk',

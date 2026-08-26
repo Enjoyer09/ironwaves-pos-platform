@@ -8,8 +8,9 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   html,
   body {
-    width: 100% !important;
+    width: calc(100% / 1.35) !important;
     max-width: 100% !important;
+    zoom: 1.35;
     margin: 0 !important;
     padding: 0 1.5mm !important;
     color: #000 !important;
@@ -28,8 +29,9 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   @media print {
     html,
     body {
-      width: 100% !important;
+      width: calc(100% / 1.35) !important;
       max-width: 100% !important;
+      zoom: 1.35;
       margin: 0 !important;
       padding: 0 1.5mm !important;
       overflow: visible !important;
@@ -117,7 +119,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
   const fontSize = paperWidth === '80mm' ? '13px' : '12px';
   return `
-    html, body { width: 100% !important; max-width: 100% !important; font-size: ${fontSize} !important; }
+    html, body { width: calc(100% / 1.35) !important; max-width: 100% !important; zoom: 1.35; font-size: ${fontSize} !important; }
     table { width: 100% !important; font-size: ${fontSize} !important; }
     .line { width: 100% !important; font-size: ${fontSize} !important; }
   `;
