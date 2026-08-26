@@ -1817,7 +1817,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       rawCommands: receiptRawCommands || undefined,
       // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
       preferHtml: true,
-      allowBrowserFallback: true,
+      // Termal çeklər brauzer dialoquna (A4 + başlıq + kəsmə yox) düşməsin.
+      allowBrowserFallback: false,
     });
     if (res.success) {
       if (res.method === 'agent') {
@@ -1826,7 +1827,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
       }
     } else {
-      notify('error', tx(lang, res.error || 'Çap alınmadı', res.error || 'Ошибка печати', res.error || 'Printing failed'));
+      notify('error', tx(lang, res.error || 'Çap alınmadı — Print Agent-i işə salın', res.error || 'Печать не удалась — запустите Print Agent', res.error || 'Printing failed — start the Print Agent'));
     }
   };
 

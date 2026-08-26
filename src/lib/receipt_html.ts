@@ -253,16 +253,16 @@ export async function buildSaleReceiptHtml({
         <div class="section-title" style="text-align:center">${receiptTypeLabel}</div>
         ${!fiscalEnabled ? `<div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>` : ''}
         <hr />
-        <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span class="bold">#${esc(displayId)}</span></div>
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;margin:6px 0 6px 0;text-align:center;">
+        <div className="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span className="bold">#${esc(displayId)}</span></div>
+        <div className="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
+        <div className="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
+        <div className="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
+        ${isVoided ? `<div className="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
+        <hr />
+        ${barcodeHtml ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;margin:6px 0 6px 0;text-align:center;">
           ${barcodeHtml}
           <div style="font-size:12px;font-weight:800;letter-spacing:1px;margin-top:2px;">SALE:${esc(displayId)}</div>
-        </div>
-        <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
-        <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
-        <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
-        ${isVoided ? `<div class="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
-        <hr />
+        </div>` : ''}
         <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td><td>0.00 ₼</td></tr>`}</table>
         <hr />
         <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${money(subtotal)} ₼</span></div>

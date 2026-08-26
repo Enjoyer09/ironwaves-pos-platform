@@ -53,15 +53,11 @@ export function buildKitchenTicketHtml({
   const displayId = String(ticket.ticket_id || ticket.order_id || 'ORDER').split('-')[0].toUpperCase();
   const dateObj = ticket.created_at ? new Date(ticket.created_at) : new Date();
   const dateStr = Number.isNaN(dateObj.getTime())
-    ? new Date().toLocaleString('az-AZ')
-    : dateObj.toLocaleString('az-AZ', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+    ? new Date().toLocaleDateString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : dateObj.toLocaleDateString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = Number.isNaN(dateObj.getTime())
+    ? new Date().toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' })
+    : dateObj.toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' });
 
   const rawTarget = ticket.order_type_label || ticket.table_label || ticket.table_name;
   const isTakeAway = String(ticket.order_type || '').toLowerCase().includes('take') || String(ticket.order_type || '').toLowerCase().includes('paket');
@@ -188,8 +184,12 @@ export function buildKitchenTicketHtml({
       <span class="bold">#${displayId}</span>
     </div>
     <div class="line">
-      <span>${tx(lang, 'Tarix / Saat', 'Дата / Время', 'Date / Time')}</span>
+      <span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span>
       <span>${esc(dateStr)}</span>
+    </div>
+    <div class="line">
+      <span>${tx(lang, 'Saat', 'Время', 'Time')}</span>
+      <span>${esc(timeStr)}</span>
     </div>
     ${
       ticket.server_name

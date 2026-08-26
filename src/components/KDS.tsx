@@ -115,7 +115,8 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         printerName: kitchenPrinter,
         useQz,
         printEngine,
-        allowBrowserFallback: true,
+        // Mətbəx avto-çapı termaldır — brauzer dialoquna (A4 + başlıq) düşməsin.
+        allowBrowserFallback: false,
         dedupe: opts?.dedupe === true,
         dedupeKey,
       });

@@ -153,8 +153,17 @@ export async function printDirectOrFallback(
   }
 ): Promise<PrintDirectResult> {
   // ÇAP PRIORITETİ: Lokal Print Agent (əsas) → QZ Tray (yalnız useQz===true
-  // olduqda ehtiyat) → Brauzer dialoqu (yalnız allowBrowserFallback===true).
-  // Agent quraşdırılmayibsə avtomatik QZ/brauzerə düşür, heç nə sınmaz.
+  // olduqda ehtiyat) → Brauzer dialoqu (YALNIZ thermal olmayan köhnə köməkçi).
+  //
+  // Termal çeklər üçün brauzer dialoqu YARARSIZDIR: Chrome A4 kağız + öz
+  // "Headers & Footers" başlığını (fayl yolu / saat / səhifə) çəkir, kağızı
+  // ortada sıxışdırır, sözləri şaquli sındırır və avto-kəsmə etmir. Bu başlıq
+  // veb-koddan söndürüla bilməz (Chrome məhdudiyyəti). Ona görə də termal
+  // çeklərə brauzer ehtiyatını SÖNDÜRDÜK: agent və ya QZ yoxkən səssizcə A4
+  // dialoquna düşmək əvəzinə aydın səhv qaytarırıq ki, istifadəçi Print Agent-i
+  // işə salsın. Brauzer ehtiyatı yalnız `allowBrowserFallback===true` VƏ çağırıcı
+  // açıq şəkildə terminal-receipt olmadığını bildirəndə işlədilə bilər.
+  const browserFallbackAllowed = Boolean(options?.allowBrowserFallback);
   async function tryQz(): Promise<{ ok: boolean; error?: string }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
@@ -199,15 +208,25 @@ export async function printDirectOrFallback(
     lastError = qz.error;
   }
 
-  // 3) Son çarə: brauzer dialoqu — yalnız icazə verilibsə (allowBrowserFallback).
-  if (options?.allowBrowserFallback === true) {
+  // 3) Brauzer dialoqu — YALNIZ açıq şəkildə icazə verilibsə. Termal çeklər
+  // üçün bu yol SÖNDÜRÜLÜB (yuxarıdakı səbəblərə görə). Agent və QZ yoxkən
+  // səssizcə A4 + başlıqlı dialoqa düşmək əvəzinə aydın səhv qaytarırıq.
+  if (browserFallbackAllowed) {
     const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
     if (browserSuccess) {
       return { method: 'browser', success: true };
     }
   }
 
-  return { method: 'none', success: false, error: lastError || 'Çap mediası əlçan deyil' };
+  return {
+    method: 'none',
+    success: false,
+    error:
+      lastError ||
+      'Çap Agent (və ya QZ Tray) tapılmadı. Termal çeklər brauzer dialoqu ilə ' +
+        'düzgün çap olunmur (başlıq/fayl yolu və avto-kəsmə yoxdur). Zəhmət olmasa ' +
+        'iRonWaves Print Agent-i işə salın: `npm run print-agent`.',
+  };
 }
 
 export async function localPrintAgentHealth(): Promise<boolean> {

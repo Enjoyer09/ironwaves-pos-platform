@@ -853,7 +853,8 @@ export default function ZReportPanel() {
         printerName: printSettings.printer_name,
         useQz: printSettings.use_qz,
         paperWidth: printSettings.paper_width,
-        allowBrowserFallback: true,
+        // Analitika (Z) çeki də termaldır — brauzer dialoquna düşməsin.
+        allowBrowserFallback: false,
       });
       if (res.success) {
         if (res.method === 'agent') {
