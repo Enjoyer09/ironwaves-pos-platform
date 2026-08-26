@@ -378,6 +378,9 @@ async function printHtml(payload) {
       await runCommand('/usr/bin/lp', lpArgs, 15000);
     }
 
+    // Auto-cut after the receipt has been spooled
+    await sendCut(targetPrinter || printerName).catch(() => {});
+
     // Clean up temp dir
     fs.rm(dir, { recursive: true, force: true }, () => {});
     return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: targetPrinter || printerName || 'default' };
@@ -410,6 +413,12 @@ async function printHtml(payload) {
     log('chrome killed + temp cleaned');
     fs.rm(dir, { recursive: true, force: true }, () => {});
   }, KILL_DELAY_MS);
+
+  // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
+  const CUT_DELAY_MS = 9500;
+  setTimeout(() => {
+    sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
+  }, CUT_DELAY_MS);
 
   log('response sent (agent queued the job; paper output depends on Chrome + spooler)');
   return {
@@ -445,6 +454,37 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
     child.unref();
     resolve(child.pid || null);
   });
+}
+
+// ─── Auto-cut after print ───────────────────────────────────────────────────────
+// ESC/POS: feed a few blank lines, then a full cut (GS V 66 0 / 0x1D 0x56 0x42 0x00).
+// Best-effort safety net — the driver also cuts per page, so a failure here is harmless.
+async function sendCut(printerName) {
+  if (!printerName) return;
+  let dir;
+  try {
+    const baseTempDir = process.platform === 'darwin'
+      ? path.join(os.homedir(), '.ironwaves-print')
+      : os.tmpdir();
+    dir = fs.mkdtempSync(path.join(baseTempDir, 'ironwaves-cut-'));
+    const file = path.join(dir, 'cut.bin');
+    const feed = Buffer.from('\n\n\n', 'utf8');
+    const cut = Buffer.from([0x1d, 0x56, 0x42, 0x00]); // GS V 66 0
+    fs.writeFileSync(file, Buffer.concat([feed, cut]));
+    if (process.platform === 'darwin') {
+      await runCommand('lp', ['-d', printerName, '-o', 'raw', file], 10000);
+    } else if (process.platform === 'win32') {
+      await new Promise((resolve) => {
+        const p = exec(`print /D:"${printerName}" "${file}"`, () => resolve());
+        p.on('error', () => resolve());
+        setTimeout(resolve, 5000);
+      });
+    }
+  } catch (e) {
+    console.warn('[print] auto-cut skipped:', e && e.message ? e.message : e);
+  } finally {
+    try { if (dir) fs.rm(dir, { recursive: true, force: true }, () => {}); } catch {}
+  }
 }
 
 // ─── HTTP server ──────────────────────────────────────────────────────────────

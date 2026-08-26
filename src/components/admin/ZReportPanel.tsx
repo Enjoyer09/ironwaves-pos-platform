@@ -34,7 +34,7 @@ import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime24, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
-import { THERMAL_RECEIPT_PRINT_CSS } from '../../lib/receipt_print_css';
+import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../../lib/receipt_print_css';
 import { printDirectOrFallback, printViaLocalAgent } from '../../lib/local_print_agent';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
@@ -227,7 +227,7 @@ export default function ZReportPanel() {
     return items;
   }, [currentBalances.cash_balance, currentBalances.deposit_balance, expectedCashNow, financeAnomalies, lang, shiftStatus.status]);
 
-  const buildZReceiptHtml = (result: any) => {
+  const buildZReceiptHtml = (result: any, paperWidth: '58mm' | '80mm' = '80mm') => {
     const expectedCash = new Decimal(result?.expected_cash || 0);
     const actualCash = new Decimal(result?.actual_cash || zActualCash || 0);
     const closingDifference = actualCash.minus(expectedCash);
@@ -274,6 +274,7 @@ export default function ZReportPanel() {
         <head>
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
+            ${thermalPaperWidthOverride(paperWidth)}
           </style>
         </head>
         <body>
@@ -670,7 +671,7 @@ export default function ZReportPanel() {
   };
 
   const showAndPersistZReceipt = async (result: any) => {
-    const receiptHtml = buildZReceiptHtml(result);
+    const receiptHtml = buildZReceiptHtml(result, printSettings.paper_width);
     setZReceiptHtml(receiptHtml);
     const shiftId = String(result?.shift_id || '').trim();
     if (shiftId) {
