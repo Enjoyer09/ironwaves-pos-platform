@@ -1,6 +1,7 @@
 export const THERMAL_RECEIPT_PRINT_CSS = `
   @page {
-    margin: 0mm;
+    margin: 0mm !important;
+    padding: 0mm !important;
   }
   * {
     box-sizing: border-box;
@@ -14,8 +15,9 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
-    font-size: 14px !important;
-    line-height: 1.35 !important;
+    /* 80mm kağızın enini tam doldurmaq üçün iri şrift (terminal çapda rahat oxunur). */
+    font-size: 18px !important;
+    line-height: 1.3 !important;
     font-weight: 700 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
@@ -43,17 +45,19 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     display: flex !important;
     justify-content: space-between !important;
     align-items: baseline !important;
-    gap: 8px !important;
-    margin: 3px 0 !important;
-    font-size: 14px !important;
+    gap: 10px !important;
+    margin: 4px 0 !important;
+    /* Tarix/Saat sətri kimi iki sütunlu məlumatlar sözləri sındırmasın. */
+    font-size: 18px !important;
   }
   .line span:first-child {
     flex: 1 1 auto !important;
     min-width: 0 !important;
-    padding-right: 8px !important;
+    padding-right: 10px !important;
     text-align: left !important;
     white-space: normal !important;
-    word-break: break-word !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
   }
   .line span:last-child {
     text-align: right !important;
@@ -64,7 +68,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .muted {
     color: #222 !important;
-    font-size: 12px !important;
+    font-size: 15px !important;
     line-height: 1.25 !important;
     font-weight: 600 !important;
   }
@@ -72,7 +76,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   .section-title {
     margin-top: 6px !important;
     margin-bottom: 2px !important;
-    font-size: 14px !important;
+    font-size: 18px !important;
     line-height: 1.25 !important;
     font-weight: 900 !important;
     text-transform: uppercase !important;
@@ -81,20 +85,20 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 14px !important;
-    line-height: 1.35 !important;
+    font-size: 18px !important;
+    line-height: 1.3 !important;
     table-layout: auto !important;
   }
   td {
     vertical-align: top !important;
-    padding: 3px 0 !important;
+    padding: 4px 0 !important;
     font-weight: 700 !important;
   }
   td:first-child {
     text-align: left !important;
-    padding-right: 8px !important;
+    padding-right: 10px !important;
     overflow-wrap: normal !important;
-    word-break: break-word !important;
+    word-break: keep-all !important;
     white-space: normal !important;
   }
   td:last-child {
@@ -116,27 +120,24 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
 // Paper width override: pins the thermal canvas to the real printable area
 // (72mm for an 80mm roll, 48mm for a 58mm roll) and sets a compact, fixed
 // monospace font. Defaults to 80mm roll (72mm printable width / 576 dot).
+// Brauzer fallback-i söndürüldüyündən (termal çeklər yalnız Print Agent/QZ ilə
+// çap olunur) burada margin əlavə etmirik — əks halda kağızın yuxarısında boşluq
+// qalar. Kağızın enini tam doldururuq.
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
   const is58 = paperWidth === '58mm';
   const paperMm = is58 ? 58 : 80;
   const printableMm = is58 ? 48 : 72;
-  const fontSize = is58 ? '12px' : '14px';
-  // Top/bottom @page margins clear Chrome's print-dialog "Headers & Footers"
-  // band. When printing via the browser fallback (agent not running), Chrome
-  // paints the page URL/date in the margin area; with `@page { margin: 0 }` the
-  // receipt content starts at the paper's top edge and sits UNDER that header,
-  // clipping the first 1-2 lines (company name + VÖEN/Tel). A ~10mm top / ~6mm
-  // bottom margin pushes the content below the header band so the top lines
-  // survive. On the headless agent path (no header drawn) this only adds a
-  // small blank feed, which is harmless before the auto-cut.
+  const fontSize = is58 ? '16px' : '18px';
   return `
-    @page { size: ${paperMm}mm auto; margin: 10mm 0mm 6mm 0mm; }
+    @page { size: ${paperMm}mm auto; margin: 0mm !important; padding: 0mm !important; }
     html, body {
       width: ${printableMm}mm !important;
       max-width: ${printableMm}mm !important;
+      min-width: ${printableMm}mm !important;
       padding: 2mm 2.5mm !important;
+      margin: 0 !important;
       font-size: ${fontSize} !important;
-      line-height: 1.35 !important;
+      line-height: 1.3 !important;
     }
     table, .line { font-size: ${fontSize} !important; }
   `;
