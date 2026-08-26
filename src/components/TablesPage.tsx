@@ -1252,6 +1252,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           paperWidth: printSettings.paper_width || '58mm',
           printEngine: 'raw_escpos',
           rawCommands: rawCmds,
+          // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
+          preferHtml: true,
           allowBrowserFallback: false,
         }).then((res) => {
           if (res.success && (res.method === 'agent' || res.method === 'qz')) {
@@ -1646,6 +1648,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       paperWidth: printSettings.paper_width || '58mm',
       printEngine: 'raw_escpos',
       rawCommands: tableReceiptRawCommands || undefined,
+      // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
+      preferHtml: true,
       allowBrowserFallback: true,
     });
     if (res.success) {
