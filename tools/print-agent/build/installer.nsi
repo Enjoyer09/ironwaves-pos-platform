@@ -6,11 +6,18 @@
 
 ; Stop any previously installed agent so its executable isn't locked (Error opening
 ; file for writing) while the installer tries to overwrite it. /T also kills the
-; Chrome child the agent spawns for printing. Uses the built-in ExecWait + cmd so no
-; external NSIS plugin (e.g. nsExec) is required.
+; Chrome child the agent spawns for printing.
+;
+; NOTE: NSIS string literals MUST use double quotes. The single-quoted form
+; `'...'` is NOT a string in NSIS — the quotes become literal characters and the
+; command never runs. We quote the executable path with inner double quotes:
+;   ExecWait '"$WINDIR\System32\cmd.exe" /C ...'
+; We also stop any node.exe launched with the .js fallback (its CommandLine
+; references ironwaves-print-agent).
 !macro KillRunningAgent
-  ExecWait '$WINDIR\System32\cmd.exe /C taskkill /IM ironwaves-print-agent.exe /F /T >nul 2>&1'
-  Sleep 500
+  ExecWait '"$WINDIR\System32\cmd.exe" /C taskkill /IM ironwaves-print-agent.exe /F /T'
+  ExecWait 'powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.CommandLine -like $\"*ironwaves-print-agent*$\" -or $$_.ExecutablePath -like $\"*ironwaves-print-agent*$\" } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"'
+  Sleep 800
 !macroend
 
 Name "${APPNAME} ${VERSION}"
