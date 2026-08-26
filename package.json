@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "decimal.js": "^10.6.0",
+    "html2canvas": "^1.4.1",
     "i18next": "^25.8.20",
     "jsbarcode": "^3.12.3",
     "jszip": "^3.10.1",
