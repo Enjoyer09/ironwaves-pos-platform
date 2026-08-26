@@ -322,15 +322,25 @@ export function OperationSettingsSection({
 
           {/* QZ Tray Status Badge */}
           <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs shadow-sm">
-            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${qzHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : qzHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
-            <span className="text-slate-400 font-medium">QZ Tray:</span>
-            <span className={`font-bold ${qzHealth === 'online' ? 'text-emerald-300' : 'text-rose-400'}`}>
-              {qzHealth === 'online' ? `Online (${qzPrintersCount} printer tapıldı)` : qzHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
-            </span>
+            {printSettings.use_qz ? (
+              <>
+                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${qzHealth === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : qzHealth === 'checking' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-slate-400 font-medium">QZ Tray:</span>
+                <span className={`font-bold ${qzHealth === 'online' ? 'text-emerald-300' : 'text-rose-400'}`}>
+                  {qzHealth === 'online' ? `Online (${qzPrintersCount} printer tapıldı)` : qzHealth === 'checking' ? 'Yoxlanır...' : 'Offline'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-slate-600" />
+                <span className="text-slate-400 font-medium">QZ Tray:</span>
+                <span className="font-bold text-slate-500">{tx(lang, 'Söndürülüb', 'Отключено', 'Disabled')}</span>
+              </>
+            )}
           </div>
         </div>
 
-        {qzHealth === 'offline' && (
+        {qzHealth === 'offline' && printSettings.use_qz && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
             💡 <b>QZ Tray açıqdırsa, amma Offline görünürsə:</b>
             <ul className="mt-1 list-disc list-inside space-y-0.5 text-slate-300">

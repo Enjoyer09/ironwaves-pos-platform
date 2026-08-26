@@ -980,22 +980,34 @@ export default function SettingsPanel() {
 
   const checkPrintAgentStatus = async () => {
     setPrintAgentHealth('checking');
-    setQzHealth('checking');
+    // QZ Tray yalnız açıq şəkildə istənildikdə yoxlanılır. Söndürüləndə QZ-ə
+    // heç bir müraciət etmirik ki, "offline/xəta" statusesı görünməsin.
+    if (!printSettings.use_qz) {
+      setQzHealth('unknown');
+      setQzPrintersCount(0);
+      setQzErrorMessage('');
+    } else {
+      setQzHealth('checking');
+    }
 
-    const [agentInfoResult, qzResult] = await Promise.allSettled([
-      localPrintAgentInfo(),
-      qzCheckStatus(),
-    ]);
+    const tasks: Promise<unknown>[] = [localPrintAgentInfo()];
+    if (printSettings.use_qz) tasks.push(qzCheckStatus() as Promise<unknown>);
 
-    const info = agentInfoResult.status === 'fulfilled' ? agentInfoResult.value : { online: false, version: '' };
-    const qz = qzResult.status === 'fulfilled' ? qzResult.value : { online: false, printers: [], error: 'Unknown error' };
+    const [agentInfoResult, qzResult] = await Promise.allSettled(tasks);
+
+    const info = agentInfoResult.status === 'fulfilled' ? (agentInfoResult.value as { online: boolean; version: string }) : { online: false, version: '' };
 
     setPrintAgentHealth(info.online ? 'online' : 'offline');
     setPrintAgentVersion(info.version || '');
 
-    setQzHealth(qz.online ? 'online' : 'offline');
-    setQzPrintersCount(qz.printers?.length || 0);
-    setQzErrorMessage(qz.error || '');
+    if (printSettings.use_qz) {
+      const qz = qzResult && qzResult.status === 'fulfilled'
+        ? (qzResult.value as { online: boolean; printers?: string[]; error?: string })
+        : { online: false, printers: [], error: 'Unknown error' };
+      setQzHealth(qz.online ? 'online' : 'offline');
+      setQzPrintersCount(qz.printers?.length || 0);
+      setQzErrorMessage(qz.error || '');
+    }
 
     const combinedPrinters: LocalPrintAgentPrinter[] = [];
 
