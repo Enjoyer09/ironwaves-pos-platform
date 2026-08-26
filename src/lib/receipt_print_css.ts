@@ -121,8 +121,16 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
   const paperMm = is58 ? 58 : 80;
   const printableMm = is58 ? 48 : 72;
   const fontSize = is58 ? '12px' : '14px';
+  // Top/bottom @page margins clear Chrome's print-dialog "Headers & Footers"
+  // band. When printing via the browser fallback (agent not running), Chrome
+  // paints the page URL/date in the margin area; with `@page { margin: 0 }` the
+  // receipt content starts at the paper's top edge and sits UNDER that header,
+  // clipping the first 1-2 lines (company name + VÖEN/Tel). A ~10mm top / ~6mm
+  // bottom margin pushes the content below the header band so the top lines
+  // survive. On the headless agent path (no header drawn) this only adds a
+  // small blank feed, which is harmless before the auto-cut.
   return `
-    @page { size: ${paperMm}mm auto; margin: 0mm; }
+    @page { size: ${paperMm}mm auto; margin: 10mm 0mm 6mm 0mm; }
     html, body {
       width: ${printableMm}mm !important;
       max-width: ${printableMm}mm !important;
