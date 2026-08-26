@@ -264,32 +264,64 @@ export const qzPrintHtml = async (
 
   const is58 = (paperWidth || '58mm') === '58mm';
   const widthMm = is58 ? 48 : 72;
-  // Kağızın effektiv piksel eni (≈203 DPI). Bu eni QZ rasterinin viewport-u
-  // kimi istifadə edir; beləliklə məzmun kağızdan kənara çıxmır.
+  // Kağızın effektiv piksel eni (≈203 DPI).
   const pxWidth = is58 ? 384 : 576;
 
-  // thermal CSS "html,body{width:100%!important}" təyin edir. QZ HTML-i raster
-  // edərkən bu "100%" QZ-in daxili viewport eninə görə hesablanır və tez-tez
-  // kağızdan GENİŞ olur → sağ kənar kəsilir, başlıq/qeydiyyat kənarə itir, QR isə
-  // əyri və ya 90° çevrilmiş görünür. Kök eni birbaşa kağız piksel eninə məcburi
-  // edirik (thermal CSS-dən SONRA yerləşdirilir ki, !important üstünlüyü saxlansın).
+  // thermal CSS "html,body{width:100%!important}" təyin edir. QZ-in daxili HTML
+  // rasterlaşdırıcısı bu "100%"-i kağızdan geniş viewporta hesablayıb sağ kənarın
+  // kəsilməsinə, başlıq/QR-nin əyri və ya kənarə itməsinə səbəb olur. Kök eni
+  // birbaşa kağız piksel eninə məcburi edirik (thermal CSS-dən SONRA).
   let styled = withThermalReceiptPrintCss(html);
   const widthOverride = `<style data-qz-width="1">html,body{width:${pxWidth}px!important;max-width:${pxWidth}px!important;}</style>`;
   styled = styled.replace(/<\/head>/i, `${widthOverride}</head>`);
 
+  // Strategiya: HTML-i brauzerdə sabit enə render edib html2canvas ilə PNG-yə
+  // çeviririk, sonra QZ-ə ŞƏKİL kimi göndəririk. Bu, QZ-in HTML raster xətalarını
+  // (kəsilmə, 90° çevrilmə, başlıq/loqo/barkod/QR itkisi) tam aradan qaldırır —
+  // çünki dizayn bizim brauzerimizdə eyni kimi çap olunur.
+  try {
+    const { default: html2canvas } = await import('html2canvas');
+    const canvas = await rasterizeHtmlToCanvas(styled, pxWidth, html2canvas);
+    const pngDataUrl = canvas.toDataURL('image/png');
+    const base64 = String(pngDataUrl || '').split(',')[1] || '';
+    if (!base64) throw new Error('PNG çap olunmadı (boş məzmun)');
+
+    const config = qz.configs.create(printer, {
+      copies: 1,
+      orientation: 'portrait',
+      units: 'mm',
+      size: { width: widthMm },
+      margins: 0,
+      scaleContent: true,
+      interpolation: 'nearest',
+    });
+    const data = [
+      {
+        type: 'pixel',
+        format: 'image',
+        flavor: 'base64',
+        data: base64,
+      },
+    ];
+    await qz.print(config, data);
+    return;
+  } catch (rasterErr) {
+    // Ehtiyat: şəkil yolu alınmadısa (html2canvas dəstəklənməyən CSS və s.),
+    // əvvəlki HTML-pixel üsuluna qayıdırıq ki, çap heç olmazsa gerçəkləşsin.
+    console.warn('QZ HTML→PNG rasterlaşdırma uğursuz, HTML-pixel ehtiyatına keçilir:', rasterErr);
+  }
+
+  // Ehtiyat yolu: QZ-nin daxili HTML rasterlaşdırıcısı (geniş uyğunluq üçün).
   const config = qz.configs.create(printer, {
     copies: 1,
     orientation: 'portrait',
     units: 'mm',
-    // Hündürlük kifayət qədər böyük verilir ki, uzun çeklər kəsilməsin; QZ məzmunu
-    // enə uyğun miqyaslayacaq. (scaleContent: true)
     size: { width: widthMm, height: 1000 },
     margins: 0,
     scaleContent: true,
     rasterize: true,
     interpolation: 'nearest',
   });
-
   const data = [
     {
       type: 'pixel',
@@ -298,9 +330,88 @@ export const qzPrintHtml = async (
       data: styled,
     },
   ];
-
   await qz.print(config, data);
 };
+
+// HTML-i verilmiş en daxilində render edib Canvas-a çevirir (html2canvas istifadə edir).
+// Gizli iframe-də tam sənəd kimi render olunur ki, <head> üslubları dəqiq tətbiq edilsin.
+async function rasterizeHtmlToCanvas(
+  htmlDoc: string,
+  pxWidth: number,
+  html2canvas: any
+): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${pxWidth}px;height:10px;border:0;visibility:hidden;opacity:0;pointer-events:none;`;
+
+    const cleanup = () => {
+      try {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      } catch {}
+    };
+
+    const onError = (reason: unknown) => {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
+
+    iframe.onload = async () => {
+      try {
+        const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+        if (!doc || !doc.body) throw new Error('iframe sənədi mövcud deyil');
+
+        // Kök eni məcburi edirik ki, məzmun pxWidth daxilində sığsın.
+        const fix = doc.createElement('style');
+        fix.textContent = `html,body{width:${pxWidth}px!important;max-width:${pxWidth}px!important;margin:0!important;padding-left:0!important;padding-right:0!important;}`;
+        doc.head.appendChild(fix);
+
+        // Şəkillərin (loqo/barkod/QR) yüklənməsini gözləyirik.
+        await waitForImagesInDocument(doc);
+
+        const canvas = await html2canvas(doc.body, {
+          width: pxWidth,
+          windowWidth: pxWidth,
+          backgroundColor: '#ffffff',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+          allowTaint: false,
+        });
+        cleanup();
+        resolve(canvas);
+      } catch (e) {
+        onError(e);
+      }
+    };
+    iframe.onerror = () => onError(new Error('iframe yüklənmədi'));
+
+    document.body.appendChild(iframe);
+    const idoc = iframe.contentDocument;
+    if (!idoc) return onError(new Error('iframe contentDocument alınmadı'));
+    idoc.open();
+    idoc.write(htmlDoc);
+    idoc.close();
+  });
+}
+
+// Sənəddəki bütün <img>/<image> elementlərinin yüklənməsini gözləyir.
+function waitForImagesInDocument(doc: Document): Promise<void> {
+  const imgs = Array.from(doc.images || []);
+  if (imgs.length === 0) return Promise.resolve();
+  return Promise.all(
+    imgs.map((img) => {
+      if ((img as HTMLImageElement).complete) return Promise.resolve();
+      return new Promise<void>((res) => {
+        const done = () => res();
+        (img as HTMLImageElement).addEventListener('load', done, { once: true });
+        (img as HTMLImageElement).addEventListener('error', done, { once: true });
+        // Təhlükəsizlik vaxtı: 4s sonra yüklənməsə də davam et.
+        window.setTimeout(done, 4000);
+      });
+    })
+  ).then(() => undefined);
+}
 
 export const qzPrintRaw = async (commands: string, printerName?: string) => {
   const qz = await loadQzScript();
