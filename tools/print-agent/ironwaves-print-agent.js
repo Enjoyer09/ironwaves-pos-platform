@@ -152,6 +152,47 @@ async function setDefaultPrinter(name) {
   await runPowerShell(`(New-Object -ComObject WScript.Network).SetDefaultPrinter('${safeName}')`);
 }
 
+function normalizeName(n) {
+  return String(n || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+// Resolve a requested printer name to an actual installed printer name.
+// Handles case/space differences and partial matches so minor mismatches
+// (e.g. "XP-S200M" vs "XP-S200M (USB)") still target the correct device
+// instead of silently falling back to the wrong printer.
+async function resolvePrinterName(requested) {
+  const req = normalizeName(requested);
+  if (!req) return '';
+  const printers = await listPrinters();
+  if (printers.length === 0) return '';
+
+  let hit = printers.find((p) => normalizeName(p.name) === req);
+  if (hit) return hit.name;
+
+  hit = printers.find(
+    (p) => normalizeName(p.name).includes(req) || req.includes(normalizeName(p.name)),
+  );
+  if (hit) return hit.name;
+
+  const reqTokens = new Set(req.split(/[^a-z0-9]+/).filter(Boolean));
+  let best = null;
+  let bestScore = 0;
+  for (const p of printers) {
+    const tokens = new Set(normalizeName(p.name).split(/[^a-z0-9]+/).filter(Boolean));
+    let score = 0;
+    for (const t of tokens) if (reqTokens.has(t)) score += 1;
+    if (score > bestScore) {
+      bestScore = score;
+      best = p.name;
+    }
+  }
+  return best || '';
+}
+
 // ─── Core print logic ─────────────────────────────────────────────────────────
 async function printHtml(payload) {
   if (!['win32', 'darwin'].includes(process.platform)) {
@@ -220,11 +261,33 @@ async function printHtml(payload) {
   const userDir = path.join(dir, 'chrome-profile');
   fs.mkdirSync(userDir, { recursive: true });
 
-  // Temporarily set default printer if a specific one was requested (Windows only)
+  // Resolve the requested printer to a real installed printer name (case/space/
+  // partial tolerant). If a printer was requested but cannot be matched, fail
+  // loudly instead of silently printing to the wrong device (e.g. HP).
+  let targetPrinter = '';
+  if (printerName) {
+    targetPrinter = await resolvePrinterName(printerName);
+    if (!targetPrinter) {
+      const installed = (await listPrinters().catch(() => [])).map((p) => p.name).join(', ');
+      throw new Error(
+        `Printer "${printerName}" tapılmadı. Mövcud printerlər: ${installed || 'yox'}. ` +
+          `Çap Ayarlarında düzgün printeri seçin.`,
+      );
+    }
+  }
+
+  // Temporarily set the resolved printer as the system default (Windows only).
   let previousDefault = '';
-  if (printerName && process.platform === 'win32') {
+  if (targetPrinter && process.platform === 'win32') {
     previousDefault = await getDefaultPrinterName().catch(() => '');
-    await setDefaultPrinter(printerName).catch(() => {});
+    if (targetPrinter !== previousDefault) {
+      await setDefaultPrinter(targetPrinter).catch(() => {});
+      // verify + one retry in case Windows is slow to apply the change
+      const verify = await getDefaultPrinterName().catch(() => '');
+      if (normalizeName(verify) !== normalizeName(targetPrinter)) {
+        await setDefaultPrinter(targetPrinter).catch(() => {});
+      }
+    }
   }
 
   // macOS print logic
@@ -281,7 +344,7 @@ async function printHtml(payload) {
         // 3. Print the crisp resampled PNG file via lp directly to the target printer.
         // Cheap thermal printers on macOS do not support direct PDF spooling and print endlessly unless sent a raster PNG!
         const lpArgs = [];
-        if (printerName) lpArgs.push('-d', printerName);
+        if (targetPrinter) lpArgs.push('-d', targetPrinter);
         lpArgs.push(pngFile);
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       } catch (err) {
@@ -290,7 +353,7 @@ async function printHtml(payload) {
         const textFile = path.join(dir, 'receipt.txt');
         fs.writeFileSync(textFile, textContent, 'utf8');
         const lpArgs = [];
-        if (printerName) lpArgs.push('-d', printerName);
+        if (targetPrinter) lpArgs.push('-d', targetPrinter);
         lpArgs.push(textFile);
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       }
@@ -307,7 +370,7 @@ async function printHtml(payload) {
 
     // Clean up temp dir
     fs.rm(dir, { recursive: true, force: true }, () => {});
-    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: printerName || 'default' };
+    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: targetPrinter || printerName || 'default' };
   }
 
   // Windows: use Chrome kiosk printing
@@ -339,7 +402,7 @@ async function printHtml(payload) {
     queued: true,
     method: 'chrome-kiosk',
     browser: path.basename(browser),
-    printer_name: printerName || 'default',
+    printer_name: targetPrinter || previousDefault || printerName || 'default',
   };
 }
 
