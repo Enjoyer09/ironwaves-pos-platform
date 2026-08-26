@@ -211,16 +211,16 @@ async function printHtml(payload) {
                     (html.match(/<tr>/g) || []).length +
                     (html.match(/<div class="row"/g) || []).length +
                     (html.match(/<br/g) || []).length;
-  // Standard receipt base is generous, plus per-line height. The receipt is
-  // rendered ~35% larger (CSS zoom:1.35) so we scale the line height too —
-  // otherwise Chrome falls back to a shorter page and clips the bottom of the ticket.
-  const estimatedHeight = Math.max(170, Math.min(800, Math.round(160 + lineCount * 9)));
+  // Estimate the receipt height so Chrome (headless PDF path) doesn't fall back to
+  // a too-short page and clip the bottom of the ticket. No CSS zoom is applied, so we
+  // estimate at the natural 12px / 1.25 line metrics.
+  const estimatedHeight = Math.max(150, Math.min(900, Math.round(150 + lineCount * 6)));
 
   // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
   html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, `size: $1 ${estimatedHeight}mm`);
   html = html.replace(/size:\s*auto\s*([0-9.]+mm)/gi, `size: ${estimatedHeight}mm $1`);
-  // Also replace any static page size (e.g. size: 80mm 147mm) inside style tags to safely expand the height
-  html = html.replace(/size:\s*[0-9.]+mm\s*[0-9.]+mm/gi, `size: 80mm ${estimatedHeight}mm`);
+  // Also replace any static page size (e.g. size: 80mm 147mm) inside style tags to safely expand the height (keep the detected paper width)
+  html = html.replace(/size:\s*([0-9.]+mm)\s*[0-9.]+mm/gi, `size: $1 ${estimatedHeight}mm`);
 
   // Inject window.print() inside a script tag if it doesn't already trigger printing (using immediate execution)
   if (!html.includes('window.print(')) {
@@ -340,10 +340,14 @@ async function printHtml(payload) {
 
         const pngFile = path.join(dir, 'receipt.pdf.png');
 
-        // 2. Downscale the high-res PNG to exactly 576 pixels wide (the standard printable width for 80mm thermal printers).
-        // Downscaling a high-res rendering (super-sampling) preserves perfect outlines, sharp text, and crisp barcodes!
+        // 2. Downscale the high-res PNG to the exact printable pixel width of the
+        // roll (576px for 80mm, 384px for 58mm). Downscaling a high-res rendering
+        // (super-sampling) preserves perfect outlines, sharp text, and crisp barcodes!
+        const pageWidthMatch = html.match(/@page\s*\{[^}]*size:\s*([0-9.]+)\s*mm/i);
+        const pageWidthMm = pageWidthMatch ? parseFloat(pageWidthMatch[1]) : 80;
+        const targetWidthPx = Math.round(pageWidthMm >= 70 ? 576 : 384);
         await runCommand('sips', [
-          '--resampleWidth', '576',
+          '--resampleWidth', String(targetWidthPx),
           pngFile
         ], 10000);
 
