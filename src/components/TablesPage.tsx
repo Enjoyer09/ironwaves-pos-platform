@@ -1930,7 +1930,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                     useQz: Boolean(printSettings.use_qz),
                     printEngine: printSettings.print_engine || 'raw_escpos',
-                    allowBrowserFallback: false,
+                    // Dəyişiklik (STOP/LƏĞV) çeki kritikdir: ixtisaslaşdırılmış printer
+                    // və ya QZ yoxdursa belə, brauzer çapı dialoqu ilə kağız çıxmalıdır.
+                    allowBrowserFallback: true,
                   });
                 } catch (printErr) {
                   console.warn('Kitchen change ticket print warning:', printErr);
