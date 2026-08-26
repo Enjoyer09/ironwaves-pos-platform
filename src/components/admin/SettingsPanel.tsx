@@ -1000,8 +1000,9 @@ export default function SettingsPanel() {
     setPrintAgentHealth(info.online ? 'online' : 'offline');
     setPrintAgentVersion(info.version || '');
 
+    let qz: { online: boolean; printers?: string[]; error?: string } = { online: false, printers: [], error: '' };
     if (printSettings.use_qz) {
-      const qz = qzResult && qzResult.status === 'fulfilled'
+      qz = qzResult && qzResult.status === 'fulfilled'
         ? (qzResult.value as { online: boolean; printers?: string[]; error?: string })
         : { online: false, printers: [], error: 'Unknown error' };
       setQzHealth(qz.online ? 'online' : 'offline');
