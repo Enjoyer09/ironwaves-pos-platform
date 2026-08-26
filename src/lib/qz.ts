@@ -264,14 +264,30 @@ export const qzPrintHtml = async (
 
   const is58 = (paperWidth || '58mm') === '58mm';
   const widthMm = is58 ? 48 : 72;
+  // Kağızın effektiv piksel eni (≈203 DPI). Bu eni QZ rasterinin viewport-u
+  // kimi istifadə edir; beləliklə məzmun kağızdan kənara çıxmır.
+  const pxWidth = is58 ? 384 : 576;
+
+  // thermal CSS "html,body{width:100%!important}" təyin edir. QZ HTML-i raster
+  // edərkən bu "100%" QZ-in daxili viewport eninə görə hesablanır və tez-tez
+  // kağızdan GENİŞ olur → sağ kənar kəsilir, başlıq/qeydiyyat kənarə itir, QR isə
+  // əyri və ya 90° çevrilmiş görünür. Kök eni birbaşa kağız piksel eninə məcburi
+  // edirik (thermal CSS-dən SONRA yerləşdirilir ki, !important üstünlüyü saxlansın).
+  let styled = withThermalReceiptPrintCss(html);
+  const widthOverride = `<style data-qz-width="1">html,body{width:${pxWidth}px!important;max-width:${pxWidth}px!important;}</style>`;
+  styled = styled.replace(/<\/head>/i, `${widthOverride}</head>`);
 
   const config = qz.configs.create(printer, {
     copies: 1,
-    size: { width: widthMm },
+    orientation: 'portrait',
     units: 'mm',
+    // Hündürlük kifayət qədər böyük verilir ki, uzun çeklər kəsilməsin; QZ məzmunu
+    // enə uyğun miqyaslayacaq. (scaleContent: true)
+    size: { width: widthMm, height: 1000 },
     margins: 0,
     scaleContent: true,
     rasterize: true,
+    interpolation: 'nearest',
   });
 
   const data = [
@@ -279,7 +295,7 @@ export const qzPrintHtml = async (
       type: 'pixel',
       format: 'html',
       flavor: 'plain',
-      data: withThermalReceiptPrintCss(html),
+      data: styled,
     },
   ];
 
