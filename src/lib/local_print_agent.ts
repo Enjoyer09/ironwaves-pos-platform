@@ -152,19 +152,10 @@ export async function printDirectOrFallback(
     preferHtml?: boolean;
   }
 ): Promise<PrintDirectResult> {
-  // useQz:  true → QZ is the intended printer (cafés with QZ Tray). Failure is
-  //         surfaced to the user — a browser dialog must NOT open, its mm CSS
-  //         renders broken on A4/US-Letter preview and the receipt comes out cut
-  //         (user complaint: “QZ machine still opens the print window”).
-  //         false → QZ is skipped entirely (caller chose agent/browser).
-  //         undefined → legacy: agent first, QZ second, window last.
-  // The browser dialog is only the rescue for machines where QZ honestly does
-  // NOT exist (script can't load at all) and the caller allowed the fallback.
-  const qzFirst = options?.useQz === true;
-
-  let qzScriptUnavailable = false;
-
-  async function tryQz(): Promise<{ ok: boolean; error?: string; scriptUnavailable?: boolean }> {
+  // ÇAP PRIORITETİ: Lokal Print Agent (əsas) → QZ Tray (yalnız useQz===true
+  // olduqda ehtiyat) → Brauzer dialoqu (yalnız allowBrowserFallback===true).
+  // Agent quraşdırılmayibsə avtomatik QZ/brauzerə düşür, heç nə sınmaz.
+  async function tryQz(): Promise<{ ok: boolean; error?: string }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
       // Use raw ESC/POS path whenever rawCommands are provided — the commands
@@ -184,43 +175,14 @@ export async function printDirectOrFallback(
       return { ok: true };
     } catch (err) {
       console.warn('QZ Tray print attempted but failed:', err);
-      const raw = String((err as any)?.message || err || '');
-      const scriptUnavailable = /script load failed|script not loaded|library not available/i.test(raw);
-      if (scriptUnavailable) qzScriptUnavailable = true;
-      return { ok: false, error: friendlyQzError(err), scriptUnavailable };
+      return { ok: false, error: friendlyQzError(err) };
     }
   }
 
   let lastError: string | undefined;
 
-  // 1. QZ first when useQz is set (explicit printer + paper width), then local
-  //    agent as silent rescue, then a clear error — never the browser dialog.
-  if (qzFirst) {
-    const qz = await tryQz();
-    if (qz.ok) return { method: 'qz', success: true };
-    lastError = qz.error;
-
-    try {
-      const agentSuccess = await printViaLocalAgent(html, options?.printerName);
-      if (agentSuccess) {
-        return { method: 'agent', success: true };
-      }
-    } catch {}
-
-    // QZ is the operator's chosen channel. When QZ fails for any reason
-    // (not running, cert not accepted, connection refused) and the caller
-    // allows browser fallback, open the browser print dialog as last resort.
-    // Without this, non-QZ machines silently get no print at all.
-    if (options?.allowBrowserFallback === true) {
-      const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
-      if (browserSuccess) {
-        return { method: 'browser', success: true };
-      }
-    }
-    return { method: 'none', success: false, error: lastError || 'QZ Tray çapı alınmadı' };
-  }
-
-  // 2-3. Without QZ-first: local Print Agent, then (legacy) QZ second.
+  // 1) Əsas yol: Lokal Print Agent (Chrome ilə render → eyni HTML dizayn,
+  //    loqo/barkod/QR daxil; QZ-in sertifikat/websocket/xətaları yoxdur).
   try {
     const agentSuccess = await printViaLocalAgent(html, options?.printerName);
     if (agentSuccess) {
@@ -228,22 +190,16 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  if (options?.useQz === false) {
-    // Caller explicitly disabled QZ — it must not be attempted on the side.
-    if (options?.allowBrowserFallback === true) {
-      const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
-      if (browserSuccess) {
-        return { method: 'browser', success: true };
-      }
-    }
-    return { method: 'none', success: false, error: 'Çap mediası əlçan deyil' };
+  // 2) Ehtiyat: QZ Tray — yalnız açıq şəkildə istənildikdə (useQz === true).
+  //    Bu, köhnə davranışı saxlayır: istəyən QZ-dən istifadə edə bilər, amma
+  //    indi o birincilik deyil, yalnız agent mövcud olmadıqda işə düşür.
+  if (options?.useQz === true) {
+    const qz = await tryQz();
+    if (qz.ok) return { method: 'qz', success: true };
+    lastError = qz.error;
   }
 
-  // Legacy (undefined): QZ second, then browser dialog as the classic final rescue.
-  const qz = await tryQz();
-  if (qz.ok) return { method: 'qz', success: true };
-  lastError = qz.error;
-
+  // 3) Son çarə: brauzer dialoqu — yalnız icazə verilibsə (allowBrowserFallback).
   if (options?.allowBrowserFallback === true) {
     const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
     if (browserSuccess) {
