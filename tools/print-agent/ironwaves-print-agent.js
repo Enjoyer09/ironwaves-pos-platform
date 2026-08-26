@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -386,44 +386,108 @@ async function printHtml(payload) {
     return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: targetPrinter || printerName || 'default' };
   }
 
-  // Windows: use Chrome kiosk printing
+  // Windows: use Chrome headless to convert HTML → PDF → spool (no dialog, no headers)
   const browser = findBrowserExecutable();
-  if (!browser) throw new Error('Chrome or Microsoft Edge was not found');
+  if (!browser) throw new Error('Chrome or Microsoft Edge tapılmadı');
 
-  const chromePid = await spawnBrowserForPrint(browser, file, userDir);
-  log(`chrome spawned pid=${chromePid}`);
+  const pdfFile = path.join(dir, 'receipt.pdf');
 
-  // Restore previous default printer after Chrome has time to spool the job
-  const RESTORE_DELAY_MS = 9000;
-  setTimeout(() => {
-    if (previousDefault && previousDefault !== printerName) {
-      setDefaultPrinter(previousDefault).catch(() => {});
+  // ── Headless PDF path (preferred) ──────────────────────────────────────────
+  // Chrome headless --print-to-pdf-no-header eliminates the file:// URL,
+  // page-number and date/time lines that appear with kiosk-printing.
+  let usedHeadless = false;
+  try {
+    const chromeArgs = [
+      '--headless',
+      `--user-data-dir=${userDir}`,
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-sync',
+      '--no-first-run',
+      '--disable-default-apps',
+      '--no-default-browser-check',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--no-sandbox',
+      '--print-to-pdf-no-header',
+      `--print-to-pdf=${pdfFile}`,
+      `file://${file}`,
+    ];
+
+    await new Promise((resolve, reject) => {
+      execFile(browser, chromeArgs, { timeout: 15000, windowsHide: true }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    if (fs.existsSync(pdfFile) && fs.statSync(pdfFile).size > 0) {
+      usedHeadless = true;
+      log('headless PDF created, printing via kiosk-printing');
+
+      // Open the generated PDF with kiosk-printing. Chrome prints PDFs without
+      // adding its own file:/// / date / page-number headers — those only appear
+      // when printing live HTML pages via kiosk-printing.
+      const pdfChromePid = await spawnBrowserForPrint(browser, pdfFile, path.join(dir, 'chrome-pdf-profile'));
+      log(`PDF kiosk chrome pid=${pdfChromePid}`);
+
+      // Restore printer + cut + cleanup after Chrome has spooled the PDF
+      setTimeout(() => {
+        if (previousDefault && previousDefault !== targetPrinter) {
+          setDefaultPrinter(previousDefault).catch(() => {});
+        }
+        log('default printer restored (headless path)');
+        sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
+        if (pdfChromePid) {
+          try {
+            execFile('taskkill', ['/PID', String(pdfChromePid), '/F', '/T'], { windowsHide: true }, () => {});
+          } catch (_) {}
+        }
+        fs.rm(dir, { recursive: true, force: true }, () => {});
+      }, 12000);
     }
-    log('default printer restored');
-  }, RESTORE_DELAY_MS);
+  } catch (headlessErr) {
+    log(`headless PDF failed (${headlessErr && headlessErr.message}), falling back to kiosk-printing`);
+  }
 
-  // Kill the Chrome instance we spawned after it has had time to send the print job.
-  const KILL_DELAY_MS = 12000;
-  setTimeout(() => {
-    if (chromePid) {
-      try {
-        execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
-      } catch (_) {}
-    }
-    log('chrome killed + temp cleaned');
-    fs.rm(dir, { recursive: true, force: true }, () => {});
-  }, KILL_DELAY_MS);
+  // ── Kiosk-printing fallback ─────────────────────────────────────────────────
+  if (!usedHeadless) {
+    const chromePid = await spawnBrowserForPrint(browser, file, userDir);
+    log(`chrome kiosk spawned pid=${chromePid}`);
 
-  // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
-  const CUT_DELAY_MS = 9500;
-  setTimeout(() => {
-    sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
-  }, CUT_DELAY_MS);
+    // Restore previous default printer after Chrome has time to spool the job
+    const RESTORE_DELAY_MS = 9000;
+    setTimeout(() => {
+      if (previousDefault && previousDefault !== printerName) {
+        setDefaultPrinter(previousDefault).catch(() => {});
+      }
+      log('default printer restored');
+    }, RESTORE_DELAY_MS);
+
+    // Kill the Chrome instance we spawned after it has had time to send the print job.
+    const KILL_DELAY_MS = 12000;
+    setTimeout(() => {
+      if (chromePid) {
+        try {
+          execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
+        } catch (_) {}
+      }
+      log('chrome killed + temp cleaned');
+      fs.rm(dir, { recursive: true, force: true }, () => {});
+    }, KILL_DELAY_MS);
+
+    // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
+    const CUT_DELAY_MS = 9500;
+    setTimeout(() => {
+      sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
+    }, CUT_DELAY_MS);
+  }
 
   log('response sent (agent queued the job; paper output depends on Chrome + spooler)');
   return {
     queued: true,
-    method: 'chrome-kiosk',
+    method: usedHeadless ? 'chrome-headless-pdf' : 'chrome-kiosk',
     browser: path.basename(browser),
     printer_name: targetPrinter || previousDefault || printerName || 'default',
   };
@@ -442,6 +506,10 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
       '--no-default-browser-check',
       '--window-position=3000,3000',
       '--window-size=800,800',
+      // Suppress Chrome's built-in file:/// URL + date/page-number header/footer lines
+      '--disable-logging',
+      '--safebrowsing-disable-auto-update',
+      // Force margin-none to remove space Chrome reserves for its header/footer text
       htmlFile,
     ];
 
