@@ -1,39 +1,36 @@
 export const THERMAL_RECEIPT_PRINT_CSS = `
   @page {
-    size: auto;
     margin: 0mm;
   }
   * {
     box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   html,
   body {
-    width: calc(100% / 1.35) !important;
-    max-width: 100% !important;
-    zoom: 1.35;
     margin: 0 !important;
-    padding: 0 1.5mm !important;
+    padding: 0 !important;
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
     font-size: 12px !important;
     line-height: 1.25 !important;
-    font-weight: 700 !important;
+    font-weight: 600 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    /* Utilize the full printable width; never break words letter-by-letter. */
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+    white-space: normal !important;
   }
   @media print {
     html,
     body {
-      width: calc(100% / 1.35) !important;
-      max-width: 100% !important;
-      zoom: 1.35;
       margin: 0 !important;
-      padding: 0 1.5mm !important;
+      padding: 0 !important;
       overflow: visible !important;
     }
   }
@@ -41,7 +38,6 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
-  body { overflow-wrap: break-word; word-wrap: break-word; }
   .line {
     width: 100% !important;
     display: flex;
@@ -55,6 +51,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     flex: 1 1 auto;
     min-width: 0;
     padding-right: 4px;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -86,24 +83,28 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     border-collapse: collapse;
     font-size: 12px !important;
     line-height: 1.25 !important;
-    table-layout: auto;
+    table-layout: fixed;
   }
   td {
     vertical-align: top;
     padding: 2.5px 0;
     font-weight: 700;
+    word-break: keep-all;
+    overflow-wrap: normal;
   }
   td:first-child {
     text-align: left;
-    overflow-wrap: break-word;
-    word-break: break-word;
     padding-right: 4px;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    white-space: normal;
   }
   td:last-child {
     text-align: right;
     white-space: nowrap;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+    width: 33%;
   }
   hr {
     border: 0;
@@ -112,16 +113,27 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     width: 100%;
   }
   svg { max-width: 100%; }
-  img { max-width: 100%; image-rendering: crisp-edges; }
+  img { max-width: 100%; image-rendering: crisp-edges; display: block; }
 `;
 
-// Paper width override: adapts font size smoothly while maintaining 100% paper fill
+// Paper width override: pins the thermal canvas to the real printable area
+// (72mm for an 80mm roll, 48mm for a 58mm roll) and sets a compact, fixed
+// monospace font. No CSS zoom — the agent/QZ already rasterize at the correct
+// dot width, so zooming would only distort and shrink the usable column.
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
-  const fontSize = paperWidth === '80mm' ? '13px' : '12px';
+  const is80 = (paperWidth || '80mm') === '80mm';
+  const paperMm = is80 ? 80 : 58;
+  const printableMm = is80 ? 72 : 48;
+  const fontSize = is80 ? '12px' : '11px';
   return `
-    html, body { width: calc(100% / 1.35) !important; max-width: 100% !important; zoom: 1.35; font-size: ${fontSize} !important; }
-    table { width: 100% !important; font-size: ${fontSize} !important; }
-    .line { width: 100% !important; font-size: ${fontSize} !important; }
+    @page { size: ${paperMm}mm auto; margin: 0mm; }
+    html, body {
+      width: ${printableMm}mm !important;
+      max-width: ${printableMm}mm !important;
+      padding: 2mm 3mm !important;
+      font-size: ${fontSize} !important;
+    }
+    table, .line { font-size: ${fontSize} !important; }
   `;
 }
 
