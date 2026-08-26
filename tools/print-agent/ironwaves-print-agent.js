@@ -460,7 +460,20 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
 // ESC/POS: feed a few blank lines, then a full cut (GS V 66 0 / 0x1D 0x56 0x42 0x00).
 // Best-effort safety net — the driver also cuts per page, so a failure here is harmless.
 async function sendCut(printerName) {
-  if (!printerName) return;
+  // Resolve the default printer when the caller did not name one explicitly.
+  // Most print jobs go to the system default printer without an explicit name,
+  // so without this fallback the auto-cut command is silently skipped and the
+  // paper is never cut (the user has to tear it by hand).
+  let target = String(printerName || '').trim();
+  if (!target) {
+    try {
+      const printers = await listPrinters();
+      target = printers.find((p) => p.default)?.name || printers[0]?.name || '';
+    } catch {
+      target = '';
+    }
+  }
+  if (!target) return;
   let dir;
   try {
     const baseTempDir = process.platform === 'darwin'
@@ -468,14 +481,14 @@ async function sendCut(printerName) {
       : os.tmpdir();
     dir = fs.mkdtempSync(path.join(baseTempDir, 'ironwaves-cut-'));
     const file = path.join(dir, 'cut.bin');
-    const feed = Buffer.from('\n\n\n', 'utf8');
+    const feed = Buffer.from('\n\n\n\n', 'utf8');
     const cut = Buffer.from([0x1d, 0x56, 0x42, 0x00]); // GS V 66 0
     fs.writeFileSync(file, Buffer.concat([feed, cut]));
     if (process.platform === 'darwin') {
-      await runCommand('lp', ['-d', printerName, '-o', 'raw', file], 10000);
+      await runCommand('lp', ['-d', target, '-o', 'raw', file], 10000);
     } else if (process.platform === 'win32') {
       await new Promise((resolve) => {
-        const p = exec(`print /D:"${printerName}" "${file}"`, () => resolve());
+        const p = exec(`print /D:"${target}" "${file}"`, () => resolve());
         p.on('error', () => resolve());
         setTimeout(resolve, 5000);
       });

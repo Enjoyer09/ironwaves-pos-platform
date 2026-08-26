@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { send_email } from './email';
 import { apiRequest, isBackendEnabled } from './client';
 import { formatServerUtcDateTime24, formatServerUtcTime24 } from '../lib/time';
-import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
+import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -927,6 +927,7 @@ export const z_report = async (
         <head>
           <style>
             ${THERMAL_RECEIPT_PRINT_CSS}
+            ${thermalPaperWidthOverride('80mm')}
           </style>
         </head>
         <body>
@@ -1126,6 +1127,7 @@ export const z_report = async (
       <head>
           <style>
           ${THERMAL_RECEIPT_PRINT_CSS}
+          ${thermalPaperWidthOverride('80mm')}
         </style>
       </head>
       <body>

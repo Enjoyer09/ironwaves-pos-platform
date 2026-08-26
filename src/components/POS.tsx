@@ -1405,7 +1405,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           receiptUrl,
           feedbackUrl,
           operator: user.username,
-          paperWidth: printSettings.paper_width || '58mm',
+          paperWidth: printSettings.paper_width || '80mm',
         });
         const rawCmds = await buildSaleReceiptEscPos({
           sale: {
@@ -1424,7 +1424,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           profile: businessProfile,
           operator: user.username,
           feedbackUrl,
-          paperWidth: printSettings.paper_width || '58mm',
+          paperWidth: printSettings.paper_width || '80mm',
         });
 
         setReceiptHtml(receiptMarkup);
@@ -1436,7 +1436,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           void printDirectOrFallback(receiptMarkup, {
             printerName: printSettings.printer_name,
             useQz: Boolean(printSettings.use_qz),
-            paperWidth: printSettings.paper_width || '58mm',
+            paperWidth: printSettings.paper_width || '80mm',
             printEngine: 'raw_escpos',
             rawCommands: rawCmds,
             // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
@@ -1518,7 +1518,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             ticket: ticketData,
             lang: safeLang,
             companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
-            paperWidth: printSettings.paper_width || '58mm',
+            paperWidth: printSettings.paper_width || '80mm',
             printerName: targetPrinter,
             useQz: Boolean(printSettings.use_qz),
             printEngine: printSettings.print_engine || 'raw_escpos',
@@ -1812,7 +1812,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     const res = await printDirectOrFallback(safeReceiptHtml, {
       printerName: printSettings.printer_name,
       useQz: Boolean(printSettings.use_qz),
-      paperWidth: printSettings.paper_width || '58mm',
+      paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: receiptRawCommands || undefined,
       // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.

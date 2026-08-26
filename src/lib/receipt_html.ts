@@ -64,14 +64,16 @@ export function formatReceiptDisplayId(id: string): string {
 
 export function generateReceiptBarcodeSvg(value: string): string {
   try {
+    if (typeof document === 'undefined') return '';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, value, {
       format: 'CODE128',
       displayValue: false,
       margin: 0,
-      width: 1.2,
-      height: 34,
+      width: 2,
+      height: 48,
     });
+    svg.setAttribute('style', 'height:48px;max-width:92%;display:block;margin:0 auto;');
     return svg.outerHTML;
   } catch {
     return '';
@@ -82,6 +84,7 @@ export function generateReceiptBarcodeSvg(value: string): string {
 // əvvəlcə PNG data-URL (headless Chrome-da ən etibarlı), alınmazsa inline SVG
 // ehtiyat yolunu istifadə edir. Mərkəzləşdirilmiş olaraq SALE:<id> yazısı ilə gəlir.
 export function generateReceiptBarcodeHtml(value: string): string {
+  if (typeof document === 'undefined') return '';
   const tryPng = (): string => {
     try {
       const canvas = document.createElement('canvas');
@@ -94,7 +97,7 @@ export function generateReceiptBarcodeHtml(value: string): string {
       });
       const url = canvas.toDataURL('image/png');
       if (url && url.length > 50) {
-        return `<img src="${url}" alt="barcode" style="height:50px;display:block;margin:0 auto" />`;
+        return `<img src="${url}" alt="barcode" style="height:50px;max-width:92%;display:block;margin:0 auto;image-rendering:pixelated;" />`;
       }
     } catch {
       /* fall through to SVG */
@@ -111,7 +114,7 @@ export function generateReceiptBarcodeHtml(value: string): string {
         width: 2,
         height: 50,
       });
-      svg.setAttribute('style', 'height:50px;width:100%;max-width:100%;display:block;margin:0 auto');
+      svg.setAttribute('style', 'height:50px;max-width:92%;display:block;margin:0 auto;');
       return svg.outerHTML;
     } catch {
       return '';
@@ -127,7 +130,7 @@ export async function buildSaleReceiptHtml({
   receiptUrl = '',
   feedbackUrl = '',
   operator = '',
-  paperWidth,
+  paperWidth = '80mm',
 }: {
   sale: any;
   profile?: any;
@@ -164,8 +167,8 @@ export async function buildSaleReceiptHtml({
     if (promoD > 0) {
       lineHtml += `
         <tr>
-          <td style="padding-left: 12px; font-style: italic; font-size: 11px; color: #4b5563;">${esc(tx(lang, '[Promo] 2-ci məhsul 50% endirim', '[Промо] 2-й товар скидка 50%', '[Promo] 2nd Item 50% Off'))}</td>
-          <td style="font-style: italic; font-size: 11px; color: #4b5563;">-${money(promoD)} ₼</td>
+          <td style="padding-left: 12px; font-style: italic; font-size: 12px; color: #4b5563;">${esc(tx(lang, '[Promo] 2-ci məhsul 50% endirim', '[Промо] 2-й товар скидка 50%', '[Promo] 2nd Item 50% Off'))}</td>
+          <td style="font-style: italic; font-size: 12px; color: #4b5563;">-${money(promoD)} ₼</td>
         </tr>
       `;
     }
@@ -230,8 +233,6 @@ export async function buildSaleReceiptHtml({
     }
   }
 
-  const printWidthPx = (paperWidth || '58mm') === '80mm' ? 576 : 384;
-
   return `
     <html>
       <head>
@@ -243,31 +244,33 @@ export async function buildSaleReceiptHtml({
           </style>
       </head>
       <body>
-        ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-        <div class="bold" style="font-size:15px">${esc(companyName)}</div>
-        ${profile?.voen ? `<div class="muted">VÖEN: ${esc(profile.voen)}</div>` : ''}
-        ${profile?.phone ? `<div class="muted">Tel: ${esc(profile.phone)}</div>` : ''}
-        ${profile?.address ? `<div class="muted">${esc(profile.address)}</div>` : ''}
+        ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:38px;max-width:200px;object-fit:contain;margin-bottom:6px" />` : ''}
+        <div class="bold" style="font-size:16px;text-align:center">${esc(companyName)}</div>
+        ${profile?.voen ? `<div class="muted" style="text-align:center">VÖEN: ${esc(profile.voen)}</div>` : ''}
+        ${profile?.phone ? `<div class="muted" style="text-align:center">Tel: ${esc(profile.phone)}</div>` : ''}
+        ${profile?.address ? `<div class="muted" style="text-align:center">${esc(profile.address)}</div>` : ''}
         <hr />
         <div class="section-title" style="text-align:center">${receiptTypeLabel}</div>
         ${!fiscalEnabled ? `<div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>` : ''}
         <hr />
-        <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${esc(displayId)}</span></div>
+        <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span class="bold">#${esc(displayId)}</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;margin:6px 0 6px 0;text-align:center;">
+          ${barcodeHtml}
+          <div style="font-size:12px;font-weight:800;letter-spacing:1px;margin-top:2px;">SALE:${esc(displayId)}</div>
+        </div>
         <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
         <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
         ${isVoided ? `<div class="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
-        <div style="margin-top:8px;text-align:center">${barcodeHtml}</div>
-        <div class="muted" style="text-align:center">SALE:${esc(displayId)}</div>
         <hr />
-        <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td></tr>`}</table>
+        <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td><td>0.00 ₼</td></tr>`}</table>
         <hr />
         <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${money(subtotal)} ₼</span></div>
         <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${money(discount)} ₼</span></div>
         ${freeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${freeCoffees}</span></div>` : ''}
         ${customerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${esc(customerId)}</span></div>` : ''}
-        ${customerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${starsAfter}</span></div>` : ''}
-        <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
+        ${customerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баaranс звезд', 'Star Balance')}</span><span>${starsAfter}</span></div>` : ''}
+        <div class="line bold" style="font-size:16px;"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
         ${isVat ? `<div class="line"><span>${tx(lang, `o cümlədən ƏDV (${vatRate}%)`, `в т.ч. НДС (${vatRate}%)`, `incl. VAT (${vatRate}%)`)}</span><span>${money(vatAmount)} ₼</span></div>` : ''}
         ${isVat ? `<div class="line"><span>${tx(lang, 'ƏDV-siz məbləğ', 'Сумма без НДС', 'Amount excl. VAT')}</span><span>${money(vatNet)} ₼</span></div>` : ''}
         ${(!isVat && taxRegime === 'simplified' && !isVoided) ? `<div class="muted">${tx(lang, 'Sadələşdirilmiş vergi rejimi', 'Упрощённый налоговый режим', 'Simplified tax regime')}</div>` : ''}
@@ -279,9 +282,9 @@ export async function buildSaleReceiptHtml({
         <hr />
         ${!isVoided ? `
         <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
-          <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
+          <img src="${qrDataUrl}" alt="receipt qr" style="width:112px;height:112px" />
         </div>
-        <div class="muted" style="font-size:10px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
+        <div class="muted" style="font-size:11px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
         ` : ''}
         ${showFiscal ? `
         <hr />
@@ -289,10 +292,10 @@ export async function buildSaleReceiptHtml({
         ${fiscalId ? `<div class="line"><span>${tx(lang, 'Fiskal ID', 'Фискальный ID', 'Fiscal ID')}</span><span>${esc(fiscalId)}</span></div>` : ''}
         ${fiscalDocNo ? `<div class="line"><span>${tx(lang, 'Sənəd №', 'Документ №', 'Doc No')}</span><span>${esc(fiscalDocNo)}</span></div>` : ''}
         ${nkaRegNo ? `<div class="line"><span>${tx(lang, 'NKA qeydiyyat №', 'Рег. № ККА', 'NKA Reg. No')}</span><span>${esc(nkaRegNo)}</span></div>` : ''}
-        ${fiscalQrDataUrl ? `<div style="display:flex;justify-content:center;margin:6px 0"><img src="${fiscalQrDataUrl}" alt="fiscal qr" style="width:108px;height:108px" /></div>` : ''}
+        ${fiscalQrDataUrl ? `<div style="display:flex;justify-content:center;margin:6px 0"><img src="${fiscalQrDataUrl}" alt="fiscal qr" style="width:112px;height:112px" /></div>` : ''}
         ` : ''}
         <hr />
-        <div class="muted">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
+        <div class="muted" style="text-align:center">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
       </body>
     </html>
   `;
@@ -306,7 +309,7 @@ export async function buildTableReceiptHtml({
   profile,
   lang = 'az',
   feedbackUrl = '',
-  paperWidth,
+  paperWidth = '80mm',
 }: {
   tableLabel: string;
   operator: string;
@@ -358,8 +361,6 @@ export async function buildTableReceiptHtml({
     }
   }
 
-  const printWidthPx = (paperWidth || '58mm') === '80mm' ? 576 : 384;
-
   return `
     <html>
       <head>
@@ -372,11 +373,11 @@ export async function buildTableReceiptHtml({
           </style>
       </head>
       <body>
-        ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-        <div class="bold" style="font-size:15px">${esc(companyName)}</div>
-        <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
-        <div class="muted">Tel: ${esc(profile?.phone || '-')}</div>
-        <div class="muted">${esc(profile?.address || '-')}</div>
+        ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:38px;max-width:200px;object-fit:contain;margin-bottom:6px" />` : ''}
+        <div class="bold" style="font-size:16px;text-align:center">${esc(companyName)}</div>
+        <div class="muted" style="text-align:center">VÖEN: ${esc(profile?.voen || '-')}</div>
+        <div class="muted" style="text-align:center">Tel: ${esc(profile?.phone || '-')}</div>
+        <div class="muted" style="text-align:center">${esc(profile?.address || '-')}</div>
         <hr />
         <div class="section-title" style="text-align:center">${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')}</div>
         <div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>
@@ -405,15 +406,15 @@ export async function buildTableReceiptHtml({
             ? `<div class="line"><span>${tx(lang, 'Əlavə ödəniş', 'К доплате', 'Due Now')}</span><span>${money(breakdown.dueNow)} ₼</span></div>`
             : ''
         }
-        <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(breakdown.finalTotal)} ₼</span></div>
+        <div class="line bold" style="font-size:16px;"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(breakdown.finalTotal)} ₼</span></div>
         ${
           qrDataUrl
             ? `
           <hr />
           <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
-            <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
+            <img src="${qrDataUrl}" alt="receipt qr" style="width:112px;height:112px" />
           </div>
-          <div class="muted" style="font-size:10px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
+          <div class="muted" style="font-size:11px;text-align:center">${tx(lang, 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.', 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.', 'Your feedback matters to us. Please scan the QR code and share your review.')}</div>
           `
             : ''
         }

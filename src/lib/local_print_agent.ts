@@ -169,7 +169,7 @@ export async function printDirectOrFallback(
       } else {
         await qzPrintHtml(html, {
           printerName: options?.printerName,
-          paperWidth: options?.paperWidth || '58mm',
+          paperWidth: options?.paperWidth || '80mm',
         });
       }
       return { ok: true };

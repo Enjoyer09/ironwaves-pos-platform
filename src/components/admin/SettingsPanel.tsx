@@ -109,7 +109,7 @@ export default function SettingsPanel() {
     kitchen_printer_name: '',
     auto_print_kitchen_ticket: true,
     auto_print_receipt: true,
-    paper_width: '58mm' as '58mm' | '80mm',
+    paper_width: '80mm' as '58mm' | '80mm',
     print_engine: 'raw_escpos' as 'pixel_html' | 'raw_escpos',
   });
   const [testingPrint, setTestingPrint] = useState<'cashier' | 'kitchen' | null>(null);
@@ -388,7 +388,7 @@ export default function SettingsPanel() {
         kitchen_printer_name: String(settingsRes.value.print_settings?.kitchen_printer_name || ''),
         auto_print_kitchen_ticket: settingsRes.value.print_settings?.auto_print_kitchen_ticket !== false,
         auto_print_receipt: settingsRes.value.print_settings?.auto_print_receipt !== false,
-        paper_width: (settingsRes.value.print_settings?.paper_width || '58mm') as '58mm' | '80mm',
+        paper_width: (settingsRes.value.print_settings?.paper_width || '80mm') as '58mm' | '80mm',
         print_engine: (settingsRes.value.print_settings?.print_engine || 'raw_escpos') as 'pixel_html' | 'raw_escpos',
       });
       setZReportReceiptSettings({

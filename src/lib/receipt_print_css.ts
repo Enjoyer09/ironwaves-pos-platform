@@ -14,9 +14,9 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
-    font-size: 12px !important;
+    font-size: 14px !important;
     line-height: 1.35 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
     page-break-inside: avoid !important;
@@ -40,98 +40,93 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .line {
     width: 100% !important;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 4px;
-    margin: 2px 0;
-    font-size: 12px;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+    gap: 8px !important;
+    margin: 3px 0 !important;
+    font-size: 14px !important;
   }
   .line span:first-child {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding-right: 4px;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding-right: 8px !important;
+    text-align: left !important;
+    white-space: normal !important;
+    word-break: break-word !important;
   }
   .line span:last-child {
-    text-align: right;
-    flex-shrink: 0;
-    white-space: nowrap;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-weight: 800 !important;
+    font-variant-numeric: tabular-nums !important;
   }
   .muted {
-    color: #222;
-    font-size: 10.5px;
-    line-height: 1.2;
-    font-weight: 600;
-  }
-  .bold { font-weight: 900; }
-  .section-title {
-    margin-top: 5px;
-    font-size: 12.5px;
-    line-height: 1.25;
-    font-weight: 900;
-    text-transform: uppercase;
-  }
-  h1, h2, h3 { margin: 0 0 2px; font-weight: 900; line-height: 1.2; }
-  table {
-    width: 100% !important;
-    border-collapse: collapse;
+    color: #222 !important;
     font-size: 12px !important;
     line-height: 1.25 !important;
-    table-layout: fixed;
+    font-weight: 600 !important;
+  }
+  .bold { font-weight: 900 !important; }
+  .section-title {
+    margin-top: 6px !important;
+    margin-bottom: 2px !important;
+    font-size: 14px !important;
+    line-height: 1.25 !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+  }
+  h1, h2, h3 { margin: 0 0 3px !important; font-weight: 900 !important; line-height: 1.2 !important; }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    table-layout: auto !important;
   }
   td {
-    vertical-align: top;
-    padding: 2.5px 0;
-    font-weight: 700;
-    word-break: keep-all;
-    overflow-wrap: normal;
+    vertical-align: top !important;
+    padding: 3px 0 !important;
+    font-weight: 700 !important;
   }
   td:first-child {
-    text-align: left;
-    padding-right: 4px;
-    overflow-wrap: normal;
-    word-break: keep-all;
-    white-space: normal;
+    text-align: left !important;
+    padding-right: 8px !important;
+    overflow-wrap: normal !important;
+    word-break: break-word !important;
+    white-space: normal !important;
   }
   td:last-child {
-    text-align: right;
-    white-space: nowrap;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    width: 33%;
+    text-align: right !important;
+    white-space: nowrap !important;
+    font-weight: 800 !important;
+    font-variant-numeric: tabular-nums !important;
   }
   hr {
-    border: 0;
-    border-top: 1px dashed #000;
-    margin: 6px 0;
-    width: 100%;
+    border: 0 !important;
+    border-top: 1.5px dashed #000 !important;
+    margin: 6px 0 !important;
+    width: 100% !important;
   }
-  svg { max-width: 100%; }
-  img { max-width: 100%; image-rendering: crisp-edges; display: block; }
+  svg { max-width: 100% !important; display: block !important; margin: 0 auto !important; }
+  img { max-width: 100% !important; image-rendering: crisp-edges !important; display: block !important; margin: 0 auto !important; }
 `;
 
 // Paper width override: pins the thermal canvas to the real printable area
 // (72mm for an 80mm roll, 48mm for a 58mm roll) and sets a compact, fixed
-// monospace font. No CSS zoom — the agent/QZ already rasterize at the correct
-// dot width, so zooming would only distort and shrink the usable column.
+// monospace font. Defaults to 80mm roll (72mm printable width / 576 dot).
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
-  const is80 = (paperWidth || '80mm') === '80mm';
-  const paperMm = is80 ? 80 : 58;
-  const printableMm = is80 ? 72 : 48;
-  // ~15–20% böyük şrift (80mm üçün 12px → 13.5px) oxunaqlılıq üçün.
-  const fontSize = is80 ? '13.5px' : '12px';
+  const is58 = paperWidth === '58mm';
+  const paperMm = is58 ? 58 : 80;
+  const printableMm = is58 ? 48 : 72;
+  const fontSize = is58 ? '12px' : '14px';
   return `
     @page { size: ${paperMm}mm auto; margin: 0mm; }
     html, body {
       width: ${printableMm}mm !important;
       max-width: ${printableMm}mm !important;
-      padding: 2mm 3mm !important;
+      padding: 2mm 2.5mm !important;
       font-size: ${fontSize} !important;
       line-height: 1.35 !important;
     }
