@@ -482,15 +482,66 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  // Console output is hidden when running as a windowless .exe
-  console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
-});
+// Stop any process currently holding our port so an update can take over
+// without the user manually killing the old agent first.
+function killProcessOnPort(port) {
+  return new Promise((resolve) => {
+    const finish = () => resolve();
+    try {
+      const { exec } = require('child_process');
+      if (process.platform === 'win32') {
+        exec(`netstat -ano | findstr /R ":${port}[ ]"`, (err, stdout) => {
+          if (err || !stdout) return finish();
+          const pids = new Set();
+          stdout.split('\n').forEach((line) => {
+            const cols = line.trim().split(/\s+/);
+            const pid = cols[cols.length - 1];
+            if (pid && /^\d+$/.test(pid)) pids.add(pid);
+          });
+          pids.forEach((pid) => {
+            try { exec(`taskkill /F /PID ${pid}`); } catch (_) {}
+          });
+          finish();
+        });
+      } else {
+        exec(`lsof -ti tcp:${port}`, (err, stdout) => {
+          if (err || !stdout) return finish();
+          String(stdout)
+            .split('\n')
+            .forEach((pid) => {
+              pid = String(pid).trim();
+              if (pid) {
+                try { process.kill(Number(pid), 'SIGKILL'); } catch (_) {}
+              }
+            });
+          finish();
+        });
+      }
+    } catch {
+      finish();
+    }
+  });
+}
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    // Another instance is already running – silently exit
-    process.exit(0);
+let listenRetries = 0;
+
+function startServer() {
+  server.listen(PORT, HOST, () => {
+    // Console output is hidden when running as a windowless .exe
+    console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
+  });
+}
+
+server.on('error', async (err) => {
+  if (err.code === 'EADDRINUSE' && listenRetries < 3) {
+    listenRetries += 1;
+    console.warn(`[agent] Port ${PORT} artıq məşğuldur (köhnə agent işləyir). Köhnə instans dayandırılır (cəhd ${listenRetries})...`);
+    await killProcessOnPort(PORT);
+    console.warn('[agent] 1 saniyə sonra yenidən başladılır...');
+    setTimeout(startServer, 1000);
+    return;
   }
   console.error('[server error]', err);
 });
+
+startServer();
