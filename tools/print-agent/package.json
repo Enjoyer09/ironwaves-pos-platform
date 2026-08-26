@@ -15,7 +15,8 @@
     "build:zip": "bash ./build/build-zip.sh",
     "build:all": "npm run build:exe && npm run build:zip && npm run build:installer:nsis",
     "build:publish": "cp build/ironwaves-print-agent-setup.exe ../../public/downloads/ && cp ironwaves-print-agent-windows.zip ../../public/downloads/",
-    "build:mac:all": "npm run build:mac:exe:arm64 && npm run build:mac:pkg"
+    "build:mac:all": "npm run build:mac:exe:arm64 && npm run build:mac:exe:x64 && npm run build:mac:pkg",
+    "build:mac:publish": "cp dist/ironwaves-print-agent-macos-*.pkg ../../public/downloads/"
   },
   "devDependencies": {
     "pkg": "^5.8.1"

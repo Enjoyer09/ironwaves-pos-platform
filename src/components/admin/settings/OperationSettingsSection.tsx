@@ -31,6 +31,7 @@ export interface OperationSettingsSectionProps {
   setPrintAgentModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   downloadPrintAgentWindowsZip: () => Promise<void>;
   downloadPrintAgentSetup: () => Promise<void>;
+  downloadPrintAgentMacPkg: () => Promise<void>;
 
   // Z-Report receipt settings
   zReportReceiptSettings: ZReportReceiptSettingsState;
@@ -71,6 +72,7 @@ export function OperationSettingsSection({
   setPrintAgentModalOpen,
   downloadPrintAgentWindowsZip,
   downloadPrintAgentSetup,
+  downloadPrintAgentMacPkg,
   zReportReceiptSettings,
   setZReportReceiptSettings,
   saveZReportReceiptSettings,
@@ -679,6 +681,15 @@ export function OperationSettingsSection({
               </ol>
             </div>
 
+            <div className="mb-2 rounded-xl border border-slate-800 bg-slate-950/20 p-3 text-xs text-slate-400 space-y-2">
+              <div className="font-bold text-purple-300">{tx(lang, 'Seçim C: macOS (.pkg)', 'Вариант C: macOS (.pkg)', 'Option C: macOS (.pkg)')}</div>
+              <ol className="list-decimal pl-4 space-y-1">
+                <li>{tx(lang, 'Mac-də .pkg faylını açın və quraşdırın (sistemə yerləşir, admin soruşula bilər).', 'Откройте .pkg на Mac и установите (устанавливается в систему, может запросить админа).', 'Open the .pkg on Mac and install it (installed system-wide, may ask for admin).')}</li>
+                <li>{tx(lang, 'Quraşdırma agenti avtomatik başladar (LaunchAgent, login-də auto-start).', 'Установка автоматически запустит агента (LaunchAgent, автостарт при входе).', 'Install will auto-start the agent (LaunchAgent, auto-start on login).')}</li>
+                <li>{tx(lang, 'Tələb: macOS üçün Google Chrome quraşdırılmış olmalıdır.', 'Требуется: Google Chrome для macOS должен быть установлен.', 'Requires: Google Chrome for macOS must be installed.')}</li>
+              </ol>
+            </div>
+
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -693,6 +704,13 @@ export function OperationSettingsSection({
                 className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
               >
                 {tx(lang, 'Standart .exe Yüklə', 'Скачать стандартный .exe', 'Download Standard .exe')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void downloadPrintAgentMacPkg()}
+                className="rounded-lg border border-purple-300/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-100"
+              >
+                {tx(lang, 'macOS üçün (.pkg) Yüklə', 'Скачать для macOS (.pkg)', 'Download for macOS (.pkg)')}
               </button>
               <button
                 type="button"
