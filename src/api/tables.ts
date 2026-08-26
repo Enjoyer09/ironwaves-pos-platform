@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { CartItem, PaymentMethod } from '../types/pos';
 import { create_sale, calculate_total } from './pos';
+import { get_finance_entries, saveFinanceLocal } from './finance';
 import { apiRequest, isBackendEnabled } from './client';
 import { verifyLocalCredential } from '../lib/local_auth';
 
@@ -458,7 +459,7 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
   setDB('tables', tables);
 
   if (new Decimal(depositAmount).greaterThan(0)) {
-    const finance = getDB<any>('finance');
+    const finance = get_finance_entries(table.tenant_id) as any[];
     finance.push({
       id: uuidv4(),
       tenant_id: table.tenant_id,
@@ -481,7 +482,7 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
       created_at: new Date().toISOString(),
       is_deleted: false,
     });
-    setDB('finance', finance);
+    saveFinanceLocal(table.tenant_id, finance);
   }
 
   logEvent(payload.opened_by, 'TABLE_OPENED', {
@@ -583,7 +584,7 @@ export const pay_table = (
   }
   setDB('sales', sales);
 
-  const finance = getDB<any>('finance').filter((row: any) => row.sale_id !== result.sale_id);
+  const finance = get_finance_entries(table.tenant_id).filter((row: any) => row.sale_id !== result.sale_id) as any[];
   if (extraDue.greaterThan(0)) {
     if (payment_method === 'Split' && split_cash !== null && split_card !== null) {
       finance.push({
@@ -639,7 +640,7 @@ export const pay_table = (
       is_deleted: false,
     });
   }
-  setDB('finance', finance);
+  saveFinanceLocal(table.tenant_id, finance);
 
   // Uğurlu ödənişdən sonra masanı sıfırlayırıq
   if (payScope === 'seat') {

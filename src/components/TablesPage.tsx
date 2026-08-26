@@ -18,8 +18,8 @@ import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { buildTableReceiptHtml } from '../lib/receipt_html';
 import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
-import { buildKitchenTicketHtml } from '../lib/kitchen_ticket_html';
-import { buildKitchenTicketEscPos, buildTableReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { printKitchenTicket } from '../lib/print_kitchen_ticket';
+import { buildTableReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -873,22 +873,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 cup_mode: c.cup_mode,
               })),
             };
-            const kitchenHtml = buildKitchenTicketHtml({
+            const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+            await printKitchenTicket({
               ticket: ticketData,
               lang: lang as any,
               companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
               paperWidth: printSettings.paper_width || '58mm',
-            });
-            const rawCmds = buildKitchenTicketEscPos(ticketData, {
-              paperWidth: printSettings.paper_width || '58mm',
-            });
-            const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
-            await printDirectOrFallback(kitchenHtml, {
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
-              paperWidth: printSettings.paper_width || '58mm',
               printEngine: printSettings.print_engine || 'raw_escpos',
-              rawCommands: rawCmds,
               allowBrowserFallback: false,
             });
           } catch (printErr) {
@@ -943,23 +936,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               cup_mode: row.cup_mode,
             })),
           };
-          const kitchenHtml = buildKitchenTicketHtml({
-            ticket: ticketData,
-            lang: lang as any,
-            companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
-          });
-          const rawCmds = buildKitchenTicketEscPos(ticketData, {
-            paperWidth: printSettings.paper_width || '58mm',
-          });
-          const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
-          await printDirectOrFallback(kitchenHtml, {
-            printerName: targetPrinter,
-            useQz: Boolean(printSettings.use_qz),
-            paperWidth: printSettings.paper_width || '58mm',
-            printEngine: printSettings.print_engine || 'raw_escpos',
-            rawCommands: rawCmds,
-            allowBrowserFallback: false,
-          });
+            const targetPrinter = printSettings.kitchen_printer_name || printSettings.printer_name;
+            await printKitchenTicket({
+              ticket: ticketData,
+              lang: lang as any,
+              companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+              paperWidth: printSettings.paper_width || '58mm',
+              printerName: targetPrinter,
+              useQz: Boolean(printSettings.use_qz),
+              printEngine: printSettings.print_engine || 'raw_escpos',
+              allowBrowserFallback: false,
+            });
         } catch (printErr) {
           console.warn('Kitchen ticket print warning:', printErr);
         }
