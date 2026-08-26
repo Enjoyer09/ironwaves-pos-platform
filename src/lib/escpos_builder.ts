@@ -205,6 +205,19 @@ export function buildKitchenTicketEscPos(
 
   cmd += solidLine;
 
+  // ── CHANGE BANNER (VOID / REMAKE / WASTE / COMP) ──
+  const changeBanner = (ticket as any).changeBanner;
+  if (changeBanner) {
+    cmd += ESC + 'a\x01'; // Center align
+    cmd += boldOn;
+    cmd += doubleHeightOn;
+    cmd += centerText(sanitizeEscPosText(String(changeBanner)).toUpperCase(), lineChars).slice(0, lineChars) + '\n';
+    cmd += boldOff;
+    cmd += sizeReset;
+    cmd += solidLine;
+    cmd += ESC + 'a\x00'; // Left align
+  }
+
   // ── INFO ROW ──────────────────────────────────────
   cmd += ESC + 'a\x00';  // Left align
   cmd += ESC + '!\x00';  // Normal

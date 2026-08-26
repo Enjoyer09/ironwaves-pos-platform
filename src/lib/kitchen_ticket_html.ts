@@ -24,6 +24,8 @@ export interface KitchenTicketData {
   server_name?: string;
   cup_mode?: 'paper' | 'glass';
   notes?: string;
+  /** Mətbəxə "dəyişiklik" çeki üçün görkəmli bayraq (LƏĞV / YENİDƏN DÜZƏLT və s.). */
+  changeBanner?: string;
   items: KitchenTicketItem[];
 }
 
@@ -179,7 +181,14 @@ export function buildKitchenTicketHtml({
     ${companyName ? `<div style="font-size: 9px; font-weight: 800; text-transform: uppercase;">${esc(companyName)}</div>` : ''}
     <div class="kitchen-title">*** ${tx(lang, 'MƏTBƏX SİFARİŞİ', 'ЗАКАЗ НА КУХНЮ', 'KITCHEN TICKET')} ***</div>
     <div class="kitchen-target">${esc(orderTypeLabel)}</div>
-  </div>
+   </div>
+
+   ${
+     ticket.changeBanner
+       ? `<div style="border:2px solid #000; background:#000; color:#fff; text-align:center; font-size:13px; font-weight:900; padding:4px 2px; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px;">⚠ ${esc(ticket.changeBanner)}</div>`
+       : ''
+   }
+
 
   <div style="page-break-inside: avoid; break-inside: avoid;">
     <div class="kitchen-meta-row">

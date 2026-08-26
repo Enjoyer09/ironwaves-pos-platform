@@ -1883,6 +1883,60 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 manager_password: params.manager_password,
                 remake_note: params.remake_note,
               });
+
+              // Mətbəxə "dəyişiklik" çeki: müştəri fikrini dəyişəndə (LƏĞV / YENİDƏN DÜZƏLT / XƏTA / KOMP)
+              // metbəxçi kağızda aydın xəbərdarlıq almalıdır. Yalnız bu tip əməliyyatlar üçün çap edilir;
+              // PREPARING/READY/SERVED kimi status yeniləmələri KDS ekranındadır, çek tələb etmir.
+              const changeActionName = String(params.action || '').toUpperCase();
+              const KITCHEN_CHANGE_ACTIONS = ['VOID', 'VOID_REQUESTED', 'REMAKE', 'WASTE', 'COMP', 'CANCEL'];
+              if (
+                KITCHEN_CHANGE_ACTIONS.includes(changeActionName) &&
+                printSettings.auto_print_kitchen_ticket !== false
+              ) {
+                try {
+                  const changedTable = tables.find((x) => x.id === viewTableId);
+                  const tableName = changedTable?.label || 'Sifaris';
+                  const changeBannerMap: Record<string, string> = {
+                    VOID: tx(lang, 'LƏĞV (CANCEL)', 'ОТМЕНА (CANCEL)', 'VOID / CANCEL'),
+                    VOID_REQUESTED: tx(lang, 'LƏĞV TƏLƏBİ', 'ЗАПРОС ОТМЕНЫ', 'CANCEL REQUEST'),
+                    REMAKE: tx(lang, 'YENİDƏN DÜZƏLT', 'ПЕРЕДЕЛАТЬ', 'REMAKE'),
+                    WASTE: tx(lang, 'XƏTA / İSRAF', 'БРАК / ОТХОД', 'WASTE'),
+                    COMP: tx(lang, 'KOMP (COMP)', 'КОМП (COMP)', 'COMP'),
+                    CANCEL: tx(lang, 'LƏĞV (CANCEL)', 'ОТМЕНА (CANCEL)', 'VOID / CANCEL'),
+                  };
+                  const changeBanner = changeBannerMap[changeActionName] || changeActionName;
+                  const changeReason = params.reason || params.remake_note || '';
+                  const changeItem = itemActionTarget.item || {};
+                  await printKitchenTicket({
+                    ticket: {
+                      table_label: tableName,
+                      order_type_label: tableName,
+                      server_name: user?.username || 'Staff',
+                      company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
+                      changeBanner,
+                      items: [
+                        {
+                          item_name: changeItem.item_name || changeItem.name || '-',
+                          qty: Number(changeItem.qty || changeItem.quantity || 1),
+                          notes: changeReason || undefined,
+                          seat_label: changeItem.seat_label,
+                          cup_mode: changeItem.cup_mode,
+                        },
+                      ],
+                    },
+                    lang: lang as any,
+                    companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+                    paperWidth: printSettings.paper_width || '58mm',
+                    printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
+                    useQz: Boolean(printSettings.use_qz),
+                    printEngine: printSettings.print_engine || 'raw_escpos',
+                    allowBrowserFallback: false,
+                  });
+                } catch (printErr) {
+                  console.warn('Kitchen change ticket print warning:', printErr);
+                }
+              }
+
               setItemActionTarget(null);
               setItemActionReason('');
               setItemActionReasonCode('guest_changed_mind');
