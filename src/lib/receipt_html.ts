@@ -296,7 +296,7 @@ export async function buildSaleReceiptHtml({
         ` : ''}
         <hr />
         <div class="muted" style="text-align:center">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
-        <div style="height:25mm"></div>
+        <div style="height:2mm"></div>
       </body>
     </html>
   `;
@@ -429,7 +429,7 @@ export async function buildTableReceiptHtml({
         }
         <hr />
         <div class="muted" style="text-align:center">${esc(profile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!'))}</div>
-        <div style="height:25mm"></div>
+        <div style="height:2mm"></div>
       </body>
     </html>
   `;
