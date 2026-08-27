@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.5';
+const VERSION = '0.5.6';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -503,6 +503,7 @@ async function sendCut(printerName) {
   if (!target) return;
 
   if (process.platform === 'win32') {
+    let tmpPsFile = '';
     try {
       const safePrinterName = target.replace(/'/g, "''");
       const psScript = `
@@ -570,7 +571,7 @@ Start-Sleep -Milliseconds 2500
 # 2. Wait until print queue has completed processing the receipt (max 8s)
 for ($i = 0; $i -lt 16; $i++) {
     $jobs = @(Get-PrintJob -PrinterName '${safePrinterName}' -ErrorAction SilentlyContinue)
-    if ($jobs.Count -eq 0) { break }
+    if ($null -eq $jobs -or $jobs.Count -eq 0) { break }
     Start-Sleep -Milliseconds 400
 }
 # 3. Small pause for physical print head to complete rolling the last lines
@@ -579,10 +580,22 @@ Start-Sleep -Milliseconds 600
 [RawPrinterHelper]::SendBytesToPrinter('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00))
 `.trim();
 
-      await runPowerShell(psScript);
+      tmpPsFile = path.join(os.tmpdir(), `iw-cut-${Date.now()}.ps1`);
+      fs.writeFileSync(tmpPsFile, psScript, 'utf8');
+      await runCommand('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        tmpPsFile,
+      ], 20000);
       console.log(`[cut] auto-cut raw bytes sent to printer "${target}"`);
     } catch (e) {
       console.warn('[cut] auto-cut error on Windows:', e && e.message ? e.message : e);
+    } finally {
+      if (tmpPsFile) {
+        try { fs.unlinkSync(tmpPsFile); } catch {}
+      }
     }
     return;
   }
@@ -592,6 +605,7 @@ Start-Sleep -Milliseconds 600
   try {
     const baseTempDir = path.join(os.homedir(), '.ironwaves-print');
     dir = fs.mkdtempSync(path.join(baseTempDir, 'ironwaves-cut-'));
+    const file = path.join(dir, 'cut.bin');
     const feed = Buffer.from('\n\n\n\n', 'utf8');
     const cut = Buffer.from([0x1d, 0x56, 0x42, 0x00]); // GS V 66 0
     fs.writeFileSync(file, Buffer.concat([feed, cut]));
