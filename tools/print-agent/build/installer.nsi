@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 !define APPNAME "iRonWaves Print Agent"
-!define VERSION "0.5.7"
+!define VERSION "0.5.8"
 !define PUBLISHER "iRonWaves"
 
 ; Stop any previously installed agent silently (no flashing CMD window, never kill setup itself)
