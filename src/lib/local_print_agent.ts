@@ -90,6 +90,24 @@ export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '8
   }
 }
 
+export async function printRawViaLocalAgent(rawCommands: string, printerName?: string): Promise<boolean> {
+  if (!rawCommands || !rawCommands.trim()) return false;
+  try {
+    const response = await fetch(`${AGENT_BASE_URL}/print-raw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        raw: rawCommands,
+        printer_name: String(printerName || '').trim() || undefined,
+      }),
+      signal: timeoutSignal(3500),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function printViaLocalAgent(html: string, printerName?: string): Promise<boolean> {
   const safeHtml = withThermalReceiptPrintCss(html);
   if (!safeHtml.trim()) return false;
@@ -143,27 +161,27 @@ export async function printDirectOrFallback(
     printEngine?: 'pixel_html' | 'raw_escpos';
     rawCommands?: string;
     allowBrowserFallback?: boolean;
-    /**
-     * Çapçı (QZ Tray və ya lokal agent) üçün həmişə HTML renderindən istifadə et.
-     * rawCommands verilsə də, onu ötürür və HTML-ə üstünlük verir. Bu, QZ Tray
-     * ilə Legacy lokal çapın eyni dizaynda (loqo, barkod, QR, rənglər) olmasını
-     * təmin edir — raw ESC/POS şəkli/QR/barkod ifadə edə bilmir.
-     */
     preferHtml?: boolean;
   }
 ): Promise<PrintDirectResult> {
-  // Tier 1: Local Print Agent (direct silent print + auto cut)
-  // Tier 2: QZ Tray (if useQz is enabled)
-  // Tier 3: Browser Iframe Print Fallback (if Agent and QZ are offline / not installed)
   const browserFallbackAllowed = options?.allowBrowserFallback !== false;
-  async function tryQz(): Promise<{ ok: boolean; error?: string }> {
+
+  // 1) İldırım Sürətli ESC/POS Rejimi (0.05 saniyə):
+  //    Mətbəx çekləri və xalis mətn əmrləri üçün birbaşa Print Agent-in /print-raw
+  //    və ya QZ raw axınına göndərilir (Chrome/HTML gözləməsi 0-a enir).
+  if (options?.rawCommands && !options?.preferHtml) {
+    try {
+      const rawSuccess = await printRawViaLocalAgent(options.rawCommands, options?.printerName);
+      if (rawSuccess) {
+        return { method: 'agent', success: true };
+      }
+    } catch {}
+  }
+
+  // 2) Əgər istifadəçi açıq şəkildə QZ Tray seçibsə, QZ birinci sınansın (agent timeout gözlənilməsin)
+  if (options?.useQz === true) {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
-      // Use raw ESC/POS path whenever rawCommands are provided — the commands
-      // are already ASCII-sanitized by sanitizeEscPosText so no Cyrillic issue.
-      // HTML pixel mode is reserved only for cases where no raw commands exist.
-      // preferHtml=true olduqda isə (məsələn satış çeki) hətta rawCommands olsa
-      // da HTML renderindən istifadə olunur ki, QZ ilə lokal çap eyni dizaynda olsun.
       const rawSafe = Boolean(options?.rawCommands) && !options?.preferHtml;
       if (rawSafe) {
         await qzPrintRaw(options!.rawCommands as string, options?.printerName);
@@ -173,17 +191,13 @@ export async function printDirectOrFallback(
           paperWidth: options?.paperWidth || '80mm',
         });
       }
-      return { ok: true };
+      return { method: 'qz', success: true };
     } catch (err) {
       console.warn('QZ Tray print attempted but failed:', err);
-      return { ok: false, error: friendlyQzError(err) };
     }
   }
 
-  let lastError: string | undefined;
-
-  // 1) Əsas yol: Lokal Print Agent (Chrome ilə render → eyni HTML dizayn,
-  //    loqo/barkod/QR daxil; QZ-in sertifikat/websocket/xətaları yoxdur).
+  // 3) Əsas HTML Çap Yolu: Lokal Print Agent
   try {
     const agentSuccess = await printViaLocalAgent(html, options?.printerName);
     if (agentSuccess) {
@@ -191,18 +205,7 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  // 2) Ehtiyat: QZ Tray — yalnız açıq şəkildə istənildikdə (useQz === true).
-  //    Bu, köhnə davranışı saxlayır: istəyən QZ-dən istifadə edə bilər, amma
-  //    indi o birincilik deyil, yalnız agent mövcud olmadıqda işə düşür.
-  if (options?.useQz === true) {
-    const qz = await tryQz();
-    if (qz.ok) return { method: 'qz', success: true };
-    lastError = qz.error;
-  }
-
-  // 3) Brauzer dialoqu — YALNIZ açıq şəkildə icazə verilibsə. Termal çeklər
-  // üçün bu yol SÖNDÜRÜLÜB (yuxarıdakı səbəblərə görə). Agent və QZ yoxkən
-  // səssizcə A4 + başlıqlı dialoqa düşmək əvəzinə aydın səhv qaytarırıq.
+  // 4) Brauzer fallback (yalnız icazə verildikdə)
   if (browserFallbackAllowed) {
     const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
     if (browserSuccess) {

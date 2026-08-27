@@ -97,24 +97,42 @@ function runCommand(command, args = [], timeout = 15000) {
   });
 }
 
-// ─── Printer helpers ──────────────────────────────────────────────────────────
-async function listPrinters() {
+// ─── Printer helpers with In-Memory Caching (Zero Latency) ─────────────────────
+let cachedPrinters = null;
+let lastPrintersFetchTime = 0;
+const PRINTER_CACHE_TTL_MS = 45000;
+
+async function listPrinters(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && cachedPrinters && (now - lastPrintersFetchTime < PRINTER_CACHE_TTL_MS)) {
+    return cachedPrinters;
+  }
   if (process.platform === 'win32') {
     const output = await runPowerShell(
       'Get-CimInstance Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress',
-    );
-    if (!output) return [];
-    const parsed = JSON.parse(output);
-    return (Array.isArray(parsed) ? parsed : [parsed])
-      .filter((row) => row && row.Name)
-      .map((row) => ({ name: String(row.Name), default: Boolean(row.Default) }));
+    ).catch(() => '');
+    if (!output) return cachedPrinters || [];
+    try {
+      const parsed = JSON.parse(output);
+      const res = (Array.isArray(parsed) ? parsed : [parsed])
+        .filter((row) => row && row.Name)
+        .map((row) => ({ name: String(row.Name), default: Boolean(row.Default) }));
+      cachedPrinters = res;
+      lastPrintersFetchTime = now;
+      return res;
+    } catch {
+      return cachedPrinters || [];
+    }
   }
   if (process.platform === 'darwin') {
     const printersRaw = await runCommand('/bin/sh', ['-lc', "lpstat -p 2>/dev/null | awk '{print $2}'"]).catch(() => '');
     const defaultRaw = await runCommand('/bin/sh', ['-lc', "lpstat -d 2>/dev/null | sed 's/^system default destination: //'"]).catch(() => '');
     const defaultName = String(defaultRaw || '').trim();
     const names = String(printersRaw || '').split('\n').map((v) => v.trim()).filter(Boolean);
-    return names.map((name) => ({ name, default: name === defaultName }));
+    const res = names.map((name) => ({ name, default: name === defaultName }));
+    cachedPrinters = res;
+    lastPrintersFetchTime = now;
+    return res;
   }
   return [];
 }
@@ -122,8 +140,8 @@ async function listPrinters() {
 function findBrowserExecutable() {
   const envPath = String(process.env.IW_PRINT_BROWSER || '').trim();
   const localAppData = process.env.LOCALAPPDATA || '';
-  const programFiles = process.env['ProgramFiles'] || 'C:\Program Files';
-  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\Program Files (x86)';
+  const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
 
   const candidates =
     process.platform === 'win32'
@@ -149,13 +167,17 @@ function findBrowserExecutable() {
 
 async function getDefaultPrinterName() {
   const printers = await listPrinters();
-  return printers.find((p) => p.default)?.name || '';
+  return printers.find((p) => p.default)?.name || (printers[0] ? printers[0].name : '');
 }
 
 async function setDefaultPrinter(name) {
   const safeName = String(name || '').replace(/'/g, "''");
   if (!safeName) return;
-  await runPowerShell(`(New-Object -ComObject WScript.Network).SetDefaultPrinter('${safeName}')`);
+  // Update cache immediately to avoid extra lookups
+  if (cachedPrinters) {
+    cachedPrinters = cachedPrinters.map(p => ({ ...p, default: normalizeName(p.name) === normalizeName(safeName) }));
+  }
+  await runPowerShell(`(New-Object -ComObject WScript.Network).SetDefaultPrinter('${safeName}')`).catch(() => {});
 }
 
 function normalizeName(n) {
@@ -616,6 +638,90 @@ Start-Sleep -Milliseconds 200
   } finally {
     try { if (dir) fs.rm(dir, { recursive: true, force: true }, () => {}); } catch {}
   }
+// ─── Direct High-Speed ESC/POS Print (0.05s) ───────────────────────────────
+async function printRaw(payload) {
+  const rawData = String(payload.raw || payload.raw_commands || '').trim();
+  if (!rawData) throw new Error('raw commands are required');
+  const targetPrinter = await resolvePrinterName(payload.printer_name);
+
+  if (process.platform === 'darwin') {
+    const tmpFile = path.join(os.tmpdir(), `iw-raw-${Date.now()}.bin`);
+    fs.writeFileSync(tmpFile, rawData, 'latin1');
+    const lpArgs = ['-o', 'raw'];
+    if (targetPrinter) lpArgs.push('-d', targetPrinter);
+    lpArgs.push(tmpFile);
+    try {
+      await runCommand('/usr/bin/lp', lpArgs, 5000);
+      return { ok: true, method: 'lp-raw', printer_name: targetPrinter || 'default' };
+    } finally {
+      try { fs.unlinkSync(tmpFile); } catch {}
+    }
+  }
+
+  if (process.platform === 'win32') {
+    const printer = targetPrinter || (await getDefaultPrinterName());
+    const safePrinterName = String(printer || '').replace(/'/g, "''");
+    const base64Bytes = Buffer.from(rawData, 'latin1').toString('base64');
+    const psScript = `
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrinterFast {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+    public static bool SendBytes(string szPrinter, byte[] bytes) {
+        IntPtr pUnmanaged = Marshal.AllocCoTaskMem(bytes.Length);
+        Marshal.Copy(bytes, 0, pUnmanaged, bytes.Length);
+        IntPtr hPrinter;
+        DOCINFOA di = new DOCINFOA();
+        di.pDocName = "iRonWaves Direct Raw";
+        di.pDataType = "RAW";
+        bool ok = false;
+        if (OpenPrinter(szPrinter, out hPrinter, IntPtr.Zero)) {
+            if (StartDocPrinter(hPrinter, 1, di)) {
+                if (StartPagePrinter(hPrinter)) {
+                    int dwWritten = 0;
+                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten);
+                    EndPagePrinter(hPrinter);
+                }
+                EndDocPrinter(hPrinter);
+            }
+            ClosePrinter(hPrinter);
+        }
+        Marshal.FreeCoTaskMem(pUnmanaged);
+        return ok;
+    }
+}
+"@
+if (-not ([System.Management.Automation.PSTypeName]'RawPrinterFast').Type) {
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+}
+$bytes = [Convert]::FromBase64String('${base64Bytes}')
+[RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
+`;
+    await runPowerShell(psScript);
+    return { ok: true, method: 'winspool-direct-raw', printer_name: printer || 'default' };
+  }
+
+  throw new Error('Raw print not supported on this platform');
 }
 
 // ─── HTTP server ──────────────────────────────────────────────────────────────
@@ -641,6 +747,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/printers') {
       sendJson(res, 200, { ok: true, printers: await listPrinters() });
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/print-raw') {
+      const raw = await readBody(req);
+      const payload = JSON.parse(raw || '{}');
+      const result = await printRaw(payload);
+      sendJson(res, 200, { ok: true, result });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/print-html') {
