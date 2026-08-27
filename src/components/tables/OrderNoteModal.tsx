@@ -103,23 +103,27 @@ export default function OrderNoteModal({
   }, [noteText, presets]);
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col rounded-2xl bg-slate-950/95 p-4 border border-slate-700/60 backdrop-blur-md transition-all duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-black uppercase tracking-wider text-yellow-400">✎ {tx(lang, 'Qeyd və Modifikator', 'Примечание и Модификатор', 'Note & Modifier')}</span>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+      <div
+        className="w-full sm:max-w-md flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-950 border border-slate-700/60 shadow-2xl max-h-[85vh] sm:max-h-[90vh] p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black uppercase tracking-wider text-yellow-400">✎ {tx(lang, 'Qeyd və Modifikator', 'Примечание и Модификатор', 'Note & Modifier')}</span>
+            </div>
+            <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[240px]">{itemName}</div>
           </div>
-          <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[240px]">{itemName}</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
+          >
+            ✕
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
-        >
-          ✕
-        </button>
-      </div>
 
       {/* Body scroll */}
       <div className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3.5 pr-0.5 scrollbar-none">
@@ -222,23 +226,24 @@ export default function OrderNoteModal({
         </div>
       </div>
 
-      {/* Bottom Actions */}
-      <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
-        >
-          {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 active:scale-95 hover:brightness-105 taktil-target disabled:opacity-50"
-        >
-          {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
-        </button>
+        {/* Bottom Actions */}
+        <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
+          >
+            {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 active:scale-95 hover:brightness-105 taktil-target disabled:opacity-50"
+          >
+            {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
+          </button>
+        </div>
       </div>
     </div>
   );
