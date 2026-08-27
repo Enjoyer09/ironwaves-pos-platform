@@ -17,7 +17,7 @@ import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../lib/receipt_print_css';
-import { printViaLocalAgent, printDirectOrFallback } from '../lib/local_print_agent';
+import { printViaLocalAgent, printDirectOrFallback, localPrintAgentHealth } from '../lib/local_print_agent';
 import { buildSaleReceiptHtml } from '../lib/receipt_html';
 import { printKitchenTicket } from '../lib/print_kitchen_ticket';
 import { buildSaleReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
@@ -267,6 +267,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [receiptRawCommands, setReceiptRawCommands] = useState<string | null>(null);
+  const [isPosAgentOnline, setIsPosAgentOnline] = useState<boolean | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('Nəğd');
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
   const [cashReceivedInput, setCashReceivedInput] = useState<string>('');
@@ -295,6 +296,22 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const safeReceiptHtml = useMemo(() => sanitizeHtmlForIframe(receiptHtml), [receiptHtml]);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (receiptHtml) {
+      localPrintAgentHealth()
+        .then((online) => {
+          if (active) setIsPosAgentOnline(online);
+        })
+        .catch(() => {
+          if (active) setIsPosAgentOnline(false);
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [receiptHtml]);
   const refreshInFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
   const lastMenuRefreshAtRef = useRef(0);
@@ -2576,18 +2593,35 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
         <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#101722] p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Çek Hazırdır', 'Чек готов', 'Receipt Ready')}</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={printReceiptOnly}
-                className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900"
-              >
-                {tx(lang, 'Çap Et', 'Печать', 'Print')}
-              </button>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Çek Hazırdır', 'Чек готов', 'Receipt Ready')}</h3>
+              {isPosAgentOnline === true && (
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{tx(lang, 'Print Agent aktivdir · Çek avtomatik çap edilir', 'Print Agent активен · Чек печатается автоматически', 'Print Agent active · Receipt auto-printed')}</span>
+                </div>
+              )}
+              {isPosAgentOnline === false && (
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-400">
+                  <span>⚠️</span>
+                  <span>{tx(lang, 'Print Agent bağlıdır · Əl ilə çap edə bilərsiniz', 'Print Agent не подключен · Можно распечатать вручную', 'Print Agent offline · You can print manually')}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Only show 'Çap Et' if Print Agent is NOT active (offline) */}
+              {isPosAgentOnline === false && (
+                <button
+                  onClick={printReceiptOnly}
+                  className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900 active:scale-95 transition"
+                >
+                  {tx(lang, 'Çap Et', 'Печать', 'Print')}
+                </button>
+              )}
               <button
                 onClick={() => setReceiptHtml(null)}
-                className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
+                className="rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700 active:scale-95 transition"
               >
                 {tx(lang, 'Bağla', 'Закрыть', 'Close')}
               </button>
