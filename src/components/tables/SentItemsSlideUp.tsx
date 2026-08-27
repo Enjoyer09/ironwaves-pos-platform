@@ -56,7 +56,7 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
     <div className="fixed inset-0 z-[140] flex items-end bg-black/50 transition-opacity duration-300" onClick={onClose}>
       <div
         className="flex w-full flex-col overflow-hidden rounded-t-2xl border-t border-slate-700/60 bg-slate-950 shadow-2xl animate-[slideUp_300ms_ease-out]"
-        style={{ height: 'calc(100vh - 60px)' }}
+        style={{ maxHeight: 'min(92dvh, calc(100vh - 48px))', minHeight: '40vh' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-700/60 px-5 py-4">

@@ -100,7 +100,7 @@ export async function printRawViaLocalAgent(rawCommands: string, printerName?: s
         raw: rawCommands,
         printer_name: String(printerName || '').trim() || undefined,
       }),
-      signal: timeoutSignal(3500),
+      signal: timeoutSignal(6000),
     });
     return response.ok;
   } catch {

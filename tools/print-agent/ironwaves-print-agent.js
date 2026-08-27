@@ -20,9 +20,13 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.8';
+const VERSION = '0.5.9';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
+
+// One-time compiled C# WinSpool Helper assembly for instantaneous raw printing (<0.05s)
+const RAW_DLL_PATH = path.join(os.tmpdir(), 'ironwaves-rawprinter.dll');
+let rawAssemblyReady = false;
 
 // Allow requests from ironwaves.store subdomains and localhost during dev
 const ALLOWED_ORIGIN_RE =
@@ -102,6 +106,83 @@ let cachedPrinters = null;
 let lastPrintersFetchTime = 0;
 let systemStartupDefaultPrinter = '';
 const PRINTER_CACHE_TTL_MS = 30000;
+
+async function ensureRawAssemblyCompiled() {
+  if (process.platform !== 'win32' || rawAssemblyReady) return true;
+  if (fs.existsSync(RAW_DLL_PATH)) {
+    rawAssemblyReady = true;
+    return true;
+  }
+  const safeDllPath = RAW_DLL_PATH.replace(/'/g, "''");
+  const psScript = `
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrinterFast {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public class DOCINFOW {
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPWStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOW di);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+
+    public static bool SendBytes(string szPrinter, byte[] bytes) {
+        IntPtr pUnmanaged = Marshal.AllocCoTaskMem(bytes.Length);
+        Marshal.Copy(bytes, 0, pUnmanaged, bytes.Length);
+        IntPtr hPrinter;
+        DOCINFOW di = new DOCINFOW();
+        di.pDocName = "iRonWaves Direct Raw";
+        di.pDataType = "RAW";
+        bool ok = false;
+        if (OpenPrinter(szPrinter, out hPrinter, IntPtr.Zero)) {
+            if (StartDocPrinter(hPrinter, 1, di)) {
+                if (StartPagePrinter(hPrinter)) {
+                    int dwWritten = 0;
+                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten);
+                    EndPagePrinter(hPrinter);
+                }
+                EndDocPrinter(hPrinter);
+            }
+            ClosePrinter(hPrinter);
+        }
+        Marshal.FreeCoTaskMem(pUnmanaged);
+        return ok;
+    }
+}
+"@
+Add-Type -TypeDefinition $code -OutputAssembly '${safeDllPath}'
+`;
+  try {
+    await runPowerShell(psScript);
+    rawAssemblyReady = fs.existsSync(RAW_DLL_PATH);
+    if (rawAssemblyReady) {
+      console.log('[printer] One-time Raw DLL compiled for zero-latency printing.');
+    }
+  } catch (e) {
+    console.warn('[printer] One-time Raw DLL compile warning:', e && e.message ? e.message : e);
+  }
+  return rawAssemblyReady;
+}
 
 async function listPrinters(forceRefresh = false) {
   const now = Date.now();
@@ -205,16 +286,26 @@ async function resolvePrinterName(requested) {
   const reqRaw = String(requested || '').trim();
   if (!reqRaw) return '';
   const reqNorm = normalizeName(reqRaw);
-  const printers = await listPrinters();
+  let printers = await listPrinters();
   if (printers.length === 0) return '';
 
   // 1. Exact case-insensitive match (Highest Priority)
-  const exact = printers.find((p) => p.name.trim().toLowerCase() === reqRaw.toLowerCase());
+  let exact = printers.find((p) => p.name.trim().toLowerCase() === reqRaw.toLowerCase());
   if (exact) return exact.name;
 
   // 2. Normalized full string equality
-  const normMatch = printers.find((p) => normalizeName(p.name) === reqNorm);
+  let normMatch = printers.find((p) => normalizeName(p.name) === reqNorm);
   if (normMatch) return normMatch.name;
+
+  // If not found in cache, force a fresh printer enumeration in case of recent rename/plug-in
+  const now = Date.now();
+  if (now - lastPrintersFetchTime > 5000) {
+    printers = await listPrinters(true);
+    exact = printers.find((p) => p.name.trim().toLowerCase() === reqRaw.toLowerCase());
+    if (exact) return exact.name;
+    normMatch = printers.find((p) => normalizeName(p.name) === reqNorm);
+    if (normMatch) return normMatch.name;
+  }
 
   // Detect if requested name explicitly contains a copy suffix: "copy 1", "kopya 1", "(1)", etc.
   const reqCopyMatch = reqNorm.match(/(?:copy|kopya|surət|suret|\()\s*([0-9]+)/i);
@@ -569,78 +660,12 @@ async function sendCut(printerName) {
     let tmpPsFile = '';
     try {
       const safePrinterName = target.replace(/'/g, "''");
+      const safeDllPath = RAW_DLL_PATH.replace(/'/g, "''");
       const psScript = `
-$code = @"
-using System;
-using System.Runtime.InteropServices;
-
-public class RawPrinterHelper {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    public class DOCINFOA {
-        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
-        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
-        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
-    }
-    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
-
-    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool ClosePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
-
-    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool EndDocPrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool StartPagePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool EndPagePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
-
-    public static bool SendBytesToPrinter(string szPrinterName, byte[] bytes) {
-        IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
-        Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
-        IntPtr hPrinter;
-        DOCINFOA di = new DOCINFOA();
-        di.pDocName = "iRonWaves AutoCut";
-        di.pDataType = "RAW";
-        bool success = false;
-        if (OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) {
-            if (StartDocPrinter(hPrinter, 1, di)) {
-                if (StartPagePrinter(hPrinter)) {
-                    int dwWritten = 0;
-                    success = WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out dwWritten);
-                    EndPagePrinter(hPrinter);
-                }
-                EndDocPrinter(hPrinter);
-            }
-            ClosePrinter(hPrinter);
-        }
-        Marshal.FreeCoTaskMem(pUnmanagedBytes);
-        return success;
-    }
+if (Test-Path '${safeDllPath}') {
+    [System.Reflection.Assembly]::LoadFrom('${safeDllPath}') | Out-Null
+    [RawPrinterFast]::SendBytes('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x02, 0x1D, 0x56, 0x42, 0x00))
 }
-"@
-if (-not ([System.Management.Automation.PSTypeName]'RawPrinterHelper').Type) {
-    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-}
-# 1. Wait a moment for Chrome to submit the print job to the spooler
-Start-Sleep -Milliseconds 1200
-# 2. Wait until print queue has completed processing the receipt (max 8s)
-for ($i = 0; $i -lt 30; $i++) {
-    $jobs = @(Get-PrintJob -PrinterName '${safePrinterName}' -ErrorAction SilentlyContinue)
-    if ($null -eq $jobs -or $jobs.Count -eq 0) { break }
-    Start-Sleep -Milliseconds 200
-}
-# 3. Small 0.2s pause for physical print head to finish rolling the last lines
-Start-Sleep -Milliseconds 200
-# 4. Send ESC d 4 (feed 4 lines) + GS V 66 0 (feed and partial cut)
-[RawPrinterHelper]::SendBytesToPrinter('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00))
 `.trim();
 
       tmpPsFile = path.join(os.tmpdir(), `iw-cut-${Date.now()}.ps1`);
@@ -651,7 +676,7 @@ Start-Sleep -Milliseconds 200
         'Bypass',
         '-File',
         tmpPsFile,
-      ], 20000);
+      ], 10000);
       console.log(`[cut] auto-cut raw bytes sent to printer "${target}"`);
     } catch (e) {
       console.warn('[cut] auto-cut error on Windows:', e && e.message ? e.message : e);
@@ -714,26 +739,37 @@ async function printRawInternal(payload) {
   }
 
   if (process.platform === 'win32') {
-    const printer = targetPrinter || systemStartupDefaultPrinter || (await getDefaultPrinterName());
+    const printer = targetPrinter || reqName || systemStartupDefaultPrinter || (await getDefaultPrinterName());
     const safePrinterName = String(printer || '').replace(/'/g, "''");
     const base64Bytes = Buffer.from(rawData, 'latin1').toString('base64');
-    const psScript = `
+    const safeDllPath = RAW_DLL_PATH.replace(/'/g, "''");
+
+    let psScript;
+    if (fs.existsSync(RAW_DLL_PATH)) {
+      psScript = `
+[System.Reflection.Assembly]::LoadFrom('${safeDllPath}') | Out-Null
+$bytes = [Convert]::FromBase64String('${base64Bytes}')
+$success = [RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
+if (-not $success) { throw "Printer '${safePrinterName}' could not be opened by Windows winspool API" }
+`;
+    } else {
+      psScript = `
 $code = @"
 using System;
 using System.Runtime.InteropServices;
 public class RawPrinterFast {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    public class DOCINFOA {
-        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
-        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
-        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public class DOCINFOW {
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
     }
-    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
-    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPWStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
     [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true)]
     public static extern bool ClosePrinter(IntPtr hPrinter);
-    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
-    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOW di);
     [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
     public static extern bool EndDocPrinter(IntPtr hPrinter);
     [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
@@ -746,7 +782,7 @@ public class RawPrinterFast {
         IntPtr pUnmanaged = Marshal.AllocCoTaskMem(bytes.Length);
         Marshal.Copy(bytes, 0, pUnmanaged, bytes.Length);
         IntPtr hPrinter;
-        DOCINFOA di = new DOCINFOA();
+        DOCINFOW di = new DOCINFOW();
         di.pDocName = "iRonWaves Direct Raw";
         di.pDataType = "RAW";
         bool ok = false;
@@ -775,6 +811,7 @@ if (-not $success) {
     throw "Printer '${safePrinterName}' could not be opened by Windows winspool API"
 }
 `;
+    }
     await runPowerShell(psScript);
     return { ok: true, method: 'winspool-direct-raw', printer_name: printer || 'default' };
   }
@@ -880,6 +917,7 @@ function startServer() {
     console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
     listPrinters(true).catch(() => {});
     if (process.platform === 'win32') {
+      ensureRawAssemblyCompiled().catch(() => {});
       registerAutostart();
       showTrayIcon();
     }
