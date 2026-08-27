@@ -1,10 +1,10 @@
 {
   "name": "ironwaves-print-agent",
-  "latest_version": "0.5.6",
-  "minimum_version": "0.5.6",
+  "latest_version": "0.5.7",
+  "minimum_version": "0.5.7",
   "installer_path": "/downloads/ironwaves-print-agent-setup.exe",
   "zip_path": "/downloads/ironwaves-print-agent-windows.zip",
   "mac_pkg_arm64_path": "/downloads/ironwaves-print-agent-macos-arm64.pkg",
   "mac_pkg_x64_path": "/downloads/ironwaves-print-agent-macos-x64.pkg",
-  "published_at": "2026-08-27T12:12:00Z"
+  "published_at": "2026-08-27T12:19:00Z"
 }

@@ -1,15 +1,14 @@
 !include "MUI2.nsh"
 
 !define APPNAME "iRonWaves Print Agent"
-!define VERSION "0.5.6"
+!define VERSION "0.5.7"
 !define PUBLISHER "iRonWaves"
 
-; Stop any previously installed agent (including by listening port 17777)
+; Stop any previously installed agent silently (no flashing CMD window, never kill setup itself)
 !macro KillRunningAgent
-  ExecWait '"$WINDIR\System32\cmd.exe" /C taskkill.exe /F /IM ironwaves-print-agent.exe /T'
-  ExecWait '"$WINDIR\System32\cmd.exe" /C taskkill.exe /F /IM ironwaves-print-agent-setup.exe /T'
-  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$c = (Get-NetTCPConnection -LocalPort 17777 -State Listen -ErrorAction SilentlyContinue); if ($$c) { Stop-Process -Id $$c.OwningProcess -Force -ErrorAction SilentlyContinue }"'
-  Sleep 1000
+  nsExec::Exec 'taskkill.exe /F /IM ironwaves-print-agent.exe /T'
+  nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$c = (Get-NetTCPConnection -LocalPort 17777 -State Listen -ErrorAction SilentlyContinue); if ($$c) { Stop-Process -Id $$c.OwningProcess -Force -ErrorAction SilentlyContinue }"'
+  Sleep 600
 !macroend
 
 Name "${APPNAME} ${VERSION}"
