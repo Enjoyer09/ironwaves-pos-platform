@@ -460,20 +460,37 @@ async function printHtmlInternal(payload) {
   const browser = findBrowserExecutable();
   if (!browser) throw new Error('Chrome və ya Microsoft Edge tapılmadı');
 
-  // Pre-seed Chrome user-data-dir preferences to disable headers & footers explicitly
+  // Pre-seed Chrome user-data-dir preferences to explicitly bind to target printer
+  // and suppress headers & footers in silent kiosk mode.
   try {
     const defaultProfileDir = path.join(userDir, 'Default');
     fs.mkdirSync(defaultProfileDir, { recursive: true });
+    const appStateObj = {
+      version: 2,
+      isHeaderFooterEnabled: false,
+      marginsType: 1,
+    };
+    const destPrinter = targetPrinter || previousDefault || printerName;
+    if (destPrinter) {
+      appStateObj.selectedDestinationId = destPrinter;
+      appStateObj.recentDestinations = [
+        {
+          id: destPrinter,
+          origin: 'local',
+          account: '',
+          capabilities: null,
+          displayName: destPrinter,
+          extensionId: '',
+          extensionName: '',
+        },
+      ];
+    }
     const prefs = {
       printing: {
         print_preview_sticky_settings: {
-          appState: JSON.stringify({
-            version: 2,
-            isHeaderFooterEnabled: false,
-            marginsType: 1
-          })
-        }
-      }
+          appState: JSON.stringify(appStateObj),
+        },
+      },
     };
     fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify(prefs), 'utf8');
   } catch (e) {
@@ -760,7 +777,10 @@ if (-not ([System.Management.Automation.PSTypeName]'RawPrinterFast').Type) {
     Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
 }
 $bytes = [Convert]::FromBase64String('${base64Bytes}')
-[RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
+$success = [RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
+if (-not $success) {
+    throw "Printer '${safePrinterName}' could not be opened by Windows winspool API"
+}
 `;
     await runPowerShell(psScript);
     return { ok: true, method: 'winspool-direct-raw', printer_name: printer || 'default' };
