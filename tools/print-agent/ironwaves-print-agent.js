@@ -67,12 +67,16 @@ function readBody(req) {
   });
 }
 
-function runPowerShell(script) {
+function runPowerShell(script, timeout = 15000) {
   return new Promise((resolve, reject) => {
+    // UTF-16LE Base64 encoding for PowerShell -EncodedCommand parameter.
+    // Completely immune to newline/quote escaping bugs in Windows CLI.
+    const utf16le = Buffer.from(String(script || ''), 'utf16le');
+    const b64 = utf16le.toString('base64');
     execFile(
       'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
-      { windowsHide: true, timeout: 15000 },
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', b64],
+      { windowsHide: true, timeout },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error(String(stderr || error.message || error)));
