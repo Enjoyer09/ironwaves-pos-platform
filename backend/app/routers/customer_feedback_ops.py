@@ -441,64 +441,65 @@ def submit_feedback(
     tenant_id = str(payload.tenant_id or "").strip()
     receipt_id = str(payload.receipt_id or "").strip()
     receipt_token = str(payload.receipt_token or "").strip()
-    if not tenant_id or not receipt_id or not receipt_token:
-        raise HTTPException(status_code=400, detail="tenant_id, receipt_id və receipt_token məcburidir")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="tenant_id məcburidir")
 
-    sale = (
-        db.query(Sale)
-        .filter(Sale.tenant_id == tenant_id, (Sale.id == receipt_id) | (Sale.receipt_code == receipt_id))
-        .first()
-    )
-    if not sale:
-        raise HTTPException(status_code=404, detail="Çek tapılmadı")
-    if str(sale.receipt_token or "") != receipt_token:
-        raise HTTPException(status_code=400, detail="Çek token etibarsızdır")
-    if payload.sale_id and str(payload.sale_id).strip() and str(payload.sale_id).strip() != str(sale.id):
-        raise HTTPException(status_code=400, detail="sale_id çek ilə uyğun deyil")
-    canonical_receipt_id = str(sale.id)
-
-    existing_coupon = (
-        db.query(FeedbackCoupon)
-        .filter(
-            FeedbackCoupon.tenant_id == tenant_id,
-            FeedbackCoupon.receipt_id == canonical_receipt_id,
-            FeedbackCoupon.receipt_token == receipt_token,
+    sale = None
+    canonical_receipt_id = None
+    if receipt_id and receipt_token:
+        sale = (
+            db.query(Sale)
+            .filter(Sale.tenant_id == tenant_id, (Sale.id == receipt_id) | (Sale.receipt_code == receipt_id))
+            .first()
         )
-        .first()
-    )
-    if existing_coupon:
-        return {"success": True, "already_submitted": True, "coupon_code": existing_coupon.code, "coupon_percent": int(existing_coupon.percent or 5)}
+        if sale and str(sale.receipt_token or "") == receipt_token:
+            canonical_receipt_id = str(sale.id)
+
+    if canonical_receipt_id and receipt_token:
+        existing_coupon = (
+            db.query(FeedbackCoupon)
+            .filter(
+                FeedbackCoupon.tenant_id == tenant_id,
+                FeedbackCoupon.receipt_id == canonical_receipt_id,
+                FeedbackCoupon.receipt_token == receipt_token,
+            )
+            .first()
+        )
+        if existing_coupon:
+            return {"success": True, "already_submitted": True, "coupon_code": existing_coupon.code, "coupon_percent": int(existing_coupon.percent or 5)}
 
     now = _utcnow()
     feedback_entry = FeedbackEntry(
         tenant_id=tenant_id,
-        sale_id=sale.id,
+        sale_id=sale.id if sale else None,
         receipt_id=canonical_receipt_id,
-        receipt_token=receipt_token,
+        receipt_token=receipt_token if canonical_receipt_id else None,
         source=str(payload.source or "receipt").strip() or "receipt",
         score=max(1, min(5, int(payload.score or 0))),
         comment=str(payload.comment or "").strip()[:800] or None,
-        contact=str(payload.contact or "").strip()[:120] or None,
-        staff_username=str(sale.cashier or "").strip() or None,
+        contact=str(payload.contact or "").strip()[:160] or None,
         created_at=now,
     )
     db.add(feedback_entry)
     db.flush()
 
-    promo_enabled = _feedback_promo_enabled(db, tenant_id)
+    issued_coupon_code = None
+    issued_coupon_percent = 5
     coupon = None
-    if promo_enabled:
-        coupon_percent = _feedback_coupon_percent(db, tenant_id)
+    if canonical_receipt_id and receipt_token and _is_feedback_promo_enabled(db, tenant_id):
+        settings_percent = _get_feedback_coupon_percent(db, tenant_id)
+        issued_coupon_percent = settings_percent
+        issued_coupon_code = f"FB-{secrets.token_hex(4).upper()}"
         coupon = FeedbackCoupon(
             tenant_id=tenant_id,
-            feedback_entry_id=feedback_entry.id,
-            sale_id=sale.id,
+            code=issued_coupon_code,
+            percent=issued_coupon_percent,
+            status="PENDING",
+            source=str(payload.source or "feedback").strip() or "feedback",
+            sale_id=sale.id if sale else None,
             receipt_id=canonical_receipt_id,
             receipt_token=receipt_token,
-            code=_generate_feedback_coupon_code(db),
-            percent=coupon_percent,
-            status="PENDING",
-            source="feedback",
+            feedback_created_at=now,
             issued_at=now,
         )
         db.add(coupon)
@@ -510,12 +511,11 @@ def submit_feedback(
             details=json.dumps(
                 {
                     "feedback_entry_id": feedback_entry.id,
-                    "sale_id": sale.id,
+                    "sale_id": sale.id if sale else None,
                     "receipt_id": canonical_receipt_id,
                     "receipt_ref": receipt_id,
                     "score": int(feedback_entry.score or 0),
                     "coupon_code": coupon.code if coupon else None,
-                    "promo_enabled": promo_enabled,
                 },
                 ensure_ascii=False,
             ),

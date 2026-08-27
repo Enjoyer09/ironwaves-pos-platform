@@ -286,15 +286,13 @@ async function assertValidReceiptLink(payload: FeedbackSubmission) {
   const tenantId = String(payload.tenant_id || 'tenant_default').trim();
   const receiptId = String(payload.receipt_id || '').trim();
   const receiptToken = String(payload.receipt_token || '').trim();
-  if (!receiptId || !receiptToken) {
-    throw new Error('Feedback kuponu yalnız keçərli çek linki (r+t) ilə yaradıla bilər');
+  if (!receiptId && !receiptToken) {
+    return;
   }
 
   if (isBackendEnabled()) {
     // Backend submit endpoint already validates receipt_id + receipt_token
-    // against the sale table. Avoid an extra network round-trip here, because
-    // public receipt may be temporarily unreachable while feedback submit still
-    // can succeed.
+    // against the sale table.
     return;
   }
 
@@ -305,9 +303,9 @@ async function assertValidReceiptLink(payload: FeedbackSubmission) {
       (String(row?.id || '') === receiptId || String(row?.receipt_code || '').toLowerCase() === receiptId.toLowerCase()),
   );
   if (!found) {
-    throw new Error('Çek tapılmadı');
+    return;
   }
-  if (String(found?.receipt_token || '') !== receiptToken) {
+  if (receiptToken && String(found?.receipt_token || '') !== receiptToken) {
     throw new Error('Çek token etibarsızdır');
   }
 }
