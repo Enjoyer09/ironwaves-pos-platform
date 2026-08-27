@@ -63,16 +63,10 @@ export async function printKitchenTicket(
     allowBrowserFallback = true,
   } = opts;
 
-  // Dəyişiklik çeki (VOID/REMAKE/WASTE/COMP) ilə ilkin göndərmə çeki eyni masa +
-  // eyni məhsul siyahısına malik ola bilər (məsələn, tək məhsul göndərilib, sonra
-  // ləğv edilib). changeBanner-ı açara daxil etməsək, haş eyni olur və dəyişiklik
-  // çeki səssizcə dedupe olub heç vaxt çap olmur.
-  const bannerKey = ticket.changeBanner ? `:chg:${ticket.changeBanner}` : '';
-  const dedupeKey =
-    opts.dedupe === false
-      ? ''
-      : opts.dedupeKey ||
-        `kitchen:${printerName || 'default'}:${ticket.table_label || ticket.table_name || ticket.order_id || 'order'}:${hashTicket(ticket)}${bannerKey}`;
+  // Dedupe yalnız və yalnız çağırıcı açıq şəkildə `opts.dedupe === true` VƏ `opts.dedupeKey`
+  // təyin etdikdə (məsələn KDS avto-polling fon dövründə) işə düşür.
+  // Ofisiantın və ya POS-un birbaşa sifariş göndərməsi həmişə 100% çap olunmalıdır (heç vaxt bloklanmır).
+  const dedupeKey = opts.dedupe === true && opts.dedupeKey ? opts.dedupeKey : '';
 
   if (dedupeKey && wasTicketPrinted(dedupeKey)) {
     return { success: true, method: 'deduped', deduped: true };
