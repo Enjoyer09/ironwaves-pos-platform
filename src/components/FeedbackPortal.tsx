@@ -149,7 +149,6 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const requireComment = score > 0 && score <= requiredCommentThreshold;
   const hasValidReceiptLink = Boolean(String(receiptId || '').trim() && String(receiptToken || '').trim());
   const canSubmit =
-    hasValidReceiptLink &&
     score >= 1 &&
     (!requireComment || comment.trim().length >= 3) &&
     !sending;
@@ -329,25 +328,6 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
             {lang === 'az' ? 'Feedback səhifəsi üçün tenant_id lazımdır.' :
              lang === 'ru' ? 'Для страницы отзывов необходим tenant_id.' :
              'Feedback page requires tenant_id.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasValidReceiptLink) {
-    return (
-      <div className="min-h-screen bg-slate-950 p-4">
-        <div className="mx-auto w-full max-w-md rounded-[28px] border border-white/20 bg-white/20 p-8 text-center text-slate-900 backdrop-blur-2xl">
-          <h1 className="text-xl font-bold">
-            {lang === 'az' ? 'Feedback linki etibarsızdır' :
-             lang === 'ru' ? 'Ссылка на отзыв недействительна' :
-             'Feedback link is invalid'}
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {lang === 'az' ? 'Bu səhifə yalnız çek üzərindəki QR linki (r+t) ilə açılmalıdır.' :
-             lang === 'ru' ? 'Эта страница должна открываться только по QR-ссылке (r+t) на чеке.' :
-             'This page must only be opened via the QR link (r+t) on the receipt.'}
           </p>
         </div>
       </div>

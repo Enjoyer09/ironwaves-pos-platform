@@ -1174,6 +1174,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           u.pathname = '/feedback';
           u.searchParams.set('tenant_id', tenant_id);
           if (result?.sale_id) u.searchParams.set('sale_id', String(result.sale_id));
+          const receiptRef = String(result?.receipt_code || result?.sale_id || '').trim();
+          if (receiptRef) {
+            u.searchParams.set('receipt_id', receiptRef);
+            u.searchParams.set('r', receiptRef);
+          }
+          if (result?.receipt_token) {
+            u.searchParams.set('t', String(result.receipt_token));
+            u.searchParams.set('token', String(result.receipt_token));
+          }
           u.searchParams.set('table', table.label);
           feedbackUrl = u.toString();
         } catch {
