@@ -1173,8 +1173,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }
       }
 
+      const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
       const activeCheck = activeDetail?.check;
-      const checkId = String(result?.sale_id || activeCheck?.id || activeCheck?.check_no || '').trim();
+      const checkId = String(result?.sale_id || result?.id || activeCheck?.id || activeCheck?.check_no || '').trim();
 
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
