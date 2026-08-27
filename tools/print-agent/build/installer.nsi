@@ -1,15 +1,13 @@
 !include "MUI2.nsh"
 
 !define APPNAME "iRonWaves Print Agent"
-!define VERSION "0.5.4"
+!define VERSION "0.5.5"
 !define PUBLISHER "iRonWaves"
 
-; Stop any previously installed agent so its executable isn't locked (Error opening
-; file for writing) while the installer tries to overwrite it. /T also kills the
-; Chrome child the agent spawns for printing.
+; Stop any previously installed agent so its executable isn't locked
 !macro KillRunningAgent
-  ExecWait '"$WINDIR\System32\cmd.exe" /C taskkill /IM ironwaves-print-agent.exe /F /T'
-  ExecWait 'powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.CommandLine -like $\"*ironwaves-print-agent*$\" -or $$_.ExecutablePath -like $\"*ironwaves-print-agent*$\" } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"'
+  ExecWait 'taskkill.exe /F /IM ironwaves-print-agent.exe /T'
+  ExecWait 'powershell.exe -NoProfile -Command "Stop-Process -Name ironwaves-print-agent -Force -ErrorAction SilentlyContinue"'
   Sleep 800
 !macroend
 
@@ -34,7 +32,7 @@ FunctionEnd
 
 Function RunSetup
   ; Launch completely hidden in background via wscript + launch-silent.vbs
-  ExecShell "" '"$WINDIR\System32\wscript.exe"' '"$INSTDIR\launch-silent.vbs"'
+  ExecShell "open" "wscript.exe" '"$INSTDIR\launch-silent.vbs"'
 FunctionEnd
 
 Section "Install"
@@ -48,11 +46,11 @@ Section "Install"
   File "${SETUP_STAGE}\README.txt"
 
   ; Create silent auto-start shortcut in Windows Startup folder (no CMD window)
-  CreateShortcut "$SMSTARTUP\iRonWavesPrintAgent.lnk" "$WINDIR\System32\wscript.exe" '"$INSTDIR\launch-silent.vbs"' "$INSTDIR\ironwaves-print-agent.exe" 0
+  CreateShortcut "$SMSTARTUP\iRonWavesPrintAgent.lnk" "wscript.exe" '"$INSTDIR\launch-silent.vbs"' "$INSTDIR\ironwaves-print-agent.exe" 0
 
   ; Create Start Menu shortcuts
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$WINDIR\System32\wscript.exe" '"$INSTDIR\launch-silent.vbs"' "$INSTDIR\ironwaves-print-agent.exe" 0
+  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "wscript.exe" '"$INSTDIR\launch-silent.vbs"' "$INSTDIR\ironwaves-print-agent.exe" 0
   CreateShortcut "$SMPROGRAMS\${APPNAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -62,6 +60,9 @@ Section "Install"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher" "${PUBLISHER}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "InstallLocation" "$INSTDIR"
+
+  ; Start agent immediately upon install
+  ExecShell "open" "wscript.exe" '"$INSTDIR\launch-silent.vbs"'
 SectionEnd
 
 Section "Uninstall"
