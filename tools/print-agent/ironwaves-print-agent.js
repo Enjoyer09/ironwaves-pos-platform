@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.3';
+const VERSION = '0.5.4';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -414,7 +414,7 @@ async function printHtml(payload) {
   log(`chrome kiosk spawned pid=${chromePid}`);
 
   // Restore previous default printer after Chrome has time to spool the job
-  const RESTORE_DELAY_MS = 5500;
+  const RESTORE_DELAY_MS = 11000;
   setTimeout(() => {
     if (previousDefault && previousDefault !== printerName) {
       setDefaultPrinter(previousDefault).catch(() => {});
@@ -423,7 +423,7 @@ async function printHtml(payload) {
   }, RESTORE_DELAY_MS);
 
   // Kill the Chrome instance we spawned after it has had time to send the print job.
-  const KILL_DELAY_MS = 12000;
+  const KILL_DELAY_MS = 14000;
   setTimeout(() => {
     if (chromePid) {
       try {
@@ -435,7 +435,7 @@ async function printHtml(payload) {
   }, KILL_DELAY_MS);
 
   // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
-  const CUT_DELAY_MS = 3200;
+  const CUT_DELAY_MS = 4000;
   setTimeout(() => {
     sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
   }, CUT_DELAY_MS);
@@ -559,7 +559,17 @@ public class RawPrinterHelper {
 if (-not ([System.Management.Automation.PSTypeName]'RawPrinterHelper').Type) {
     Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
 }
-# Send ESC d 4 (feed 4 lines) + GS V 66 0 (feed and partial cut)
+# 1. Wait a moment for Chrome to submit the print job to the spooler
+Start-Sleep -Milliseconds 2500
+# 2. Wait until print queue has completed processing the receipt (max 8s)
+for ($i = 0; $i -lt 16; $i++) {
+    $jobs = @(Get-PrintJob -PrinterName '${safePrinterName}' -ErrorAction SilentlyContinue)
+    if ($jobs.Count -eq 0) { break }
+    Start-Sleep -Milliseconds 400
+}
+# 3. Small pause for physical print head to complete rolling the last lines
+Start-Sleep -Milliseconds 600
+# 4. Send ESC d 4 (feed 4 lines) + GS V 66 0 (feed and partial cut)
 [RawPrinterHelper]::SendBytesToPrinter('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00))
 `.trim();
 
