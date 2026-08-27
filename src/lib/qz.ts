@@ -306,21 +306,6 @@ export const qzPrintHtml = async (
       },
     ];
     await qz.print(config, data);
-
-    // Auto-cut: Feed 4 lines + GS V 66 0
-    try {
-      const cutConfig = qz.configs.create(printer);
-      await qz.print(cutConfig, [
-        {
-          type: 'raw',
-          format: 'command',
-          flavor: 'base64',
-          data: ESC_POS_CUT_BASE64,
-        },
-      ]);
-    } catch (cutErr) {
-      console.warn('QZ auto-cut command skipped:', cutErr);
-    }
     return;
   } catch (rasterErr) {
     // Ehtiyat: şəkil yolu alınmadısa (html2canvas dəstəklənməyən CSS və s.),
