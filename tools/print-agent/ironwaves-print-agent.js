@@ -380,10 +380,9 @@ async function printHtml(payload) {
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(textFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
+      // Auto-cut only for non-browser raw text mode
+      await sendCut(targetPrinter || printerName).catch(() => {});
     }
-
-    // Auto-cut after the receipt has been spooled
-    await sendCut(targetPrinter || printerName).catch(() => {});
 
     // Clean up temp dir
     fs.rm(dir, { recursive: true, force: true }, () => {});
@@ -438,11 +437,15 @@ async function printHtml(payload) {
     fs.rm(dir, { recursive: true, force: true }, () => {});
   }, KILL_DELAY_MS);
 
-  // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
-  const CUT_DELAY_MS = 1200;
-  setTimeout(() => {
-    sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
-  }, CUT_DELAY_MS);
+  // Note: Thermal printer drivers (Epson/Xprinter/POS-80) automatically cut at the end
+  // of the print document. Running sendCut in addition causes a second cut 1cm later.
+  // We only run sendCut if explicitly requested via payload.forceRawCut.
+  if (payload && payload.forceRawCut === true) {
+    const CUT_DELAY_MS = 1200;
+    setTimeout(() => {
+      sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
+    }, CUT_DELAY_MS);
+  }
 
   log('response sent (agent queued the job; paper output depends on Chrome + spooler)');
   return {
