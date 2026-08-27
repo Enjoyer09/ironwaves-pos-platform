@@ -853,14 +853,15 @@ export default function ZReportPanel() {
         printerName: printSettings.printer_name,
         useQz: printSettings.use_qz,
         paperWidth: printSettings.paper_width,
-        // Analitika (Z) çeki də termaldır — brauzer dialoquna düşməsin.
-        allowBrowserFallback: false,
+        allowBrowserFallback: true,
       });
       if (res.success) {
         if (res.method === 'agent') {
           notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
         } else if (res.method === 'qz') {
           notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
+        } else if (res.method === 'browser') {
+          notify('success', tx(lang, 'Brauzer çap dialoqu açıldı 🖨️', 'Открыт диалог печати браузера 🖨️', 'Opened browser print dialog 🖨️'));
         } else {
           notify('success', tx(lang, 'Çap pəncərəsi açıldı', 'Окно печати открыто', 'Print window opened'));
         }

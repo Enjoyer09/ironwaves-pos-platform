@@ -950,18 +950,20 @@ export default function SettingsPanel() {
         paperWidth: printSettings.paper_width,
         printEngine: printSettings.print_engine,
         rawCommands: isRaw ? rawCmds : undefined,
-        allowBrowserFallback: false,
+        allowBrowserFallback: true,
       });
 
       if (res.success) {
         notify(
           'success',
-          tx(
-            lang,
-            `${type === 'kitchen' ? 'Mətbəx' : 'Kassa'} test çeki uğurla printerə göndərildi!`,
-            `Тестовый чек ${type === 'kitchen' ? 'кухни' : 'кассы'} успешно отправлен!`,
-            `${type === 'kitchen' ? 'Kitchen' : 'Cashier'} test receipt sent to printer!`
-          )
+          res.method === 'browser'
+            ? tx(lang, 'Brauzer test çap dialoqu açıldı 🖨️', 'Открыт тестовый диалог печати браузера 🖨️', 'Browser test print dialog opened 🖨️')
+            : tx(
+                lang,
+                `${type === 'kitchen' ? 'Mətbəx' : 'Kassa'} test çeki uğurla printerə göndərildi!`,
+                `Тестовый чек ${type === 'kitchen' ? 'кухни' : 'кассы'} успешно отправлен!`,
+                `${type === 'kitchen' ? 'Kitchen' : 'Cashier'} test receipt sent to printer!`
+              )
         );
       } else {
         notify(
