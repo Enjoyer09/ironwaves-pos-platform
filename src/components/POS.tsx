@@ -1439,8 +1439,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             paperWidth: printSettings.paper_width || '80mm',
             printEngine: 'raw_escpos',
             rawCommands: rawCmds,
-            // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
-            preferHtml: true,
             allowBrowserFallback: true,
           }).then((res) => {
             if (res.success) {
@@ -1826,8 +1824,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: receiptRawCommands || undefined,
-      // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
-      preferHtml: true,
       allowBrowserFallback: true,
     });
     if (res.success) {
@@ -1851,8 +1847,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: receiptRawCommands || undefined,
-      // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
-      preferHtml: true,
       // Termal çeklər brauzer dialoquna (A4 + başlıq + kəsmə yox) düşməsin.
       allowBrowserFallback: false,
     });

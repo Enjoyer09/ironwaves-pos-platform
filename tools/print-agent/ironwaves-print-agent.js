@@ -677,6 +677,9 @@ Start-Sleep -Milliseconds 200
     console.warn('[print] auto-cut skipped:', e && e.message ? e.message : e);
   } finally {
     try { if (dir) fs.rm(dir, { recursive: true, force: true }, () => {}); } catch {}
+  }
+}
+
 // ─── Direct High-Speed ESC/POS Print (0.05s) ───────────────────────────────
 async function printRaw(payload) {
   return queuePrintTask(async () => {
