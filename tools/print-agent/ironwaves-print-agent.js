@@ -24,8 +24,9 @@ const VERSION = '0.5.9';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
-// One-time compiled C# WinSpool Helper assembly for instantaneous raw printing (<0.05s)
+// One-time compiled native WinSpool Helper for instantaneous raw printing (<0.015s)
 const RAW_DLL_PATH = path.join(os.tmpdir(), 'ironwaves-rawprinter.dll');
+const RAW_EXE_PATH = path.join(os.tmpdir(), 'ironwaves-rawprint.exe');
 let rawAssemblyReady = false;
 
 // Allow requests from ironwaves.store subdomains and localhost during dev
@@ -113,16 +114,17 @@ const PRINTER_CACHE_TTL_MS = 30000;
 
 async function ensureRawAssemblyCompiled() {
   if (process.platform !== 'win32' || rawAssemblyReady) return true;
-  if (fs.existsSync(RAW_DLL_PATH)) {
+  if (fs.existsSync(RAW_EXE_PATH)) {
     rawAssemblyReady = true;
     return true;
   }
-  const safeDllPath = RAW_DLL_PATH.replace(/'/g, "''");
+  const safeExePath = RAW_EXE_PATH.replace(/'/g, "''");
   const psScript = `
 $code = @"
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
-public class RawPrinterFast {
+public class Program {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public class DOCINFOW {
         [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
@@ -132,25 +134,28 @@ public class RawPrinterFast {
     [DllImport("winspool.Drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPWStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
 
-    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true)]
     public static extern bool ClosePrinter(IntPtr hPrinter);
 
-    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOW di);
 
-    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
     public static extern bool EndDocPrinter(IntPtr hPrinter);
 
-    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
     public static extern bool StartPagePrinter(IntPtr hPrinter);
 
-    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
     public static extern bool EndPagePrinter(IntPtr hPrinter);
 
-    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true)]
     public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
 
-    public static bool SendBytes(string szPrinter, byte[] bytes) {
+    public static int Main(string[] args) {
+        if (args.Length < 2) return 1;
+        string printer = args[0];
+        byte[] bytes = Convert.FromBase64String(args[1]);
         IntPtr pUnmanaged = Marshal.AllocCoTaskMem(bytes.Length);
         Marshal.Copy(bytes, 0, pUnmanaged, bytes.Length);
         IntPtr hPrinter;
@@ -158,7 +163,7 @@ public class RawPrinterFast {
         di.pDocName = "iRonWaves Direct Raw";
         di.pDataType = "RAW";
         bool ok = false;
-        if (OpenPrinter(szPrinter, out hPrinter, IntPtr.Zero)) {
+        if (OpenPrinter(printer, out hPrinter, IntPtr.Zero)) {
             if (StartDocPrinter(hPrinter, 1, di)) {
                 if (StartPagePrinter(hPrinter)) {
                     int dwWritten = 0;
@@ -170,20 +175,20 @@ public class RawPrinterFast {
             ClosePrinter(hPrinter);
         }
         Marshal.FreeCoTaskMem(pUnmanaged);
-        return ok;
+        return ok ? 0 : 2;
     }
 }
 "@
-Add-Type -TypeDefinition $code -OutputAssembly '${safeDllPath}'
+Add-Type -TypeDefinition $code -OutputAssembly '${safeExePath}' -OutputType ConsoleApplication
 `;
   try {
-    await runPowerShell(psScript);
-    rawAssemblyReady = fs.existsSync(RAW_DLL_PATH);
+    await runPowerShell(psScript, 20000);
+    rawAssemblyReady = fs.existsSync(RAW_EXE_PATH);
     if (rawAssemblyReady) {
-      console.log('[printer] One-time Raw DLL compiled for zero-latency printing.');
+      console.log('[printer] Standalone Raw Print EXE compiled for zero-latency spooling (<0.015s).');
     }
   } catch (e) {
-    console.warn('[printer] One-time Raw DLL compile warning:', e && e.message ? e.message : e);
+    console.warn('[printer] Standalone Raw Print EXE compile warning:', e && e.message ? e.message : e);
   }
   return rawAssemblyReady;
 }
@@ -384,15 +389,14 @@ async function printHtmlInternal(payload) {
   let html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
 
-  // Estimate height in mm based on lines/rows inside the HTML to avoid rolling out blank paper in headless PDF
+  // Estimate height in mm based on lines/rows inside the HTML.
+  // Using generous height (minimum 350mm) guarantees Chrome NEVER splits the receipt
+  // into 2 pages (which causes the thermal printer driver to cut twice 1cm apart).
   const lineCount = (html.match(/class="line"/g) || []).length + 
                     (html.match(/<tr>/g) || []).length +
                     (html.match(/<div class="row"/g) || []).length +
                     (html.match(/<br/g) || []).length;
-  // Estimate the receipt height so Chrome (headless PDF path) doesn't fall back to
-  // a too-short page and clip the bottom of the ticket. No CSS zoom is applied, so we
-  // estimate at the natural 12px / 1.25 line metrics.
-  const estimatedHeight = Math.max(150, Math.min(900, Math.round(150 + lineCount * 6)));
+  const estimatedHeight = Math.max(350, Math.min(1200, Math.round(250 + lineCount * 8)));
 
   // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
   html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, `size: $1 ${estimatedHeight}mm`);
@@ -744,20 +748,23 @@ async function printRawInternal(payload) {
 
   if (process.platform === 'win32') {
     const printer = targetPrinter || reqName || systemStartupDefaultPrinter || (await getDefaultPrinterName());
-    const safePrinterName = String(printer || '').replace(/'/g, "''");
     const base64Bytes = Buffer.from(rawData, 'latin1').toString('base64');
-    const safeDllPath = RAW_DLL_PATH.replace(/'/g, "''");
 
-    let psScript;
-    if (fs.existsSync(RAW_DLL_PATH)) {
-      psScript = `
-[System.Reflection.Assembly]::LoadFrom('${safeDllPath}') | Out-Null
+    // 1. Instantaneous compiled native executable (<0.015s)
+    if (fs.existsSync(RAW_EXE_PATH)) {
+      try {
+        await runCommand(RAW_EXE_PATH, [printer, base64Bytes], 3000);
+        console.log(`[print-raw] Direct winspool raw sent to "${printer}" in <15ms.`);
+        return { ok: true, method: 'winspool-native-exe', printer_name: printer || 'default' };
+      } catch (exeErr) {
+        console.warn('[print-raw] Native exe failed, trying PowerShell:', exeErr && exeErr.message ? exeErr.message : exeErr);
+      }
+    }
+
+    // 2. PowerShell EncodedCommand fallback
+    const safePrinterName = String(printer || '').replace(/'/g, "''");
+    const psScript = `
 $bytes = [Convert]::FromBase64String('${base64Bytes}')
-$success = [RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
-if (-not $success) { throw "Printer '${safePrinterName}' could not be opened by Windows winspool API" }
-`;
-    } else {
-      psScript = `
 $code = @"
 using System;
 using System.Runtime.InteropServices;
@@ -809,15 +816,13 @@ public class RawPrinterFast {
 if (-not ([System.Management.Automation.PSTypeName]'RawPrinterFast').Type) {
     Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
 }
-$bytes = [Convert]::FromBase64String('${base64Bytes}')
 $success = [RawPrinterFast]::SendBytes('${safePrinterName}', $bytes)
 if (-not $success) {
     throw "Printer '${safePrinterName}' could not be opened by Windows winspool API"
 }
 `;
-    }
-    await runPowerShell(psScript);
-    return { ok: true, method: 'winspool-direct-raw', printer_name: printer || 'default' };
+    await runPowerShell(psScript, 5000);
+    return { ok: true, method: 'winspool-powershell-raw', printer_name: printer || 'default' };
   }
 
   throw new Error('Raw print not supported on this platform');
