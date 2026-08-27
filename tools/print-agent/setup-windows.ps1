@@ -52,36 +52,42 @@ if (Test-Path $exeFile) {
     $runArgs = "`"$($jsFile.Replace('\', '\\'))`""
 }
 
+$vbsFile = Join-Path $scriptPath "launch-silent.vbs"
+
 # 2. Get the Windows Startup folder path
 $startupFolder = [System.IO.Path]::Combine([Environment]::GetFolderPath("Startup"))
 $shortcutPath = Join-Path $startupFolder "iRonWavesPrintAgent.lnk"
 
-# 3. Create a clean startup shortcut that launches the agent silently in the active user session!
+# 3. Create a clean startup shortcut that launches the agent silently with NO CMD window!
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-if ($runArgs -eq "") {
-    $Shortcut.TargetPath = $runTarget
-    $Shortcut.Arguments = ""
+if (Test-Path $vbsFile) {
+    $Shortcut.TargetPath = "wscript.exe"
+    $Shortcut.Arguments = "`"$vbsFile`""
+    $Shortcut.WorkingDirectory = $scriptPath
+    if (Test-Path $exeFile) { $Shortcut.IconLocation = "$exeFile,0" }
+} elseif ($runArgs -eq "") {
+    $Shortcut.TargetPath = "powershell.exe"
+    $Shortcut.Arguments = "-NoProfile -WindowStyle Hidden -Command `"Start-Process '$runTarget' -WindowStyle Hidden`""
+    $Shortcut.WorkingDirectory = $scriptPath
 } else {
     $Shortcut.TargetPath = "powershell.exe"
     $Shortcut.Arguments = "-NoProfile -WindowStyle Hidden -Command `"Start-Process '$runTarget' -ArgumentList $runArgs -WindowStyle Hidden`""
+    $Shortcut.WorkingDirectory = $scriptPath
 }
-$Shortcut.WorkingDirectory = $scriptPath
 $Shortcut.Description = "iRonWaves Print Agent"
 $Shortcut.Save()
 
 # 4. Stop any existing running print agents (port cleanup)
-if ($runTarget -like "*.exe" -and $runTarget -notlike "*\node.exe") {
-    Stop-Process -Name "ironwaves-print-agent" -ErrorAction SilentlyContinue
-} else {
-    Stop-Process -Name "node" -ErrorAction SilentlyContinue
-}
+Stop-Process -Name "ironwaves-print-agent" -ErrorAction SilentlyContinue
 
-# 5. Launch the print agent silently in the active user session immediately
-if ($runArgs -eq "") {
-    Start-Process $runTarget -WindowStyle Hidden
+# 5. Launch the print agent silently immediately (no black console window)
+if (Test-Path $vbsFile) {
+    Start-Process "wscript.exe" -ArgumentList "`"$vbsFile`"" -WorkingDirectory $scriptPath
+} elseif ($runArgs -eq "") {
+    Start-Process $runTarget -WindowStyle Hidden -WorkingDirectory $scriptPath
 } else {
-    Start-Process $runTarget -ArgumentList $runArgs -WindowStyle Hidden
+    Start-Process $runTarget -ArgumentList $runArgs -WindowStyle Hidden -WorkingDirectory $scriptPath
 }
 
 Write-Host "==========================================================" -ForegroundColor Green

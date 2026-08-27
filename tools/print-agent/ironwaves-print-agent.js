@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.1';
+const VERSION = '0.5.2';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
