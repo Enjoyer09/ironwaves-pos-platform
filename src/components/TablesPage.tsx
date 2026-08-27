@@ -43,6 +43,7 @@ import FloorView from './tables/FloorView';
 import PaymentModal from './tables/PaymentModal';
 import ReservationPanel from './tables/ReservationPanel';
 import MobileWaiterUI from './tables/MobileWaiterUI';
+import OrderNoteModal from './tables/OrderNoteModal';
 import {
   getWaiterColor,
   kitchenBadge as kitchenBadgeUtil,
@@ -2417,6 +2418,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                        summerPromoEnabled={Boolean(tenantSettings?.beverage_service_settings?.summer_promo_enabled)}
 	                        onUpdateNote={updateRoundDraftNote}
+	                        tenantId={tenant_id}
+	                        settingsPresets={tenantSettings?.order_note_presets}
 	                      />
 	                    </div>
 	                  )}
@@ -2525,95 +2528,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
                         {/* Classic Mode Note & Quick Modifiers Editor */}
                         {classicEditingRowForNote && (
-                          <div className="absolute inset-0 z-30 flex flex-col rounded-xl bg-slate-950/95 p-4 border border-slate-700/60 backdrop-blur-md transition-all duration-200">
-                            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                              <div>
-                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                                  {tx(lang, 'Qeyd Əlavə Et / Düzəliş', 'Добавить примечание / Изменить', 'Add Note / Edit')}
-                                </h4>
-                                <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[200px]">
-                                  {classicEditingRowForNote.item_name}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setClassicEditingRowForNote(null)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 taktil-target"
-                              >
-                                ✕
-                              </button>
-                            </div>
-
-                            {/* Note text field */}
-                            <div className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5 scrollbar-none">
-                              <input
-                                type="text"
-                                value={classicNoteText}
-                                onChange={(e) => setClassicNoteText(e.target.value)}
-                                placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
-                                className="neon-input h-11 w-full text-sm font-bold focus:ring-yellow-300/20"
-                                autoFocus
-                              />
-
-                              {/* Quick Modifier Grid */}
-                              <div>
-                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                                  {tx(lang, 'Sürətli Seçimlər', 'Быстрый выбор', 'Quick Modifiers')}
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sərt', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
-                                    const selectedMods = classicNoteText.split(',').map(s => s.trim()).filter(Boolean);
-                                    const isSelected = selectedMods.includes(mod);
-                                    return (
-                                      <button
-                                        key={mod}
-                                        type="button"
-                                        onClick={() => {
-                                          let nextText = '';
-                                          if (isSelected) {
-                                            nextText = selectedMods.filter(s => s !== mod).join(', ');
-                                          } else {
-                                            nextText = [...selectedMods, mod].join(', ');
-                                          }
-                                          setClassicNoteText(nextText);
-                                        }}
-                                        className={`min-h-[42px] flex items-center justify-center rounded-xl border py-2 px-2 text-center text-xs font-black transition taktil-target ${
-                                          isSelected
-                                            ? 'border-yellow-400 bg-yellow-400/10 text-yellow-300'
-                                            : 'border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-700/60'
-                                        }`}
-                                      >
-                                        {mod}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Bottom Actions */}
-                            <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setClassicEditingRowForNote(null)}
-                                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 taktil-target"
-                              >
-                                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (classicEditingRowForNote) {
-                                    await updateRoundDraftNote(classicEditingRowForNote.id, classicNoteText);
-                                  }
-                                  setClassicEditingRowForNote(null);
-                                }}
-                                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 taktil-target"
-                              >
-                                {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
-                              </button>
-                            </div>
-                          </div>
+                          <OrderNoteModal
+                            itemName={classicEditingRowForNote.item_name}
+                            initialNote={classicEditingRowForNote.note || classicNoteText}
+                            lang={lang}
+                            tenantId={tenant_id}
+                            settingsPresets={tenantSettings?.order_note_presets}
+                            onSave={async (note) => {
+                              if (classicEditingRowForNote) {
+                                await updateRoundDraftNote(classicEditingRowForNote.id, note);
+                              }
+                              setClassicEditingRowForNote(null);
+                            }}
+                            onClose={() => setClassicEditingRowForNote(null)}
+                          />
                         )}
                       </div>
                     </div>
