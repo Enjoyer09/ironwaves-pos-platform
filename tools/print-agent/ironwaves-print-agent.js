@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.4';
+const VERSION = '0.5.5';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -121,14 +121,20 @@ async function listPrinters() {
 
 function findBrowserExecutable() {
   const envPath = String(process.env.IW_PRINT_BROWSER || '').trim();
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const programFiles = process.env['ProgramFiles'] || 'C:\Program Files';
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\Program Files (x86)';
+
   const candidates =
     process.platform === 'win32'
       ? [
           envPath,
-          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-          'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+          path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+          path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+          localAppData ? path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe') : '',
+          path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+          path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+          localAppData ? path.join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe') : '',
         ]
       : process.platform === 'darwin'
         ? [
@@ -778,6 +784,9 @@ $itemQuit.add_Click({
 $menu.Items.Add($itemQuit) | Out-Null
 
 $tray.ContextMenuStrip = $menu
+
+# Show notification so user knows agent is running in tray
+$tray.ShowBalloonTip(3000, "iRonWaves Print Agent", "iRonWaves Print Agent v${VERSION} aktivdir", [System.Windows.Forms.ToolTipIcon]::Info)
 
 # Keep tray alive until quit
 [System.Windows.Forms.Application]::Run()
