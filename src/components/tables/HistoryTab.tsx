@@ -80,7 +80,7 @@ export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
   };
 
   return (
-    <div className="flex min-h-0 flex-col space-y-4 rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4 sm:p-5">
+    <div className="flex min-h-0 flex-1 flex-col space-y-4 rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4 sm:p-5 overflow-hidden">
       {/* ═══ Header ═══ */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
