@@ -111,6 +111,7 @@ export default function SettingsPanel() {
     auto_print_receipt: true,
     paper_width: '80mm' as '58mm' | '80mm',
     print_engine: 'raw_escpos' as 'pixel_html' | 'raw_escpos',
+    kitchen_mode: 'paper_only' as 'paper_only' | 'screen_only' | 'hybrid',
   });
   const [testingPrint, setTestingPrint] = useState<'cashier' | 'kitchen' | null>(null);
   const [printAgentModalOpen, setPrintAgentModalOpen] = useState(false);
@@ -390,6 +391,7 @@ export default function SettingsPanel() {
         auto_print_receipt: settingsRes.value.print_settings?.auto_print_receipt !== false,
         paper_width: (settingsRes.value.print_settings?.paper_width || '80mm') as '58mm' | '80mm',
         print_engine: (settingsRes.value.print_settings?.print_engine || 'raw_escpos') as 'pixel_html' | 'raw_escpos',
+        kitchen_mode: (settingsRes.value.print_settings?.kitchen_mode || 'paper_only') as 'paper_only' | 'screen_only' | 'hybrid',
       });
       setZReportReceiptSettings({
         show_operator: settingsRes.value.z_report_receipt_settings?.show_operator !== false,
@@ -906,6 +908,7 @@ export default function SettingsPanel() {
         auto_print_receipt: printSettings.auto_print_receipt,
         paper_width: printSettings.paper_width,
         print_engine: printSettings.print_engine,
+        kitchen_mode: printSettings.kitchen_mode || 'paper_only',
       });
       flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
     } catch {

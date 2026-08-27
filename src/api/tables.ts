@@ -661,6 +661,24 @@ export const pay_table = (
     table.deposit_seat_labels = [];
     table.items = [];
     table.total = '0';
+
+    // Sifariş başa çatdı: masanın bütün aktiv mətbəx sifarişlərini arxivləşdir/tamamla (DONE)
+    const kitchen_orders = getDB<any>('kitchen_orders');
+    let koChanged = false;
+    for (const ko of kitchen_orders) {
+      if (ko.table_label === table.label || ko.table_name === table.label || ko.table_id === table.id) {
+        if (ko.status !== 'DONE') {
+          ko.status = 'DONE';
+          if (Array.isArray(ko.items)) {
+            ko.items.forEach((it: any) => {
+              if (!['VOIDED', 'DONE', 'SERVED'].includes(it.status)) it.status = 'SERVED';
+            });
+          }
+          koChanged = true;
+        }
+      }
+    }
+    if (koChanged) setDB('kitchen_orders', kitchen_orders);
   }
   setDB('tables', tables);
 

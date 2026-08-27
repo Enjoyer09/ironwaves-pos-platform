@@ -10,7 +10,7 @@ import { approve_void_request_live, get_pending_approvals_live, reject_void_requ
 import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
 import { parseModifierJson } from '../lib/escpos_builder';
 import { printKitchenTicket } from '../lib/print_kitchen_ticket';
-import { get_settings_live } from '../api/settings';
+import { get_settings_live, update_print_settings_live } from '../api/settings';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
@@ -29,6 +29,13 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>('58mm');
   const [printEngine, setPrintEngine] = useState<'raw_escpos' | 'pixel_html'>('raw_escpos');
   const [companyName, setCompanyName] = useState('IRONWAVES POS');
+  const [kitchenMode, setKitchenMode] = useState<'paper_only' | 'screen_only' | 'hybrid'>(() => {
+    try {
+      return (localStorage.getItem('kds_kitchen_mode') as any) || 'paper_only';
+    } catch {
+      return 'paper_only';
+    }
+  });
   const [autoPrint, setAutoPrint] = useState(() => {
     try {
       return localStorage.getItem('kds_auto_print') === 'true';
@@ -47,6 +54,10 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
           setUseQz(Boolean(pSettings.use_qz));
           if (pSettings.paper_width) setPaperWidth(pSettings.paper_width as '58mm' | '80mm');
           if (pSettings.print_engine) setPrintEngine(pSettings.print_engine as 'raw_escpos' | 'pixel_html');
+          if (pSettings.kitchen_mode) {
+            setKitchenMode(pSettings.kitchen_mode);
+            try { localStorage.setItem('kds_kitchen_mode', pSettings.kitchen_mode); } catch {}
+          }
         }
         if (s?.business_profile?.company_name) setCompanyName(s.business_profile.company_name);
       } catch {
@@ -54,6 +65,19 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
       }
     })();
   }, [tenant_id]);
+
+  const handleSetKitchenMode = async (mode: 'paper_only' | 'screen_only' | 'hybrid') => {
+    setKitchenMode(mode);
+    try {
+      localStorage.setItem('kds_kitchen_mode', mode);
+      const s = await get_settings_live(tenant_id);
+      const pSettings = s?.print_settings || ({} as any);
+      await update_print_settings_live({
+        ...pSettings,
+        kitchen_mode: mode,
+      });
+    } catch {}
+  };
 
   const toggleAutoPrint = () => {
     const next = !autoPrint;
@@ -589,12 +613,69 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between mb-6">
+      {/* Kitchen Mode Indicator Banner */}
+      {kitchenMode === 'paper_only' && (
+        <div className="mb-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2.5 text-xs text-yellow-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>🖨️</span>
+            <span>{tx(lang, 'Mətbəx "Yalnız Çek" rejimindədir: Sifarişlər və ləğvlər birbaşa printerə göndərilir, ekranda gözləmə blokları yaradılmır.', 'Кухня в режиме "Только Чек": Заказы и отмены сразу отправляются на принтер.', 'Kitchen is in "Paper Ticket" mode: Orders and voids print directly to the kitchen printer.')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSetKitchenMode('hybrid')}
+            className="underline text-yellow-300 hover:text-yellow-100 font-bold ml-2 shrink-0"
+          >
+            {tx(lang, 'Kombo rejiminə keç', 'Перейти на Комбо', 'Switch to Combo')}
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="flex items-center text-slate-100">
           <ChefHat size={28} className="mr-3 text-yellow-300" />
           <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx ekranı', 'Экран кухни', 'Kitchen display')}</h1>
         </div>
-        <div className="flex gap-3 text-sm font-medium items-center">
+        <div className="flex gap-3 text-sm font-medium items-center flex-wrap">
+          {/* 3-way Kitchen Workflow Mode Selector */}
+          <div className="flex rounded-xl bg-slate-900/90 p-1 border border-slate-700/80 text-xs font-bold shadow-inner">
+            <button
+              type="button"
+              onClick={() => void handleSetKitchenMode('paper_only')}
+              title={tx(lang, 'Yalnız Çek Rejimi: Mətbəxdə ekran yoxdur, sifarişlər və ləğvlər birbaşa printerə çıxır.', 'Только Чек: На кухне нет экрана, заказы и отмены сразу идут на печать.', 'Paper Ticket Only: No screen in kitchen, orders and voids print directly.')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition active:scale-95 ${
+                kitchenMode === 'paper_only'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🖨️ {tx(lang, 'Çek', 'Чек', 'Ticket')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSetKitchenMode('screen_only')}
+              title={tx(lang, 'Yalnız Monitor Rejimi: Mətbəxdə sensor ekran var, kağız çap edilmir.', 'Только Экран: На кухне сенсорный дисплей, без бумаги.', 'KDS Screen Only: Touchscreen display in kitchen, paperless.')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition active:scale-95 ${
+                kitchenMode === 'screen_only'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>🖥️ {tx(lang, 'Monitor', 'Экран', 'Screen')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSetKitchenMode('hybrid')}
+              title={tx(lang, 'Kombo Rejimi: Həm printerə çek çıxır, həm də KDS monitorunda kart idarə olunur.', 'Комбо: Печать чека на принтер + управление на экране KDS.', 'Combo Mode: Prints paper ticket + manages orders on KDS screen.')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition active:scale-95 ${
+                kitchenMode === 'hybrid'
+                  ? 'bg-yellow-400 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>⚡ {tx(lang, 'Kombo', 'Комбо', 'Combo')}</span>
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={toggleAutoPrint}

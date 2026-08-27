@@ -467,15 +467,16 @@ export async function act_on_order_item_live(
   if (!isBackendEnabled()) {
     // LOCAL REJİM: masa sətrinin və metbəx sifarişinin vəziyyətini yaz ki,
     // KDS ekranında LƏĞV / YENİDƏN DÜZƏLT / XƏTA və s. əks olunsun.
-    const action = String(payload.action || '').toUpperCase();
-    const delta = Number(payload.quantity_delta || 0);
+    const settings = getSettings();
+    const kitchenMode = settings?.print_settings?.kitchen_mode || 'paper_only';
 
     const mapToKitchenStatus = (a: string): string => {
       switch (a) {
         case 'VOID':
         case 'CANCEL':
+          return kitchenMode === 'paper_only' ? 'VOIDED' : 'VOID_REQUESTED';
         case 'VOID_REQUESTED':
-          return 'VOID_REQUESTED';
+          return kitchenMode === 'paper_only' ? 'VOIDED' : 'VOID_REQUESTED';
         case 'REMAKE':
           return 'REMAKE';
         case 'WASTE':

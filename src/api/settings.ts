@@ -1159,6 +1159,7 @@ export function update_print_settings(payload: {
   auto_print_receipt?: boolean;
   paper_width?: '58mm' | '80mm';
   print_engine?: 'pixel_html' | 'raw_escpos';
+  kitchen_mode?: 'paper_only' | 'screen_only' | 'hybrid';
 }) {
   const settings = getSettings();
   settings.print_settings = payload;
@@ -1175,6 +1176,7 @@ export async function update_print_settings_live(payload: {
   auto_print_receipt?: boolean;
   paper_width?: '58mm' | '80mm';
   print_engine?: 'pixel_html' | 'raw_escpos';
+  kitchen_mode?: 'paper_only' | 'screen_only' | 'hybrid';
 }) {
   if (!isBackendEnabled()) return update_print_settings(payload);
   await apiRequest('/api/v1/ops/settings/print-settings', { method: 'PATCH', tenantId: null, body: payload });
@@ -1401,6 +1403,7 @@ export async function get_settings_live(tenant_id?: string) {
     // a different default silently flipped the engine between send-time and KDS reprints.
     // Cyrillic safety on the raw path is handled by containsCyrillic() in local_print_agent.
     print_engine: (data?.print_settings?.print_engine || localCached?.print_settings?.print_engine || 'raw_escpos') as 'pixel_html' | 'raw_escpos',
+    kitchen_mode: (data?.print_settings?.kitchen_mode || localCached?.print_settings?.kitchen_mode || 'paper_only') as 'paper_only' | 'screen_only' | 'hybrid',
   };
 
   const merged: Settings = {
