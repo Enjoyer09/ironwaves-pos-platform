@@ -220,6 +220,80 @@ export function OperationSettingsSection({
           </div>
         </div>
 
+        {/* Mətbəx İdarəetmə Rejimi (Kitchen Workflow) */}
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 flex flex-col gap-2">
+          <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+            👨‍🍳 {tx(lang, 'Mətbəx İdarəetmə Rejimi (Kitchen Workflow)', 'Режим работы кухни (Kitchen Workflow)', 'Kitchen Workflow Mode')}
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => setPrintSettings((prev) => ({ ...prev, kitchen_mode: 'paper_only' }))}
+              className={`flex flex-col items-start p-3 rounded-xl border transition text-left ${
+                (printSettings.kitchen_mode || 'paper_only') === 'paper_only'
+                  ? 'border-yellow-400 bg-yellow-400/20 text-yellow-100 shadow-md shadow-yellow-400/10'
+                  : 'border-slate-700 bg-slate-900/60 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                <span>🖨️ {tx(lang, 'Yalnız Çek (Kağız)', 'Только Чек (Бумага)', 'Paper Ticket Only')}</span>
+              </div>
+              <span className="text-[11px] text-slate-300 mt-1 leading-snug">
+                {tx(
+                  lang,
+                  'Mətbəxdə ekran yoxdur. Ləğvlər dərhal tətbiq olunur və ləğv çeki çıxır. Təsdiq gözləmir.',
+                  'На кухне нет экрана. Отмены применяются сразу, печатается чек отмены. Без подтверждений.',
+                  'No screen in kitchen. Voids apply immediately with cancel ticket. No approval needed.',
+                )}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPrintSettings((prev) => ({ ...prev, kitchen_mode: 'screen_only' }))}
+              className={`flex flex-col items-start p-3 rounded-xl border transition text-left ${
+                printSettings.kitchen_mode === 'screen_only'
+                  ? 'border-yellow-400 bg-yellow-400/20 text-yellow-100 shadow-md shadow-yellow-400/10'
+                  : 'border-slate-700 bg-slate-900/60 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                <span>🖥️ {tx(lang, 'Yalnız Monitor (KDS)', 'Только Экран (KDS)', 'KDS Screen Only')}</span>
+              </div>
+              <span className="text-[11px] text-slate-300 mt-1 leading-snug">
+                {tx(
+                  lang,
+                  'Mətbəxdə sensor ekran var. Kağız çıxmır. Ləğvlər aşpazın ekrandakı təsdiqini gözləyir.',
+                  'На кухне есть сенсорный экран. Без бумаги. Отмены требуют подтверждения повара.',
+                  'Touchscreen in kitchen. Paperless. Voids wait for cook screen approval.',
+                )}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPrintSettings((prev) => ({ ...prev, kitchen_mode: 'hybrid' }))}
+              className={`flex flex-col items-start p-3 rounded-xl border transition text-left ${
+                printSettings.kitchen_mode === 'hybrid'
+                  ? 'border-yellow-400 bg-yellow-400/20 text-yellow-100 shadow-md shadow-yellow-400/10'
+                  : 'border-slate-700 bg-slate-900/60 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                <span>⚡ {tx(lang, 'Kombo (Çek + Monitor)', 'Комбо (Чек + Экран)', 'Combo (Paper + Screen)')}</span>
+              </div>
+              <span className="text-[11px] text-slate-300 mt-1 leading-snug">
+                {tx(
+                  lang,
+                  'Həm printerə çek göndərilir, həm də KDS monitorunda kartlar idarə olunur.',
+                  'Печать чека на принтер + управление заказами на экране KDS.',
+                  'Prints paper ticket + manages orders interactively on KDS screen.',
+                )}
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Termal Presetlər və Çap Rejimi */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
           <div className="flex flex-col gap-1.5">

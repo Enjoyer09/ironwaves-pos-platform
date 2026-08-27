@@ -10,6 +10,7 @@ export interface PrintSettingsState {
   auto_print_receipt: boolean;
   paper_width: '58mm' | '80mm';
   print_engine: 'pixel_html' | 'raw_escpos';
+  kitchen_mode?: 'paper_only' | 'screen_only' | 'hybrid';
 }
 
 export interface ZReportReceiptSettingsState {
