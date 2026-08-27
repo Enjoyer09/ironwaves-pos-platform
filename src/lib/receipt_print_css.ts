@@ -19,7 +19,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 1.5mm 25mm 1.5mm !important;
+    padding: 0 1.5mm 3mm 1.5mm !important;
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
@@ -35,7 +35,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     html, body {
       width: 100% !important;
       margin: 0 !important;
-      padding: 0 1.5mm 25mm 1.5mm !important;
+      padding: 0 1.5mm 3mm 1.5mm !important;
       overflow: visible !important;
     }
   }
@@ -142,7 +142,7 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
     html, body {
       width: 100% !important;
       max-width: 100% !important;
-      padding: 0 1.5mm 25mm 1.5mm !important;
+      padding: 0 1.5mm 3mm 1.5mm !important;
       font-size: ${fontSize} !important;
     }
     .line { font-size: ${fontSize} !important; }

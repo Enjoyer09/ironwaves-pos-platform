@@ -238,7 +238,7 @@ export function buildKitchenTicketHtml({
   <div style="text-align: center; margin-top: 8px; font-size: 11px; font-weight: 700; color: #333; page-break-inside: avoid; break-inside: avoid;">
     -- ${tx(lang, 'Mətbəx Çapı Tamamlandı', 'Печать для кухни завершена', 'Kitchen Print Finished')} --
   </div>
-  <div style="height:25mm"></div>
+  <div style="height:2mm"></div>
 </body>
 </html>`;
 }

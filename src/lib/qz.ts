@@ -333,21 +333,6 @@ export const qzPrintHtml = async (
     },
   ];
   await qz.print(config, data);
-
-  // Auto-cut after fallback HTML print
-  try {
-    const cutConfig = qz.configs.create(printer);
-    await qz.print(cutConfig, [
-      {
-        type: 'raw',
-        format: 'command',
-        flavor: 'base64',
-        data: ESC_POS_CUT_BASE64,
-      },
-    ]);
-  } catch (cutErr) {
-    console.warn('QZ auto-cut command skipped:', cutErr);
-  }
 };
 
 // HTML-i verilmiş en daxilində render edib Canvas-a çevirir (html2canvas istifadə edir).
