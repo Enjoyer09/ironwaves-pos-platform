@@ -1,7 +1,7 @@
 {
   "name": "ironwaves-print-agent",
   "private": true,
-  "version": "0.5.2",
+  "version": "0.5.3",
   "type": "commonjs",
   "main": "ironwaves-print-agent.js",
   "scripts": {
