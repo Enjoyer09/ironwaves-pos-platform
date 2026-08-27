@@ -152,18 +152,10 @@ export async function printDirectOrFallback(
     preferHtml?: boolean;
   }
 ): Promise<PrintDirectResult> {
-  // ÇAP PRIORITETİ: Lokal Print Agent (əsas) → QZ Tray (yalnız useQz===true
-  // olduqda ehtiyat) → Brauzer dialoqu (YALNIZ thermal olmayan köhnə köməkçi).
-  //
-  // Termal çeklər üçün brauzer dialoqu YARARSIZDIR: Chrome A4 kağız + öz
-  // "Headers & Footers" başlığını (fayl yolu / saat / səhifə) çəkir, kağızı
-  // ortada sıxışdırır, sözləri şaquli sındırır və avto-kəsmə etmir. Bu başlıq
-  // veb-koddan söndürüla bilməz (Chrome məhdudiyyəti). Ona görə də termal
-  // çeklərə brauzer ehtiyatını SÖNDÜRDÜK: agent və ya QZ yoxkən səssizcə A4
-  // dialoquna düşmək əvəzinə aydın səhv qaytarırıq ki, istifadəçi Print Agent-i
-  // işə salsın. Brauzer ehtiyatı yalnız `allowBrowserFallback===true` VƏ çağırıcı
-  // açıq şəkildə terminal-receipt olmadığını bildirəndə işlədilə bilər.
-  const browserFallbackAllowed = Boolean(options?.allowBrowserFallback);
+  // Tier 1: Local Print Agent (direct silent print + auto cut)
+  // Tier 2: QZ Tray (if useQz is enabled)
+  // Tier 3: Browser Iframe Print Fallback (if Agent and QZ are offline / not installed)
+  const browserFallbackAllowed = options?.allowBrowserFallback !== false;
   async function tryQz(): Promise<{ ok: boolean; error?: string }> {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');

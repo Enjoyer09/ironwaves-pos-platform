@@ -60,7 +60,7 @@ export async function printKitchenTicket(
     printerName,
     useQz = false,
     printEngine = 'raw_escpos',
-    allowBrowserFallback = false,
+    allowBrowserFallback = true,
   } = opts;
 
   // Dəyişiklik çeki (VOID/REMAKE/WASTE/COMP) ilə ilkin göndərmə çeki eyni masa +

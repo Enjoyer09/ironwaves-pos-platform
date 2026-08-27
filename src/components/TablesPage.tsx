@@ -886,7 +886,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
-              allowBrowserFallback: false,
+              allowBrowserFallback: true,
             });
           } catch (printErr) {
             console.warn('Kitchen ticket print warning:', printErr);
@@ -953,7 +953,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
-              allowBrowserFallback: false,
+              allowBrowserFallback: true,
             });
         } catch (printErr) {
           console.warn('Kitchen ticket print warning:', printErr);
@@ -1268,10 +1268,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           rawCommands: rawCmds,
           // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
           preferHtml: true,
-          allowBrowserFallback: false,
+          allowBrowserFallback: true,
         }).then((res) => {
-          if (res.success && (res.method === 'agent' || res.method === 'qz')) {
-            notify('success', tx(lang, 'Çek avtomatik printerə göndərildi', 'Чек автоматически отправлен на принтер', 'Receipt auto-sent to printer'));
+          if (res.success) {
+            notify(
+              'success',
+              res.method === 'browser'
+                ? tx(lang, 'Çek brauzer çapına göndərildi 🖨️', 'Чек отправлен на печать браузера 🖨️', 'Receipt opened in browser print 🖨️')
+                : tx(lang, 'Çek avtomatik printerə göndərildi', 'Чек автоматически отправлен на принтер', 'Receipt auto-sent to printer'),
+            );
           } else if (!res.success) {
             notify('error', tx(lang, res.error || 'Çap alınmadı — printeri yoxlayın', res.error || 'Печать не удалась — проверьте принтер', res.error || 'Print failed — check your printer'));
           }
@@ -1664,14 +1669,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       rawCommands: tableReceiptRawCommands || undefined,
       // QZ Tray ilə lokal agent eyni dizaynda (loqo/barkod/QR) çap etsin.
       preferHtml: true,
-      // Masa çeki termaldır — brauzer dialoquna (A4 + başlıq + kəsmə yox) düşməsin.
-      allowBrowserFallback: false,
+      allowBrowserFallback: true,
     });
     if (res.success) {
       if (res.method === 'agent') {
         notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
       } else if (res.method === 'qz') {
         notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
+      } else if (res.method === 'browser') {
+        notify('success', tx(lang, 'Brauzer çap dialoqu açıldı 🖨️', 'Открыт диалог печати браузера 🖨️', 'Opened browser print dialog 🖨️'));
       }
     } else {
       notify('error', tx(lang, res.error || 'Çap alınmadı', res.error || 'Ошибка печати', res.error || 'Printing failed'));
@@ -1948,12 +1954,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     paperWidth: printSettings.paper_width || '80mm',
                     printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                     useQz: Boolean(printSettings.use_qz),
-                    printEngine: printSettings.print_engine || 'raw_escpos',
-                    // Dəyişiklik (STOP/LƏĞV) çeki kritikdir, amma o da termaldır:
-                    // brauzer dialoqu A4 + başlıq çəkir və avto-kəsmir, ona görə
-                    // burada da brauzer ehtiyatı SÖNDÜRÜLÜB. Agent/QZ yoxkən səhv
-                    // qaytarılır ki, Print Agent işə salınsın.
-                    allowBrowserFallback: false,
+                    allowBrowserFallback: true,
                   });
                 } catch (printErr) {
                   console.warn('Kitchen change ticket print warning:', printErr);
