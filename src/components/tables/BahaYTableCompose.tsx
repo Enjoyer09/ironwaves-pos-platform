@@ -3,9 +3,12 @@ import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
 import { playHapticSuccess, playHapticTouch } from '../../lib/haptics';
+import OrderNoteModal from './OrderNoteModal';
 
 type BahaYTableComposeProps = {
   lang: string;
+  tenantId?: string;
+  settingsPresets?: string[];
   // Menu
   filteredRoundMenu: any[];
   roundCategories: string[];
@@ -489,96 +492,25 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           </div>
         </div>
 
-        {/* ─── Slide-up Note Modifier Editor (Seçim 1) ─── */}
+        {/* ─── Slide-up Note Modifier Editor (OrderNoteModal) ─── */}
         {editingRowForNote && (
-          <div className="absolute inset-0 z-20 flex flex-col rounded-2xl bg-slate-950/95 p-4 border border-slate-700/60 backdrop-blur-md transition-all duration-200">
-            <div className="flex items-center justify-between border-b border-slate-850 pb-2.5">
-              <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-450">{tx(lang, 'Qeyd Əlavə Et', 'Добавить примечание', 'Add Comment')}</h4>
-                <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[200px]">{editingRowForNote.item_name}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingRowForNote(null)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-350 hover:bg-slate-700 taktil-target"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Note text field */}
-            <div className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5 scrollbar-none">
-              <input
-                type="text"
-                value={currentNoteText}
-                onChange={(e) => setCurrentNoteText(e.target.value)}
-                placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
-                className="neon-input h-11 w-full text-sm font-bold focus:ring-yellow-300/20"
-                autoFocus
-              />
-
-              {/* Quick Modifier Grid */}
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{tx(lang, 'Sürətli Seçimlər', 'Быстрый выбор', 'Quick Modifiers')}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sərt', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
-                    const selectedMods = currentNoteText.split(',').map(s => s.trim()).filter(Boolean);
-                    const isSelected = selectedMods.includes(mod);
-                    return (
-                      <button
-                        key={mod}
-                        type="button"
-                        onClick={() => {
-                          tapFeedback();
-                          let nextText = '';
-                          if (isSelected) {
-                            nextText = selectedMods.filter(s => s !== mod).join(', ');
-                          } else {
-                            nextText = [...selectedMods, mod].join(', ');
-                          }
-                          setCurrentNoteText(nextText);
-                        }}
-                        className={`min-h-[44px] flex items-center justify-center rounded-xl border py-2.5 px-2 text-center text-xs font-black transition taktil-target ${
-                          isSelected
-                            ? 'border-yellow-450 bg-yellow-400/10 text-yellow-300'
-                            : 'border-slate-800 bg-slate-900/60 text-slate-350 hover:border-slate-700/60'
-                        }`}
-                      >
-                        {mod}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setEditingRowForNote(null)}
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 taktil-target"
-              >
-                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (onUpdateNote && editingRowForNote) {
-                    // Guard: verify the item still exists in draftRows before saving
-                    const stillExists = draftRows.some((r: any) => String(r.id) === String(editingRowForNote.id));
-                    if (stillExists) {
-                      await onUpdateNote(editingRowForNote.id, currentNoteText);
-                    }
-                  }
-                  setEditingRowForNote(null);
-                }}
-                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 taktil-target"
-              >
-                {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
-              </button>
-            </div>
-          </div>
+          <OrderNoteModal
+            itemName={editingRowForNote.item_name}
+            initialNote={editingRowForNote.note || currentNoteText}
+            lang={lang}
+            tenantId={props.tenantId}
+            settingsPresets={props.settingsPresets}
+            onSave={async (note) => {
+              if (onUpdateNote && editingRowForNote) {
+                const stillExists = draftRows.some((r: any) => String(r.id) === String(editingRowForNote.id));
+                if (stillExists) {
+                  await onUpdateNote(editingRowForNote.id, note);
+                }
+              }
+              setEditingRowForNote(null);
+            }}
+            onClose={() => setEditingRowForNote(null)}
+          />
         )}
       </div>
     </div>
