@@ -253,7 +253,7 @@ export async function buildSaleReceiptHtml({
         <div class="section-title" style="text-align:center">${receiptTypeLabel}</div>
         ${!fiscalEnabled ? `<div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>` : ''}
         <hr />
-        <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span class="bold">#${esc(displayId)}</span></div>
+        <div class="line"><span>${tx(lang, 'Çek №', 'Чек №', 'Check #')}</span><span class="bold">#${esc(displayId)}</span></div>
         <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
         <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
@@ -311,6 +311,8 @@ export async function buildTableReceiptHtml({
   lang = 'az',
   feedbackUrl = '',
   paperWidth = '80mm',
+  checkId = '',
+  checkNo = '',
 }: {
   tableLabel: string;
   operator: string;
@@ -328,11 +330,16 @@ export async function buildTableReceiptHtml({
   lang?: ReceiptLang;
   feedbackUrl?: string;
   paperWidth?: '58mm' | '80mm';
+  checkId?: string;
+  checkNo?: string | number;
 }): Promise<string> {
   const companyName = profile?.company_name || 'IRONWAVES POS';
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const createdAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  const rawCheckId = String(checkNo || checkId || '').trim();
+  const displayCheckId = rawCheckId ? (rawCheckId.length > 8 ? formatReceiptDisplayId(rawCheckId) : rawCheckId) : '';
 
   const lines = items
     .map((item) => {
@@ -383,6 +390,7 @@ export async function buildTableReceiptHtml({
         <div class="section-title" style="text-align:center">${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')}</div>
         <div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>
         <hr />
+        ${displayCheckId ? `<div class="line"><span>${tx(lang, 'Çek №', 'Чек №', 'Check #')}</span><span class="bold">#${esc(displayCheckId)}</span></div>` : ''}
         <div class="line"><span>${tx(lang, 'Masa', 'Стол', 'Table')}</span><span class="bold">${esc(tableLabel)}</span></div>
         <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || 'staff')}</span></div>
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>

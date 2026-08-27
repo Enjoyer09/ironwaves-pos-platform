@@ -1173,9 +1173,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }
       }
 
+      const activeCheck = activeDetail?.check;
+      const checkId = String(result?.sale_id || activeCheck?.id || activeCheck?.check_no || '').trim();
+
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
+        checkId: checkId || undefined,
+        checkNo: activeCheck?.check_no || undefined,
         items: payItems.map((row: any) => ({
           item_name: row.item_name,
           qty: row.qty,
