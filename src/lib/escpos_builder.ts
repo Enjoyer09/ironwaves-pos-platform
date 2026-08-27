@@ -329,8 +329,10 @@ export function buildKitchenTicketEscPos(
   cmd += centerText('-- METBEX CAPI --', lineChars) + '\n';
 
   // ── FEED + CUT ────────────────────────────────────
-  cmd += '\n\n';
-  cmd += GS + 'V\x42\x00';  // Full cut (GS V 66 0)
+  // Clean ESC/POS cut: feed 2 lines (ESC d 2) + standard partial cut (GS V 1)
+  // This avoids leaving trailing blank lines that trigger a secondary driver cut.
+  cmd += ESC + 'd\x02';
+  cmd += GS + 'V\x01';
 
   return cmd;
 }
@@ -622,8 +624,9 @@ export async function buildTableReceiptEscPos({
   cmd += CTR;
   cmd += sanitizeEscPosText(footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
-  cmd += '\n\n';
-  cmd += GS + 'V\x42\x00'; // full auto-cut (GS V 66 0)
+  // Clean ESC/POS cut: feed 2 lines (ESC d 2) + standard partial cut (GS V 1)
+  cmd += ESC + 'd\x02';
+  cmd += GS + 'V\x01';
 
   return cmd;
 }
@@ -746,9 +749,9 @@ export async function buildSaleReceiptEscPos({
   cmd += ESC + 'a\x01';
   cmd += sanitizeEscPosText(profile?.receipt_footer || 'Bizi secdiyiniz ucun tesekkur edirik!') + '\n';
 
-  cmd += '\n\n';
-  // Tam avto-kəsmə (full cut): GS V 66 0 (0x1D 0x56 0x42 0x00).
-  cmd += GS + 'V\x42\x00';
+  // Clean ESC/POS cut: feed 2 lines (ESC d 2) + standard partial cut (GS V 1)
+  cmd += ESC + 'd\x02';
+  cmd += GS + 'V\x01';
 
   return cmd;
 }
@@ -774,7 +777,7 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += '2x Test Mehsul 2         5.00 M\n';
   cmd += '--------------------------------\n';
   cmd += 'QZ Tray Baglantisi Ugurludur!\n';
-  cmd += '\n\n';
-  cmd += GS + 'V' + '\x42' + '\x00';
+  cmd += ESC + 'd\x02';
+  cmd += GS + 'V\x01';
   return cmd;
 }

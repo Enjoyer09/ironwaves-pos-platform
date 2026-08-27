@@ -100,7 +100,7 @@ export async function printRawViaLocalAgent(rawCommands: string, printerName?: s
         raw: rawCommands,
         printer_name: String(printerName || '').trim() || undefined,
       }),
-      signal: timeoutSignal(6000),
+      signal: timeoutSignal(3500),
     });
     return response.ok;
   } catch {
@@ -165,17 +165,20 @@ export async function printDirectOrFallback(
   }
 ): Promise<PrintDirectResult> {
   const browserFallbackAllowed = options?.allowBrowserFallback !== false;
+  let lastError = '';
 
   // 1) İldırım Sürətli ESC/POS Rejimi (0.05 saniyə):
-  //    Mətbəx çekləri və xalis mətn əmrləri üçün birbaşa Print Agent-in /print-raw
-  //    və ya QZ raw axınına göndərilir (Chrome/HTML gözləməsi 0-a enir).
+  //    Mətbəx çekləri və kassa çekləri birbaşa Print Agent-in /print-raw
+  //    axınına göndərilir (Chrome/HTML gözləməsi 0-a enir).
   if (options?.rawCommands && !options?.preferHtml) {
     try {
       const rawSuccess = await printRawViaLocalAgent(options.rawCommands, options?.printerName);
       if (rawSuccess) {
         return { method: 'agent', success: true };
       }
-    } catch {}
+    } catch (e: any) {
+      lastError = e?.message || '';
+    }
   }
 
   // 2) Əgər istifadəçi açıq şəkildə QZ Tray seçibsə, QZ birinci sınansın (agent timeout gözlənilməsin)
@@ -193,6 +196,7 @@ export async function printDirectOrFallback(
       }
       return { method: 'qz', success: true };
     } catch (err) {
+      lastError = friendlyQzError(err);
       console.warn('QZ Tray print attempted but failed:', err);
     }
   }
@@ -203,7 +207,9 @@ export async function printDirectOrFallback(
     if (agentSuccess) {
       return { method: 'agent', success: true };
     }
-  } catch {}
+  } catch (e: any) {
+    lastError = e?.message || '';
+  }
 
   // 4) Brauzer fallback (yalnız icazə verildikdə)
   if (browserFallbackAllowed) {
