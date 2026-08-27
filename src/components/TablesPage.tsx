@@ -1732,7 +1732,42 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           if (!reason || !reason.trim()) return;
           setPendingCancelTable(null);
           try {
+            const tableToCancel = tables.find((x) => x.id === pendingCancelTable.id) || pendingCancelTable;
+            const activeTableItems = (tableToCancel?.items || []).filter(
+              (it: any) => !['VOIDED', 'COMPED', 'WASTE'].includes(String(it.status || '').toUpperCase())
+            );
+
             await cancel_table_check_live(pendingCancelTable.id, reason.trim());
+
+            if (printSettings.auto_print_kitchen_ticket !== false && activeTableItems.length > 0) {
+              try {
+                await printKitchenTicket({
+                  ticket: {
+                    table_label: pendingCancelTable.label || 'Masa',
+                    order_type_label: pendingCancelTable.label || 'Masa',
+                    server_name: user?.username || 'Staff',
+                    company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
+                    changeBanner: tx(lang, 'BÜTÜN MASA LƏĞV EDİLDİ', 'ВЕСЬ СТОЛ ОТМЕНЕН', 'ENTIRE TABLE VOIDED'),
+                    items: activeTableItems.map((it: any) => ({
+                      item_name: it.item_name || it.name || '-',
+                      qty: Number(it.qty || it.quantity || 1),
+                      notes: reason.trim() || undefined,
+                      seat_label: it.seat_label,
+                      cup_mode: it.cup_mode,
+                    })),
+                  },
+                  lang: lang as any,
+                  companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
+                  paperWidth: printSettings.paper_width || '80mm',
+                  printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
+                  useQz: Boolean(printSettings.use_qz),
+                  allowBrowserFallback: true,
+                });
+              } catch (printErr) {
+                console.warn('Kitchen whole table void ticket print warning:', printErr);
+              }
+            }
+
             logEvent(user?.username || 'staff', 'TABLE_CANCEL', {
               tenant_id,
               table_id: pendingCancelTable.id,
@@ -1900,23 +1935,32 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 notify('error', tx(lang, 'Manager/Admin şifrəsini yazın', 'Введите пароль менеджера/админа', 'Enter manager/admin password'));
                 return;
               }
-              await act_on_order_item_live(itemActionTarget.item.id, {
-                action: params.action,
-                reason: params.reason,
-                reason_code: params.reason_code,
-                quantity_delta: params.quantity_delta,
-                manager_password: params.manager_password,
-                remake_note: params.remake_note,
-              });
 
-              // Mətbəxə "dəyişiklik" çeki: müştəri fikrini dəyişəndə (LƏĞV / YENİDƏN DÜZƏLT / XƏTA / KOMP)
-              // metbəxçi kağızda aydın xəbərdarlıq almalıdır. Yalnız bu tip əməliyyatlar üçün çap edilir;
-              // PREPARING/READY/SERVED kimi status yeniləmələri KDS ekranındadır, çek tələb etmir.
+              const targetItems: any[] =
+                itemActionTarget.items && itemActionTarget.items.length > 0
+                  ? itemActionTarget.items
+                  : itemActionTarget.item
+                  ? [itemActionTarget.item]
+                  : [];
+
+              for (const targetItem of targetItems) {
+                await act_on_order_item_live(targetItem.id, {
+                  action: params.action,
+                  reason: params.reason,
+                  reason_code: params.reason_code,
+                  quantity_delta: targetItems.length === 1 ? params.quantity_delta : undefined,
+                  manager_password: params.manager_password,
+                  remake_note: params.remake_note,
+                });
+              }
+
+              // Mətbəxə "dəyişiklik" çeki: birdən çox məhsul ləğv edildikdə belə TƏK BİR VAHİD ÇEK çıxır
               const changeActionName = String(params.action || '').toUpperCase();
               const KITCHEN_CHANGE_ACTIONS = ['VOID', 'VOID_REQUESTED', 'REMAKE', 'WASTE', 'COMP', 'CANCEL'];
               if (
                 KITCHEN_CHANGE_ACTIONS.includes(changeActionName) &&
-                printSettings.auto_print_kitchen_ticket !== false
+                printSettings.auto_print_kitchen_ticket !== false &&
+                targetItems.length > 0
               ) {
                 try {
                   const changedTable = tables.find((x) => x.id === viewTableId);
@@ -1931,7 +1975,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   };
                   const changeBanner = changeBannerMap[changeActionName] || changeActionName;
                   const changeReason = params.reason || params.remake_note || '';
-                  const changeItem = itemActionTarget.item || {};
                   await printKitchenTicket({
                     ticket: {
                       table_label: tableName,
@@ -1939,15 +1982,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       server_name: user?.username || 'Staff',
                       company_name: String(businessProfile?.company_name || 'IRONWAVES POS'),
                       changeBanner,
-                      items: [
-                        {
-                          item_name: changeItem.item_name || changeItem.name || '-',
-                          qty: Number(changeItem.qty || changeItem.quantity || 1),
-                          notes: changeReason || undefined,
-                          seat_label: changeItem.seat_label,
-                          cup_mode: changeItem.cup_mode,
-                        },
-                      ],
+                      items: targetItems.map((it: any) => ({
+                        item_name: it.item_name || it.name || '-',
+                        qty: Number(it.qty || it.quantity || 1),
+                        notes: changeReason || undefined,
+                        seat_label: it.seat_label,
+                        cup_mode: it.cup_mode,
+                      })),
                     },
                     lang: lang as any,
                     companyName: String(businessProfile?.company_name || 'IRONWAVES POS'),
@@ -2467,9 +2508,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           items={sentDisplayItems}
                           userCanEdit={userCanEditTable}
                           onClose={() => setShowSentSlideUp(false)}
-                          onAction={(item, action) => {
+                          onAction={(item, action, batchItems) => {
                             setShowSentSlideUp(false);
-                            setItemActionTarget({ item, action });
+                            if (batchItems && batchItems.length > 0) {
+                              setItemActionTarget({ items: batchItems, action });
+                            } else {
+                              setItemActionTarget({ item, action });
+                            }
                             setItemActionQuantityDelta('1');
                             setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
                           }}
@@ -2484,7 +2529,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                      isManagerUser={isManagerUser}
 	                      userCanEditTable={userCanEditTable}
 	                      onClose={() => setShowFullOrderList(false)}
-	                      onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
+	                      onVoidItem={(item, batchItems) => {
+	                        setShowFullOrderList(false);
+	                        if (batchItems && batchItems.length > 0) {
+	                          setItemActionTarget({ items: batchItems, action: 'VOID' });
+	                        } else {
+	                          setItemActionTarget({ item, action: 'VOID' });
+	                        }
+	                        setItemActionReason('');
+	                        setItemActionManagerPassword('');
+	                      }}
 	                      onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                    />
 	                  )}

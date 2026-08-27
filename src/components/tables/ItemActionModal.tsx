@@ -4,7 +4,7 @@ import { normalizeOrderItemStatus, itemActionNeedsManager, itemActionLabel } fro
 import { useAppStore } from '../../store';
 
 interface ItemActionModalProps {
-  target: { item: any; action: string };
+  target: { item?: any; items?: any[]; action: string };
   lang: string;
   onClose: () => void;
   onConfirm: (params: {
@@ -25,10 +25,13 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
   const [quantityDelta, setQuantityDelta] = useState('1');
   const [managerPassword, setManagerPassword] = useState('');
 
-  const actionStatus = normalizeOrderItemStatus(target.item?.status || 'DRAFT');
-  const quickAction = actionStatus === 'DRAFT';
+  const isBatch = Boolean(target.items && target.items.length > 0);
+  const itemList: any[] = isBatch ? (target.items || []) : (target.item ? [target.item] : []);
+
+  const hasNonDraft = itemList.some((it) => normalizeOrderItemStatus(it?.status || 'DRAFT') !== 'DRAFT');
+  const quickAction = !hasNonDraft;
   const actionName = String(target.action || '').toUpperCase();
-  const actionRequiresManager = !isManager && itemActionNeedsManager(actionName, actionStatus);
+  const actionRequiresManager = !isManager && hasNonDraft && itemActionNeedsManager(actionName, 'SENT');
   const needsReason = !quickAction;
   const quantityMax = Math.max(1, Number(target.item?.qty || 1));
 
@@ -44,17 +47,31 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
     <div className="fixed inset-0 z-[135] flex items-center justify-center bg-black/70 p-4">
       <div className="metal-panel w-full max-w-lg p-5">
         <h3 className="text-lg font-bold text-slate-100">
-          {tx(lang, 'Item əməliyyatı', 'Операция по позиции', 'Item action')} · {target.item?.item_name}
+          {isBatch
+            ? tx(lang, `Toplu Ləğv (${itemList.length} məhsul)`, `Групповая отмена (${itemList.length} поз.)`, `Batch Void (${itemList.length} items)`)
+            : `${tx(lang, 'Item əməliyyatı', 'Операция по позиции', 'Item action')} · ${target.item?.item_name || ''}`}
         </h3>
         <div className="mt-2 text-sm text-slate-300">
           {quickAction
-            ? tx(lang, 'Bu item hələ hazırlanma mərhələsinə keçməyib. Sürətli düzəliş admin şifrəsiz işləyəcək.', 'Эта позиция еще не перешла в приготовление. Быстрое изменение пройдет без пароля админа.', 'This item has not moved into prep yet. Quick change will work without admin password.')
-            : tx(lang, 'Seçilmiş action audit log-a yazılacaq və item izsiz silinməyəcək.', 'Выбранное действие попадет в аудит, позиция не исчезнет бесследно.', 'The selected action will be logged and the item will not disappear without trace.')}
+            ? tx(lang, 'Seçilmiş itemlər hələ mətbəxə göndərilməyib. Sürətli ləğv admin şifrəsiz işləyəcək.', 'Позиции еще не отправлены на кухню. Быстрая отмена пройдет без пароля админа.', 'Items have not moved to kitchen yet. Quick void without admin password.')
+            : tx(lang, 'Seçilmiş əməliyyat üçün vahid mətbəx ləğv çeki çıxarılacaq və audit loqa yazılacaq.', 'Будет напечатан единый чек отмены для кухни и записано в аудит.', 'A single kitchen void ticket will be printed and logged in audit.')}
         </div>
-        <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-          <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{target.item?.status || '-'}</span></div>
-          <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionLabel(target.action, labels)}</span></div>
-        </div>
+
+        {isBatch ? (
+          <div className="mt-3 max-h-36 overflow-y-auto rounded-xl border border-slate-700/60 bg-slate-950/40 p-2 space-y-1">
+            {itemList.map((it: any, idx: number) => (
+              <div key={idx} className="flex justify-between items-center text-xs text-slate-200 px-2.5 py-1.5 bg-slate-900/60 rounded-lg">
+                <span className="font-bold truncate pr-2">{it.item_name || it.name}</span>
+                <span className="text-amber-300 font-extrabold shrink-0">×{it.qty || it.quantity || 1}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
+            <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{target.item?.status || '-'}</span></div>
+            <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionLabel(target.action, labels)}</span></div>
+          </div>
+        )}
         {actionName === 'DECREASE' && !quickAction && (
           <label className="mt-4 block text-sm text-slate-300">
             {tx(lang, 'Azaldılacaq miqdar', 'Количество для уменьшения', 'Quantity to reduce')}
