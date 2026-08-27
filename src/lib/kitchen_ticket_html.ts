@@ -140,7 +140,7 @@ export function buildKitchenTicketHtml({
 <head>
   <meta charset="utf-8" />
   <title>Kitchen Ticket - ${displayId}</title>
-  <style>
+  <style data-iw-thermal-receipt-css="1">
     ${THERMAL_RECEIPT_PRINT_CSS}
     ${thermalPaperWidthOverride(paperWidth)}
     .kitchen-box {
@@ -228,6 +228,7 @@ export function buildKitchenTicketHtml({
   <div style="text-align: center; margin-top: 8px; font-size: 11px; font-weight: 700; color: #333; page-break-inside: avoid; break-inside: avoid;">
     -- ${tx(lang, 'Mətbəx Çapı Tamamlandı', 'Печать для кухни завершена', 'Kitchen Print Finished')} --
   </div>
+  <div style="height:25mm"></div>
 </body>
 </html>`;
 }

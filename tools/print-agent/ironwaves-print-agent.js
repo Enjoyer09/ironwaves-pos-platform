@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.7';
+const VERSION = '0.5.8';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -280,11 +280,9 @@ async function printHtml(payload) {
   if (printerName) {
     targetPrinter = await resolvePrinterName(printerName);
     if (!targetPrinter) {
-      const installed = (await listPrinters().catch(() => [])).map((p) => p.name).join(', ');
-      throw new Error(
-        `Printer "${printerName}" tapılmadı. Mövcud printerlər: ${installed || 'yox'}. ` +
-          `Çap Ayarlarında düzgün printeri seçin.`,
-      );
+      log(`Printer "${printerName}" not found in installed printers. Gracefully falling back to default printer.`);
+      const defaultP = await getDefaultPrinterName().catch(() => '');
+      targetPrinter = defaultP || '';
     }
   }
 
@@ -441,7 +439,7 @@ async function printHtml(payload) {
   }, KILL_DELAY_MS);
 
   // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
-  const CUT_DELAY_MS = 4000;
+  const CUT_DELAY_MS = 1200;
   setTimeout(() => {
     sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
   }, CUT_DELAY_MS);
@@ -567,15 +565,15 @@ if (-not ([System.Management.Automation.PSTypeName]'RawPrinterHelper').Type) {
     Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
 }
 # 1. Wait a moment for Chrome to submit the print job to the spooler
-Start-Sleep -Milliseconds 2500
+Start-Sleep -Milliseconds 1200
 # 2. Wait until print queue has completed processing the receipt (max 8s)
-for ($i = 0; $i -lt 16; $i++) {
+for ($i = 0; $i -lt 30; $i++) {
     $jobs = @(Get-PrintJob -PrinterName '${safePrinterName}' -ErrorAction SilentlyContinue)
     if ($null -eq $jobs -or $jobs.Count -eq 0) { break }
-    Start-Sleep -Milliseconds 400
+    Start-Sleep -Milliseconds 200
 }
-# 3. Small pause for physical print head to complete rolling the last lines
-Start-Sleep -Milliseconds 600
+# 3. Small 0.2s pause for physical print head to finish rolling the last lines
+Start-Sleep -Milliseconds 200
 # 4. Send ESC d 4 (feed 4 lines) + GS V 66 0 (feed and partial cut)
 [RawPrinterHelper]::SendBytesToPrinter('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00))
 `.trim();
