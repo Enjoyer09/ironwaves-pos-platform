@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 !define APPNAME "iRonWaves Print Agent"
-!define VERSION "0.5.0"
+!define VERSION "0.5.1"
 !define PUBLISHER "iRonWaves"
 
 ; Stop any previously installed agent so its executable isn't locked (Error opening
