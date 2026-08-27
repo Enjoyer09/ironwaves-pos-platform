@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -609,25 +609,29 @@ const server = http.createServer(async (req, res) => {
 
 // Stop any process currently holding our port so an update can take over
 // without the user manually killing the old agent first.
+//
+// IMPORTANT: We must ONLY kill the process that is LISTENING on the port,
+// not any client (e.g. Chrome) that has an open connection TO that port.
+// netstat shows both sides of a TCP connection; the old regex matched
+// the remote address column ":17777" in Chrome's row and killed Chrome too.
+// Fix: filter to lines where the LOCAL address ends in :PORT and state is LISTENING.
 function killProcessOnPort(port) {
   return new Promise((resolve) => {
     const finish = () => resolve();
     try {
       const { exec } = require('child_process');
       if (process.platform === 'win32') {
-        exec(`netstat -ano | findstr /R ":${port}[ ]"`, (err, stdout) => {
-          if (err || !stdout) return finish();
-          const pids = new Set();
-          stdout.split('\n').forEach((line) => {
-            const cols = line.trim().split(/\s+/);
-            const pid = cols[cols.length - 1];
-            if (pid && /^\d+$/.test(pid)) pids.add(pid);
-          });
-          pids.forEach((pid) => {
-            try { exec(`taskkill /F /PID ${pid}`); } catch (_) {}
-          });
-          finish();
-        });
+        // PowerShell is more reliable than netstat+findstr for this:
+        // Get-Process by PID of the LISTENING TCP socket, then kill only that PID.
+        // Avoids killing Chrome or other clients connected TO the port.
+        const psScript =
+          `$c = (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue);` +
+          `if ($c) { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue }`;
+        exec(
+          `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
+          { windowsHide: true, timeout: 8000 },
+          () => finish(),
+        );
       } else {
         exec(`lsof -ti tcp:${port}`, (err, stdout) => {
           if (err || !stdout) return finish();
