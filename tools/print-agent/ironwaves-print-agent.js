@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -658,6 +658,10 @@ function startServer() {
   server.listen(PORT, HOST, () => {
     // Console output is hidden when running as a windowless .exe
     console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
+    if (process.platform === 'win32') {
+      registerAutostart();
+      showTrayIcon();
+    }
   });
 }
 
@@ -672,5 +676,94 @@ server.on('error', async (err) => {
   }
   console.error('[server error]', err);
 });
+
+// ─── Windows autostart via Registry ───────────────────────────────────────────
+// Writes HKCU\Software\Microsoft\Windows\CurrentVersion\Run so the agent
+// restarts automatically at every Windows login — no admin rights needed.
+function registerAutostart() {
+  try {
+    const exePath = process.execPath; // path to the running .exe
+    if (!exePath || exePath.endsWith('node.exe') || exePath.endsWith('node')) return; // skip dev mode
+    const regCmd =
+      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" ` +
+      `/v "iRonWavesPrintAgent" /t REG_SZ /d "${exePath}" /f`;
+    execFile('cmd.exe', ['/C', regCmd], { windowsHide: true }, (err) => {
+      if (err) console.warn('[autostart] registry write failed:', err.message);
+      else console.log('[autostart] registry entry set — agent will start at login');
+    });
+  } catch (e) {
+    console.warn('[autostart] error:', e && e.message ? e.message : e);
+  }
+}
+
+// ─── Windows System Tray icon via PowerShell ──────────────────────────────────
+// Uses .NET Windows.Forms NotifyIcon from PowerShell — no native addon needed.
+// Shows a tray icon with a right-click menu: version info + Quit.
+// Runs in a detached PowerShell window (hidden) so the agent keeps running.
+function showTrayIcon() {
+  try {
+    const exePath = process.execPath;
+    if (!exePath || exePath.endsWith('node.exe') || exePath.endsWith('node')) return;
+
+    const agentPid = process.pid;
+    const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$tray = New-Object System.Windows.Forms.NotifyIcon
+$tray.Text = "iRonWaves Print Agent v${VERSION}"
+$tray.Visible = $true
+
+# Use a simple built-in icon (information icon)
+$tray.Icon = [System.Drawing.SystemIcons]::Information
+
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+
+$itemTitle = New-Object System.Windows.Forms.ToolStripMenuItem
+$itemTitle.Text = "iRonWaves Print Agent v${VERSION}"
+$itemTitle.Enabled = $false
+$menu.Items.Add($itemTitle) | Out-Null
+
+$menu.Items.Add("-") | Out-Null
+
+$itemQuit = New-Object System.Windows.Forms.ToolStripMenuItem
+$itemQuit.Text = "Cixish / Quit"
+$itemQuit.add_Click({
+    $tray.Visible = $false
+    $tray.Dispose()
+    try { Stop-Process -Id ${agentPid} -Force -ErrorAction SilentlyContinue } catch {}
+    # Also remove autostart registry entry on explicit quit
+    reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "iRonWavesPrintAgent" /f 2>$null
+    [System.Windows.Forms.Application]::Exit()
+})
+$menu.Items.Add($itemQuit) | Out-Null
+
+$tray.ContextMenuStrip = $menu
+
+# Keep tray alive until quit
+[System.Windows.Forms.Application]::Run()
+`.trim();
+
+    // Write the script to a temp file and run it detached
+    const tmpScript = path.join(os.tmpdir(), `iw-tray-${agentPid}.ps1`);
+    fs.writeFileSync(tmpScript, psScript, 'utf8');
+
+    const trayProc = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', tmpScript],
+      { detached: true, stdio: 'ignore', windowsHide: true },
+    );
+    trayProc.unref();
+
+    // Clean up script file after tray is gone
+    trayProc.on('close', () => {
+      try { fs.unlinkSync(tmpScript); } catch {}
+    });
+
+    console.log('[tray] system tray icon spawned');
+  } catch (e) {
+    console.warn('[tray] failed to show tray icon:', e && e.message ? e.message : e);
+  }
+}
 
 startServer();
