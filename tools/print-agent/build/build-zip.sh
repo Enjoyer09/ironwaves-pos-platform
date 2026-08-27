@@ -9,6 +9,7 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 cp dist/ironwaves-print-agent.exe "$STAGE/"
+cp launch-silent.vbs "$STAGE/"
 cp setup-windows.ps1 "$STAGE/"
 cp setup.bat "$STAGE/"
 cp clear-queue.bat "$STAGE/"
