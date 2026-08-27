@@ -100,7 +100,8 @@ function runCommand(command, args = [], timeout = 15000) {
 // ─── Printer helpers with In-Memory Caching (Zero Latency) ─────────────────────
 let cachedPrinters = null;
 let lastPrintersFetchTime = 0;
-const PRINTER_CACHE_TTL_MS = 45000;
+let systemStartupDefaultPrinter = '';
+const PRINTER_CACHE_TTL_MS = 30000;
 
 async function listPrinters(forceRefresh = false) {
   const now = Date.now();
@@ -119,6 +120,11 @@ async function listPrinters(forceRefresh = false) {
         .map((row) => ({ name: String(row.Name), default: Boolean(row.Default) }));
       cachedPrinters = res;
       lastPrintersFetchTime = now;
+      if (!systemStartupDefaultPrinter) {
+        const def = res.find(p => p.default);
+        systemStartupDefaultPrinter = def ? def.name : (res[0] ? res[0].name : '');
+        console.log(`[printer] Startup default printer initialized: "${systemStartupDefaultPrinter}"`);
+      }
       return res;
     } catch {
       return cachedPrinters || [];
@@ -132,6 +138,10 @@ async function listPrinters(forceRefresh = false) {
     const res = names.map((name) => ({ name, default: name === defaultName }));
     cachedPrinters = res;
     lastPrintersFetchTime = now;
+    if (!systemStartupDefaultPrinter) {
+      systemStartupDefaultPrinter = defaultName || (names[0] || '');
+      console.log(`[printer] Startup default printer initialized: "${systemStartupDefaultPrinter}"`);
+    }
     return res;
   }
   return [];
@@ -340,32 +350,19 @@ async function printHtmlInternal(payload) {
   const userDir = path.join(dir, 'chrome-profile');
   fs.mkdirSync(userDir, { recursive: true });
 
-  // Resolve the requested printer to a real installed printer name (case/space/
-  // partial tolerant). If a printer was requested but cannot be matched, fail
-  // loudly instead of silently printing to the wrong device (e.g. HP).
+  // Resolve target printer name
   let targetPrinter = '';
   if (printerName) {
     targetPrinter = await resolvePrinterName(printerName);
     if (!targetPrinter) {
-      log(`Printer "${printerName}" not found in installed printers. Gracefully falling back to default printer.`);
-      const defaultP = await getDefaultPrinterName().catch(() => '');
-      targetPrinter = defaultP || '';
+      log(`Printer "${printerName}" not found in installed printers. Falling back to default "${systemStartupDefaultPrinter}".`);
+      targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName().catch(() => ''));
     }
+  } else {
+    targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName().catch(() => ''));
   }
 
-  // Temporarily set the resolved printer as the system default (Windows only).
-  let previousDefault = '';
-  if (targetPrinter && process.platform === 'win32') {
-    previousDefault = await getDefaultPrinterName().catch(() => '');
-    if (targetPrinter !== previousDefault) {
-      await setDefaultPrinter(targetPrinter).catch(() => {});
-      // verify + one retry in case Windows is slow to apply the change
-      const verify = await getDefaultPrinterName().catch(() => '');
-      if (normalizeName(verify) !== normalizeName(targetPrinter)) {
-        await setDefaultPrinter(targetPrinter).catch(() => {});
-      }
-    }
-  }
+  log(`Resolved target printer: "${targetPrinter}" (requested: "${printerName}")`);
 
   // macOS print logic
   if (process.platform === 'darwin') {
@@ -373,7 +370,6 @@ async function printHtmlInternal(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
     
     if (browser) {
-      // macOS: Use Chrome headless to convert HTML to PDF silently (with speed-up flags)
       const chromeArgs = [
         '--headless',
         `--user-data-dir=${userDir}`,
@@ -400,8 +396,6 @@ async function printHtmlInternal(payload) {
           });
         });
 
-        // 1. Render the PDF vector page to a super high-resolution PNG (3000px height) using macOS's built-in QuickLook engine.
-        // Since we are running in the user's home folder, this is instant (<0.1s) and has no sandbox timeout blocks!
         await runCommand('qlmanage', [
           '-t',
           '-s', '3000',
@@ -410,10 +404,6 @@ async function printHtmlInternal(payload) {
         ], 10000);
 
         const pngFile = path.join(dir, 'receipt.pdf.png');
-
-        // 2. Downscale the high-res PNG to the exact printable pixel width of the
-        // roll (576px for 80mm, 384px for 58mm). Downscaling a high-res rendering
-        // (super-sampling) preserves perfect outlines, sharp text, and crisp barcodes!
         const pageWidthMatch = html.match(/@page\s*\{[^}]*size:\s*([0-9.]+)\s*mm/i);
         const pageWidthMm = pageWidthMatch ? parseFloat(pageWidthMatch[1]) : 80;
         const targetWidthPx = Math.round(pageWidthMm >= 70 ? 576 : 384);
@@ -422,14 +412,11 @@ async function printHtmlInternal(payload) {
           pngFile
         ], 10000);
 
-        // 3. Print the crisp resampled PNG file via lp directly to the target printer.
-        // Cheap thermal printers on macOS do not support direct PDF spooling and print endlessly unless sent a raster PNG!
         const lpArgs = [];
         if (targetPrinter) lpArgs.push('-d', targetPrinter);
         lpArgs.push(pngFile);
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       } catch (err) {
-        // Fallback: try lp with raw text if headless print fails
         const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         const textFile = path.join(dir, 'receipt.txt');
         fs.writeFileSync(textFile, textContent, 'utf8');
@@ -439,29 +426,30 @@ async function printHtmlInternal(payload) {
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       }
     } else {
-      // Fallback: try lp with raw text (strip HTML tags)
       const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const textFile = path.join(dir, 'receipt.txt');
       fs.writeFileSync(textFile, textContent, 'utf8');
       const lpArgs = [];
-      if (printerName) lpArgs.push('-d', printerName);
+      if (targetPrinter) lpArgs.push('-d', targetPrinter);
       lpArgs.push(textFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
-      // Auto-cut only for non-browser raw text mode
-      await sendCut(targetPrinter || printerName).catch(() => {});
+      await sendCut(targetPrinter).catch(() => {});
     }
 
-    // Clean up temp dir
     fs.rm(dir, { recursive: true, force: true }, () => {});
-    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: targetPrinter || printerName || 'default' };
+    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: targetPrinter || 'default' };
   }
 
-  // Windows: use Chrome kiosk printing with header/footer suppressed in profile preferences
+  // Windows: use Chrome kiosk printing with explicit printer targeting
   const browser = findBrowserExecutable();
   if (!browser) throw new Error('Chrome və ya Microsoft Edge tapılmadı');
 
-  // Pre-seed Chrome user-data-dir preferences to explicitly bind to target printer
-  // and suppress headers & footers in silent kiosk mode.
+  // Temporarily set the target printer as system default for Chrome kiosk
+  if (targetPrinter && process.platform === 'win32') {
+    await setDefaultPrinter(targetPrinter).catch(() => {});
+  }
+
+  let chromePid = null;
   try {
     const defaultProfileDir = path.join(userDir, 'Default');
     fs.mkdirSync(defaultProfileDir, { recursive: true });
@@ -469,22 +457,19 @@ async function printHtmlInternal(payload) {
       version: 2,
       isHeaderFooterEnabled: false,
       marginsType: 1,
-    };
-    const destPrinter = targetPrinter || previousDefault || printerName;
-    if (destPrinter) {
-      appStateObj.selectedDestinationId = destPrinter;
-      appStateObj.recentDestinations = [
+      selectedDestinationId: targetPrinter,
+      recentDestinations: [
         {
-          id: destPrinter,
+          id: targetPrinter,
           origin: 'local',
           account: '',
           capabilities: null,
-          displayName: destPrinter,
+          displayName: targetPrinter,
           extensionId: '',
           extensionName: '',
         },
-      ];
-    }
+      ],
+    };
     const prefs = {
       printing: {
         print_preview_sticky_settings: {
@@ -493,33 +478,26 @@ async function printHtmlInternal(payload) {
       },
     };
     fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify(prefs), 'utf8');
-  } catch (e) {
-    log(`prefs setup error: ${e && e.message}`);
-  }
 
-  const chromePid = await spawnBrowserForPrint(browser, file, userDir);
-  log(`chrome kiosk spawned pid=${chromePid}`);
+    chromePid = await spawnBrowserForPrint(browser, file, userDir);
+    log(`chrome kiosk spawned pid=${chromePid} targeting "${targetPrinter}"`);
 
-  // Restore previous default printer after Chrome has time to spool the job
-  const RESTORE_DELAY_MS = 11000;
-  setTimeout(() => {
-    if (previousDefault && previousDefault !== printerName) {
-      setDefaultPrinter(previousDefault).catch(() => {});
-    }
-    log('default printer restored');
-  }, RESTORE_DELAY_MS);
-
-  // Kill the Chrome instance we spawned after it has had time to send the print job.
-  const KILL_DELAY_MS = 14000;
-  setTimeout(() => {
+    // Give Chrome 3.5s to spool the job into Windows print queue
+    await new Promise((r) => setTimeout(r, 3500));
+  } finally {
+    // Kill Chrome instance
     if (chromePid) {
       try {
         execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
       } catch (_) {}
     }
-    log('chrome killed + temp cleaned');
+    // ALWAYS restore system startup default printer immediately
+    if (systemStartupDefaultPrinter && targetPrinter !== systemStartupDefaultPrinter && process.platform === 'win32') {
+      log(`Restoring default printer back to system default: "${systemStartupDefaultPrinter}"`);
+      await setDefaultPrinter(systemStartupDefaultPrinter).catch(() => {});
+    }
     fs.rm(dir, { recursive: true, force: true }, () => {});
-  }, KILL_DELAY_MS);
+  }
 
   // Note: Thermal printer drivers (Epson/Xprinter/POS-80) automatically cut at the end
   // of the print document. Running sendCut in addition causes a second cut 1cm later.
@@ -699,12 +677,24 @@ Start-Sleep -Milliseconds 200
     console.warn('[print] auto-cut skipped:', e && e.message ? e.message : e);
   } finally {
     try { if (dir) fs.rm(dir, { recursive: true, force: true }, () => {}); } catch {}
-  }
 // ─── Direct High-Speed ESC/POS Print (0.05s) ───────────────────────────────
 async function printRaw(payload) {
+  return queuePrintTask(async () => {
+    return printRawInternal(payload);
+  });
+}
+
+async function printRawInternal(payload) {
   const rawData = String(payload.raw || payload.raw_commands || '').trim();
   if (!rawData) throw new Error('raw commands are required');
-  const targetPrinter = await resolvePrinterName(payload.printer_name);
+  const reqName = String(payload.printer_name || '').trim();
+  let targetPrinter = '';
+  if (reqName) {
+    targetPrinter = await resolvePrinterName(reqName);
+  }
+  if (!targetPrinter) {
+    targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName());
+  }
 
   if (process.platform === 'darwin') {
     const tmpFile = path.join(os.tmpdir(), `iw-raw-${Date.now()}.bin`);
@@ -721,7 +711,7 @@ async function printRaw(payload) {
   }
 
   if (process.platform === 'win32') {
-    const printer = targetPrinter || (await getDefaultPrinterName());
+    const printer = targetPrinter || systemStartupDefaultPrinter || (await getDefaultPrinterName());
     const safePrinterName = String(printer || '').replace(/'/g, "''");
     const base64Bytes = Buffer.from(rawData, 'latin1').toString('base64');
     const psScript = `
@@ -884,8 +874,8 @@ let listenRetries = 0;
 
 function startServer() {
   server.listen(PORT, HOST, () => {
-    // Console output is hidden when running as a windowless .exe
     console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
+    listPrinters(true).catch(() => {});
     if (process.platform === 'win32') {
       registerAutostart();
       showTrayIcon();
