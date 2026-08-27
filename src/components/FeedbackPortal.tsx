@@ -32,7 +32,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [done, setDone] = React.useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [coupon, setCoupon] = React.useState<{ code: string; percent: number } | null>(null);
+  const [coupon, setCoupon] = React.useState<{ code: string; percent: number; status?: string } | null>(null);
   const [couponQrDataUrl, setCouponQrDataUrl] = React.useState('');
   const [savingPng, setSavingPng] = React.useState(false);
   const [ctaPressed, setCtaPressed] = React.useState(false);
@@ -66,20 +66,20 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   React.useEffect(() => {
     let cancelled = false;
     const safeTenant = String(tenantId || '').trim();
-    const safeReceipt = String(receiptId || '').trim();
+    const safeReceipt = String(receiptId || saleId || '').trim();
     const safeToken = String(receiptToken || '').trim();
-    if (!safeTenant || !safeReceipt || !safeToken) return () => { cancelled = true; };
+    if (!safeTenant || !safeReceipt) return () => { cancelled = true; };
     void (async () => {
       const existingCoupon = await get_feedback_coupon_for_receipt_live(safeTenant, safeReceipt, safeToken);
       if (cancelled || !existingCoupon) return;
-      setCoupon({ code: existingCoupon.code, percent: existingCoupon.percent });
+      setCoupon({ code: existingCoupon.code, percent: existingCoupon.percent, status: existingCoupon.status });
       setAlreadySubmitted(true);
       setDone(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [tenantId, receiptId, receiptToken]);
+  }, [tenantId, receiptId, saleId, receiptToken]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -200,6 +200,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         setCoupon({
           code: String(result.coupon_code),
           percent: Number(result.coupon_percent || 5),
+          status: String((result as any).coupon_status || 'PENDING'),
         });
       }
       setAlreadySubmitted(Boolean((result as any)?.already_submitted));
@@ -395,26 +396,37 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   : thankYouText}
               </p>
               {coupon?.code ? (
-                <div className="mt-4 rounded-2xl border border-emerald-300/60 bg-white/55 p-3 text-left">
-                  <div className="text-xs font-semibold text-emerald-800/80">Növbəti vizit üçün kupon</div>
-                  <div className="mt-1 text-2xl font-black tracking-wider text-emerald-900">{coupon.code}</div>
-                  <div className="mt-1 text-xs text-emerald-900/80">
-                    POS-da kodu göstər, avtomatik {coupon.percent}% endirim tətbiq olunacaq.
+                <div className={`mt-4 rounded-2xl border ${coupon.status === 'REDEEMED' ? 'border-slate-300 bg-slate-100/90 text-slate-700' : 'border-emerald-300/60 bg-white/55 text-emerald-900'} p-3 text-left`}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold">{coupon.status === 'REDEEMED' ? 'İstifadə olunmuş kupon' : 'Növbəti vizit üçün kupon'}</div>
+                    {coupon.status === 'REDEEMED' ? (
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">İstifadə edilib</span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">Aktiv</span>
+                    )}
                   </div>
-                  {couponQrDataUrl ? (
+                  <div className={`mt-1 text-2xl font-black tracking-wider ${coupon.status === 'REDEEMED' ? 'line-through text-slate-500' : 'text-emerald-900'}`}>{coupon.code}</div>
+                  <div className="mt-1 text-xs opacity-80">
+                    {coupon.status === 'REDEEMED'
+                      ? 'Bu endirim kuponu artıq kassada istifadə olunub və təkrar tətbiq edilə bilməz.'
+                      : `POS-da kodu göstər, avtomatik ${coupon.percent}% endirim tətbiq olunacaq.`}
+                  </div>
+                  {couponQrDataUrl && coupon.status !== 'REDEEMED' ? (
                     <div className="mt-3 flex flex-col items-center rounded-xl border border-emerald-300/50 bg-white/80 p-2">
                       <img src={couponQrDataUrl} alt="Feedback coupon QR" className="h-28 w-28 rounded bg-white p-1" />
                       <div className="mt-2 text-[11px] text-emerald-900/80">Kassada QR-i skan edin (IWPOS:FB)</div>
                     </div>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={saveCouponCardAsPng}
-                    disabled={savingPng}
-                    className="mt-3 w-full rounded-full border border-emerald-300/80 bg-emerald-500/20 px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-500/30 disabled:opacity-60"
-                  >
-                    {savingPng ? 'Şəkil hazırlanır...' : 'Save to Photos'}
-                  </button>
+                  {coupon.status !== 'REDEEMED' ? (
+                    <button
+                      type="button"
+                      onClick={saveCouponCardAsPng}
+                      disabled={savingPng}
+                      className="mt-3 w-full rounded-full border border-emerald-300/80 bg-emerald-500/20 px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-500/30 disabled:opacity-60"
+                    >
+                      {savingPng ? 'Şəkil hazırlanır...' : 'Save to Photos'}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {viewReceiptUrl ? (
