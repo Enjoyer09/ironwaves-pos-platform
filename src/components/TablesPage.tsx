@@ -164,6 +164,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [roundSearch, setRoundSearch] = useState('');
   const [roundCategory, setRoundCategory] = useState('ALL');
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
+  const [classicEditingRowForNote, setClassicEditingRowForNote] = useState<any>(null);
+  const [classicNoteText, setClassicNoteText] = useState('');
   const [draftSendError, setDraftSendError] = useState<string | null>(null);
   const [statusLogTarget, setStatusLogTarget] = useState<any | null>(null);
   const [statusLogRows, setStatusLogRows] = useState<any[]>([]);
@@ -2444,7 +2446,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         />
                       </div>
 
-                      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                      <div className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
                         {draftSendError ? (
                           <div className="mb-3 rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                             <div>{tx(lang, 'Göndərmə alınmadı. Məhsullar hələ göndərilməmiş kimi saxlanıldı.', 'Отправка не удалась. Позиции остались неотправленными.', 'Send failed. Items are still kept as unsent.')}</div>
@@ -2467,16 +2469,30 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             </div>
                           ) : (
                             draftRows.map((row: any) => (
-                              <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-slate-100">{row.item_name}</div>
-                                  <div className="text-xs text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
+                              <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2 transition hover:border-slate-600">
+                                <div
+                                  role="button"
+                                  onClick={() => {
+                                    setClassicEditingRowForNote(row);
+                                    setClassicNoteText(row.note || '');
+                                  }}
+                                  className="min-w-0 flex-1 cursor-pointer select-none group"
+                                >
+                                  <div className="truncate text-sm font-semibold text-slate-100 group-hover:text-yellow-300 transition-colors">
+                                    {row.item_name}
+                                  </div>
+                                  {row.note && (
+                                    <div className="truncate text-xs font-semibold text-yellow-400 mt-0.5">
+                                      ✎ {row.note}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-slate-400 mt-0.5">{Number(row.price || 0).toFixed(2)} ₼</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200 hover:bg-slate-800" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
                                   <div className="min-w-6 text-center text-sm font-bold text-slate-100">{row.qty}</div>
-                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
-                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/10 text-xs font-bold text-rose-200" onClick={() => updateRoundDraftQty(String(row.id), 0)}>✕</button>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200 hover:bg-slate-800" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/10 text-xs font-bold text-rose-200 hover:bg-rose-500/20" onClick={() => updateRoundDraftQty(String(row.id), 0)}>✕</button>
                                 </div>
                               </div>
                             ))
@@ -2506,6 +2522,99 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             setTableDiscountPercent('0');
                           }}
                         />
+
+                        {/* Classic Mode Note & Quick Modifiers Editor */}
+                        {classicEditingRowForNote && (
+                          <div className="absolute inset-0 z-30 flex flex-col rounded-xl bg-slate-950/95 p-4 border border-slate-700/60 backdrop-blur-md transition-all duration-200">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                              <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                                  {tx(lang, 'Qeyd Əlavə Et / Düzəliş', 'Добавить примечание / Изменить', 'Add Note / Edit')}
+                                </h4>
+                                <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[200px]">
+                                  {classicEditingRowForNote.item_name}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setClassicEditingRowForNote(null)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 taktil-target"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            {/* Note text field */}
+                            <div className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5 scrollbar-none">
+                              <input
+                                type="text"
+                                value={classicNoteText}
+                                onChange={(e) => setClassicNoteText(e.target.value)}
+                                placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
+                                className="neon-input h-11 w-full text-sm font-bold focus:ring-yellow-300/20"
+                                autoFocus
+                              />
+
+                              {/* Quick Modifier Grid */}
+                              <div>
+                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                                  {tx(lang, 'Sürətli Seçimlər', 'Быстрый выбор', 'Quick Modifiers')}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sərt', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
+                                    const selectedMods = classicNoteText.split(',').map(s => s.trim()).filter(Boolean);
+                                    const isSelected = selectedMods.includes(mod);
+                                    return (
+                                      <button
+                                        key={mod}
+                                        type="button"
+                                        onClick={() => {
+                                          let nextText = '';
+                                          if (isSelected) {
+                                            nextText = selectedMods.filter(s => s !== mod).join(', ');
+                                          } else {
+                                            nextText = [...selectedMods, mod].join(', ');
+                                          }
+                                          setClassicNoteText(nextText);
+                                        }}
+                                        className={`min-h-[42px] flex items-center justify-center rounded-xl border py-2 px-2 text-center text-xs font-black transition taktil-target ${
+                                          isSelected
+                                            ? 'border-yellow-400 bg-yellow-400/10 text-yellow-300'
+                                            : 'border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-700/60'
+                                        }`}
+                                      >
+                                        {mod}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Bottom Actions */}
+                            <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setClassicEditingRowForNote(null)}
+                                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 taktil-target"
+                              >
+                                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (classicEditingRowForNote) {
+                                    await updateRoundDraftNote(classicEditingRowForNote.id, classicNoteText);
+                                  }
+                                  setClassicEditingRowForNote(null);
+                                }}
+                                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 taktil-target"
+                              >
+                                {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                       {/* Slide-up Sent Items Panel - fixed overlay */}
