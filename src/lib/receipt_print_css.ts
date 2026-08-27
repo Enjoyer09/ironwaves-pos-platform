@@ -144,6 +144,10 @@ export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string 
       max-width: 100% !important;
       padding: 0 1.5mm 3mm 1.5mm !important;
       font-size: ${fontSize} !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
     }
     .line { font-size: ${fontSize} !important; }
     .muted { font-size: ${mutedSize} !important; }
