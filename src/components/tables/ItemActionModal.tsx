@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { tx } from '../../i18n';
 import { normalizeOrderItemStatus, itemActionNeedsManager, itemActionLabel } from '../../utils/tables/tableUtils';
+import { useAppStore } from '../../store';
 
 interface ItemActionModalProps {
   target: { item: any; action: string };
@@ -17,6 +18,8 @@ interface ItemActionModalProps {
 }
 
 export default function ItemActionModal({ target, lang, onClose, onConfirm }: ItemActionModalProps) {
+  const user = useAppStore((state) => state.user);
+  const isManager = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
   const [reason, setReason] = useState('');
   const [reasonCode, setReasonCode] = useState('guest_changed_mind');
   const [quantityDelta, setQuantityDelta] = useState('1');
@@ -25,7 +28,7 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
   const actionStatus = normalizeOrderItemStatus(target.item?.status || 'DRAFT');
   const quickAction = actionStatus === 'DRAFT';
   const actionName = String(target.action || '').toUpperCase();
-  const actionRequiresManager = itemActionNeedsManager(actionName, actionStatus);
+  const actionRequiresManager = !isManager && itemActionNeedsManager(actionName, actionStatus);
   const needsReason = !quickAction;
   const quantityMax = Math.max(1, Number(target.item?.qty || 1));
 
@@ -83,12 +86,38 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
             </label>
           </div>
         )}
-        {actionRequiresManager && (
-          <label className="mt-3 block text-sm text-slate-300">
-            {tx(lang, 'Manager/Admin şifrəsi', 'Пароль менеджера/админа', 'Manager/Admin password')}
-            <input type="password" className="neon-input mt-1" value={managerPassword} onChange={(e) => setManagerPassword(e.target.value)} />
-          </label>
-        )}
+
+        {/* Manager Override Authorization */}
+        {actionRequiresManager ? (
+          <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+              <span>🔒</span>
+              <span>{tx(lang, 'Menecer Təsdiqi Tələb Olunur', 'Требуется подтверждение менеджера', 'Manager Approval Required')}</span>
+            </div>
+            <div className="mt-1 text-[11px] text-amber-200/90 leading-tight">
+              {tx(
+                lang,
+                'Bu məhsul artıq mətbəxə göndərildiyi üçün ləğv edilməsinə Menecer icazəsi lazımdır. Menecer və ya Admin şifrəsini daxil edin:',
+                'Позиция уже отправлена на кухню. Для отмены введите пароль менеджера/админа:',
+                'This item was already sent to kitchen. Enter manager/admin password to approve:',
+              )}
+            </div>
+            <input
+              type="password"
+              placeholder="••••••••"
+              className="neon-input mt-2 bg-slate-900 border-amber-400/50"
+              value={managerPassword}
+              onChange={(e) => setManagerPassword(e.target.value)}
+              autoFocus
+            />
+          </div>
+        ) : isManager && !quickAction ? (
+          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-400/30 rounded-xl px-3 py-2">
+            <span>✓</span>
+            <span>{tx(lang, `Menecer kimi təsdiqlənir (${user?.username || 'Admin'})`, `Подтверждается как менеджер (${user?.username || 'Admin'})`, `Approved as Manager (${user?.username || 'Admin'})`)}</span>
+          </div>
+        ) : null}
+
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="neon-btn rounded-lg px-4 py-2" onClick={onClose}>
             {tx(lang, 'Bağla', 'Закрыть', 'Close')}

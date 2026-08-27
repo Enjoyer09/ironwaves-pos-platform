@@ -1370,7 +1370,10 @@ def _apply_order_item_action(
 
     manager_user = None
     if current_status in set(rule.get("manager_statuses") or set()):
-        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+        if _is_manager(user):
+            manager_user = user
+        else:
+            manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
 
     item.action_by = user.username
     if manager_user:
