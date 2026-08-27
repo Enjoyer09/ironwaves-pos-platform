@@ -189,28 +189,56 @@ function normalizeName(n) {
 }
 
 // Resolve a requested printer name to an actual installed printer name.
-// Handles case/space differences and partial matches so minor mismatches
-// (e.g. "XP-S200M" vs "XP-S200M (USB)") still target the correct device
-// instead of silently falling back to the wrong printer.
+// Strict exact matching & Copy number differentiation to prevent swapping
+// between base printers (e.g. "POS-80") and copy printers (e.g. "POS-80 (copy 1)").
 async function resolvePrinterName(requested) {
-  const req = normalizeName(requested);
-  if (!req) return '';
+  const reqRaw = String(requested || '').trim();
+  if (!reqRaw) return '';
+  const reqNorm = normalizeName(reqRaw);
   const printers = await listPrinters();
   if (printers.length === 0) return '';
 
-  let hit = printers.find((p) => normalizeName(p.name) === req);
-  if (hit) return hit.name;
+  // 1. Exact case-insensitive match (Highest Priority)
+  const exact = printers.find((p) => p.name.trim().toLowerCase() === reqRaw.toLowerCase());
+  if (exact) return exact.name;
 
-  hit = printers.find(
-    (p) => normalizeName(p.name).includes(req) || req.includes(normalizeName(p.name)),
-  );
-  if (hit) return hit.name;
+  // 2. Normalized full string equality
+  const normMatch = printers.find((p) => normalizeName(p.name) === reqNorm);
+  if (normMatch) return normMatch.name;
 
-  const reqTokens = new Set(req.split(/[^a-z0-9]+/).filter(Boolean));
+  // Detect if requested name explicitly contains a copy suffix: "copy 1", "kopya 1", "(1)", etc.
+  const reqCopyMatch = reqNorm.match(/(?:copy|kopya|surət|suret|\()\s*([0-9]+)/i);
+  const reqCopyNum = reqCopyMatch ? reqCopyMatch[1] : null;
+
+  if (reqCopyNum) {
+    // Requested has a copy number -> match ONLY printers with the SAME copy number
+    const copyHit = printers.find((p) => {
+      const pNorm = normalizeName(p.name);
+      const pCopyMatch = pNorm.match(/(?:copy|kopya|surət|suret|\()\s*([0-9]+)/i);
+      return pCopyMatch && pCopyMatch[1] === reqCopyNum;
+    });
+    if (copyHit) return copyHit.name;
+  } else {
+    // Requested is a BASE printer without copy (e.g. "POS-80")
+    // Strictly EXCLUDE any printers that have "(copy 1)", "(1)", etc.
+    const baseHit = printers.find((p) => {
+      const pNorm = normalizeName(p.name);
+      const hasCopy = /(?:copy|kopya|surət|suret|\()\s*[0-9]+/i.test(pNorm);
+      return !hasCopy && (pNorm.includes(reqNorm) || reqNorm.includes(pNorm));
+    });
+    if (baseHit) return baseHit.name;
+  }
+
+  // 3. Fallback token score with strict copy guard
+  const reqTokens = new Set(reqNorm.split(/[^a-z0-9]+/).filter(Boolean));
   let best = null;
   let bestScore = 0;
   for (const p of printers) {
-    const tokens = new Set(normalizeName(p.name).split(/[^a-z0-9]+/).filter(Boolean));
+    const pNorm = normalizeName(p.name);
+    if (!reqCopyNum && /(?:copy|kopya|surət|suret|\()\s*[0-9]+/i.test(pNorm)) {
+      continue; // do not assign copy printer to base request
+    }
+    const tokens = new Set(pNorm.split(/[^a-z0-9]+/).filter(Boolean));
     let score = 0;
     for (const t of tokens) if (reqTokens.has(t)) score += 1;
     if (score > bestScore) {
@@ -221,8 +249,25 @@ async function resolvePrinterName(requested) {
   return best || '';
 }
 
+// ─── Sequential Mutex Queue for HTML / Kiosk Prints ─────────────────────────
+// Prevents race conditions when a kitchen ticket and cash receipt are sent
+// within seconds of each other, ensuring default printer settings never collide.
+let printMutexChain = Promise.resolve();
+
+function queuePrintTask(taskFn) {
+  const next = printMutexChain.then(() => taskFn(), () => taskFn());
+  printMutexChain = next.catch(() => {});
+  return next;
+}
+
 // ─── Core print logic ─────────────────────────────────────────────────────────
 async function printHtml(payload) {
+  return queuePrintTask(async () => {
+    return printHtmlInternal(payload);
+  });
+}
+
+async function printHtmlInternal(payload) {
   if (!['win32', 'darwin'].includes(process.platform)) {
     throw new Error('Print Agent currently supports Windows and macOS');
   }
