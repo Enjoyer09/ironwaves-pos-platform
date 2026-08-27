@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.2';
+const VERSION = '0.5.3';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -414,7 +414,7 @@ async function printHtml(payload) {
   log(`chrome kiosk spawned pid=${chromePid}`);
 
   // Restore previous default printer after Chrome has time to spool the job
-  const RESTORE_DELAY_MS = 9000;
+  const RESTORE_DELAY_MS = 5500;
   setTimeout(() => {
     if (previousDefault && previousDefault !== printerName) {
       setDefaultPrinter(previousDefault).catch(() => {});
@@ -435,7 +435,7 @@ async function printHtml(payload) {
   }, KILL_DELAY_MS);
 
   // Auto-cut a moment after Chrome has spooled the page (best-effort on Windows).
-  const CUT_DELAY_MS = 9500;
+  const CUT_DELAY_MS = 3200;
   setTimeout(() => {
     sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
   }, CUT_DELAY_MS);
@@ -481,13 +481,10 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
 }
 
 // ─── Auto-cut after print ───────────────────────────────────────────────────────
-// ESC/POS: feed a few blank lines, then a full cut (GS V 66 0 / 0x1D 0x56 0x42 0x00).
-// Best-effort safety net — the driver also cuts per page, so a failure here is harmless.
+// ESC/POS: feed 4 lines, then partial/full cut (GS V 66 0 + ESC i / ESC m).
+// On Windows: sends raw bytes directly to the print spooler via winspool.drv API.
+// On macOS: sends raw bytes via `lp -o raw`.
 async function sendCut(printerName) {
-  // Resolve the default printer when the caller did not name one explicitly.
-  // Most print jobs go to the system default printer without an explicit name,
-  // so without this fallback the auto-cut command is silently skipped and the
-  // paper is never cut (the user has to tear it by hand).
   let target = String(printerName || '').trim();
   if (!target) {
     try {
@@ -498,25 +495,91 @@ async function sendCut(printerName) {
     }
   }
   if (!target) return;
+
+  if (process.platform === 'win32') {
+    try {
+      const safePrinterName = target.replace(/'/g, "''");
+      const psScript = `
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class RawPrinterHelper {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+    [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+
+    public static bool SendBytesToPrinter(string szPrinterName, byte[] bytes) {
+        IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
+        Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
+        IntPtr hPrinter;
+        DOCINFOA di = new DOCINFOA();
+        di.pDocName = "iRonWaves AutoCut";
+        di.pDataType = "RAW";
+        bool success = false;
+        if (OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) {
+            if (StartDocPrinter(hPrinter, 1, di)) {
+                if (StartPagePrinter(hPrinter)) {
+                    int dwWritten = 0;
+                    success = WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out dwWritten);
+                    EndPagePrinter(hPrinter);
+                }
+                EndDocPrinter(hPrinter);
+            }
+            ClosePrinter(hPrinter);
+        }
+        Marshal.FreeCoTaskMem(pUnmanagedBytes);
+        return success;
+    }
+}
+"@
+if (-not ([System.Management.Automation.PSTypeName]'RawPrinterHelper').Type) {
+    Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+}
+# Send ESC d 4 (feed 4 lines) + GS V 66 0 (feed and partial cut)
+[RawPrinterHelper]::SendBytesToPrinter('${safePrinterName}', [byte[]]@(0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00))
+`.trim();
+
+      await runPowerShell(psScript);
+      console.log(`[cut] auto-cut raw bytes sent to printer "${target}"`);
+    } catch (e) {
+      console.warn('[cut] auto-cut error on Windows:', e && e.message ? e.message : e);
+    }
+    return;
+  }
+
+  // macOS / Linux
   let dir;
   try {
-    const baseTempDir = process.platform === 'darwin'
-      ? path.join(os.homedir(), '.ironwaves-print')
-      : os.tmpdir();
+    const baseTempDir = path.join(os.homedir(), '.ironwaves-print');
     dir = fs.mkdtempSync(path.join(baseTempDir, 'ironwaves-cut-'));
-    const file = path.join(dir, 'cut.bin');
     const feed = Buffer.from('\n\n\n\n', 'utf8');
     const cut = Buffer.from([0x1d, 0x56, 0x42, 0x00]); // GS V 66 0
     fs.writeFileSync(file, Buffer.concat([feed, cut]));
-    if (process.platform === 'darwin') {
-      await runCommand('lp', ['-d', target, '-o', 'raw', file], 10000);
-    } else if (process.platform === 'win32') {
-      await new Promise((resolve) => {
-        const p = exec(`print /D:"${target}" "${file}"`, () => resolve());
-        p.on('error', () => resolve());
-        setTimeout(resolve, 5000);
-      });
-    }
+    await runCommand('lp', ['-d', target, '-o', 'raw', file], 10000);
   } catch (e) {
     console.warn('[print] auto-cut skipped:', e && e.message ? e.message : e);
   } finally {
