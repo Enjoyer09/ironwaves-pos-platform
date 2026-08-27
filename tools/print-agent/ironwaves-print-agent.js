@@ -680,17 +680,27 @@ server.on('error', async (err) => {
 // ─── Windows autostart via Registry ───────────────────────────────────────────
 // Writes HKCU\Software\Microsoft\Windows\CurrentVersion\Run so the agent
 // restarts automatically at every Windows login — no admin rights needed.
+// Uses PowerShell Set-ItemProperty (not cmd.exe reg add) because reg add
+// chokes on paths that contain parentheses like "setup (1).exe".
 function registerAutostart() {
   try {
     const exePath = process.execPath; // path to the running .exe
     if (!exePath || exePath.endsWith('node.exe') || exePath.endsWith('node')) return; // skip dev mode
-    const regCmd =
-      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" ` +
-      `/v "iRonWavesPrintAgent" /t REG_SZ /d "${exePath}" /f`;
-    execFile('cmd.exe', ['/C', regCmd], { windowsHide: true }, (err) => {
-      if (err) console.warn('[autostart] registry write failed:', err.message);
-      else console.log('[autostart] registry entry set — agent will start at login');
-    });
+    // Use PowerShell Set-ItemProperty — handles paths with spaces, parentheses (1), etc.
+    // cmd.exe reg add fails on such paths with "ERROR: Invalid syntax"
+    const safeExePath = exePath.replace(/'/g, "''");
+    const psCmd =
+      `Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' ` +
+      `-Name 'iRonWavesPrintAgent' -Value '${safeExePath}' -Type String`;
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCmd],
+      { windowsHide: true },
+      (err) => {
+        if (err) console.warn('[autostart] registry write failed:', err.message);
+        else console.log('[autostart] registry entry set — agent will start at login');
+      },
+    );
   } catch (e) {
     console.warn('[autostart] error:', e && e.message ? e.message : e);
   }
