@@ -857,7 +857,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         if (printSettings.auto_print_kitchen_ticket !== false) {
           try {
             const tableName = table.label || 'Sifaris';
+            const activeCheck = activeDetail?.check;
+            const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
             const ticketData = {
+              ticket_id: checkDisplayId,
+              order_id: checkDisplayId,
               table_label: tableName,
               order_type_label: tableName,
               server_name: user?.username || 'Staff',
@@ -920,7 +924,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       if (printSettings.auto_print_kitchen_ticket !== false) {
         try {
           const tableName = table.label || 'Sifaris';
+          const activeCheck = activeDetail?.check;
+          const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
           const ticketData = {
+            ticket_id: checkDisplayId,
+            order_id: checkDisplayId,
             table_label: tableName,
             order_type_label: tableName,
             server_name: user?.username || 'Staff',

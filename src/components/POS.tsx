@@ -1497,6 +1497,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           const sentTableObj = tables.find((t) => t.id === sentTable);
           const tableName = sentTableObj?.label || 'Sifaris';
           const ticketData = {
+            ticket_id: finalSaleId ? String(finalSaleId).split('-')[0].toUpperCase() : tableName,
+            order_id: finalSaleId ? String(finalSaleId).split('-')[0].toUpperCase() : tableName,
             table_label: tableName,
             order_type_label: tableName,
             server_name: user.username,

@@ -50,8 +50,18 @@ export function buildKitchenTicketHtml({
   companyName?: string;
   paperWidth?: '58mm' | '80mm';
 }): string {
-  const displayId = String(ticket.ticket_id || ticket.order_id || 'ORDER').split('-')[0].toUpperCase();
+  const rawId = String(ticket.ticket_id || ticket.order_id || '').trim();
   const dateObj = ticket.created_at ? new Date(ticket.created_at) : new Date();
+  let displayId = '';
+  if (rawId && rawId.toUpperCase() !== 'ORDER') {
+    displayId = rawId.length > 8 ? rawId.split('-')[0].toUpperCase() : rawId.toUpperCase();
+  } else if (ticket.table_label) {
+    displayId = `${String(ticket.table_label).toUpperCase()}`;
+  } else {
+    displayId = (Number.isNaN(dateObj.getTime()) ? new Date() : dateObj)
+      .toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' })
+      .replace(':', '');
+  }
   const dateStr = Number.isNaN(dateObj.getTime())
     ? new Date().toLocaleDateString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : dateObj.toLocaleDateString('az-AZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
