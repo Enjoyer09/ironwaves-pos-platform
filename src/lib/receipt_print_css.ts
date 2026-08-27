@@ -23,8 +23,8 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     color: #000 !important;
     background: #fff !important;
     font-family: "Courier New", "Lucida Console", "Liberation Mono", monospace !important;
-    font-size: 9px !important;
-    line-height: 1.3 !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
     font-weight: 700 !important;
     -webkit-font-smoothing: none;
     text-rendering: geometricPrecision;
@@ -49,8 +49,8 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
     justify-content: space-between !important;
     align-items: baseline !important;
     gap: 4px !important;
-    margin: 1.5px 0 !important;
-    font-size: 9px !important;
+    margin: 2px 0 !important;
+    font-size: 11px !important;
     overflow: hidden !important;
   }
   .line span:first-child {
@@ -71,30 +71,30 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   }
   .muted {
     color: #222 !important;
-    font-size: 8px !important;
-    line-height: 1.2 !important;
+    font-size: 9.5px !important;
+    line-height: 1.25 !important;
     font-weight: 600 !important;
   }
   .bold { font-weight: 900 !important; }
   .section-title {
-    margin-top: 4px !important;
-    margin-bottom: 1px !important;
-    font-size: 9.5px !important;
-    line-height: 1.25 !important;
+    margin-top: 5px !important;
+    margin-bottom: 2px !important;
+    font-size: 13px !important;
+    line-height: 1.3 !important;
     font-weight: 900 !important;
     text-transform: uppercase !important;
   }
-  h1, h2, h3 { margin: 0 0 2px !important; font-weight: 900 !important; line-height: 1.2 !important; }
+  h1, h2, h3 { margin: 0 0 3px !important; font-weight: 900 !important; line-height: 1.2 !important; }
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 9px !important;
-    line-height: 1.3 !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
     table-layout: fixed !important;
   }
   td {
     vertical-align: top !important;
-    padding: 1.5px 0 !important;
+    padding: 2px 0 !important;
     font-weight: 700 !important;
   }
   td:first-child {
@@ -114,7 +114,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   hr {
     border: 0 !important;
     border-top: 1px dashed #000 !important;
-    margin: 4px 0 !important;
+    margin: 5px 0 !important;
     width: 100% !important;
   }
   svg { max-width: 100% !important; display: block !important; }
@@ -131,9 +131,9 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
 export function thermalPaperWidthOverride(paperWidth?: '58mm' | '80mm'): string {
   const is80 = paperWidth === '80mm';
   const pageWidthMm = is80 ? 80 : 58;
-  const fontSize = is80 ? '11px' : '9px';
-  const mutedSize = is80 ? '9.5px' : '8px';
-  const titleSize = is80 ? '11.5px' : '9.5px';
+  const fontSize = is80 ? '13px' : '11px';
+  const mutedSize = is80 ? '11px' : '9.5px';
+  const titleSize = is80 ? '14.5px' : '12.5px';
   return `
     @page {
       size: ${pageWidthMm}mm auto !important;
