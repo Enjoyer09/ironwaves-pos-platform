@@ -1460,16 +1460,22 @@ def _apply_order_item_action(
         elif current_status in {"SENT", "PREPARING"}:
             if kitchen_mode == "paper_only":
                 if not manager_user:
-                    manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
-                    item.manager_approved_by = manager_user.username if manager_user else user.username
+                    if _is_manager(user):
+                        manager_user = user
+                    else:
+                        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+                item.manager_approved_by = manager_user.username if manager_user else user.username
                 item.status = "VOIDED"
             else:
                 item.status = "VOID_REQUESTED"
             item.cancelled_at = datetime.utcnow()
         elif current_status in {"VOID_REQUESTED", "READY"}:
             if not manager_user:
-                manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
-                item.manager_approved_by = manager_user.username if manager_user else user.username
+                if _is_manager(user):
+                    manager_user = user
+                else:
+                    manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+            item.manager_approved_by = manager_user.username if manager_user else user.username
             item.status = "VOIDED"
             item.cancelled_at = datetime.utcnow()
         else:
