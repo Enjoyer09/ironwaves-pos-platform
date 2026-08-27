@@ -1384,8 +1384,17 @@ def _apply_order_item_action(
         "meta": {},
     }
 
+    print_settings = _setting_value(db, tenant_id, "print_settings", {})
+    if isinstance(print_settings, str):
+        try:
+            print_settings = json.loads(print_settings)
+        except Exception:
+            print_settings = {}
+    kitchen_mode = (print_settings or {}).get("kitchen_mode", "paper_only")
+
     if normalized_action == "DECREASE":
         delta = max(1, int(quantity_delta or 1))
+        target_status = "VOIDED" if kitchen_mode == "paper_only" else "VOID_REQUESTED"
         if current_status == "DRAFT":
             item.qty = max(0, int(item.qty or 0) - delta)
             if item.qty <= 0:
@@ -1394,10 +1403,10 @@ def _apply_order_item_action(
                 item.status_reason = reason_text
             return {**base_result, "final_status": item.status, "meta": {"delta": delta}}
         if delta >= int(item.qty or 0):
-            item.status = "VOID_REQUESTED"
+            item.status = target_status
             item.cancelled_at = datetime.utcnow()
             item.status_reason = reason_text
-            return {**base_result, "final_status": "VOID_REQUESTED", "meta": {"delta": delta, "mode": "full_cancel_request"}}
+            return {**base_result, "final_status": target_status, "meta": {"delta": delta, "mode": "full_cancel_request"}}
 
         item.qty = int(item.qty or 0) - delta
         cancel_item = OrderItem(
@@ -1411,7 +1420,7 @@ def _apply_order_item_action(
             item_name=item.item_name,
             qty=delta,
             price=item.price,
-            status="VOID_REQUESTED",
+            status=target_status,
             status_reason=reason_text,
             action_by=user.username,
             parent_item_id=item.id,
@@ -1427,7 +1436,7 @@ def _apply_order_item_action(
             tenant_id,
             cancel_item,
             None,
-            "VOID_REQUESTED",
+            target_status,
             user.username,
             reason_text,
             action_type="DECREASE",
@@ -1446,12 +1455,18 @@ def _apply_order_item_action(
             item.status = "VOIDED"
             item.cancelled_at = datetime.utcnow()
         elif current_status in {"SENT", "PREPARING"}:
-            item.status = "VOID_REQUESTED"
+            if kitchen_mode == "paper_only":
+                if not manager_user:
+                    manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+                    item.manager_approved_by = manager_user.username if manager_user else user.username
+                item.status = "VOIDED"
+            else:
+                item.status = "VOID_REQUESTED"
             item.cancelled_at = datetime.utcnow()
         elif current_status in {"VOID_REQUESTED", "READY"}:
             if not manager_user:
                 manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
-                item.manager_approved_by = manager_user.username
+                item.manager_approved_by = manager_user.username if manager_user else user.username
             item.status = "VOIDED"
             item.cancelled_at = datetime.utcnow()
         else:
@@ -2931,9 +2946,10 @@ def settle_check(
     active_session.closed_at = done_time
     db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).update({"status": "DONE"}, synchronize_session=False)
     db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status.in_(["NEW", "SENT", "PREPARING", "READY"])).update({"status": "SERVED"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status == "VOID_REQUESTED").update({"status": "VOIDED"}, synchronize_session=False)
     kitchen_rows = (
         db.query(KitchenOrder)
-        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status != "DONE")
         .all()
     )
     for kitchen_row in kitchen_rows:
@@ -3256,7 +3272,15 @@ def get_pending_approvals(
 
     result = []
     for item in items:
+        if item.check_id:
+            chk = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+            if chk and chk.status == "CLOSED":
+                item.status = "VOIDED"
+                continue
         table = db.query(Table).filter(Table.id == item.table_id).first() if item.table_id else None
+        if table and not table.is_occupied and str(table.total or "0") == "0":
+            item.status = "VOIDED"
+            continue
         result.append({
             "id": item.id,
             "item_name": item.item_name,
@@ -3271,7 +3295,7 @@ def get_pending_approvals(
             "round_id": item.round_id,
             "cancelled_at": item.cancelled_at.isoformat() if item.cancelled_at else None,
         })
-
+    db.commit()
     return result
 
 

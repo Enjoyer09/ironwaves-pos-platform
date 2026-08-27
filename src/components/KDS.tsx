@@ -692,8 +692,8 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         </div>
       </div>
 
-      {/* Pending Approvals Panel - Manager only */}
-      {isManager && pendingApprovals.length > 0 && (
+      {/* Pending Approvals Panel - Manager only (hidden in paper_only mode) */}
+      {isManager && kitchenMode !== 'paper_only' && pendingApprovals.length > 0 && (
         <div className="mb-6 rounded-2xl border-2 border-yellow-400/50 bg-yellow-400/5 p-4">
           <div className="mb-3 flex items-center gap-2">
             <AlertCircle size={20} className="text-yellow-300" />
