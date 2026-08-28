@@ -90,15 +90,24 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
             <span className="text-xs font-semibold text-amber-200">
               {tx(lang, 'Ləğv ediləcək məhsulları seçin:', 'Выберите позиции для отмены:', 'Select items to void:')}
             </span>
-            <button
-              type="button"
-              onClick={selectAll}
-              className="text-xs font-bold text-amber-300 underline"
-            >
-              {selectedIds.length === voidableItems.length
-                ? tx(lang, 'Seçimi təmizlə', 'Снять выделение', 'Clear selection')
-                : tx(lang, 'Hamısını seç', 'Выбрать все', 'Select all')}
-            </button>
+            <div className="flex items-center gap-3">
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-xs font-bold text-slate-300 hover:text-white transition"
+                >
+                  ✕ {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-xs font-bold text-amber-300 hover:text-amber-200 transition"
+              >
+                ✓ {tx(lang, 'Hamısını seç', 'Выбрать все', 'Select all')}
+              </button>
+            </div>
           </div>
         )}
 

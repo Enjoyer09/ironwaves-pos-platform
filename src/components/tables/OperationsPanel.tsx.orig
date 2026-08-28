@@ -120,7 +120,7 @@ export default function OperationsPanel({
             </div>
 
             {/* Search if many tables */}
-            {filteredOtherTables.filter((row) => !row.is_occupied).length > 3 && (
+            {otherTables.filter((r) => !r.is_occupied).length > 6 && (
               <div className="relative">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
