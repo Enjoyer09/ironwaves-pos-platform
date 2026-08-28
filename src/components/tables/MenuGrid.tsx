@@ -346,12 +346,12 @@ function MenuGrid({
                   {!hideImages ? (
                     group.image_url ? (
                       // Real image — square crop like Menulux
-                      <div className="aspect-square w-full min-h-[120px] overflow-hidden bg-slate-800">
+                      <div className="aspect-square w-full min-h-[140px] overflow-hidden bg-slate-800">
                         <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                       </div>
                     ) : (
                       // No image placeholder — square, gradient bg, large initial
-                      <div className="aspect-square w-full min-h-[120px] flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
+                      <div className="aspect-square w-full min-h-[140px] flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
                         <span className="text-3xl font-black text-slate-500 select-none">
                           {String(group.base || '').charAt(0).toUpperCase()}
                         </span>
@@ -360,10 +360,10 @@ function MenuGrid({
                   ) : null}
                   {/* Text info — centered for image mode, left for fast mode */}
                   <div className={`flex flex-col ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
-                    <div className={`line-clamp-2 font-bold leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
+                    <div className={`line-clamp-3 font-semibold leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-[11px] sm:text-[10px]'}`}>
                       {group.base}
                     </div>
-                    <div className={`font-black text-amber-400 ${hideImages ? 'text-xs sm:text-[10px] mt-1.5' : 'text-xs mt-1'}`}>
+                    <div className={`font-bold text-amber-400 ${hideImages ? 'text-xs sm:text-[10px] mt-1.5' : 'text-xs mt-1'}`}>
                       {group.minPrice.toFixed(2)} ₼
                       {group.hasVariants && <span className="ml-1 text-[9px] font-medium text-slate-400/70">({group.items.length})</span>}
                     </div>
