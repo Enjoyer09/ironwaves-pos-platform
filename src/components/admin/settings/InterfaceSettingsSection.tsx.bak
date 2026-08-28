@@ -79,7 +79,7 @@ export function InterfaceSettingsSection({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {([
               ['dark', tx(lang, 'Dark', 'Тёмная', 'Dark')],
-              ['light', tx(lang, 'Light', 'Светлая', 'Light')],
+              ['light', tx(lang, 'Light (beta)', 'Светлая (beta)', 'Light (beta)')],
             ] as Array<['dark' | 'light', string]>).map(([mode, label]) => (
               <button
                 key={mode}
@@ -246,7 +246,7 @@ export function InterfaceSettingsSection({
                 <img
                   src={sessionSettings.login_background_url}
                   alt="Background preview"
-                  className="w-full h-full max-h-[240px] object-cover rounded-lg opacity-85"
+                  className="w-full h-full max-h-[140px] object-cover rounded-lg opacity-85"
                 />
                 <button
                   type="button"
