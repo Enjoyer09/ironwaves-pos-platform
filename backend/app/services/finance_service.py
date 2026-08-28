@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -487,7 +487,7 @@ def create_finance_transaction_record(
         reference=reference,
         note=note,
         created_by=created_by,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         related_shift_id=related_shift_id,
         related_table_id=related_table_id,
         related_order_id=related_order_id,
@@ -551,7 +551,7 @@ def post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: s
     )
     txn.status = "posted"
     txn.posted_by = posted_by
-    txn.posted_at = datetime.utcnow()
+    txn.posted_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.add(
         AuditLog(
             tenant_id=txn.tenant_id,
@@ -697,7 +697,7 @@ def mark_original_transaction_reversed(db: Session, reversal: FinanceTransaction
         raise HTTPException(status_code=400, detail=f"Original transaction cannot be reversed from status {original.status}")
     original.status = "reversed"
     original.reversed_by = reversed_by
-    original.reversed_at = datetime.utcnow()
+    original.reversed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.add(
         AuditLog(
             tenant_id=reversal.tenant_id,

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from threading import Lock
 
@@ -293,7 +293,7 @@ def _log_finance_anomaly_snapshot(
     if not has_any_issue:
         return
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     with _anomaly_snapshot_cache_lock:
         cached = _anomaly_snapshot_cache.get(tenant_id)
     if cached:
@@ -301,7 +301,7 @@ def _log_finance_anomaly_snapshot(
         if cached_signature == flag_signature and (now - cached_at).total_seconds() < ANOMALY_SNAPSHOT_CACHE_TTL_SECONDS:
             return
 
-    cutoff = datetime.utcnow() - timedelta(minutes=15)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=15)
     recent = (
         db.query(AuditLog)
         .filter(
@@ -362,7 +362,7 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
 
     active_shift = _active_shift(db, tenant_id)
     total_revenue, ledger_sales_total, reconciliation_gap = _sales_reconciliation_totals(db, tenant_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     period_start = active_shift.opened_at if active_shift and active_shift.opened_at else day_start
     current_revenue, current_ledger_total, current_reconciliation_gap = _sales_reconciliation_totals(db, tenant_id, period_start, None)
@@ -1747,7 +1747,7 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
             status_code=403,
             detail="Yaratdığınız maliyyə əməliyyatını özünüz təsdiqləyə bilməzsiniz",
         )
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     txn.status = "approved"
     txn.approved_by = user.username
     txn.approved_at = now
@@ -1782,7 +1782,7 @@ def reject_ledger_transaction(transaction_id: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail=f"Transaction is not pending approval: {txn.status}")
     txn.status = "rejected"
     txn.approved_by = user.username
-    txn.approved_at = datetime.utcnow()
+    txn.approved_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.add(
         AuditLog(
             tenant_id=tenant.id,
@@ -1845,7 +1845,7 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
         note=f"Reversal {'request' if requires_approval else 'auto-post'} for {original.id}",
     )
     if not requires_approval:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         reversal.approved_by = user.username
         reversal.approved_at = now
         _mark_original_transaction_reversed(db, reversal, user.username)
@@ -1917,7 +1917,7 @@ def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depend
         variance=variance,
         notes=payload.notes,
         reconciled_by=user.username,
-        reconciled_at=datetime.utcnow(),
+        reconciled_at=datetime.now(timezone.utc).replace(tzinfo=None),
         created_by=user.username,
     )
     db.add(row)
