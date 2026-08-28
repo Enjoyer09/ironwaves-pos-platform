@@ -288,8 +288,8 @@ function MenuGrid({
       {/* Product grid - grouped by variant */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 touch-pan-y ${
         hideImages
-          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
-          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
+          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
       }`} style={{ WebkitOverflowScrolling: 'touch' }}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
@@ -346,12 +346,12 @@ function MenuGrid({
                   {!hideImages ? (
                     group.image_url ? (
                       // Real image — square crop like Menulux
-                      <div className="aspect-square w-full overflow-hidden bg-slate-800">
+                      <div className="aspect-square w-full min-h-[120px] overflow-hidden bg-slate-800">
                         <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                       </div>
                     ) : (
                       // No image placeholder — square, gradient bg, large initial
-                      <div className="aspect-square w-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
+                      <div className="aspect-square w-full min-h-[120px] flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
                         <span className="text-3xl font-black text-slate-500 select-none">
                           {String(group.base || '').charAt(0).toUpperCase()}
                         </span>
@@ -360,7 +360,7 @@ function MenuGrid({
                   ) : null}
                   {/* Text info — centered for image mode, left for fast mode */}
                   <div className={`flex flex-col ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
-                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
+                    <div className={`line-clamp-2 font-bold leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
                       {group.base}
                     </div>
                     <div className={`font-black text-amber-400 ${hideImages ? 'text-xs sm:text-[10px] mt-1.5' : 'text-xs mt-1'}`}>
