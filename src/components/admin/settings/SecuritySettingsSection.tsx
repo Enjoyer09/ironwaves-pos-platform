@@ -446,7 +446,7 @@ export function SecuritySettingsSection({
               <h3 className="font-semibold uppercase tracking-wide text-slate-200">{roleLabelMap[role]}</h3>
               {moduleCatalog.map((moduleKey) => (
                 <label key={`${role}_${moduleKey}`} className="flex items-center gap-2 text-sm text-slate-300">
-                  <input type="checkbox" checked={(roleModules[role] || []).includes(moduleKey)} onChange={() => toggleRoleModule(role, moduleKey)} />
+                  <input type="checkbox" checked={(roleModules[role] || []).includes(moduleKey)} onChange={() => toggleRoleModule(role, moduleKey)} className="h-5 w-5 cursor-pointer rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400/40 touch-manipulation" />
                   <span>{moduleLabelMap[moduleKey] || moduleKey}</span>
                 </label>
               ))}
@@ -517,7 +517,16 @@ export function SecuritySettingsSection({
                     ) : null}
                     <div className="rounded-xl border border-slate-700/70 bg-slate-900/50 p-3 text-xs text-slate-300 break-all">
                       <div className="font-semibold text-slate-200">{tx(lang, 'Manual secret', 'Ручной secret', 'Manual secret')}</div>
-                      <div className="mt-1">{totpSecret}</div>
+                      <div className="mt-1 flex items-center gap-2">
+                      <code className="flex-1 break-all rounded-lg border border-slate-700/60 bg-slate-950/50 px-2 py-1.5 font-mono text-xs text-amber-200 select-all">{totpSecret}</code>
+                      <button
+                        type="button"
+                        onClick={() => { void navigator.clipboard.writeText(totpSecret).then(() => notify('success', tx(lang, 'Kopyalandı', 'Скопировано', 'Copied'))); }}
+                        className="rounded-lg border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/60 touch-manipulation"
+                      >
+                        {tx(lang, 'Kopyala', 'Копировать', 'Copy')}
+                      </button>
+                    </div>
                     </div>
                     <div className="flex flex-col gap-3 md:flex-row">
                       <input
