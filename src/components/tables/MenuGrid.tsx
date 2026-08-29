@@ -65,6 +65,8 @@ function MenuGrid({
 }: MenuGridProps) {
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
   const [hideImages, setHideImages] = useState(() => {
+    // BahaY mode: always show images by default
+    if (isBahaYLab) return false;
     const stored = localStorage.getItem('pos_hide_images');
     if (stored !== null) return stored === 'true';
     // On mobile/touch: show images by default (visual recognition is faster)
@@ -136,6 +138,15 @@ function MenuGrid({
     });
   }
 
+  const toggleImageVisibility = () => {
+    tapFeedback();
+    const next = !hideImages;
+    setHideImages(next);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pos_hide_images', String(next));
+    }
+  };
+
   if (!isBahaYLab) {
     // Legacy UI for other tenants
     return (
@@ -149,7 +160,7 @@ function MenuGrid({
           />
           <button
             type="button"
-            onClick={() => { tapFeedback(); const next = !hideImages; setHideImages(next); if (typeof window !== 'undefined') localStorage.setItem('pos_hide_images', String(next)); }}
+            onClick={toggleImageVisibility}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-black transition active:scale-95 ${
               hideImages
                 ? 'border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200'
@@ -180,7 +191,7 @@ function MenuGrid({
                   <div className="line-clamp-2 text-base font-bold text-slate-100">{item.item_name}</div>
                   <div className="mt-2 text-xs text-slate-400">{item.category}</div>
                 </div>
-                <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-black text-yellow-200">
+                <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-bold text-yellow-200">
                   {Number(item.price || 0).toFixed(2)} ₼
                 </div>
               </div>
@@ -192,18 +203,6 @@ function MenuGrid({
             </div>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={toggleImageVisibility}
-          className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-black transition active:scale-95 ${
-            hideImages
-              ? 'border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200'
-              : 'border-amber-300/40 bg-amber-500/10 text-amber-200'
-          }`}
-          title={tx(lang, 'Şəkilləri göstər/gizlə', 'Показать/скрыть фото', 'Show/hide images')}
-        >
-          {hideImages ? '🖼️ OFF' : '🖼️ ON'}
-        </button>
       </div>
     );
   }
@@ -352,7 +351,7 @@ function MenuGrid({
                     ) : (
                       // No image placeholder — square, gradient bg, large initial
                       <div className="aspect-square w-full min-h-[140px] flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
-                        <span className="text-3xl font-black text-slate-500 select-none">
+                        <span className="text-3xl font-bold text-slate-500 select-none">
                           {String(group.base || '').charAt(0).toUpperCase()}
                         </span>
                       </div>
@@ -371,7 +370,7 @@ function MenuGrid({
                 </div>
 
                 {totalQtyInDraft > 0 && (
-                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg pointer-events-none">
+                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-slate-900 shadow-lg pointer-events-none">
                     {totalQtyInDraft}
                   </div>
                 )}
@@ -391,7 +390,7 @@ function MenuGrid({
                             tapFeedback();
                             void onSelectItem(item);
                           }}
-                          className={`flex-1 min-w-[44px] min-h-[44px] rounded-xl py-2 px-1 text-[11px] font-black border transition taktil-target active:scale-90 ${
+                          className={`flex-1 min-w-[44px] min-h-[44px] rounded-xl py-2 px-1 text-[11px] font-semibold border transition taktil-target active:scale-90 ${
                             qtyInDraft > 0
                               ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
                               : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-700/50'
@@ -425,7 +424,7 @@ function MenuGrid({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center">
-              <h4 className="text-base font-black text-slate-100">{longPressItem.item_name}</h4>
+              <h4 className="text-base font-bold text-slate-100">{longPressItem.item_name}</h4>
               <p className="mt-1 text-xs text-slate-400">{tx(lang, 'Sürətli miqdar seçin', 'Выберите количество', 'Select quantity')}</p>
             </div>
             
