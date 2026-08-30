@@ -15,7 +15,7 @@ export default function StatusLogModal({ target, rows, lang, onClose }: StatusLo
       <div className="metal-panel flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-slate-100">{tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}</h3>
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}</h3>
             <div className="mt-1 text-sm text-slate-400">{target.item_name}</div>
           </div>
           <button type="button" className="neon-btn rounded-xl px-4 py-2 text-sm font-bold" onClick={onClose}>
@@ -30,7 +30,7 @@ export default function StatusLogModal({ target, rows, lang, onClose }: StatusLo
               {rows.map((row: any) => (
                 <div key={row.id} className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-black text-slate-100">{row.old_status || '-'} → {row.new_status}</div>
+                    <div className="font-bold text-slate-100">{row.old_status || '-'} → {row.new_status}</div>
                     <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.changed_at, lang)}</div>
                   </div>
                   <div className="mt-1 text-xs text-slate-400">{tx(lang, 'İstifadəçi', 'Пользователь', 'User')}: {row.changed_by || '-'}</div>

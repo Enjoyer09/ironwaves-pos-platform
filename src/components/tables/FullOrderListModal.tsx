@@ -54,7 +54,7 @@ export default function FullOrderListModal(props: FullOrderListModalProps) {
       <div className="metal-panel flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-black text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
+            <div className="text-lg font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
             <div className="mt-1 text-sm text-slate-400">{tableLabel} · {items.length} {tx(lang, 'item', 'позиций', 'items')}</div>
           </div>
           <div className="flex items-center gap-2">
@@ -103,13 +103,13 @@ export default function FullOrderListModal(props: FullOrderListModalProps) {
               <div>{tx(lang, 'Sifariş yoxdur', 'Заказов нет', 'No order items')}</div>
               {tableNeedsSafeCancel && (
                 <div className="mx-auto mt-4 max-w-md rounded-2xl border border-rose-300/30 bg-rose-500/10 p-4 text-left">
-                  <div className="text-sm font-black text-rose-100">{tx(lang, 'Uyğunsuz masa məbləği', 'Несовпадающая сумма стола', 'Mismatched table total')}</div>
+                  <div className="text-sm font-semibold text-rose-100">{tx(lang, 'Uyğunsuz masa məbləği', 'Несовпадающая сумма стола', 'Mismatched table total')}</div>
                   <div className="mt-1 text-xs text-rose-100/80">
                     {tx(lang, 'Bu masada məbləğ var, amma sifariş yoxdur. Kassaya səhv satış düşməsin deyə satışsız ləğv edin.', 'У стола есть сумма, но нет заказа. Отмените без продажи, чтобы не создать ошибочную кассу.', 'This table has a total but no order items. Cancel without sale to avoid a wrong cash entry.')}
                   </div>
                   <button
                     type="button"
-                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-black text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!isManagerUser || !userCanEditTable}
                     onClick={onCancelTable}
                   >

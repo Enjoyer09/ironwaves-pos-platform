@@ -106,7 +106,7 @@ function TableGrid({
             <button
               type="button"
               onClick={() => { playHapticTouch(); setShowOnlyMine(!showOnlyMine); }}
-              className={`shrink-0 rounded-full px-5 py-3 text-sm font-black transition-all active:scale-95 ${
+              className={`shrink-0 rounded-full px-5 py-3 text-sm font-bold transition-all active:scale-95 ${
                 showOnlyMine
                   ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/25'
                   : 'border-2 border-yellow-400/50 bg-yellow-500/10 text-yellow-200 shadow-md shadow-yellow-500/10'
@@ -190,7 +190,7 @@ function TableGrid({
 
               {/* Ready badge — pulsing */}
               {readyCount > 0 && (
-                <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-emerald-500/30 animate-pulse">
+                <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-semibold text-white shadow-lg shadow-emerald-500/30 animate-pulse">
                   <Sparkles size={9} />
                   {readyCount}
                 </div>
@@ -199,7 +199,7 @@ function TableGrid({
               {/* Table label */}
               <div className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} aria-hidden="true" />
-                <h3 className="text-[15px] font-black text-white">{table.label}</h3>
+                <h3 className="text-[15px] font-bold text-white">{table.label}</h3>
                 <span className="ml-auto text-[9px] font-bold uppercase tracking-wider" style={{ color: cfg.text }}>
                   {cfg.label}
                 </span>
@@ -238,7 +238,7 @@ function TableGrid({
               {/* Total amount */}
               {displayedTotal.greaterThan(0) && (
                 <div className="mt-2.5 flex items-center justify-between">
-                  <span className="text-[17px] font-black text-white">{displayedTotal.toFixed(2)}</span>
+                  <span className="text-[17px] font-bold text-white">{displayedTotal.toFixed(2)}</span>
                   <span className="text-[11px] font-bold text-slate-400">₼</span>
                 </div>
               )}
@@ -262,7 +262,7 @@ function TableGrid({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); playHapticSuccess(); setQuickActionsTableId(null); onMarkClean(table.id); }}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-3 py-2.5 text-[11px] font-black text-white backdrop-blur transition active:scale-[0.97]"
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-3 py-2.5 text-[11px] font-bold text-white backdrop-blur transition active:scale-[0.97]"
                 >
                   ✨ {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
                 </button>

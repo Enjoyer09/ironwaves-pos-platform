@@ -103,7 +103,7 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
         type="button"
         aria-label={tx(lang, 'Ləğv et', 'Удалить', 'Delete')}
         onClick={handleDelete}
-        className="absolute right-0 top-0 bottom-0 w-[88px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-xs font-black uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
+        className="absolute right-0 top-0 bottom-0 w-[88px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-xs font-semibold uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
       >
         <span className="text-sm">✕</span>
         <span>{tx(lang, 'Ləğv', 'Удалить', 'Delete')}</span>
@@ -218,9 +218,9 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             >
               <span className="flex items-center gap-2">
                 🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
-                <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-black">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
+                <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
               </span>
-              <span className="text-base font-black">{draftTotal} ₼</span>
+              <span className="text-base font-bold">{draftTotal} ₼</span>
             </button>
             <button
               type="button"
@@ -262,8 +262,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         {/* Mobile Cart Header */}
         <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-slate-900/70">
           <div>
-            <span className="text-sm font-black text-white">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</span>
-            <span className="ml-2 text-sm font-black text-yellow-400">{draftTotal} ₼</span>
+            <span className="text-sm font-semibold text-white">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</span>
+            <span className="ml-2 text-sm font-semibold text-yellow-400">{draftTotal} ₼</span>
           </div>
           <button
             type="button"
@@ -332,7 +332,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           {/* Total + action buttons */}
           <div className="flex items-center justify-between text-xs text-slate-300 px-0.5">
             <span>{tx(lang, 'Cəmi', 'Итого', 'Total')}</span>
-            <span className="text-sm font-black text-slate-100">{draftTotal} ₼</span>
+            <span className="text-sm font-semibold text-slate-100">{draftTotal} ₼</span>
           </div>
 
           {/* Primary Action: Send to Kitchen (appears when draft is not empty) */}
@@ -371,7 +371,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="relative inline-flex min-h-12 flex-[1.3] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-3 text-xs font-black text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
+                className="relative inline-flex min-h-12 flex-[1.3] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-3 text-xs font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)' }} />
                 💵 {tx(lang, 'Hesab', 'Счет', 'Settle')}
