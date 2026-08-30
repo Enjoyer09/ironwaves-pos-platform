@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { tx } from '../i18n';
 
-export type CustomerTab = 'home' | 'order' | 'offers' | 'barista' | 'falci' | 'ai' | 'profile';
+export type CustomerTab = 'home' | 'order' | 'offers' | 'feedback' | 'barista' | 'falci' | 'ai' | 'profile';
 
 export const BARISTA_QUICK_PROMPTS = [
   'Mənə soyuq içki tövsiyə et',
