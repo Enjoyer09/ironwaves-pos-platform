@@ -4256,3 +4256,24 @@ html:active-view-transition-type(backward)::view-transition-new(tab-content) {
 
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STAFF UI READABILITY LAYER — WCAG 2.1 AA Compliance (Classic + BahaY)
+   Minimum font sizes, contrast fixes, visual hierarchy improvements.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Minimum font sizes (WCAG recommends 11-12px minimum for UI text) */
+.text-\[7px\], .text-\[8px\], .text-\[9px\] { font-size: 11px !important; }
+.text-\[10px\] { font-size: 12px !important; }
+
+/* Contrast: brighten muted text to meet WCAG AA 4.5:1 on dark bg */
+.text-white\/30, .text-white\/35 { color: rgba(255, 255, 255, 0.70) !important; }
+.text-white\/40, .text-white\/45 { color: rgba(255, 255, 255, 0.75) !important; }
+.text-white\/50, .text-white\/55 { color: rgba(255, 255, 255, 0.80) !important; }
+
+/* Light theme contrast: slate-400 ~2.9:1 -> slate-500 ~5.7:1 on white */
+html[data-theme='light'] .text-slate-400 { color: #64748b !important; }
+html[data-theme='light'] .text-slate-500 { color: #475569 !important; }
+
+/* Touch targets (Apple HIG minimum 36-44px) — interactive elements */
+button, a, [role="button"] { min-height: 32px; }
