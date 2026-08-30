@@ -161,7 +161,7 @@ function MenuGrid({
           <button
             type="button"
             onClick={toggleImageVisibility}
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-black transition active:scale-95 ${
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition active:scale-95 ${
               hideImages
                 ? 'border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200'
                 : 'border-amber-300/40 bg-amber-500/10 text-amber-200'
@@ -253,7 +253,7 @@ function MenuGrid({
             setHideImages(next);
             localStorage.setItem('pos_hide_images', String(next));
           }}
-          className={`hidden sm:flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition shrink-0 ${
+          className={`hidden sm:flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition shrink-0 ${
             hideImages
               ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
               : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
@@ -273,7 +273,7 @@ function MenuGrid({
               playHapticTouch();
               onCategoryChange(cat);
             }}
-            className={`whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-black transition pos-category-btn taktil-target active:scale-95 ${
+            className={`whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-bold transition pos-category-btn taktil-target active:scale-95 ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
@@ -439,7 +439,7 @@ function MenuGrid({
                     void onSelectItem(longPressItem, qty);
                     setLongPressItem(null);
                   }}
-                  className="flex min-h-[50px] items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/30 text-sm font-black text-slate-200 active:scale-95 active:bg-yellow-400 active:text-slate-950 transition-all"
+                  className="flex min-h-[50px] items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/30 text-sm font-semibold text-slate-200 active:scale-95 active:bg-yellow-400 active:text-slate-950 transition-all"
                 >
                   +{qty}
                 </button>
@@ -452,7 +452,7 @@ function MenuGrid({
                 type="number"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                className="neon-input flex-1 text-center font-black text-lg py-2.5"
+                className="neon-input flex-1 text-center font-bold text-lg py-2.5"
                 placeholder={tx(lang, 'Digər...', 'Другое...', 'Custom...')}
                 value={customQtyText}
                 onChange={(e) => setCustomQtyText(e.target.value)}

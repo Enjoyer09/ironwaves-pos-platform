@@ -112,9 +112,9 @@ export default function OrderNoteModal({
         <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black uppercase tracking-wider text-yellow-400">✎ {tx(lang, 'Qeyd və Modifikator', 'Примечание и Модификатор', 'Note & Modifier')}</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-yellow-400">✎ {tx(lang, 'Qeyd və Modifikator', 'Примечание и Модификатор', 'Note & Modifier')}</span>
             </div>
-            <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[240px]">{itemName}</div>
+            <div className="text-sm font-semibold text-slate-100 mt-0.5 truncate max-w-[240px]">{itemName}</div>
           </div>
           <button
             type="button"
@@ -165,7 +165,7 @@ export default function OrderNoteModal({
         {/* Smart / Frequently Used Notes (if any learned) */}
         {smartTopNotes.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400 mb-1.5">
               <span>🔥</span>
               <span>{tx(lang, 'Tez-tez İstifadə Olunanlar (Smart)', 'Часто используемые', 'Frequently Used')}</span>
             </div>
@@ -177,7 +177,7 @@ export default function OrderNoteModal({
                     key={tag}
                     type="button"
                     onClick={() => toggleTag(tag)}
-                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-black transition active:scale-95 taktil-target ${
+                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition active:scale-95 taktil-target ${
                       isSelected
                         ? 'border-amber-400 bg-amber-400/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.2)]'
                         : 'border-amber-500/30 bg-amber-950/20 text-amber-200/80 hover:border-amber-400/50'
@@ -193,7 +193,7 @@ export default function OrderNoteModal({
 
         {/* Business Presets Grid */}
         <div>
-          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
             <span>📌 {tx(lang, 'Biznes Şablonları', 'Шаблоны заведения', 'Business Presets')}</span>
             <span className="text-[9px] text-slate-500 font-medium">({presets.length} {tx(lang, 'seçim', 'вариантов', 'options')})</span>
           </div>
@@ -206,7 +206,7 @@ export default function OrderNoteModal({
                   onClick={() => toggleTag(mod)}
                   className={`group relative min-h-[42px] flex items-center justify-between rounded-xl border py-2 px-2.5 cursor-pointer transition select-none taktil-target ${
                     isSelected
-                      ? 'border-yellow-400 bg-yellow-400/10 text-yellow-300 font-black shadow-sm'
+                      ? 'border-yellow-400 bg-yellow-400/10 text-yellow-300 font-semibold shadow-sm'
                       : 'border-slate-800 bg-slate-900/60 text-slate-300 font-bold hover:border-slate-700'
                   }`}
                 >

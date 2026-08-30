@@ -116,7 +116,7 @@ export default function MobileWaiterUI({
           {user?.username ? user.username.charAt(0).toUpperCase() : 'W'}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
+          <div className="text-sm font-semibold text-white flex items-center gap-1.5 flex-wrap">
             <span className="truncate">{user?.username || 'Ofisiant'}</span>
             <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400 shrink-0">
               {tx(lang, 'Ofisiant Mode', 'Режим официанта', 'Waiter Mode')}
@@ -138,7 +138,7 @@ export default function MobileWaiterUI({
                 key={fp.id}
                 type="button"
                 onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setActiveFloorId(fp.id); }}
-                className={`flex-none rounded-2xl px-4 py-2.5 text-xs font-black transition-all ${
+                className={`flex-none rounded-2xl px-4 py-2.5 text-xs font-semibold transition-all ${
                   active
                     ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md shadow-amber-500/20 scale-[1.02]'
                     : 'border border-slate-700/70 bg-slate-800/40 text-slate-300 active:scale-95'
@@ -176,7 +176,7 @@ export default function MobileWaiterUI({
               key={key}
               type="button"
               onClick={() => setStatusFilter(key)}
-              className={`flex-none flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-black transition-all whitespace-nowrap ${
+              className={`flex-none flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
                 statusFilter === key
                   ? key === 'all'      ? 'bg-slate-600 text-white'
                   : key === 'free'     ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
@@ -186,7 +186,7 @@ export default function MobileWaiterUI({
               }`}
             >
               {label}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                 statusFilter === key ? 'bg-white/25 text-white' : 'bg-slate-700 text-slate-300'
               }`}>{count}</span>
             </button>
@@ -223,7 +223,7 @@ export default function MobileWaiterUI({
               </div>
 
               {/* Table label */}
-              <div className={`px-3 text-base font-black leading-tight tracking-tight ${
+              <div className={`px-3 text-base font-bold leading-tight tracking-tight ${
                 isOccupied || isReady ? 'text-white' : 'text-slate-100'
               }`}>
                 {table.label}
@@ -232,7 +232,7 @@ export default function MobileWaiterUI({
               {/* Amount or free indicator */}
               <div className="px-3 mt-1.5 flex-1">
                 {isOccupied ? (
-                  <div className="text-xl font-black text-white leading-none">
+                  <div className="text-xl font-bold text-white leading-none">
                     {totalVal} <span className="text-xs opacity-80">₼</span>
                   </div>
                 ) : (
@@ -271,7 +271,7 @@ export default function MobileWaiterUI({
           <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-5 animate-scaleIn text-white" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
-                <h3 className="text-lg font-black text-amber-400">{quickOpenTable.label}</h3>
+                <h3 className="text-lg font-bold text-amber-400">{quickOpenTable.label}</h3>
                 <p className="text-xs font-semibold text-slate-400">{tx(lang, 'Qonaq sayını seçin', 'Выберите кол-во гостей', 'Select guest count')}</p>
               </div>
               <button
@@ -290,7 +290,7 @@ export default function MobileWaiterUI({
                   key={num}
                   type="button"
                   onClick={() => setQuickGuestCount(num)}
-                  className={`rounded-2xl py-3 text-base font-black transition-all ${
+                  className={`rounded-2xl py-3 text-base font-bold transition-all ${
                     quickGuestCount === num
                       ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/25 scale-[1.04]'
                       : 'bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700'

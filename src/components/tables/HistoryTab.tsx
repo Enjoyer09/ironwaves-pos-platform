@@ -84,7 +84,7 @@ export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
       {/* ═══ Header ═══ */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-base font-black text-white sm:text-lg">
+          <h3 className="text-base font-bold text-white sm:text-lg">
             {tx(lang, 'Mətbəx Göndərişləri', 'История отправок на кухню', 'Kitchen Dispatch History')}
           </h3>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -142,7 +142,7 @@ export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
                     {/* Card Header */}
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-white sm:text-base">
+                        <span className="text-sm font-semibold text-white sm:text-base">
                           {isFirst
                             ? tx(lang, '1-ci Göndəriş (İlk Sifariş)', '1-я отправка (Основной заказ)', '1st Dispatch (Initial Order)')
                             : tx(lang, `${round.round_no}-ci Göndəriş (Əlavə)`, `${round.round_no}-я отправка (Дозаказ)`, `${round.round_no}th Dispatch (Add-on)`)}
@@ -150,7 +150,7 @@ export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-black shadow-sm ${badge.color}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm ${badge.color}`}>
                           {badge.icon}
                           <span>{badge.label}</span>
                         </span>
@@ -180,7 +180,7 @@ export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
                           key={`${round.id}_item_${idx}`}
                           className="flex items-center gap-2 rounded-xl border border-slate-700/60 bg-black/25 px-3 py-2 text-xs font-bold text-slate-100"
                         >
-                          <span className="flex h-5 min-w-[20px] items-center justify-center rounded bg-amber-400/20 px-1 text-[11px] font-black text-amber-300">
+                          <span className="flex h-5 min-w-[20px] items-center justify-center rounded bg-amber-400/20 px-1 text-[11px] font-semibold text-amber-300">
                             {item.qty}x
                           </span>
                           <span>{item.item_name}</span>

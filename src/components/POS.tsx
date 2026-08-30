@@ -2039,7 +2039,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   type="button"
                   aria-label={`${val}% endirim`}
                   onClick={() => patchCtx({ discount: val })}
-                  className={`min-h-[44px] flex items-center justify-center rounded-xl border text-xs font-black transition active:scale-95 ${
+                  className={`min-h-[44px] flex items-center justify-center rounded-xl border text-xs font-semibold transition active:scale-95 ${
                     (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100 shadow-sm shadow-amber-400/20' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
                   }`}
                 >
@@ -2098,7 +2098,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400 text-slate-950 font-black text-sm">
                       🍽️
                     </span>
-                    <span className="font-black text-sm text-amber-100">
+                    <span className="font-semibold text-sm text-amber-100">
                       {tx(lang, 'Aktiv Masa:', 'Активный стол:', 'Active Table:')} {tableRoutingBanner?.tableLabel || occupiedTables.find(t => t.id === ctx.selectedTable)?.label || ctx.selectedTable}
                     </span>
                   </div>
@@ -2291,9 +2291,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   ))}
                 </div>
                 {cashGiven.greaterThan(checkoutBaseTotal) && (
-                  <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 animate-pulse">
                     <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
-                    <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                    <span className="text-sm font-bold text-emerald-200">{change.toFixed(2)} ₼</span>
                   </div>
                 )}
                 {remaining.greaterThan(0) && (
@@ -3022,9 +3022,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     ))}
                   </div>
                   {cashGiven.greaterThan(checkoutBaseTotal) && (
-                    <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                    <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 animate-pulse">
                       <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
-                      <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                      <span className="text-sm font-bold text-emerald-200">{change.toFixed(2)} ₼</span>
                     </div>
                   )}
                   {remaining.greaterThan(0) && (
@@ -3366,7 +3366,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           </div>
           <div className="text-right">
             <div className="text-xs text-slate-400">{tx(lang, 'Yekun', 'Итого', 'Total')}</div>
-            <div className="text-xl font-black text-white">{checkoutBaseTotal.toFixed(2)} ₼</div>
+            <div className="text-xl font-bold text-white">{checkoutBaseTotal.toFixed(2)} ₼</div>
           </div>
         </button>
       </div>
@@ -3481,9 +3481,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       ))}
                     </div>
                     {cashGiven.greaterThan(checkoutBaseTotal) && (
-                      <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-black text-emerald-300 animate-pulse">
+                      <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 animate-pulse">
                         <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
-                        <span className="text-sm font-black text-emerald-200">{change.toFixed(2)} ₼</span>
+                        <span className="text-sm font-bold text-emerald-200">{change.toFixed(2)} ₼</span>
                       </div>
                     )}
                     {remaining.greaterThan(0) && (

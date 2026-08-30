@@ -49,7 +49,7 @@ export default function OperationsPanel({
         <button
           type="button"
           onClick={() => { playHapticTouch(); setActiveTab('transfer'); }}
-          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black transition-all active:scale-[0.97] sm:text-sm ${
+          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-semibold transition-all active:scale-[0.97] sm:text-sm ${
             activeTab === 'transfer'
               ? 'border-blue-400 bg-blue-600 text-white shadow-lg shadow-blue-600/30'
               : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:bg-slate-800/80 hover:text-white'
@@ -63,7 +63,7 @@ export default function OperationsPanel({
         <button
           type="button"
           onClick={() => { playHapticTouch(); setActiveTab('combine'); }}
-          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black transition-all active:scale-[0.97] sm:text-sm ${
+          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-semibold transition-all active:scale-[0.97] sm:text-sm ${
             activeTab === 'combine'
               ? 'border-amber-300 bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30'
               : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:bg-slate-800/80 hover:text-white'
@@ -77,7 +77,7 @@ export default function OperationsPanel({
         <button
           type="button"
           onClick={() => { playHapticTouch(); setActiveTab('split'); }}
-          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black transition-all active:scale-[0.97] sm:text-sm ${
+          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-semibold transition-all active:scale-[0.97] sm:text-sm ${
             activeTab === 'split'
               ? 'border-violet-400 bg-violet-600 text-white shadow-lg shadow-violet-600/30'
               : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:bg-slate-800/80 hover:text-white'
@@ -91,7 +91,7 @@ export default function OperationsPanel({
         <button
           type="button"
           onClick={() => { playHapticTouch(); setActiveTab('cancel'); }}
-          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black transition-all active:scale-[0.97] sm:text-sm ${
+          className={`flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-semibold transition-all active:scale-[0.97] sm:text-sm ${
             activeTab === 'cancel'
               ? 'border-rose-400 bg-rose-600 text-white shadow-lg shadow-rose-600/30'
               : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:bg-slate-800/80 hover:text-white'
@@ -108,7 +108,7 @@ export default function OperationsPanel({
         {activeTab === 'transfer' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-base font-black text-white sm:text-lg">{tx(lang, 'Açıq Çeki Başqa Masaya Köçür', 'Перенос открытого чека', 'Transfer open check')}</h4>
+              <h4 className="text-base font-bold text-white sm:text-lg">{tx(lang, 'Açıq Çeki Başqa Masaya Köçür', 'Перенос открытого чека', 'Transfer open check')}</h4>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 {tx(
                   lang,
@@ -153,7 +153,7 @@ export default function OperationsPanel({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-white sm:text-base">{row.label}</span>
+                        <span className="text-sm font-semibold text-white sm:text-base">{row.label}</span>
                         {isSelected && <Check size={16} className="text-blue-400" />}
                       </div>
                       <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
@@ -187,7 +187,7 @@ export default function OperationsPanel({
                   setIsProcessing(false);
                 }
               }}
-              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-blue-400/50 bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-base font-black text-white shadow-xl shadow-blue-600/25 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-blue-400/50 bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-base font-bold text-white shadow-xl shadow-blue-600/25 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ArrowRightLeft size={19} />
               <span>
@@ -203,7 +203,7 @@ export default function OperationsPanel({
         {activeTab === 'combine' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-base font-black text-white sm:text-lg">{tx(lang, 'Masaları Bir Check Altında Birləşdir', 'Объединение столов', 'Combine tables under one check')}</h4>
+              <h4 className="text-base font-bold text-white sm:text-lg">{tx(lang, 'Masaları Bir Check Altında Birləşdir', 'Объединение столов', 'Combine tables under one check')}</h4>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 {tx(
                   lang,
@@ -250,13 +250,13 @@ export default function OperationsPanel({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-white sm:text-base">{row.label}</span>
+                        <span className="text-sm font-semibold text-white sm:text-base">{row.label}</span>
                         {isSelected && <Check size={16} className="text-amber-400" />}
                       </div>
                       <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
                         <span>{Number(row.capacity || 4)} {tx(lang, 'yer', 'мест', 'seats')}</span>
                         {row.is_occupied && (
-                          <span className="rounded-full bg-rose-500/30 px-1.5 py-0.5 text-[9px] font-black text-rose-300">
+                          <span className="rounded-full bg-rose-500/30 px-1.5 py-0.5 text-[9px] font-semibold text-rose-300">
                             {tx(lang, 'Dolu', 'Занят', 'Occ')}
                           </span>
                         )}
@@ -304,7 +304,7 @@ export default function OperationsPanel({
         {activeTab === 'split' && (
           <div className="space-y-5">
             <div>
-              <h4 className="text-base font-black text-white sm:text-lg">{tx(lang, 'Birləşmiş Masanı Ayır', 'Разделение объединенного стола', 'Split merged table')}</h4>
+              <h4 className="text-base font-bold text-white sm:text-lg">{tx(lang, 'Birləşmiş Masanı Ayır', 'Разделение объединенного стола', 'Split merged table')}</h4>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 {table.merged_group_id
                   ? tx(
@@ -326,7 +326,7 @@ export default function OperationsPanel({
                   </div>
                 </div>
                 {table.merged_group_id && (
-                  <span className="rounded-full border border-violet-400/40 bg-violet-500/30 px-3 py-1 text-xs font-black text-violet-200">
+                  <span className="rounded-full border border-violet-400/40 bg-violet-500/30 px-3 py-1 text-xs font-semibold text-violet-200">
                     {tx(lang, 'Aktiv Qrup', 'Активная группа', 'Active Group')}
                   </span>
                 )}
@@ -345,7 +345,7 @@ export default function OperationsPanel({
                   setIsProcessing(false);
                 }
               }}
-              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-violet-400/50 bg-gradient-to-r from-violet-600 to-indigo-600 px-5 text-base font-black text-white shadow-xl shadow-violet-600/25 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-violet-400/50 bg-gradient-to-r from-violet-600 to-indigo-600 px-5 text-base font-bold text-white shadow-xl shadow-violet-600/25 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Scissors size={19} />
               <span>{tx(lang, 'Masanı Qrupdan Ayır', 'Разделить столы', 'Split From Group')}</span>
@@ -357,7 +357,7 @@ export default function OperationsPanel({
         {activeTab === 'cancel' && (
           <div className="space-y-5">
             <div>
-              <h4 className="text-base font-black text-rose-100 sm:text-lg">{tx(lang, 'Masanı Satışsız Ləğv Et', 'Отмена стола без продажи', 'Cancel Table Without Sale')}</h4>
+              <h4 className="text-base font-semibold text-rose-100 sm:text-lg">{tx(lang, 'Masanı Satışsız Ləğv Et', 'Отмена стола без продажи', 'Cancel Table Without Sale')}</h4>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 {tx(
                   lang,
@@ -384,7 +384,7 @@ export default function OperationsPanel({
                 playHapticSuccess();
                 onCancel(table.id, table.label);
               }}
-              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/50 bg-gradient-to-r from-rose-600 to-red-600 px-5 text-base font-black text-white shadow-xl shadow-rose-600/30 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl border border-rose-400/50 bg-gradient-to-r from-rose-600 to-red-600 px-5 text-base font-bold text-white shadow-xl shadow-rose-600/30 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <XCircle size={19} />
               <span>{tx(lang, 'Masanı Satışsız Ləğv Et', 'Отменить без продажи', 'Cancel Without Sale')}</span>

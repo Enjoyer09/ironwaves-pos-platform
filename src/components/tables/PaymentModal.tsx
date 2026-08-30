@@ -84,7 +84,7 @@ export default function PaymentModal(props: PaymentModalProps) {
           </div>
           <div className="grid grid-cols-5 gap-2">
             {TABLE_DISCOUNT_PRESETS.map((preset) => (
-              <button key={preset} type="button" onClick={() => onDiscountChange(preset)} className={`rounded-lg border px-2 py-2 text-xs font-black transition ${Number(tableDiscountPercent) === preset ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-amber-300/25 bg-slate-950/25 text-amber-100 hover:border-amber-200/70'}`}>{preset}%</button>
+              <button key={preset} type="button" onClick={() => onDiscountChange(preset)} className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${Number(tableDiscountPercent) === preset ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-amber-300/25 bg-slate-950/25 text-amber-100 hover:border-amber-200/70'}`}>{preset}%</button>
             ))}
           </div>
           {Number(tableDiscountPercent) > 0 && (
@@ -124,12 +124,12 @@ export default function PaymentModal(props: PaymentModalProps) {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {presets.slice(1).map((val) => (
-                  <button key={val} type="button" onClick={() => onSplitCashChange(val.toFixed(2))} className={`flex-1 min-w-[50px] rounded-lg border py-1.5 px-2 text-xs font-black transition taktil-target active:scale-95 ${Number(splitCash) === val ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:bg-slate-800/70'}`}>{val} ₼</button>
+                  <button key={val} type="button" onClick={() => onSplitCashChange(val.toFixed(2))} className={`flex-1 min-w-[50px] rounded-lg border py-1.5 px-2 text-xs font-semibold transition taktil-target active:scale-95 ${Number(splitCash) === val ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:bg-slate-800/70'}`}>{val} ₼</button>
                 ))}
               </div>
               <div className="flex items-center justify-between border-t border-slate-800/50 pt-2 text-sm">
                 <span className="font-semibold text-slate-400">{tx(lang, 'Qalıq pul', 'Сдача', 'Change')}</span>
-                <span className={`text-base font-black ${cashPaid.greaterThan(dueNow) ? 'text-emerald-400 animate-pulse' : 'text-slate-100'}`}>{change.toFixed(2)} ₼</span>
+                <span className={`text-base font-bold ${cashPaid.greaterThan(dueNow) ? 'text-emerald-400 animate-pulse' : 'text-slate-100'}`}>{change.toFixed(2)} ₼</span>
               </div>
             </div>
           );

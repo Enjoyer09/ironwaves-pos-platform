@@ -30,7 +30,7 @@ function StickyActionBar({ lang, total, disabled, onSend, onClear, draftCount, o
           {tx(lang, 'Yeni sifariş cəmi', 'Сумма нового заказа', 'New order total')}
           {draftCount ? <span className="ml-2 rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-bold text-yellow-300">{draftCount}</span> : null}
         </span>
-        <span className="text-lg font-black text-slate-100">{total} ₼</span>
+        <span className="text-lg font-bold text-slate-100">{total} ₼</span>
       </div>
       <div className="flex gap-2">
         {onClear ? (
@@ -59,7 +59,7 @@ function StickyActionBar({ lang, total, disabled, onSend, onClear, draftCount, o
             type="button"
             disabled={settleDisabled}
             onClick={() => { tapFeedback(); onSettle(); }}
-            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-sm font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {tx(lang, 'Hesabı Al', 'Закрыть счет', 'Settle')}
           </button>

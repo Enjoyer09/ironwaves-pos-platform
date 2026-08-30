@@ -2187,7 +2187,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-base font-black text-slate-100 truncate">{t.label}</span>
+                            <span className="text-base font-bold text-slate-100 truncate">{t.label}</span>
                           </div>
                           <div className="text-xs text-slate-400 mt-0.5">{detailSession?.guest_count ?? Number(t.guest_count || 0)} {tx(lang, 'nəfər', 'гостя', 'guests')}</div>
                         </div>
@@ -2198,7 +2198,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             👤 {tableLockHolder}
                           </span>
                         )}
-                        <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
+                        <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
                           {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
                         </span>
                         {/* Dəyiş button — hidden on mobile (auto-lock handles switching) */}
@@ -2224,7 +2224,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           >
                             ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
                           </button>
-                          <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
+                          <h3 className="truncate text-xl font-bold text-slate-100">{t.label}</h3>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
@@ -2260,14 +2260,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     <div className="mt-3 rounded-2xl border border-rose-300/50 bg-rose-500/15 p-4 shadow-[0_0_28px_rgba(244,63,94,0.16)]">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div>
-                          <div className="text-base font-black text-rose-50">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
+                          <div className="text-base font-bold text-rose-50">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
                           <div className="mt-1 text-sm text-rose-100/85">
                             {tx(lang, `${visibleCheckTotal.toFixed(2)} ₼ görünür, amma sifariş siyahısı boşdur. Kassaya səhv satış düşməsin deyə bu masanı satışsız ləğv edin.`, `Отображается ${visibleCheckTotal.toFixed(2)} ₼, но список заказа пуст. Отмените без продажи, чтобы не создать ошибочную кассу.`, `${visibleCheckTotal.toFixed(2)} ₼ is shown, but the order list is empty. Cancel without sale to avoid a wrong cash entry.`)}
                           </div>
                         </div>
                         <button
                           type="button"
-                          className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/30 px-5 py-3 text-sm font-black text-white shadow-[0_0_22px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/30 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_22px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={!isManagerUser || !userCanEditTable}
                           onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
                         >
@@ -2423,7 +2423,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 		                  <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-	                        <div className="text-lg font-black text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
+	                        <div className="text-lg font-bold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
                       </div>
                       <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
                         {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {draftTotal} ₼
@@ -2638,14 +2638,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     <div className="mt-4 rounded-2xl border border-rose-300/40 bg-rose-500/10 p-4 shadow-[0_0_24px_rgba(244,63,94,0.12)]">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <div className="text-sm font-black text-rose-100">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
+                          <div className="text-sm font-semibold text-rose-100">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
                           <div className="mt-1 text-xs text-rose-100/80">
                             {tx(lang, `${visibleCheckTotal.toFixed(2)} ₼ görünür, amma sifariş siyahısı boşdur. Bu check satış yaratmadan ləğv edilməlidir.`, `Отображается ${visibleCheckTotal.toFixed(2)} ₼, но список заказа пуст. Этот чек нужно отменить без продажи.`, `${visibleCheckTotal.toFixed(2)} ₼ is shown, but the order list is empty. This check should be cancelled without sale.`)}
                           </div>
                         </div>
                         <button
                           type="button"
-                          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-black text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={!isManagerUser || !userCanEditTable}
                           onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
                         >
@@ -2660,7 +2660,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     {tableNeedsSafeCancel && (
                       <button
                         type="button"
-                        className="inline-flex min-h-12 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/25 px-5 py-3 text-sm font-black text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex min-h-12 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/25 px-5 py-3 text-sm font-semibold text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!isManagerUser || !userCanEditTable}
                         onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
                       >
