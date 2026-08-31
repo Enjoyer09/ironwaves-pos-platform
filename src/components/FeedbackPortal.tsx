@@ -238,7 +238,11 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       ctx2d.strokeStyle = '#334155';
       ctx2d.lineWidth = 3;
       ctx2d.beginPath();
-      ctx2d.roundRect(cardX, cardY, cardW, cardH, 28);
+      if (typeof ctx2d.roundRect === 'function') {
+        ctx2d.roundRect(cardX, cardY, cardW, cardH, 28);
+      } else {
+        ctx2d.rect(cardX, cardY, cardW, cardH);
+      }
       ctx2d.fill();
       ctx2d.stroke();
 
