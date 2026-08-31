@@ -16,6 +16,7 @@ import ProfileTab from './customer/ProfileTab';
 import BaristaTab from './customer/BaristaTab';
 import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
+import FeedbackTab from './customer/FeedbackTab';
 import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
 import { updateCartItemQty } from '../lib/cartMath';
 import { buildReorderItem, mergeReorderItem } from '../lib/reorderItem';
@@ -1581,6 +1582,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
     { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={18} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
+    { key: 'feedback' as CustomerTab, label: tx(safeLang, 'Rəy', 'Отзыв', 'Feedback'), icon: <MessageSquare size={18} /> },
     // C2: collapse Barista + Falçı into one "AI" hub tab so the bar never
     // exceeds 5 tabs (Apple HIG). The hub switches between the two inside.
     ...(aiBaristaEnabled || aiFalciEnabled
@@ -1864,6 +1866,18 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             isLight={isLight}
             onActivateCampaign={handleActivateCampaign}
           />
+          </div>
+        )}
+        {resolvedActiveTab === 'feedback' && (
+          <div key="feedback" className="animate-tabEnter">
+            <FeedbackTab
+              safeLang={safeLang}
+              customer={customer}
+              sessionCreds={{ cardId: customer?.card_id || '', token: '' }}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
+              isLight={isLight}
+            />
           </div>
         )}
         {resolvedActiveTab === 'ai' && (aiBaristaEnabled || aiFalciEnabled) && (
