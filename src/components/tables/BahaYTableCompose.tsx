@@ -96,8 +96,10 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
     onUpdateQty(String(row.id), 0);
   };
 
+  const itemTotal = new Decimal(row.price || 0).times(row.qty || 1).toFixed(2);
+
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-700/50 bg-slate-950/40 min-h-[52px] cart-item-anim">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/90 shadow-sm cart-item-anim group hover:border-slate-600 transition-all">
       {/* Background Swipe Delete Button */}
       <button
         type="button"
@@ -109,49 +111,87 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
         <span>{tx(lang, 'Ləğv', 'Удалить', 'Delete')}</span>
       </button>
 
-      {/* Foreground Swipeable Item */}
+      {/* Foreground Item Card */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{ transform: `translateX(${currentX}px)` }}
-        className={`relative flex items-center justify-between gap-2 bg-slate-900/95 px-3 py-2 z-10 w-full h-full min-h-[50px] ${
+        className={`relative flex items-center justify-between gap-3 bg-slate-900/95 px-3.5 py-2.5 z-10 w-full h-full min-h-[56px] ${
           isSwiping ? 'transition-none' : 'transition-transform duration-200 ease-out'
         }`}
       >
+        {/* Left item details */}
         <div
           role="button"
           onClick={() => onEditNote(row)}
           className="min-w-0 flex-1 select-none cursor-pointer"
         >
-          <div className="truncate text-sm font-bold text-slate-100">{row.item_name}</div>
-          {row.note && (
-            <div className="text-xs text-yellow-400 font-semibold truncate mt-0.5">✎ {row.note}</div>
+          <div className="truncate text-sm font-bold text-slate-100 flex items-center gap-1.5">
+            <span className="truncate">{row.item_name}</span>
+            {Number(row.qty || 1) > 1 && (
+              <span className="text-[11px] font-semibold text-slate-400">×{row.qty}</span>
+            )}
+          </div>
+          {row.note ? (
+            <div className="text-[11px] text-amber-300 font-semibold truncate mt-0.5 flex items-center gap-1">
+              <span>✎</span>
+              <span className="truncate">{row.note}</span>
+            </div>
+          ) : (
+            <div className="text-[10px] text-slate-500 font-medium hover:text-slate-400 mt-0.5 flex items-center gap-1">
+              <span>+</span>
+              <span>{tx(lang, 'Qeyd əlavə et', 'Добавить примечание', 'Add note')}</span>
+            </div>
           )}
-          <div className="text-xs font-semibold text-amber-300/90 mt-0.5">{Number(row.price || 0).toFixed(2)} ₼</div>
+          <div className="text-xs font-bold text-amber-400/90 mt-0.5 flex items-center gap-2">
+            <span>{itemTotal} ₼</span>
+            {Number(row.qty || 1) > 1 && (
+              <span className="text-[10px] font-normal text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/ədəd)</span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        {/* Right action controls */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Note quick-edit button */}
+          <button
+            type="button"
+            title={tx(lang, 'Qeyd', 'Примечание', 'Note')}
+            onClick={() => onEditNote(row)}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition taktil-target active:scale-90 ${
+              row.note
+                ? 'border-amber-400/60 bg-amber-500/15 text-amber-300 shadow-sm'
+                : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            ✎
+          </button>
+          {/* Stepper buttons */}
           <button
             type="button"
             aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-sm font-bold text-slate-200 taktil-target active:scale-90 hover:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
           >
             −
           </button>
-          <div className="min-w-7 text-center text-sm font-bold text-slate-100 select-none">{row.qty}</div>
+          <div className="min-w-6 text-center text-xs font-black text-slate-100 select-none">
+            {row.qty}
+          </div>
           <button
             type="button"
             aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-sm font-bold text-slate-200 taktil-target active:scale-90 hover:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
           >
             +
           </button>
+          {/* Quick remove button */}
           <button
             type="button"
             aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-500/10 text-xs text-rose-200 taktil-target active:scale-90"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20"
             onClick={() => onUpdateQty(String(row.id), 0)}
           >
             ✕
@@ -182,6 +222,18 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
+
+  const sentTotal = useMemo(() => {
+    return sentItems.reduce((sum: Decimal, it: any) => {
+      const isVoided = ['VOIDED', 'COMPED', 'WASTE'].includes(String(it.status || '').toUpperCase());
+      if (isVoided) return sum;
+      return sum.plus(new Decimal(it.price || 0).times(it.qty || 1));
+    }, new Decimal(0));
+  }, [sentItems]);
+
+  const grandTotal = useMemo(() => {
+    return sentTotal.plus(new Decimal(draftTotal || 0)).toFixed(2);
+  }, [sentTotal, draftTotal]);
 
   // Close note editor if the edited item was removed from draft
   useEffect(() => {
@@ -274,6 +326,27 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           </button>
         </div>
 
+        {/* Desktop & Tablet Cart Header */}
+        <div className="hidden md:flex shrink-0 items-center justify-between border-b border-slate-700/60 px-4 py-3 bg-slate-900/70">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black text-slate-100 flex items-center gap-1.5">
+              🛒 {tx(lang, 'Cari Sifariş', 'Текущий заказ', 'Current Order')}
+            </span>
+            <span className="rounded-full bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 text-xs font-black text-amber-300">
+              {draftRows.reduce((sum: number, r: any) => sum + (r.qty || 0), 0)}
+            </span>
+          </div>
+          {draftRows.length > 0 && (
+            <button
+              type="button"
+              onClick={onClearDrafts}
+              className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-xl transition active:scale-95"
+            >
+              🗑️ {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+            </button>
+          )}
+        </div>
+
         {/* Scrollable draft items area */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 pb-1">
           {/* Draft error */}
@@ -329,10 +402,24 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           )}
 
-          {/* Total + action buttons */}
-          <div className="flex items-center justify-between text-xs text-slate-300 px-0.5">
-            <span>{tx(lang, 'Cəmi', 'Итого', 'Total')}</span>
-            <span className="text-sm font-semibold text-slate-100">{draftTotal} ₼</span>
+          {/* Total financial breakdown & action buttons */}
+          <div className="space-y-1.5 py-1 px-0.5">
+            {sentItems.length > 0 && (
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>{tx(lang, 'Əvvəlki sifarişlər', 'Предыдущие заказы', 'Previous orders')}</span>
+                <span className="font-semibold text-slate-300">{sentTotal.toFixed(2)} ₼</span>
+              </div>
+            )}
+            {draftRows.length > 0 && (
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>{tx(lang, 'Yeni əlavələr (Qaralama)', 'Новые добавления', 'New items')}</span>
+                <span className="font-semibold text-amber-300">{draftTotal} ₼</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-slate-800/80 pt-1.5 text-sm font-bold text-slate-100">
+              <span className="text-slate-300">{tx(lang, 'Yekun Cəm', 'Итоговая сумма', 'Grand Total')}</span>
+              <span className="text-base font-black text-amber-400">{grandTotal} ₼</span>
+            </div>
           </div>
 
           {/* Primary Action: Send to Kitchen (appears when draft is not empty) */}
