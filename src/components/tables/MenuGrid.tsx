@@ -50,6 +50,36 @@ function resolveItemImage(item: any): string {
   return picked ? String(picked).trim() : '';
 }
 
+function getCategoryMeta(cat: string, lang: string) {
+  const lower = (cat || '').toLowerCase();
+  if (cat === 'ALL') return { icon: '🍽️', label: tx(lang, 'Hamısı', 'Все', 'All') };
+  if (lower.includes('kofe') || lower.includes('coffee') || lower.includes('isti') || lower.includes('çay') || lower.includes('tea') || lower.includes('hot')) {
+    return { icon: '☕', label: cat };
+  }
+  if (lower.includes('soyuq') || lower.includes('cold') || lower.includes('içki') || lower.includes('drink') || lower.includes('limonad') || lower.includes('juice') || lower.includes('kokteyl') || lower.includes('beverage')) {
+    return { icon: '🍹', label: cat };
+  }
+  if (lower.includes('şirniyyat') || lower.includes('desert') || lower.includes('tort') || lower.includes('cake') || lower.includes('dessert') || lower.includes('sweet') || lower.includes('dondurma')) {
+    return { icon: '🍰', label: cat };
+  }
+  if (lower.includes('pizza') || lower.includes('burger') || lower.includes('dönər') || lower.includes('kabab') || lower.includes('ət') || lower.includes('meat') || lower.includes('food') || lower.includes('əsas') || lower.includes('main')) {
+    return { icon: '🍕', label: cat };
+  }
+  if (lower.includes('salat') || lower.includes('salad') || lower.includes('fit') || lower.includes('diet')) {
+    return { icon: '🥗', label: cat };
+  }
+  if (lower.includes('qəlyanaltı') || lower.includes('snack') || lower.includes('fries') || lower.includes('kartof') || lower.includes('nugget')) {
+    return { icon: '🍟', label: cat };
+  }
+  if (lower.includes('şorba') || lower.includes('soup')) {
+    return { icon: '🥣', label: cat };
+  }
+  if (lower.includes('qəlyan') || lower.includes('hookah') || lower.includes('shisha')) {
+    return { icon: '💨', label: cat };
+  }
+  return { icon: '🍴', label: cat };
+}
+
 function MenuGrid({
   items,
   categories,
@@ -231,8 +261,17 @@ function MenuGrid({
     });
   }, [items]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: items.length };
+    items.forEach((it: any) => {
+      const c = it.category || 'Other';
+      counts[c] = (counts[c] || 0) + 1;
+    });
+    return counts;
+  }, [items]);
+
   return (
-    <div 
+    <div
       className="flex min-h-0 flex-1 flex-col gap-3"
       onTouchStart={handleSwipeStart}
       onTouchEnd={handleSwipeEnd}
@@ -263,25 +302,36 @@ function MenuGrid({
         </button>
       </div>
 
-      {/* Category tabs — full-width horizontal scroll, Menulux style */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => {
-              playHapticTouch();
-              onCategoryChange(cat);
-            }}
-            className={`whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-bold transition pos-category-btn taktil-target active:scale-95 ${
-              selectedCategory === cat
-                ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
-                : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
-            }`}
-          >
-            {cat === 'ALL' ? tx(lang, 'Hamısı', 'Все', 'All') : cat}
-          </button>
-        ))}
+      {/* Category tabs — full-width horizontal scroll, Behance & Menulux modern style */}
+      <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none -mx-0.5 px-0.5">
+        {categories.map((cat) => {
+          const meta = getCategoryMeta(cat, lang);
+          const isSelected = selectedCategory === cat;
+          const count = categoryCounts[cat] ?? (cat === 'ALL' ? items.length : 0);
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => {
+                playHapticTouch();
+                onCategoryChange(cat);
+              }}
+              className={`group flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 transition-all pos-category-btn taktil-target active:scale-95 ${
+                isSelected
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-lg shadow-amber-500/25 scale-[1.02]'
+                  : 'border border-slate-700/70 bg-slate-900/70 text-slate-200 font-bold hover:bg-slate-800 hover:border-slate-600'
+              }`}
+            >
+              <span className="text-base leading-none">{meta.icon}</span>
+              <span className="text-xs sm:text-sm tracking-wide whitespace-nowrap">{meta.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                isSelected ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-800 text-slate-400 border border-slate-700/50'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Product grid - grouped by variant */}
@@ -376,7 +426,7 @@ function MenuGrid({
                 )}
 
                 {/* Inline variant/size selection pills */}
-                {group.hasVariants && (
+                {group.hasVariants ? (
                   <div className={`flex flex-wrap gap-1 border-t border-slate-800/40 ${hideImages ? 'p-1.5' : 'p-2 pt-0'}`}>
                     {group.items.map((item: any) => {
                       const { variant } = splitVariantName(item.item_name);
@@ -404,6 +454,38 @@ function MenuGrid({
                       );
                     })}
                   </div>
+                ) : (
+                  totalQtyInDraft > 0 && (
+                    <div className={`flex items-center justify-between gap-1.5 border-t border-slate-800/50 bg-slate-950/60 ${hideImages ? 'p-1' : 'p-1.5'}`}>
+                      <button
+                        type="button"
+                        aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playHapticTouch();
+                          void onSelectItem(group.items[0], -1);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm active:scale-90 hover:bg-slate-700"
+                      >
+                        −
+                      </button>
+                      <span className="font-extrabold text-xs text-yellow-300">
+                        {totalQtyInDraft}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playHapticTouch();
+                          void onSelectItem(group.items[0], 1);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm active:scale-90 shadow-sm shadow-yellow-400/20"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             </div>

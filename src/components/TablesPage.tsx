@@ -719,8 +719,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           && new Decimal(row.price || 0).equals(new Decimal(item.price || 0))
         ));
         if (existingDraft) {
-          await update_draft_item_live(existingDraft.id, { qty: Number(existingDraft.qty || 0) + quantityToAdd });
-        } else {
+          const nextQty = Number(existingDraft.qty || 0) + quantityToAdd;
+          if (nextQty <= 0) {
+            await delete_draft_item_live(existingDraft.id);
+          } else {
+            await update_draft_item_live(existingDraft.id, { qty: nextQty });
+          }
+        } else if (quantityToAdd > 0) {
           await add_check_draft_item_live(activeDetail.check.id, {
             id: item.id,
             item_name: item.item_name,
@@ -742,8 +747,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     setRoundDraft((prev) => {
       const existing = prev.find((row: any) => String(row.id) === String(item.id));
       if (existing) {
-        return prev.map((row: any) => String(row.id) === String(item.id) ? { ...row, qty: Number(row.qty || 0) + quantityToAdd } : row);
+        const nextQty = Number(existing.qty || 0) + quantityToAdd;
+        if (nextQty <= 0) {
+          return prev.filter((row: any) => String(row.id) !== String(item.id));
+        }
+        return prev.map((row: any) => String(row.id) === String(item.id) ? { ...row, qty: nextQty } : row);
       }
+      if (quantityToAdd <= 0) return prev;
       return [
         ...prev,
         {
