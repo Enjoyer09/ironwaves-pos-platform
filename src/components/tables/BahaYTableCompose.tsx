@@ -4,6 +4,7 @@ import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
 import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../../lib/haptics';
 import OrderNoteModal from './OrderNoteModal';
+import { useAppStore } from '../../store';
 
 type BahaYTableComposeProps = {
   lang: string;
@@ -262,6 +263,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     tableLabel, guestCount, waiterName,
   } = props;
 
+  const setLang = useAppStore((s) => s.setLang);
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
@@ -311,9 +313,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onSearchChange={onSearchChange}
           onCategoryChange={onCategoryChange}
           onSelectItem={onSelectItem}
-          draftItems={roundDraft}
+          draftItems={draftRows.length > 0 ? draftRows : roundDraft}
           modernMode={true}
           summerPromoEnabled={summerPromoEnabled}
+          onLangChange={setLang}
         />
 
         {/* Floating Mobile Cart Bar with Quick Send */}
