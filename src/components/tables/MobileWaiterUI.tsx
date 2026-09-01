@@ -33,22 +33,32 @@ export default function MobileWaiterUI({
   refreshData,
 }: MobileWaiterUIProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'free' | 'occupied' | 'ready'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'mine' | 'free' | 'occupied' | 'ready'>('all');
   const [quickOpenTable, setQuickOpenTable] = useState<any | null>(null);
   const [quickGuestCount, setQuickGuestCount] = useState('2');
   const [openingLoading, setOpeningLoading] = useState(false);
+
+  const currentUsername = String(user?.username || '').toLowerCase().trim();
 
   // Compute counts
   const readyTableIds = useMemo(() => {
     const ids = new Set<string>();
     kitchenOrders.forEach((order: any) => {
       if (String(order.status || '').toUpperCase() === 'READY') {
-        const matchingTable = tables.find(t => t.label === order.table_label);
+        const matchingTable = tables.find(t => String(t.label || '').trim() === String(order.table_label || '').trim());
         if (matchingTable) ids.add(matchingTable.id);
       }
     });
     return ids;
   }, [kitchenOrders, tables]);
+
+  const myTablesCount = useMemo(() => {
+    if (!currentUsername) return 0;
+    return tables.filter(t => {
+      const assigned = String(t.assigned_to || t.locked_by || '').toLowerCase().trim();
+      return assigned === currentUsername;
+    }).length;
+  }, [tables, currentUsername]);
 
   const filteredTables = useMemo(() => {
     return tables.filter(t => {
@@ -62,13 +72,17 @@ export default function MobileWaiterUI({
         if (!t.label.toLowerCase().includes(query)) return false;
       }
       // Status filter
+      if (statusFilter === 'mine') {
+        const assigned = String(t.assigned_to || t.locked_by || '').toLowerCase().trim();
+        return assigned === currentUsername;
+      }
       if (statusFilter === 'free') return !t.is_occupied;
       if (statusFilter === 'occupied') return t.is_occupied;
       if (statusFilter === 'ready') return readyTableIds.has(t.id);
 
       return true;
     });
-  }, [tables, activeFloorId, searchTerm, statusFilter, readyTableIds]);
+  }, [tables, activeFloorId, searchTerm, statusFilter, readyTableIds, currentUsername]);
 
   const freeCount = tables.filter(t => !t.is_occupied).length;
   const occupiedCount = tables.filter(t => t.is_occupied).length;
@@ -85,11 +99,12 @@ export default function MobileWaiterUI({
     }
   };
 
-  const handleConfirmQuickOpen = async () => {
+  const handleQuickSelectAndOpen = async (guestCount: string) => {
     if (!quickOpenTable) return;
     try {
       setOpeningLoading(true);
-      await onOpenTable(quickOpenTable.id, quickGuestCount);
+      setQuickGuestCount(guestCount);
+      await onOpenTable(quickOpenTable.id, guestCount);
       const targetTable = quickOpenTable;
       setQuickOpenTable(null);
       onSelectTable(targetTable);
@@ -168,6 +183,7 @@ export default function MobileWaiterUI({
         <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
           {([
             ['all',      tx(lang, 'Hamısı',  'Все',     'All'),   `${tables.length}`       ],
+            ...(currentUsername ? [['mine', tx(lang, 'Mənim', 'Мои', 'My'), `${myTablesCount}`]] : []),
             ['free',     tx(lang, 'Boş',     'Свободно','Free'),  `${freeCount}`           ],
             ['occupied', tx(lang, 'Dolu',    'Занят',   'Busy'),  `${occupiedCount}`       ],
             ['ready',    tx(lang, 'Hazır',   'Готово',  'Ready'), `${readyCount}`          ],
@@ -179,15 +195,17 @@ export default function MobileWaiterUI({
               className={`flex-none flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-all whitespace-nowrap ${
                 statusFilter === key
                   ? key === 'all'      ? 'bg-slate-600 text-white'
+                  : key === 'mine'     ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-md shadow-amber-400/25'
                   : key === 'free'     ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
                   : key === 'occupied' ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
                                        : 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 animate-pulse'
                   : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
               }`}
             >
+              {key === 'mine' && '★ '}
               {label}
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                statusFilter === key ? 'bg-white/25 text-white' : 'bg-slate-700 text-slate-300'
+                statusFilter === key ? (key === 'mine' ? 'bg-slate-950/20 text-slate-950 font-black' : 'bg-white/25 text-white') : 'bg-slate-700 text-slate-300'
               }`}>{count}</span>
             </button>
           ))}
@@ -201,6 +219,15 @@ export default function MobileWaiterUI({
           const isReady = readyTableIds.has(table.id);
           const totalVal = new Decimal(table.total || 0).toFixed(2);
           const guestNum = table.guest_count || 1;
+          const assigned = String(table.assigned_to || table.locked_by || '').trim();
+          const isMyTable = Boolean(currentUsername && assigned.toLowerCase() === currentUsername);
+
+          // Calculate elapsed time (minutes)
+          const openedAt = (table as any).opened_at || (table as any).locked_at || (table as any).seated_at || (table as any).updated_at || null;
+          let elapsedMin = 0;
+          if (isOccupied && openedAt) {
+            elapsedMin = Math.max(1, Math.floor((Date.now() - new Date(openedAt).getTime()) / 60000));
+          }
 
           return (
             <div
@@ -208,13 +235,21 @@ export default function MobileWaiterUI({
               onClick={() => handleTableTap(table)}
               className={`table-card-glass relative flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-150 ${
                 isReady
-                  ? 'bg-gradient-to-b from-cyan-500 to-cyan-700 shadow-lg shadow-cyan-500/30'
+                  ? 'bg-gradient-to-b from-cyan-500 to-cyan-700 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-300 animate-pulse'
                   : isOccupied
                   ? 'bg-gradient-to-b from-rose-500 to-rose-700 shadow-lg shadow-rose-500/25'
                   : 'bg-slate-800/70 border border-slate-700/60'
-              }`}
-              style={{ minHeight: '130px' }}
+              } ${isMyTable && isOccupied ? 'ring-2 ring-amber-400' : ''}`}
+              style={{ minHeight: '135px' }}
             >
+              {/* Ready Alert Badge (Pulsing Sparkle) */}
+              {isReady && (
+                <div className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-full bg-emerald-400 px-1.5 py-0.5 text-[9px] font-black text-slate-950 shadow-md animate-bounce">
+                  <span>🔔</span>
+                  <span>{tx(lang, 'Hazır', 'Готово', 'Ready')}</span>
+                </div>
+              )}
+
               {/* Top drag-pill indicator */}
               <div className="flex justify-center pt-2.5 pb-1 shrink-0">
                 <div className={`h-[3px] w-8 rounded-full ${
@@ -223,17 +258,31 @@ export default function MobileWaiterUI({
               </div>
 
               {/* Table label */}
-              <div className={`px-3 text-base font-bold leading-tight tracking-tight ${
+              <div className={`px-3 text-base font-bold leading-tight tracking-tight flex items-center justify-between gap-1 ${
                 isOccupied || isReady ? 'text-white' : 'text-slate-100'
               }`}>
-                {table.label}
+                <span className="truncate">{table.label}</span>
+                {isMyTable && isOccupied && (
+                  <span className="text-amber-300 text-xs">★</span>
+                )}
               </div>
 
               {/* Amount or free indicator */}
-              <div className="px-3 mt-1.5 flex-1">
+              <div className="px-3 mt-1 flex-1">
                 {isOccupied ? (
-                  <div className="text-xl font-bold text-white leading-none">
-                    {totalVal} <span className="text-xs opacity-80">₼</span>
+                  <div>
+                    <div className="text-lg font-black text-white leading-none">
+                      {totalVal} <span className="text-[10px] opacity-80 font-bold">₼</span>
+                    </div>
+                    {/* Elapsed Time Badge */}
+                    {elapsedMin > 0 && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-white/90">
+                        <span className="opacity-75">⏱️</span>
+                        <span className={elapsedMin >= 45 ? 'text-amber-300 font-extrabold' : ''}>
+                          {elapsedMin >= 60 ? `${Math.floor(elapsedMin / 60)}s ${elapsedMin % 60}d` : `${elapsedMin} dəq`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-xs font-bold text-slate-500">
@@ -243,10 +292,10 @@ export default function MobileWaiterUI({
               </div>
 
               {/* Bottom: guests + waiter */}
-              <div className="px-3 pb-2.5 mt-2 shrink-0">
+              <div className="px-3 pb-2.5 mt-1 shrink-0">
                 {isOccupied ? (
-                  <div className="text-[11px] font-semibold text-white/70 truncate">
-                    👥 {guestNum} · {table.assigned_to || ''}
+                  <div className="text-[11px] font-semibold text-white/80 truncate">
+                    👥 {guestNum} {assigned ? `· ${assigned}` : ''}
                   </div>
                 ) : (
                   <div className="text-[11px] font-semibold text-slate-500">
@@ -265,53 +314,45 @@ export default function MobileWaiterUI({
         </div>
       )}
 
-      {/* Quick Open Table Modal (Fast 1-tap guest picker) */}
+      {/* Quick Open Table Modal (Fast 1-tap instant guest picker) */}
       {quickOpenTable && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-modalFadeIn" onClick={() => setQuickOpenTable(null)}>
           <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-5 animate-scaleIn text-white" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-amber-400">{quickOpenTable.label}</h3>
-                <p className="text-xs font-semibold text-slate-400">{tx(lang, 'Qonaq sayını seçin', 'Выберите кол-во гостей', 'Select guest count')}</p>
+                <p className="text-xs font-semibold text-slate-400">{tx(lang, 'Qonaq sayını seçin (1 toxunuşla açılır)', 'Выберите кол-во гостей', 'Select guest count (1-tap open)')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setQuickOpenTable(null)}
-                className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-slate-400 font-bold"
+                className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-slate-400 font-bold hover:text-white"
               >
                 ✕
               </button>
             </div>
 
-            {/* Guest Number Pills */}
+            {/* Instant 1-Tap Guest Number Pills */}
             <div className="grid grid-cols-4 gap-2.5">
               {['1', '2', '3', '4', '5', '6', '8', '10'].map((num) => (
                 <button
                   key={num}
                   type="button"
-                  onClick={() => setQuickGuestCount(num)}
-                  className={`rounded-2xl py-3 text-base font-bold transition-all ${
-                    quickGuestCount === num
-                      ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/25 scale-[1.04]'
-                      : 'bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700'
-                  }`}
+                  disabled={openingLoading}
+                  onClick={() => handleQuickSelectAndOpen(num)}
+                  className="rounded-2xl py-3.5 text-base font-black transition-all bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700 text-slate-100 hover:border-amber-400/60 active:scale-95 shadow-md flex flex-col items-center justify-center gap-0.5"
                 >
-                  {num} 👤
+                  <span className="text-lg leading-none">{num}</span>
+                  <span className="text-[10px] text-slate-400 font-bold">👤 {tx(lang, 'qonaq', 'гост.', 'guests')}</span>
                 </button>
               ))}
             </div>
 
-            <button
-              type="button"
-              disabled={openingLoading}
-              onClick={handleConfirmQuickOpen}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 font-black text-sm text-white shadow-xl shadow-emerald-500/20 active:scale-95 transition disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <Utensils size={18} />
-              {openingLoading
-                ? tx(lang, 'Açılır...', 'Открываем...', 'Opening...')
-                : tx(lang, 'Masanı Aç və Sifarişə Keç', 'Открыть и заказать', 'Open & Take Order')}
-            </button>
+            {openingLoading && (
+              <div className="py-2 text-center text-xs font-bold text-amber-300 animate-pulse">
+                {tx(lang, 'Masa açılır və menyuya keçilir...', 'Открываем стол...', 'Opening table & loading menu...')}
+              </div>
+            )}
           </div>
         </div>
       )}
