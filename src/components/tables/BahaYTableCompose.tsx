@@ -73,176 +73,107 @@ const DraftRowItem = memo(({
   row: any;
   onUpdateQty: (id: string, qty: number) => void;
   onEditNote: (row: any) => void;
-  onUpdateCourse?: (id: string, courseNo: number) => void;
+  onUpdateCourse?: (id: string, courseNo: number) => void | Promise<void>;
   lang: string;
 }) => {
-  const [startX, setStartX] = useState(0);
-  const [currentX, setCurrentX] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const [swipedLeft, setSwipedLeft] = useState(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setStartX(e.touches[0].clientX);
-    setIsSwiping(true);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isSwiping) return;
-    const diffX = e.touches[0].clientX - startX;
-    if (swipedLeft) {
-      const newX = -88 + diffX;
-      setCurrentX(Math.min(0, Math.max(-110, newX)));
-    } else {
-      setCurrentX(Math.min(0, Math.max(-110, diffX)));
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setIsSwiping(false);
-    if (currentX < -40) {
-      setCurrentX(-88);
-      setSwipedLeft(true);
-    } else {
-      setCurrentX(0);
-      setSwipedLeft(false);
-    }
-  };
-
-  const handleDelete = () => {
-    tapFeedback();
-    onUpdateQty(String(row.id), 0);
-  };
-
   const itemTotal = new Decimal(row.price || 0).times(row.qty || 1).toFixed(2);
+  const courseNo = Number(row.course_no || 1);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/90 shadow-sm cart-item-anim group hover:border-slate-600 transition-all">
-      {/* Background Swipe Delete Button */}
-      <button
-        type="button"
-        aria-label={tx(lang, 'Ləğv et', 'Удалить', 'Delete')}
-        onClick={handleDelete}
-        className="absolute right-0 top-0 bottom-0 w-[88px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-xs font-semibold uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
-      >
-        <span className="text-sm">✕</span>
-        <span>{tx(lang, 'Ləğv', 'Удалить', 'Delete')}</span>
-      </button>
-
-      {/* Foreground Item Card */}
-      <div
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ transform: `translateX(${currentX}px)` }}
-        className={`relative flex items-center justify-between gap-3 bg-slate-900/95 px-3.5 py-2.5 z-10 w-full h-full min-h-[56px] ${
-          isSwiping ? 'transition-none' : 'transition-transform duration-200 ease-out'
-        }`}
-      >
-        {/* Left item details */}
-        <div
-          role="button"
-          onClick={() => onEditNote(row)}
-          className="min-w-0 flex-1 select-none cursor-pointer"
-        >
-          <div className="truncate text-sm font-bold text-slate-100 flex items-center gap-1.5">
-            <span className="truncate">{row.item_name}</span>
-            {Number(row.qty || 1) > 1 && (
-              <span className="text-[11px] font-semibold text-slate-400">×{row.qty}</span>
-            )}
+    <div className="relative overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 p-3 shadow-sm transition-all duration-200 hover:border-slate-700/80">
+      {/* Top row: Item Name, Total Price & Large Finger Stepper */}
+      <div className="flex items-center justify-between gap-3">
+        {/* Name and Price */}
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold text-white truncate leading-tight">
+            {row.item_name}
           </div>
-          {row.note ? (
-            <div className="text-[11px] text-amber-300 font-semibold truncate mt-0.5 flex items-center gap-1">
-              <span>✎</span>
-              <span className="truncate">{row.note}</span>
-            </div>
-          ) : (
-            <div className="text-[10px] text-slate-500 font-medium hover:text-slate-400 mt-0.5 flex items-center gap-1">
-              <span>+</span>
-              <span>{tx(lang, 'Qeyd əlavə et', 'Добавить примечание', 'Add note')}</span>
-            </div>
-          )}
-          <div className="text-xs font-bold text-amber-400/90 mt-0.5 flex items-center gap-2">
+          <div className="mt-1 flex items-center gap-2 text-xs font-extrabold text-amber-400">
             <span>{itemTotal} ₼</span>
             {Number(row.qty || 1) > 1 && (
-              <span className="text-[10px] font-normal text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/ədəd)</span>
+              <span className="text-[10px] font-medium text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/ədəd)</span>
             )}
           </div>
         </div>
 
-        {/* Right action controls */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Course indicator/toggle (Course 1, 2, 3) */}
-          {onUpdateCourse && (
-            <button
-              type="button"
-              title={
-                Number(row.course_no || 1) === 1
-                  ? tx(lang, '1-ci Mərhələ (İştahaçan/Salat) — Dəyişmək üçün klikləyin', '1-я Подача (Закуски)', 'Course 1 (Starters)')
-                  : Number(row.course_no || 1) === 2
-                  ? tx(lang, '2-ci Mərhələ (İsti Yemək) — Dəyişmək üçün klikləyin', '2-я Подача (Основное)', 'Course 2 (Mains)')
-                  : tx(lang, '3-cü Mərhələ (Desert/Çay) — Dəyişmək üçün klikləyin', '3-я Подача (Десерты)', 'Course 3 (Desserts)')
-              }
-              onClick={() => {
-                tapFeedback();
-                const current = Number(row.course_no || 1);
-                const next = current === 1 ? 2 : current === 2 ? 3 : 1;
-                onUpdateCourse(String(row.id), next);
-              }}
-              className={`flex h-9 min-w-[32px] px-1.5 items-center justify-center rounded-xl border text-[10px] font-black transition taktil-target active:scale-90 ${
-                Number(row.course_no || 1) === 1
-                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                  : Number(row.course_no || 1) === 2
-                  ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
-                  : 'border-purple-500/40 bg-purple-500/15 text-purple-300'
-              }`}
-            >
-              C{row.course_no || 1}
-            </button>
-          )}
-
-          {/* Note quick-edit button */}
-          <button
-            type="button"
-            title={tx(lang, 'Qeyd', 'Примечание', 'Note')}
-            onClick={() => onEditNote(row)}
-            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition taktil-target active:scale-90 ${
-              row.note
-                ? 'border-amber-400/60 bg-amber-500/15 text-amber-300 shadow-sm'
-                : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            ✎
-          </button>
-          {/* Stepper buttons */}
+        {/* Large Finger-Friendly Stepper (44px min touch target) */}
+        <div className="flex items-center gap-1.5 shrink-0 bg-slate-950/80 p-1 rounded-2xl border border-slate-800">
           <button
             type="button"
             aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-sm font-bold text-slate-200 taktil-target active:scale-90 hover:bg-slate-700"
+            className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-slate-200 border border-slate-700/80 text-lg font-black transition taktil-target active:scale-90 hover:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
           >
             −
           </button>
-          <div className="min-w-6 text-center text-xs font-black text-slate-100 select-none">
+          <div className="w-7 text-center text-sm font-black text-white select-none">
             {row.qty}
           </div>
           <button
             type="button"
             aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-sm font-bold text-slate-200 taktil-target active:scale-90 hover:bg-slate-700"
+            className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 text-lg font-black transition taktil-target active:scale-90 shadow-md shadow-yellow-400/20 hover:brightness-105"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
           >
             +
           </button>
-          {/* Quick remove button */}
+        </div>
+      </div>
+
+      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button */}
+      <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
+        {/* Course indicator/toggle */}
+        {onUpdateCourse && (
           <button
             type="button"
-            aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20"
-            onClick={() => onUpdateQty(String(row.id), 0)}
+            title={
+              courseNo === 1
+                ? tx(lang, '1-ci Mərhələ (İştahaçan/Salat)', '1-я Подача (Закуски)', 'Course 1 (Starters)')
+                : courseNo === 2
+                ? tx(lang, '2-ci Mərhələ (İsti Yemək)', '2-я Подача (Основное)', 'Course 2 (Mains)')
+                : tx(lang, '3-cü Mərhələ (Desert/Çay)', '3-я Подача (Десерты)', 'Course 3 (Desserts)')
+            }
+            onClick={() => {
+              tapFeedback();
+              const next = courseNo === 1 ? 2 : courseNo === 2 ? 3 : 1;
+              onUpdateCourse(String(row.id), next);
+            }}
+            className={`flex h-8 px-2.5 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
+              courseNo === 1
+                ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                : courseNo === 2
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                : 'border-purple-500/40 bg-purple-500/15 text-purple-300'
+            }`}
           >
-            ✕
+            <span>C{courseNo}</span>
           </button>
-        </div>
+        )}
+
+        {/* Note trigger */}
+        <button
+          type="button"
+          onClick={() => onEditNote(row)}
+          className={`flex h-8 min-w-0 flex-1 items-center gap-1.5 px-2.5 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
+            row.note
+              ? 'border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-xs'
+              : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span className="text-xs shrink-0">✎</span>
+          <span className="truncate">{row.note || tx(lang, 'Qeyd əlavə et', 'Добавить примечание', 'Add note')}</span>
+        </button>
+
+        {/* Dedicated Delete Button */}
+        <button
+          type="button"
+          aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
+          onClick={() => onUpdateQty(String(row.id), 0)}
+          className="flex h-8 items-center gap-1 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
+        >
+          <span>🗑️</span>
+          <span>{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
+        </button>
       </div>
     </div>
   );
