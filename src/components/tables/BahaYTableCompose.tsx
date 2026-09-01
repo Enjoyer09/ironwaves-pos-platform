@@ -47,6 +47,9 @@ type BahaYTableComposeProps = {
   summerPromoEnabled?: boolean;
   onUpdateNote?: (id: string, note: string) => void | Promise<void>;
   onUpdateCourse?: (id: string, courseNo: number) => void | Promise<void>;
+  tableLabel?: string;
+  guestCount?: number;
+  waiterName?: string;
 };
 
 const tapFeedback = () => {
@@ -368,23 +371,34 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           </button>
         </div>
 
-        {/* Desktop & Tablet Cart Header */}
-        <div className="hidden md:flex shrink-0 items-center justify-between border-b border-slate-700/60 px-4 py-3 bg-slate-900/70">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-slate-100 flex items-center gap-1.5">
-              🛒 {tx(lang, 'Cari Sifariş', 'Текущий заказ', 'Current Order')}
-            </span>
-            <span className="rounded-full bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 text-xs font-black text-amber-300">
-              {draftRows.reduce((sum: number, r: any) => sum + (r.qty || 0), 0)}
-            </span>
+        {/* Desktop & Tablet Cart Header (Screenshot 1 Style) */}
+        <div className="hidden md:flex shrink-0 items-center justify-between border-b border-slate-700/60 p-3.5 bg-slate-900/80">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Table / Customer Avatar Badge */}
+            <div className="h-10 w-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 text-sm shadow-md shadow-amber-400/20">
+              {tableLabel ? tableLabel.replace(/[^0-9a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'M' : 'M'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-white truncate flex items-center gap-1.5">
+                <span>{tableLabel || tx(lang, 'Masa Sifarişi', 'Заказ стола', 'Table Order')}</span>
+                <span className="rounded-md bg-slate-800 border border-slate-700 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
+                  {tx(lang, 'Zal', 'Зал', 'Dine-in')}
+                </span>
+              </div>
+              <div className="text-[11px] font-semibold text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                {waiterName && <span>👤 {waiterName} · </span>}
+                <span>👥 {guestCount || 2} {tx(lang, 'nəfər', 'гостей', 'guests')}</span>
+              </div>
+            </div>
           </div>
           {draftRows.length > 0 && (
             <button
               type="button"
               onClick={onClearDrafts}
-              className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/25 px-2.5 py-1 rounded-xl transition active:scale-95"
+              className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/25 px-2.5 py-1.5 rounded-xl transition active:scale-95 flex items-center gap-1"
             >
-              🗑️ {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+              <span>🗑️</span>
+              <span>{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</span>
             </button>
           )}
         </div>
@@ -398,8 +412,9 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
 
           {/* Draft items list */}
           {draftRows.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-700/60 px-3 py-4 text-center text-xs text-slate-500">
-              {tx(lang, 'Məhsul seç →', 'Выберите товар →', 'Select item →')}
+            <div className="rounded-2xl border border-dashed border-slate-700/60 p-6 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2 my-auto">
+              <span className="text-2xl">🍽️</span>
+              <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -421,7 +436,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         </div>
 
         {/* Fixed bottom: sent button + actions (never scrolls away) */}
-        <div className="shrink-0 border-t border-slate-700/50 p-3 pt-2">
+        <div className="shrink-0 border-t border-slate-700/50 p-3 pt-2 bg-slate-900/40">
           {/* Sent items toggle button */}
           {sentItems.length > 0 && (
             <button
@@ -455,7 +470,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             )}
             {draftRows.length > 0 && (
               <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{tx(lang, 'Yeni əlavələr (Qaralama)', 'Новые добавления', 'New items')}</span>
+                <span>{tx(lang, 'Yeni əlavələr (Qaralama)', 'Новые добавления', 'New items')} ({draftRows.reduce((sum, r) => sum + (r.qty || 0), 0)})</span>
                 <span className="font-semibold text-amber-300">{draftTotal} ₼</span>
               </div>
             )}
@@ -465,46 +480,58 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </div>
           </div>
 
-          {/* Primary Action: Send to Kitchen (appears when draft is not empty) */}
-          {draftRows.length > 0 && (
-            <div className="mt-2">
-              <button
-                type="button"
-                disabled={!userCanEdit}
-                onClick={() => { void onSend(); }}
-                className="relative w-full min-h-14 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-4 py-4 text-[15px] font-black text-slate-900 shadow-[0_8px_24px_rgba(250,204,21,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
-              >
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
-                🚀 {tx(lang, 'Mətbəxə Göndər', 'Отправить в кухню', 'Send to Kitchen')}
-              </button>
-            </div>
-          )}
-
-          {/* Secondary Actions: Back & Settle/Bill */}
+          {/* Screenshot 1 Dual Action Buttons (Hesabı Al / Çek & Mətbəxə Göndər) */}
           <div className="mt-2.5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setMobileActiveTab('menu')}
-              className="md:hidden inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
-            >
-              🍳 {tx(lang, 'Menyuya qayıt', 'В меню', 'Back to Menu')}
-            </button>
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
-            >
-              ← {tx(lang, 'Masalar', 'Столы', 'Tables')}
-            </button>
             {tableOccupied && (
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="relative inline-flex min-h-12 flex-[1.3] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-3 text-xs font-semibold text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
+                className="relative inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-blue-600 to-indigo-700 px-3 py-3 text-xs font-bold text-white shadow-[0_6px_20px_rgba(59,130,246,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-110"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)' }} />
-                💵 {tx(lang, 'Hesab', 'Счет', 'Settle')}
+                🧾 {tx(lang, 'Hesabı Al', 'Счет', 'Print Receipt')}
+              </button>
+            )}
+
+            {draftRows.length > 0 ? (
+              <button
+                type="button"
+                disabled={!userCanEdit}
+                onClick={() => { void onSend(); }}
+                className="relative inline-flex min-h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
+              >
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
+                🚀 {tx(lang, 'Mətbəxə Göndər', 'В кухню', 'Place Order')}
+              </button>
+            ) : !tableOccupied ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
+              >
+                ← {tx(lang, 'Masalar', 'Столы', 'Tables')}
+              </button>
+            ) : null}
+          </div>
+
+          {/* Secondary back button when both settle and send are shown */}
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition"
+            >
+              ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}
+            </button>
+            {tableOccupied && (
+              <button
+                type="button"
+                disabled={!userCanEdit}
+                onClick={onCancelTable}
+                className="text-[10px] font-semibold text-rose-400/60 hover:text-rose-400 transition"
+              >
+                ⚠️ {tx(lang, 'Masayanı ləğv et', 'Отменить', 'Cancel')}
               </button>
             )}
           </div>

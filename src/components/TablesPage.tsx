@@ -2444,6 +2444,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onUpdateCourse={updateRoundDraftCourse}
 	                        tenantId={tenant_id}
 	                        settingsPresets={tenantSettings?.order_note_presets}
+	                        tableLabel={t?.label}
+	                        guestCount={Number(t?.guest_count || 2)}
+	                        waiterName={tableLockHolder || user?.username}
 	                      />
 	                    </div>
 	                  )}
