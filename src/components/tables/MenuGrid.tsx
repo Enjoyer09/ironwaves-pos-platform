@@ -52,32 +52,103 @@ function resolveItemImage(item: any): string {
 
 function getCategoryMeta(cat: string, lang: string) {
   const lower = (cat || '').toLowerCase();
-  if (cat === 'ALL') return { icon: '🍽️', label: tx(lang, 'Hamısı', 'Все', 'All') };
+  if (cat === 'ALL') {
+    return {
+      icon: '🍽️',
+      label: tx(lang, 'Hamısı', 'Все', 'All'),
+      bgActive: 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-lg shadow-amber-500/25',
+      bgNormal: 'border-slate-700/70 bg-slate-900/80 text-slate-200 hover:border-slate-600',
+      dotColor: 'bg-amber-400',
+    };
+  }
   if (lower.includes('kofe') || lower.includes('coffee') || lower.includes('isti') || lower.includes('çay') || lower.includes('tea') || lower.includes('hot')) {
-    return { icon: '☕', label: cat };
+    return {
+      icon: '☕',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/30',
+      bgNormal: 'border-amber-800/40 bg-amber-950/30 text-amber-200 hover:border-amber-700/60',
+      dotColor: 'bg-amber-400',
+    };
   }
   if (lower.includes('soyuq') || lower.includes('cold') || lower.includes('içki') || lower.includes('drink') || lower.includes('limonad') || lower.includes('juice') || lower.includes('kokteyl') || lower.includes('beverage')) {
-    return { icon: '🍹', label: cat };
+    return {
+      icon: '🍹',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-600/30',
+      bgNormal: 'border-pink-800/40 bg-pink-950/30 text-pink-200 hover:border-pink-700/60',
+      dotColor: 'bg-pink-400',
+    };
   }
   if (lower.includes('şirniyyat') || lower.includes('desert') || lower.includes('tort') || lower.includes('cake') || lower.includes('dessert') || lower.includes('sweet') || lower.includes('dondurma')) {
-    return { icon: '🍰', label: cat };
+    return {
+      icon: '🍰',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30',
+      bgNormal: 'border-blue-800/40 bg-blue-950/30 text-blue-200 hover:border-blue-700/60',
+      dotColor: 'bg-blue-400',
+    };
   }
-  if (lower.includes('pizza') || lower.includes('burger') || lower.includes('dönər') || lower.includes('kabab') || lower.includes('ət') || lower.includes('meat') || lower.includes('food') || lower.includes('əsas') || lower.includes('main')) {
-    return { icon: '🍕', label: cat };
+  if (lower.includes('pizza') || lower.includes('pide') || lower.includes('pizzas')) {
+    return {
+      icon: '🍕',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-emerald-600 to-green-700 text-white shadow-lg shadow-emerald-600/30',
+      bgNormal: 'border-emerald-800/40 bg-emerald-950/30 text-emerald-200 hover:border-emerald-700/60',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+  if (lower.includes('burger') || lower.includes('dönər') || lower.includes('kabab') || lower.includes('ət') || lower.includes('meat') || lower.includes('food') || lower.includes('əsas') || lower.includes('main')) {
+    return {
+      icon: '🥩',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow-lg shadow-purple-600/30',
+      bgNormal: 'border-purple-800/40 bg-purple-950/30 text-purple-200 hover:border-purple-700/60',
+      dotColor: 'bg-purple-400',
+    };
   }
   if (lower.includes('salat') || lower.includes('salad') || lower.includes('fit') || lower.includes('diet')) {
-    return { icon: '🥗', label: cat };
+    return {
+      icon: '🥗',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-teal-600 to-cyan-700 text-white shadow-lg shadow-teal-600/30',
+      bgNormal: 'border-teal-800/40 bg-teal-950/30 text-teal-200 hover:border-teal-700/60',
+      dotColor: 'bg-teal-400',
+    };
   }
-  if (lower.includes('qəlyanaltı') || lower.includes('snack') || lower.includes('fries') || lower.includes('kartof') || lower.includes('nugget')) {
-    return { icon: '🍟', label: cat };
+  if (lower.includes('qəlyanaltı') || lower.includes('snack') || lower.includes('starters') || lower.includes('başlanğıc') || lower.includes('fries') || lower.includes('kartof') || lower.includes('nugget')) {
+    return {
+      icon: '🍟',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-lg shadow-rose-600/30',
+      bgNormal: 'border-rose-800/40 bg-rose-950/30 text-rose-200 hover:border-rose-700/60',
+      dotColor: 'bg-rose-400',
+    };
   }
   if (lower.includes('şorba') || lower.includes('soup')) {
-    return { icon: '🥣', label: cat };
+    return {
+      icon: '🥣',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-yellow-600 to-amber-700 text-white shadow-lg shadow-yellow-600/30',
+      bgNormal: 'border-yellow-800/40 bg-yellow-950/30 text-yellow-200 hover:border-yellow-700/60',
+      dotColor: 'bg-yellow-400',
+    };
   }
   if (lower.includes('qəlyan') || lower.includes('hookah') || lower.includes('shisha')) {
-    return { icon: '💨', label: cat };
+    return {
+      icon: '💨',
+      label: cat,
+      bgActive: 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-lg shadow-slate-600/30',
+      bgNormal: 'border-slate-700/40 bg-slate-900/40 text-slate-300 hover:border-slate-600',
+      dotColor: 'bg-slate-400',
+    };
   }
-  return { icon: '🍴', label: cat };
+  return {
+    icon: '🍴',
+    label: cat,
+    bgActive: 'bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 shadow-lg shadow-amber-500/25',
+    bgNormal: 'border-slate-700/70 bg-slate-900/80 text-slate-200 hover:border-slate-600',
+    dotColor: 'bg-amber-400',
+  };
 }
 
 function MenuGrid({
@@ -302,7 +373,7 @@ function MenuGrid({
         </button>
       </div>
 
-      {/* Category tabs — full-width horizontal scroll, Behance & Menulux modern style */}
+      {/* Category tabs — full-width horizontal scroll, Behance & Screenshot 1 modern style */}
       <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none -mx-0.5 px-0.5">
         {categories.map((cat) => {
           const meta = getCategoryMeta(cat, lang);
@@ -316,16 +387,16 @@ function MenuGrid({
                 playHapticTouch();
                 onCategoryChange(cat);
               }}
-              className={`group flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 transition-all pos-category-btn taktil-target active:scale-95 ${
+              className={`group flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 transition-all pos-category-btn taktil-target active:scale-95 border ${
                 isSelected
-                  ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-lg shadow-amber-500/25 scale-[1.02]'
-                  : 'border border-slate-700/70 bg-slate-900/70 text-slate-200 font-bold hover:bg-slate-800 hover:border-slate-600'
+                  ? `${meta.bgActive} font-black scale-[1.03] ring-2 ring-white/30`
+                  : `${meta.bgNormal} font-bold`
               }`}
             >
               <span className="text-base leading-none">{meta.icon}</span>
               <span className="text-xs sm:text-sm tracking-wide whitespace-nowrap">{meta.label}</span>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                isSelected ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-800 text-slate-400 border border-slate-700/50'
+                isSelected ? 'bg-white/25 text-white' : 'bg-slate-800/90 text-slate-400 border border-slate-700/50'
               }`}>
                 {count}
               </span>
@@ -350,7 +421,7 @@ function MenuGrid({
                 className={`relative flex w-full flex-col overflow-hidden rounded-2xl transition-all duration-200 pos-product-card ${
                   totalQtyInDraft > 0
                     ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/20 scale-[1.02] card-pulsing-glow bg-slate-900'
-                    : 'bg-slate-900/80 hover:bg-slate-800/90'
+                    : 'bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800/80'
                 }`}
               >
                 {isPromo ? (
@@ -362,6 +433,13 @@ function MenuGrid({
                     🔥 {tx(lang, 'Populyar', 'Хит', 'Best')}
                   </div>
                 ) : null}
+
+                {/* Top-Right Quick Add Cart Badge (Screenshot 1 style) */}
+                {totalQtyInDraft === 0 && isBahaYLab && (
+                  <div className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs pointer-events-none">
+                    🛒
+                  </div>
+                )}
                 {/* Main clickable area: adds default/first variant */}
                 <div
                   role="button"
