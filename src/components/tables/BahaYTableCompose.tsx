@@ -259,6 +259,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     lockHolder, userCanEditTable,
     readyCount, roundsCount, activeTab, onTabChange,
     onBack, summerPromoEnabled, onUpdateNote,
+    tableLabel, guestCount, waiterName,
   } = props;
 
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
@@ -452,6 +453,17 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'VOID_REQUESTED') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-yellow-400" />}
                 </div>
                 <span className="text-xs font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
+                {(() => {
+                  const readyItemCount = sentItems.filter((it: any) => String(it.status || '').toUpperCase() === 'READY').length;
+                  if (readyItemCount > 0) {
+                    return (
+                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.2 text-[10px] font-black text-emerald-300 animate-pulse">
+                        ✓ {readyItemCount}/{sentItems.length} {tx(lang, 'Hazır', 'Готово', 'Ready')}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="rounded-full bg-slate-700/80 px-2 py-0.5 text-xs font-bold text-slate-200">{sentItems.length}</span>
