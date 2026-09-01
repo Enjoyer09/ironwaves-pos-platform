@@ -343,6 +343,7 @@ function MenuGrid({
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
           const isPromo = summerPromoEnabled && group.items.some((it: any) => isPromoEligibleItem({ category: it.category || '', item_name: it.item_name }));
+          const isPopular = group.items.some((it: any) => it.is_popular || it.is_chef_special || it.is_featured || (it.rating && it.rating >= 4.5));
           return (
             <div key={group.key} className="relative">
               <div
@@ -352,11 +353,15 @@ function MenuGrid({
                     : 'bg-slate-900/80 hover:bg-slate-800/90'
                 }`}
               >
-                {isPromo && (
-                  <div className="absolute left-1 top-1 z-20 rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
+                {isPromo ? (
+                  <div className="absolute left-1 top-1 z-20 rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
                     ⚡ {tx(lang, 'Kampaniya', 'Промо', 'Promo')}
                   </div>
-                )}
+                ) : isPopular ? (
+                  <div className="absolute left-1 top-1 z-20 rounded bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white shadow shadow-rose-500/20">
+                    🔥 {tx(lang, 'Populyar', 'Хит', 'Best')}
+                  </div>
+                ) : null}
                 {/* Main clickable area: adds default/first variant */}
                 <div
                   role="button"

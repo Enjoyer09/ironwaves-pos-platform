@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useMemo } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
@@ -46,6 +46,7 @@ type BahaYTableComposeProps = {
   onBack: () => void;
   summerPromoEnabled?: boolean;
   onUpdateNote?: (id: string, note: string) => void | Promise<void>;
+  onUpdateCourse?: (id: string, courseNo: number) => void | Promise<void>;
 };
 
 const tapFeedback = () => {
@@ -58,7 +59,19 @@ const tapFeedback = () => {
   }
 };
 
-const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; onUpdateQty: (id: string, qty: number) => void; onEditNote: (row: any) => void; lang: string }) => {
+const DraftRowItem = memo(({
+  row,
+  onUpdateQty,
+  onEditNote,
+  onUpdateCourse,
+  lang,
+}: {
+  row: any;
+  onUpdateQty: (id: string, qty: number) => void;
+  onEditNote: (row: any) => void;
+  onUpdateCourse?: (id: string, courseNo: number) => void;
+  lang: string;
+}) => {
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -154,6 +167,35 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
 
         {/* Right action controls */}
         <div className="flex items-center gap-1 shrink-0">
+          {/* Course indicator/toggle (Course 1, 2, 3) */}
+          {onUpdateCourse && (
+            <button
+              type="button"
+              title={
+                Number(row.course_no || 1) === 1
+                  ? tx(lang, '1-ci Mərhələ (İştahaçan/Salat) — Dəyişmək üçün klikləyin', '1-я Подача (Закуски)', 'Course 1 (Starters)')
+                  : Number(row.course_no || 1) === 2
+                  ? tx(lang, '2-ci Mərhələ (İsti Yemək) — Dəyişmək üçün klikləyin', '2-я Подача (Основное)', 'Course 2 (Mains)')
+                  : tx(lang, '3-cü Mərhələ (Desert/Çay) — Dəyişmək üçün klikləyin', '3-я Подача (Десерты)', 'Course 3 (Desserts)')
+              }
+              onClick={() => {
+                tapFeedback();
+                const current = Number(row.course_no || 1);
+                const next = current === 1 ? 2 : current === 2 ? 3 : 1;
+                onUpdateCourse(String(row.id), next);
+              }}
+              className={`flex h-9 min-w-[32px] px-1.5 items-center justify-center rounded-xl border text-[10px] font-black transition taktil-target active:scale-90 ${
+                Number(row.course_no || 1) === 1
+                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                  : Number(row.course_no || 1) === 2
+                  ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                  : 'border-purple-500/40 bg-purple-500/15 text-purple-300'
+              }`}
+            >
+              C{row.course_no || 1}
+            </button>
+          )}
+
           {/* Note quick-edit button */}
           <button
             type="button"
@@ -370,6 +412,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                     setEditingRowForNote(r);
                     setCurrentNoteText(r.note || '');
                   }}
+                  onUpdateCourse={props.onUpdateCourse}
                   lang={lang}
                 />
               ))}

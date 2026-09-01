@@ -810,6 +810,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     );
   };
 
+  const updateRoundDraftCourse = async (itemId: string, courseNo: number) => {
+    const activeDetail = tableDetailRecord?.table?.id === viewTableId ? tableDetailRecord : null;
+    const serverDraft = (activeDetail?.draft_items || []).find((row: any) => String(row.id) === String(itemId));
+    if (activeDetail?.check?.id && serverDraft && viewTableId) {
+      try {
+        await update_draft_item_live(itemId, { course_no: courseNo });
+        await refreshActiveTableDetail(viewTableId);
+        return;
+      } catch (e: any) {
+        // quiet fallback
+      }
+    }
+    setRoundDraft((prev) =>
+      prev.map((row: any) => String(row.id) === String(itemId) ? { ...row, course_no: courseNo } : row)
+    );
+  };
+
   const clearRoundComposer = () => {
     setRoundDraft([]);
     setRoundSearch('');
@@ -2424,6 +2441,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                        summerPromoEnabled={Boolean(tenantSettings?.beverage_service_settings?.summer_promo_enabled)}
 	                        onUpdateNote={updateRoundDraftNote}
+	                        onUpdateCourse={updateRoundDraftCourse}
 	                        tenantId={tenant_id}
 	                        settingsPresets={tenantSettings?.order_note_presets}
 	                      />
