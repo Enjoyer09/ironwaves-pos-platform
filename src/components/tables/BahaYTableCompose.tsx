@@ -2,7 +2,7 @@ import React, { memo, useState, useEffect, useMemo } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
-import { playHapticSuccess, playHapticTouch } from '../../lib/haptics';
+import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../../lib/haptics';
 import OrderNoteModal from './OrderNoteModal';
 
 type BahaYTableComposeProps = {
@@ -266,6 +266,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
   const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
 
@@ -280,6 +282,14 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const grandTotal = useMemo(() => {
     return sentTotal.plus(new Decimal(draftTotal || 0)).toFixed(2);
   }, [sentTotal, draftTotal]);
+
+  const discountedGrandTotal = useMemo(() => {
+    const raw = new Decimal(grandTotal);
+    if (discountPercent > 0) {
+      return raw.times(100 - discountPercent).dividedBy(100).toFixed(2);
+    }
+    return raw.toFixed(2);
+  }, [grandTotal, discountPercent]);
 
   // Close note editor if the edited item was removed from draft
   useEffect(() => {
@@ -404,6 +414,52 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           )}
         </div>
 
+        {/* AeroTable Quick Action Bar */}
+        <div className="grid grid-cols-4 gap-1.5 border-b border-slate-800/80 bg-slate-900/50 p-2 shrink-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+          >
+            <span className="text-xs">🪑</span>
+            <span className="truncate mt-0.5">{tx(lang, 'Masalar', 'Столы', 'Tables')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              tapFeedback();
+              setDiscountPercent((prev) => (prev === 0 ? 5 : prev === 5 ? 10 : prev === 10 ? 15 : prev === 15 ? 20 : 0));
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+              discountPercent > 0
+                ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-sm'
+                : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
+            }`}
+          >
+            <span className="text-xs">🏷️</span>
+            <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
+          </button>
+          <div
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 select-none"
+          >
+            <span className="text-xs">👥</span>
+            <span className="truncate mt-0.5">{guestCount || 2} {tx(lang, 'Nəfər', 'Гостя', 'Guests')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (draftRows.length > 0) {
+                setEditingRowForNote(draftRows[0]);
+                setCurrentNoteText(draftRows[0]?.note || '');
+              }
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+          >
+            <span className="text-xs">📝</span>
+            <span className="truncate mt-0.5">{tx(lang, 'Qeyd', 'Заметка', 'Note')}</span>
+          </button>
+        </div>
+
         {/* Scrollable draft items area */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 pb-1">
           {/* Draft error */}
@@ -472,6 +528,46 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           )}
 
+          {/* AeroTable Payment Method Selector */}
+          <div className="mb-2 grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => { tapFeedback(); setSelectedPaymentMethod('cash'); }}
+              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+                selectedPaymentMethod === 'cash'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              }`}
+            >
+              <span>💵</span>
+              <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { tapFeedback(); setSelectedPaymentMethod('card'); }}
+              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+                selectedPaymentMethod === 'card'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              }`}
+            >
+              <span>💳</span>
+              <span>{tx(lang, 'Kart', 'Карта', 'Card')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { tapFeedback(); setSelectedPaymentMethod('qr'); }}
+              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+                selectedPaymentMethod === 'qr'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              }`}
+            >
+              <span>📱</span>
+              <span>{tx(lang, 'QR / App', 'QR / Приложение', 'QR Pay')}</span>
+            </button>
+          </div>
+
           {/* Total financial breakdown & action buttons */}
           <div className="space-y-1.5 py-1 px-0.5">
             {sentItems.length > 0 && (
@@ -486,9 +582,15 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 <span className="font-semibold text-amber-300">{draftTotal} ₼</span>
               </div>
             )}
+            {discountPercent > 0 && (
+              <div className="flex items-center justify-between text-xs text-amber-400 font-semibold">
+                <span>{tx(lang, 'Endirim', 'Скидка', 'Discount')} (-{discountPercent}%)</span>
+                <span>-{new Decimal(grandTotal).times(discountPercent).dividedBy(100).toFixed(2)} ₼</span>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-slate-800/80 pt-1.5 text-sm font-bold text-slate-100">
               <span className="text-slate-300">{tx(lang, 'Yekun Cəm', 'Итоговая сумма', 'Grand Total')}</span>
-              <span className="text-base font-black text-amber-400">{grandTotal} ₼</span>
+              <span className="text-base font-black text-amber-400">{discountedGrandTotal} ₼</span>
             </div>
           </div>
 
@@ -575,13 +677,23 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               <div className="text-sm font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
               <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'item', 'позиций', 'items')}</div>
             </div>
-            <button
-              type="button"
-              onClick={() => setSentPanelOpen(false)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60"
-            >
-              ↓
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { playKitchenReadyAlert(); }}
+                title={tx(lang, 'Mətbəx zəngini səsləndir', 'Звуковой сигнал кухни', 'Test kitchen chime')}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
+              >
+                🔊
+              </button>
+              <button
+                type="button"
+                onClick={() => setSentPanelOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 taktil-target"
+              >
+                ↓
+              </button>
+            </div>
           </div>
 
           {/* Items list */}
