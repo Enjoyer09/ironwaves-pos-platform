@@ -1521,7 +1521,8 @@ export default function App() {
       localStorage.setItem('iw_pos_ui_mode', nextMode);
       localStorage.setItem('iw_tables_ui_mode', nextMode);
     } catch {}
-    // Trigger settings-updated event so active page re-renders instantly
+    // Trigger ui-mode-changed and settings-updated events so active pages (POS, Tables) re-render instantly
+    window.dispatchEvent(new CustomEvent('ui-mode-changed', { detail: { mode: nextMode } }));
     window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: user?.tenant_id } }));
     // Force App.tsx to re-render
     setSettingsVersion((prev) => prev + 1);
