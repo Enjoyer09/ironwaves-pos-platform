@@ -18,49 +18,6 @@ type MenuGridProps = {
   onLangChange?: (newLang: string) => void;
 };
 
-export type DietaryType = 'ALL' | 'HALAL' | 'SPICY' | 'VEGAN' | 'GLUTEN_FREE';
-
-export function getItemDietaryInfo(item: any) {
-  const name = String(item.item_name || '').toLowerCase();
-  const desc = String(item.description || '').toLowerCase();
-  const cat = String(item.category || '').toLowerCase();
-  const combined = `${name} ${desc} ${cat}`;
-
-  const isSpicy = Boolean(
-    item.is_spicy ||
-    item.spice_level > 0 ||
-    combined.includes('acı') ||
-    combined.includes('spicy') ||
-    combined.includes('chili') ||
-    combined.includes('jalapeno') ||
-    combined.includes('istiot')
-  );
-
-  const isVegan = Boolean(
-    item.is_vegan ||
-    item.is_vegetarian ||
-    cat.includes('salat') ||
-    cat.includes('salad') ||
-    combined.includes('vegan') ||
-    combined.includes('vegetarian') ||
-    combined.includes('tərəvəz') ||
-    combined.includes('meyvə')
-  );
-
-  const isHalal = item.is_halal !== false && !combined.includes('donuz') && !combined.includes('pork') && !combined.includes('bacon');
-
-  const isGlutenFree = Boolean(
-    item.is_gluten_free ||
-    cat.includes('salat') ||
-    cat.includes('şorba') ||
-    cat.includes('içki') ||
-    combined.includes('glutensiz') ||
-    combined.includes('gluten-free')
-  );
-
-  return { isSpicy, isVegan, isHalal, isGlutenFree };
-}
-
 const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
 
 function splitVariantName(name: string) {
@@ -219,7 +176,6 @@ function MenuGrid({
       window.matchMedia?.('(pointer: coarse)').matches;
     return !isTouchDevice;
   });
-  const [dietaryFilter, setDietaryFilter] = useState<DietaryType>('ALL');
   const [longPressItem, setLongPressItem] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
   const pressTimer = useRef<number | null>(null);
@@ -354,21 +310,9 @@ function MenuGrid({
 
   // ─── BahaY: Aelia-style menu grid with variant grouping ─────────────────────
 
-  const filteredByDietaryItems = useMemo(() => {
-    if (dietaryFilter === 'ALL') return items;
-    return items.filter((item: any) => {
-      const meta = getItemDietaryInfo(item);
-      if (dietaryFilter === 'HALAL') return meta.isHalal;
-      if (dietaryFilter === 'SPICY') return meta.isSpicy;
-      if (dietaryFilter === 'VEGAN') return meta.isVegan;
-      if (dietaryFilter === 'GLUTEN_FREE') return meta.isGlutenFree;
-      return true;
-    });
-  }, [items, dietaryFilter]);
-
   const groupedItems = useMemo(() => {
     const groups = new Map<string, any[]>();
-    filteredByDietaryItems.forEach((item: any) => {
+    items.forEach((item: any) => {
       const { base } = splitVariantName(item.item_name);
       const key = (base || item.item_name || '').toLowerCase();
       if (!groups.has(key)) groups.set(key, []);
@@ -384,19 +328,18 @@ function MenuGrid({
         hasVariants: groupItems.length > 1,
         minPrice: Math.min(...groupItems.map((i: any) => Number(i.price || 0))),
         image_url: resolveItemImage(first),
-        dietary: getItemDietaryInfo(first),
       };
     });
-  }, [filteredByDietaryItems]);
+  }, [items]);
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: filteredByDietaryItems.length };
-    filteredByDietaryItems.forEach((it: any) => {
+    const counts: Record<string, number> = { ALL: items.length };
+    items.forEach((it: any) => {
       const c = it.category || 'Other';
       counts[c] = (counts[c] || 0) + 1;
     });
     return counts;
-  }, [filteredByDietaryItems]);
+  }, [items]);
 
   return (
     <div
@@ -431,43 +374,12 @@ function MenuGrid({
         </button>
       </div>
 
-      {/* 🏷️ Smart Dietary / Allergen Filter Bar */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none -mx-0.5 px-0.5">
-        {[
-          { key: 'ALL', icon: '✨', label: tx(lang, 'Hamısı', 'Все', 'All') },
-          { key: 'HALAL', icon: '🥩', label: tx(lang, 'Halal', 'Халяль', 'Halal') },
-          { key: 'SPICY', icon: '🌶️', label: tx(lang, 'Acılı', 'Острое', 'Spicy') },
-          { key: 'VEGAN', icon: '🌿', label: tx(lang, 'Vegan', 'Веган', 'Vegan') },
-          { key: 'GLUTEN_FREE', icon: '🌾', label: tx(lang, 'Glutensiz', 'Без глютена', 'Gluten-Free') },
-        ].map((df) => {
-          const isSelected = dietaryFilter === df.key;
-          return (
-            <button
-              key={df.key}
-              type="button"
-              onClick={() => {
-                playHapticTouch();
-                setDietaryFilter(df.key as DietaryType);
-              }}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition taktil-target active:scale-95 border ${
-                isSelected
-                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/60 shadow-sm shadow-amber-500/10'
-                  : 'bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 border-slate-800/80 backdrop-blur-md'
-              }`}
-            >
-              <span className="text-xs">{df.icon}</span>
-              <span className="whitespace-nowrap">{df.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Category tabs — Frosted Glass modern pill scroll */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
         {categories.map((cat) => {
           const meta = getCategoryMeta(cat, lang);
           const isSelected = selectedCategory === cat;
-          const count = categoryCounts[cat] ?? (cat === 'ALL' ? filteredByDietaryItems.length : 0);
+          const count = categoryCounts[cat] ?? (cat === 'ALL' ? items.length : 0);
           return (
             <button
               key={cat}
@@ -494,7 +406,7 @@ function MenuGrid({
         })}
       </div>
 
-      {/* Product grid - Frosted Glass cards with Dietary Badges */}
+      {/* Product grid - Frosted Glass cards */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/40 backdrop-blur-xl p-2 sm:p-2.5 touch-pan-y ${
         hideImages
           ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
@@ -504,7 +416,6 @@ function MenuGrid({
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
           const isPromo = summerPromoEnabled && group.items.some((it: any) => isPromoEligibleItem({ category: it.category || '', item_name: it.item_name }));
           const isPopular = group.items.some((it: any) => it.is_popular || it.is_chef_special || it.is_featured || (it.rating && it.rating >= 4.5));
-          const { isSpicy, isVegan, isGlutenFree } = group.dietary;
 
           return (
             <div key={group.key} className="relative">
@@ -515,7 +426,7 @@ function MenuGrid({
                     : 'bg-slate-900/70 hover:bg-slate-800/90 hover:border-amber-400/40 hover:shadow-lg hover:shadow-amber-500/10 border border-slate-800/80 hover:-translate-y-0.5'
                 }`}
               >
-                {/* Dietary & Promo / Popular Badges */}
+                {/* Promo / Popular Badges */}
                 <div className="absolute left-1.5 top-1.5 z-20 flex flex-wrap gap-1 items-center pointer-events-none">
                   {isPromo && (
                     <span className="rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
@@ -525,21 +436,6 @@ function MenuGrid({
                   {isPopular && !isPromo && (
                     <span className="rounded bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white shadow shadow-rose-500/20">
                       🔥 {tx(lang, 'Populyar', 'Хит', 'Best')}
-                    </span>
-                  )}
-                  {isSpicy && (
-                    <span className="rounded bg-red-950/80 border border-red-500/40 px-1 py-0.2 text-[9px] font-black text-red-400 backdrop-blur-xs" title={tx(lang, 'Acılı', 'Острое', 'Spicy')}>
-                      🌶️
-                    </span>
-                  )}
-                  {isVegan && (
-                    <span className="rounded bg-emerald-950/80 border border-emerald-500/40 px-1 py-0.2 text-[9px] font-black text-emerald-400 backdrop-blur-xs" title={tx(lang, 'Vegan', 'Веган', 'Vegan')}>
-                      🌿
-                    </span>
-                  )}
-                  {isGlutenFree && (
-                    <span className="rounded bg-amber-950/80 border border-amber-500/40 px-1 py-0.2 text-[9px] font-black text-amber-400 backdrop-blur-xs" title={tx(lang, 'Glutensiz', 'Без глютена', 'Gluten-Free')}>
-                      🌾
                     </span>
                   )}
                 </div>
