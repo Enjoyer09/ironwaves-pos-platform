@@ -462,12 +462,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           )}
 
-          {/* AeroTable Payment Method Selector */}
+          {/* AeroTable Payment Method Selector — finger-friendly 44px targets */}
           <div className="mb-2 grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800/80">
             <button
               type="button"
               onClick={() => { tapFeedback(); setSelectedPaymentMethod('cash'); }}
-              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+              className={`flex items-center justify-center gap-1.5 h-11 px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
                 selectedPaymentMethod === 'cash'
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
@@ -479,7 +479,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             <button
               type="button"
               onClick={() => { tapFeedback(); setSelectedPaymentMethod('card'); }}
-              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+              className={`flex items-center justify-center gap-1.5 h-11 px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
                 selectedPaymentMethod === 'card'
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
@@ -491,7 +491,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             <button
               type="button"
               onClick={() => { tapFeedback(); setSelectedPaymentMethod('qr'); }}
-              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition taktil-target ${
+              className={`flex items-center justify-center gap-1.5 h-11 px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
                 selectedPaymentMethod === 'qr'
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
@@ -528,26 +528,27 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </div>
           </div>
 
-          {/* Screenshot 1 Dual Action Buttons (Hesabı Al / Çek & Mətbəxə Göndər) */}
+          {/* ─── CTA Buttons — Clear Hierarchy: 1 Primary + 1 Secondary ─── */}
           <div className="mt-2.5 flex gap-2">
+            {/* Secondary CTA: Hesabı Al (outline style) */}
             {tableOccupied && (
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="relative inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-blue-600 to-indigo-700 px-3 py-3 text-xs font-bold text-white shadow-[0_6px_20px_rgba(59,130,246,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-110"
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border-2 border-slate-600 bg-transparent px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] disabled:opacity-50 taktil-target hover:border-slate-500 hover:text-white"
               >
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)' }} />
-                🧾 {tx(lang, 'Hesabı Al', 'Счет', 'Print Receipt')}
+                🧾 {tx(lang, 'Hesabı Al', 'Счет', 'Bill')}
               </button>
             )}
 
+            {/* Primary CTA: Mətbəxə Göndər */}
             {draftRows.length > 0 ? (
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="relative inline-flex min-h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
+                className="relative inline-flex min-h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.35)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
                 🚀 {tx(lang, 'Mətbəxə Göndər', 'В кухню', 'Place Order')}
@@ -563,7 +564,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             ) : null}
           </div>
 
-          {/* Secondary back button when both settle and send are shown */}
+          {/* Secondary back + destructive actions — with confirm protection */}
           <div className="mt-2 flex items-center justify-between">
             <button
               type="button"
@@ -576,7 +577,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               <button
                 type="button"
                 disabled={!userCanEdit}
-                onClick={onCancelTable}
+                onClick={() => {
+                  if (window.confirm(tx(lang, 'Masanı ləğv etmək istədiyinizdən əminsiniz? Bu əməliyyat geri qaytarıla bilməz.', 'Вы уверены? Это действие необратимо.', 'Are you sure? This cannot be undone.'))) {
+                    onCancelTable?.();
+                  }
+                }}
                 className="text-[10px] font-semibold text-rose-400/60 hover:text-rose-400 transition"
               >
                 ⚠️ {tx(lang, 'Masayanı ləğv et', 'Отменить', 'Cancel')}
@@ -584,13 +589,17 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             )}
           </div>
 
-          {/* Cancel/Void table check — intentionally small and separated to prevent accidental taps */}
+          {/* Cancel/Void table check — with mandatory confirm dialog */}
           {tableOccupied && (
             <div className="mt-4 flex justify-center border-t border-slate-800/50 pt-3">
               <button
                 type="button"
                 disabled={!userCanEdit}
-                onClick={onCancelTable}
+                onClick={() => {
+                  if (window.confirm(tx(lang, '⚠️ Masanı boşaltmaq istədiyinizdən əminsiniz?\n\nBu əməliyyat bütün sifarişləri silir və geri qaytarıla bilməz!', '⚠️ Уверены, что хотите освободить стол?\n\nЭто действие необратимо!', '⚠️ Clear this table?\n\nThis will void all items and cannot be undone!'))) {
+                    onCancelTable?.();
+                  }
+                }}
                 className="text-[10px] font-semibold text-rose-400/70 transition active:text-rose-300 disabled:opacity-30 taktil-target"
               >
                 ⚠️ {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}

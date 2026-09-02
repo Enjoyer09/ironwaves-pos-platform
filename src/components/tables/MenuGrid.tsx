@@ -499,12 +499,12 @@ function MenuGrid({
                   ) : null}
                   {/* Text info — centered for image mode, left for fast mode */}
                   <div className={`flex flex-col ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
-                    <div className={`line-clamp-3 font-semibold leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-[11px] sm:text-[10px]'}`}>
+                    <div className={`line-clamp-2 font-bold leading-snug text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
                       {group.base}
                     </div>
-                    <div className={`font-bold text-amber-400 ${hideImages ? 'text-xs sm:text-[10px] mt-1.5' : 'text-xs mt-1'}`}>
-                      {group.minPrice.toFixed(2)} ₼
-                      {group.hasVariants && <span className="ml-1 text-[9px] font-medium text-slate-400/70">({group.items.length})</span>}
+                    <div className={`mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-slate-950/85 px-2.5 py-0.5 text-xs font-black text-amber-300 shadow-sm`}>
+                      <span>{group.minPrice.toFixed(2)} ₼</span>
+                      {group.hasVariants && <span className="text-[9px] font-semibold text-slate-400">({group.items.length})</span>}
                     </div>
                   </div>
                 </div>

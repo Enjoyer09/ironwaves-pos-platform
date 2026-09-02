@@ -2125,7 +2125,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-3 overflow-x-auto pb-2" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
+          <div className="hidden md:flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none scroll-smooth touch-pan-x" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
             {visibleModules.map((item) => {
                 const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
                 const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
@@ -2136,7 +2136,7 @@ export default function App() {
                   aria-selected={resolvedModule === item.key}
                   onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
                   disabled={isDisabledOffline}
-                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
+                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-3.5 py-2 text-xs font-bold rounded-xl transition taktil-target active:scale-95 ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
                   title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
                   data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
                   onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
