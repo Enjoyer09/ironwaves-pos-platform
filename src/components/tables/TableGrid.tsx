@@ -243,6 +243,14 @@ function TableGrid({
                 </div>
               )}
 
+              {/* Empty Table Affordance */}
+              {!displayedTotal.greaterThan(0) && status === 'AVAILABLE' && (
+                <div className="mt-3 flex items-center justify-center gap-1 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/5 py-1.5 text-[11px] font-bold text-emerald-400/90 transition-all group-hover:border-emerald-400/60 group-hover:bg-emerald-500/15 group-hover:text-emerald-300">
+                  <span>+</span>
+                  <span>{tx(lang, 'Masa Aç', 'Открыть', 'Open')}</span>
+                </div>
+              )}
+
               {/* Waiter badge */}
               {tableLockHolder && (
                 <div className={`mt-2 truncate rounded-lg px-2 py-1 text-[10px] font-bold ${isMyTable ? 'bg-yellow-400/10 text-yellow-300' : 'bg-slate-700/30 text-slate-400'}`}>
