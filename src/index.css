@@ -1075,7 +1075,7 @@ html {
   }
 
   .pos3-workspace {
-    @apply grid min-h-0 flex-1 overflow-hidden grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_448px];
+    @apply flex flex-col min-h-0 flex-1 overflow-hidden gap-3 md:flex-row md:gap-0;
   }
 
   .pos3-menu {
@@ -1170,7 +1170,7 @@ html {
   }
 
   .pos3-checkout {
-    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
+    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)] md:w-[var(--cart-width,440px)] shrink-0;
   }
 
   .pos3-checkout-head {

@@ -35,9 +35,10 @@ import {
 import { reorder_menu_items_live } from '../api/menu';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import ConfirmModal from './ConfirmModal';
-import { getTenantDomains } from '../lib/tenant';
 import StaffPosMode from './pos/staff/StaffPosMode';
 import VirtualMenuGrid from './pos/VirtualMenuGrid';
+import { useResizableSplitPane } from '../hooks/useResizableSplitPane';
+import SplitterDivider from './common/SplitterDivider';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -2587,6 +2588,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       accent === '#ea580c';
     return isNewUiMode && isWarmAccent;
   }, [isNewUiMode, posLayout.accent_color]);
+
+  const {
+    cartWidth: posCartWidth,
+    isDragging: isPosCartDragging,
+    containerRef: posContainerRef,
+    onPointerDown: onPosPointerDown,
+    resetToDefault: resetPosCartWidth,
+  } = useResizableSplitPane({
+    storageKey: 'iw_pos_cart_panel_width',
+    defaultWidth: 440,
+    minWidth: 320,
+    maxWidth: 680,
+  });
   // ─────────────────────────────────────────────────────────────────────────────
 
   if (receiptHtml) {
@@ -2704,7 +2718,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           </div>
         )}
 
-        <div className="pos3-workspace">
+        <div
+          ref={posContainerRef}
+          style={{ '--cart-width': `${posCartWidth}px` } as React.CSSProperties}
+          className="pos3-workspace"
+        >
           <section className="pos3-menu">
             <div className="mb-3">
               <div className="relative">
@@ -2849,7 +2867,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </div>
           </section>
 
-          <aside className="pos3-checkout">
+          <SplitterDivider
+            isDragging={isPosCartDragging}
+            onPointerDown={onPosPointerDown}
+            onDoubleClick={resetPosCartWidth}
+          />
+
+          <aside className="pos3-checkout md:w-[var(--cart-width,440px)] shrink-0">
             <div className="pos3-checkout-head">
               <h3 className="flex items-center gap-2 text-lg font-bold text-slate-100">
                 <ShoppingCart size={18} /> {t.cart.toUpperCase()} {activeCart.slice(1)}
@@ -3313,12 +3337,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         </button>
       </div>
 
-      <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 ${panelRatioClass} ${isNewUiMode ? 'pos2-workspace' : ''}`}>
-        <section className={`flex h-full min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
+      <div
+        ref={posContainerRef}
+        style={{ '--cart-width': `${posCartWidth}px` } as React.CSSProperties}
+        className={`compact-pos-grid flex flex-col min-h-0 flex-1 gap-4 xl:flex-row xl:gap-0 ${isNewUiMode ? 'pos2-workspace' : ''}`}
+      >
+        <section className={`flex h-full min-h-0 flex-1 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget: string) => renderLeftWidget(widget))}
         </section>
 
-        <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
+        <SplitterDivider
+          isDragging={isPosCartDragging}
+          onPointerDown={onPosPointerDown}
+          onDoubleClick={resetPosCartWidth}
+          className="hidden xl:flex"
+        />
+
+        <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 xl:w-[var(--cart-width,440px)] shrink-0 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
           <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button
