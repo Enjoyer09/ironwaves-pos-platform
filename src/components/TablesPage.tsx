@@ -26,6 +26,8 @@ import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
 import BahaYTableCompose from './tables/BahaYTableCompose';
+import { useResizableSplitPane } from '../hooks/useResizableSplitPane';
+import SplitterDivider from './common/SplitterDivider';
 import ReceiptPreview from './tables/ReceiptPreview';
 import OperationsPanel from './tables/OperationsPanel';
 import OpenTableDialog from './tables/OpenTableDialog';
@@ -266,6 +268,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [tenantSettings]);
 
   const isBahaYLab = tablesUiMode === 'modern';
+  const {
+    cartWidth: tablesCartWidth,
+    isDragging: isTablesCartDragging,
+    containerRef: tablesContainerRef,
+    onPointerDown: onTablesPointerDown,
+    resetToDefault: resetTablesCartWidth,
+  } = useResizableSplitPane({
+    storageKey: 'iw_classic_tables_cart_width',
+    defaultWidth: 440,
+    minWidth: 320,
+    maxWidth: 680,
+  });
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
   const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
@@ -2498,8 +2512,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
 
-	                    <div className={`mt-3 grid min-h-0 flex-1 gap-3 ${isBahaYLab ? 'lg:grid-cols-[1fr_0.4fr]' : 'lg:grid-cols-[1.25fr_0.75fr]'}`}>
-                      <div className="flex min-h-0 flex-col overflow-hidden">
+	                    <div
+                        ref={tablesContainerRef}
+                        style={{ '--cart-width': `${tablesCartWidth}px` } as React.CSSProperties}
+                        className="mt-3 flex flex-col min-h-0 flex-1 gap-3 lg:flex-row lg:gap-0"
+                      >
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <MenuGrid
                           items={filteredRoundMenu}
                           categories={roundCategories}
@@ -2513,7 +2531,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         />
                       </div>
 
-                      <div className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                      <SplitterDivider
+                        isDragging={isTablesCartDragging}
+                        onPointerDown={onTablesPointerDown}
+                        onDoubleClick={resetTablesCartWidth}
+                      />
+
+                      <div className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4 lg:w-[var(--cart-width,440px)] shrink-0">
                         {draftSendError ? (
                           <div className="mb-3 rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
                             <div>{tx(lang, 'Göndərmə alınmadı. Məhsullar hələ göndərilməmiş kimi saxlanıldı.', 'Отправка не удалась. Позиции остались неотправленными.', 'Send failed. Items are still kept as unsent.')}</div>
