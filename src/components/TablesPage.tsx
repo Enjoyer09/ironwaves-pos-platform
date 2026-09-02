@@ -220,16 +220,52 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const reservationDateRef = useRef(reservationDate);
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
-  const tablesUiMode = (() => {
+  const [tablesUiMode, setTablesUiMode] = useState<'modern' | 'classic'>(() => {
     try {
-      const local = localStorage.getItem('iw_tables_ui_mode');
+      const local = localStorage.getItem('iw_tables_ui_mode') || localStorage.getItem('iw_pos_ui_mode');
       if (local === 'modern' || local === 'classic') return local;
     } catch {}
+    if (isBahaYLabHost) return 'modern';
     const fromSettings = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
     if (fromSettings === 'modern' || fromSettings === 'classic') return fromSettings;
     return 'classic';
-  })();
-  const isBahaYLab = isBahaYLabHost || tablesUiMode === 'modern';
+  });
+
+  useEffect(() => {
+    const handleUiModeChange = (e?: any) => {
+      const explicitMode = e?.detail?.mode;
+      if (explicitMode === 'modern' || explicitMode === 'classic') {
+        setTablesUiMode(explicitMode);
+        return;
+      }
+      try {
+        const local = localStorage.getItem('iw_tables_ui_mode') || localStorage.getItem('iw_pos_ui_mode');
+        if (local === 'modern' || local === 'classic') {
+          setTablesUiMode(local);
+          return;
+        }
+      } catch {}
+      if (isBahaYLabHost) {
+        setTablesUiMode('modern');
+        return;
+      }
+      const fromSettings = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
+      if (fromSettings === 'modern' || fromSettings === 'classic') {
+        setTablesUiMode(fromSettings);
+      }
+    };
+
+    window.addEventListener('ui-mode-changed', handleUiModeChange);
+    window.addEventListener('settings-updated', handleUiModeChange);
+    window.addEventListener('storage', handleUiModeChange);
+    return () => {
+      window.removeEventListener('ui-mode-changed', handleUiModeChange);
+      window.removeEventListener('settings-updated', handleUiModeChange);
+      window.removeEventListener('storage', handleUiModeChange);
+    };
+  }, [tenantSettings]);
+
+  const isBahaYLab = tablesUiMode === 'modern';
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
   const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
