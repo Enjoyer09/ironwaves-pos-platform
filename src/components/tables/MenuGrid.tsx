@@ -2,6 +2,7 @@ import React, { memo, useMemo, useState, useRef } from 'react';
 import { tx } from '../../i18n';
 import { isPromoEligibleItem } from '../../api/pos';
 import { playHapticTouch, playHapticHeavy, playHapticSuccess } from '../../lib/haptics';
+import { Zap, X, Plus, Minus, Check } from 'lucide-react';
 
 type MenuGridProps = {
   items: any[];
@@ -177,6 +178,7 @@ function MenuGrid({
     return !isTouchDevice;
   });
   const [longPressItem, setLongPressItem] = useState<any>(null);
+  const [variantPickerGroup, setVariantPickerGroup] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
   const pressTimer = useRef<number | null>(null);
 
@@ -369,8 +371,10 @@ function MenuGrid({
               ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
               : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
           }`}
+          title={tx(lang, 'Şəkilləri göstər/gizlə', 'Показать/скрыть фото', 'Toggle images')}
         >
-          <span>⚡ {tx(lang, 'Sürətli', 'Быстрый', 'Fast')}</span>
+          <Zap size={14} />
+          <span>{tx(lang, 'Sürətli', 'Быстрый', 'Fast')}</span>
         </button>
       </div>
 
@@ -465,7 +469,11 @@ function MenuGrid({
                   onClick={() => {
                     handleTouchEnd();
                     playHapticTouch();
-                    void onSelectItem(group.items[0]);
+                    if (group.hasVariants) {
+                      setVariantPickerGroup(group);
+                    } else {
+                      void onSelectItem(group.items[0]);
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
@@ -475,7 +483,11 @@ function MenuGrid({
                       setCustomQtyText('');
                     } else if (e.key === 'Enter' || e.key === ' ') {
                       playHapticTouch();
-                      void onSelectItem(group.items[0]);
+                      if (group.hasVariants) {
+                        setVariantPickerGroup(group);
+                      } else {
+                        void onSelectItem(group.items[0]);
+                      }
                     }
                   }}
                   aria-label={`${group.base}, ${group.minPrice.toFixed(2)} AZN${group.hasVariants ? ', ' + group.items.length + ' variant' : ''}`}
@@ -504,7 +516,7 @@ function MenuGrid({
                     </div>
                     <div className={`mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-slate-950/85 px-2.5 py-0.5 text-xs font-black text-amber-300 shadow-sm`}>
                       <span>{group.minPrice.toFixed(2)} ₼</span>
-                      {group.hasVariants && <span className="text-[9px] font-semibold text-slate-400">({group.items.length})</span>}
+                      {group.hasVariants && <span className="text-[9px] font-semibold text-slate-400">({group.items.length} variant)</span>}
                     </div>
                   </div>
                 </div>
@@ -515,67 +527,37 @@ function MenuGrid({
                   </div>
                 )}
 
-                {/* Inline variant/size selection pills */}
-                {group.hasVariants ? (
-                  <div className={`flex flex-wrap gap-1 border-t border-slate-800/40 ${hideImages ? 'p-1.5' : 'p-2 pt-0'}`}>
-                    {group.items.map((item: any) => {
-                      const { variant } = splitVariantName(item.item_name);
-                      const qtyInDraft = draftQtyMap.get(item.id) || 0;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            tapFeedback();
-                            void onSelectItem(item);
-                          }}
-                          className={`flex-1 min-w-[44px] min-h-[44px] rounded-xl py-2 px-1 text-[11px] font-semibold border transition taktil-target active:scale-90 ${
-                            qtyInDraft > 0
-                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
-                              : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-700/50'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center justify-center leading-none">
-                            <span>{variant || item.item_name}</span>
-                            <span className="text-[11px] font-medium opacity-85 mt-0.5">{Number(item.price || 0).toFixed(2)} ₼</span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                {/* Bottom quantity stepper on single items */}
+                {!group.hasVariants && totalQtyInDraft > 0 && (
+                  <div className={`flex items-center justify-between gap-1.5 border-t border-slate-800/50 bg-slate-950/60 ${hideImages ? 'p-1' : 'p-1.5'}`}>
+                    <button
+                      type="button"
+                      aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playHapticTouch();
+                        void onSelectItem(group.items[0], -1);
+                      }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm active:scale-90 hover:bg-slate-700"
+                    >
+                      −
+                    </button>
+                    <span className="font-extrabold text-xs text-yellow-300">
+                      {totalQtyInDraft}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playHapticTouch();
+                        void onSelectItem(group.items[0], 1);
+                      }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm active:scale-90 shadow-sm shadow-yellow-400/20"
+                    >
+                      +
+                    </button>
                   </div>
-                ) : (
-                  totalQtyInDraft > 0 && (
-                    <div className={`flex items-center justify-between gap-1.5 border-t border-slate-800/50 bg-slate-950/60 ${hideImages ? 'p-1' : 'p-1.5'}`}>
-                      <button
-                        type="button"
-                        aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playHapticTouch();
-                          void onSelectItem(group.items[0], -1);
-                        }}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm active:scale-90 hover:bg-slate-700"
-                      >
-                        −
-                      </button>
-                      <span className="font-extrabold text-xs text-yellow-300">
-                        {totalQtyInDraft}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playHapticTouch();
-                          void onSelectItem(group.items[0], 1);
-                        }}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm active:scale-90 shadow-sm shadow-yellow-400/20"
-                      >
-                        +
-                      </button>
-                    </div>
-                  )
                 )}
               </div>
             </div>
@@ -652,6 +634,63 @@ function MenuGrid({
             >
               {tx(lang, 'İmtina', 'Отмена', 'Cancel')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Variant / Size Selection Modal Overlay */}
+      {variantPickerGroup && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4" onClick={() => setVariantPickerGroup(null)}>
+          <div 
+            className="w-full max-w-md p-6 rounded-[28px] border border-slate-700/80 bg-slate-900/95 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h4 className="text-base font-bold text-white">{variantPickerGroup.base}</h4>
+                <p className="text-xs text-slate-400 mt-0.5">{tx(lang, 'Ölçü / Variant seçin', 'Выберите размер / вариант', 'Select size / variant')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVariantPickerGroup(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:text-white transition active:scale-90"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {variantPickerGroup.items.map((item: any) => {
+                const { variant } = splitVariantName(item.item_name);
+                const qtyInDraft = draftQtyMap.get(item.id) || 0;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      playHapticSuccess();
+                      void onSelectItem(item);
+                      setVariantPickerGroup(null);
+                    }}
+                    className={`flex items-center justify-between min-h-[58px] px-4 py-3 rounded-2xl border transition taktil-target active:scale-95 ${
+                      qtyInDraft > 0
+                        ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-md font-bold'
+                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-white border-slate-700/70'
+                    }`}
+                  >
+                    <div className="text-left font-bold text-sm">
+                      {variant || item.item_name}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-black">{Number(item.price || 0).toFixed(2)} ₼</div>
+                      {qtyInDraft > 0 && (
+                        <div className="text-[10px] font-bold opacity-80">{tx(lang, 'Səbətdə', 'В чеке', 'In cart')}: {qtyInDraft}</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
