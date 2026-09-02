@@ -5,7 +5,7 @@ import MenuGrid from './MenuGrid';
 import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../../lib/haptics';
 import OrderNoteModal from './OrderNoteModal';
 import { useAppStore } from '../../store';
-import { Trash2, LayoutGrid, Tag, Users, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft } from 'lucide-react';
+import { Trash2, LayoutGrid, Tag, Users, User, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft } from 'lucide-react';
 
 type BahaYTableComposeProps = {
   lang: string;
