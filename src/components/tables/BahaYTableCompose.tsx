@@ -6,6 +6,8 @@ import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../..
 import OrderNoteModal from './OrderNoteModal';
 import { useAppStore } from '../../store';
 import { Trash2, LayoutGrid, Tag, Users, User, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft } from 'lucide-react';
+import { useResizableSplitPane } from '../../hooks/useResizableSplitPane';
+import SplitterDivider from '../common/SplitterDivider';
 
 type BahaYTableComposeProps = {
   lang: string;
@@ -232,10 +234,29 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     }
   }, [draftRows, editingRowForNote]);
 
+  const {
+    cartWidth,
+    isDragging,
+    containerRef,
+    onPointerDown,
+    resetToDefault,
+  } = useResizableSplitPane({
+    storageKey: 'iw_tables_compose_cart_width',
+    defaultWidth: 460,
+    minWidth: 320,
+    maxWidth: 680,
+  });
+
   return (
-    <div className={`flex flex-col min-h-0 flex-1 gap-3 overflow-hidden relative ${hasCartContent ? 'md:grid md:grid-cols-[1fr_440px] lg:grid-cols-[1fr_500px]' : ''}`}>
+    <div
+      ref={containerRef}
+      style={{ '--cart-width': `${cartWidth}px` } as React.CSSProperties}
+      className={`flex flex-col min-h-0 flex-1 gap-3 md:gap-0 overflow-hidden relative ${
+        hasCartContent ? 'md:flex md:flex-row' : ''
+      }`}
+    >
       {/* ─── LEFT: Menu Grid ─── */}
-      <div className="flex min-h-0 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <MenuGrid
           items={filteredRoundMenu}
           categories={roundCategories}
@@ -280,6 +301,15 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         )}
       </div>
 
+      {/* ─── SPLITTER DIVIDER (Drag to resize) ─── */}
+      {hasCartContent && (
+        <SplitterDivider
+          isDragging={isDragging}
+          onPointerDown={onPointerDown}
+          onDoubleClick={resetToDefault}
+        />
+      )}
+
       {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel (iOS-style Bottom Sheet on mobile) ─── */}
       {/* Backdrop overlay for mobile bottom sheet */}
       <div
@@ -290,7 +320,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       />
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 ${
+        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
         } ${!hasCartContent ? 'md:hidden' : ''}`}
       >
