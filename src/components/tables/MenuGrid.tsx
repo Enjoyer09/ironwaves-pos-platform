@@ -220,7 +220,6 @@ function MenuGrid({
     return !isTouchDevice;
   });
   const [dietaryFilter, setDietaryFilter] = useState<DietaryType>('ALL');
-  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [longPressItem, setLongPressItem] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
   const pressTimer = useRef<number | null>(null);
@@ -292,74 +291,6 @@ function MenuGrid({
       localStorage.setItem('pos_hide_images', String(next));
     }
   };
-
-  // AI Pairing Engine based on current cart
-  const aiPairingSuggestions = useMemo(() => {
-    const pairings: Array<{ triggerItem: string; suggestedItem: any; reason: string }> = [];
-    if (!draftItems || draftItems.length === 0) {
-      // Suggest top specials when cart is empty
-      const specials = items.filter((i: any) => i.is_popular || i.is_chef_special || i.rating >= 4.5).slice(0, 4);
-      return specials.map((sp: any) => ({
-        triggerItem: '✨ Şefin Tövsiyəsi',
-        suggestedItem: sp,
-        reason: tx(lang, 'Günün ən çox sifariş olunan xüsusi təamı', 'Популярное блюдо дня', "Today's top chef special recommendation"),
-      }));
-    }
-
-    // Has items in draft: analyze categories
-    const draftCats = draftItems.map((d: any) => (d.category || '').toLowerCase());
-    const hasMeat = draftCats.some((c) => c.includes('əsas') || c.includes('kabab') || c.includes('meat') || c.includes('burger') || c.includes('dönər'));
-    const hasPizza = draftCats.some((c) => c.includes('pizza') || c.includes('pide'));
-    const hasDessert = draftCats.some((c) => c.includes('şirniyyat') || c.includes('desert') || c.includes('tort') || c.includes('cake') || c.includes('dessert'));
-    const hasDrink = draftCats.some((c) => c.includes('içki') || c.includes('drink') || c.includes('çay') || c.includes('kofe') || c.includes('coffee'));
-
-    if (hasMeat && !hasDrink) {
-      const drink = items.find((i: any) => (i.category || '').toLowerCase().includes('içki') || (i.item_name || '').toLowerCase().includes('ayran') || (i.item_name || '').toLowerCase().includes('cola'));
-      if (drink) {
-        pairings.push({
-          triggerItem: '🥩 Əsas Yemək',
-          suggestedItem: drink,
-          reason: tx(lang, 'Ət və burgerlərin yanında təravətləndirici içki ideal seçimdir', 'К мясу отлично подойдет напиток', 'Pairs perfectly with meat and burgers'),
-        });
-      }
-    }
-
-    if (hasPizza && !hasDrink) {
-      const coldDrink = items.find((i: any) => (i.category || '').toLowerCase().includes('soyuq') || (i.item_name || '').toLowerCase().includes('cola') || (i.item_name || '').toLowerCase().includes('limonad'));
-      if (coldDrink) {
-        pairings.push({
-          triggerItem: '🍕 Pizza & Fast Food',
-          suggestedItem: coldDrink,
-          reason: tx(lang, 'Buzlu limonad və ya qazlı içki pizzanın dadını tamamlayır', 'Идеально сочетается с пиццей', 'Crisp cold drink completes the pizza experience'),
-        });
-      }
-    }
-
-    if (hasDessert && !hasDrink) {
-      const hotDrink = items.find((i: any) => (i.category || '').toLowerCase().includes('kofe') || (i.category || '').toLowerCase().includes('çay') || (i.item_name || '').toLowerCase().includes('kofe') || (i.item_name || '').toLowerCase().includes('tea'));
-      if (hotDrink) {
-        pairings.push({
-          triggerItem: '🍰 Desert',
-          suggestedItem: hotDrink,
-          reason: tx(lang, 'Şirniyyatın yanında isti qəhvə və ya ətirli çay tövsiyə edilir', 'К десерту рекомендуем ароматный кофе или чай', 'Recommended with hot coffee or tea'),
-        });
-      }
-    }
-
-    // Default upsells if empty
-    if (pairings.length === 0) {
-      const dessertsOrDrinks = items.filter((i: any) => (i.category || '').toLowerCase().includes('şirniyyat') || (i.category || '').toLowerCase().includes('içki')).slice(0, 3);
-      dessertsOrDrinks.forEach((it: any) => {
-        pairings.push({
-          triggerItem: '💡 Sifariş Yanı Təklif',
-          suggestedItem: it,
-          reason: tx(lang, 'Qonaqlar üçün ən sevilən əlavə təklif', 'Отличное дополнение к заказу', 'Great complement to the order'),
-        });
-      });
-    }
-
-    return pairings.slice(0, 4);
-  }, [draftItems, items, lang]);
 
   if (!isBahaYLab) {
     // Legacy UI for other tenants
@@ -473,7 +404,7 @@ function MenuGrid({
       onTouchStart={handleSwipeStart}
       onTouchEnd={handleSwipeEnd}
     >
-      {/* Search, AI Button, Multilingual & Fast Toggle Bar */}
+      {/* Search & Fast Mode Toggle Bar */}
       <div className="flex gap-2 items-center">
         <input
           className="neon-input flex-1 min-w-0"
@@ -481,47 +412,6 @@ function MenuGrid({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
         />
-
-        {/* 🤖 AI WaitAssistant Sparkle Button */}
-        <button
-          type="button"
-          onClick={() => { playHapticSuccess(); setAiAssistantOpen(true); }}
-          className="flex h-11 items-center gap-1.5 rounded-xl border border-amber-400/40 bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-500/20 px-3 text-xs font-bold text-amber-300 shadow-sm shadow-amber-500/10 transition active:scale-95 shrink-0 hover:border-amber-400/70"
-          title={tx(lang, 'AI Ofisiant Köməkçisi və Təkliflər', 'ИИ Ассистент', 'AI WaitAssistant')}
-        >
-          <span className="text-sm">✨</span>
-          <span className="hidden sm:inline">{tx(lang, 'AI Köməkçi', 'ИИ Советник', 'AI Waiter')}</span>
-          {draftItems && draftItems.length > 0 && (
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-          )}
-        </button>
-
-        {/* 🌐 Multilingual Quick Switcher */}
-        {onLangChange && (
-          <div className="hidden sm:flex items-center gap-0.5 p-0.5 rounded-xl bg-slate-900/80 border border-slate-700/60 shrink-0">
-            {[
-              { code: 'az', flag: '🇦🇿' },
-              { code: 'en', flag: '🇬🇧' },
-              { code: 'ru', flag: '🇷🇺' },
-              { code: 'tr', flag: '🇹🇷' },
-              { code: 'ar', flag: '🇦🇪' },
-            ].map((l) => (
-              <button
-                key={l.code}
-                type="button"
-                onClick={() => { playHapticTouch(); onLangChange(l.code); }}
-                className={`px-1.5 py-1 rounded-lg text-xs font-bold transition active:scale-95 ${
-                  lang === l.code
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title={l.code.toUpperCase()}
-              >
-                <span>{l.flag}</span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* ⚡ Fast mode toggle */}
         <button
@@ -801,100 +691,6 @@ function MenuGrid({
           </div>
         )}
       </div>
-
-      {/* ─── 🤖 AI WaitAssistant Pairing & Upsell Drawer ─── */}
-      {aiAssistantOpen && (
-        <div
-          className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4"
-          onClick={() => setAiAssistantOpen(false)}
-        >
-          <div
-            className="w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-amber-400/30 bg-[#0c121e] p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.8)] relative max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 text-slate-950 font-black text-lg shadow-md shadow-amber-500/25">
-                  ✨
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-slate-100 flex items-center gap-1.5">
-                    <span>{tx(lang, 'AI Ofisiant Köməkçisi', 'ИИ Ассистент Официанта', 'AI WaitAssistant')}</span>
-                    <span className="rounded-full bg-amber-400/20 border border-amber-400/40 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
-                      LIVE AI
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    {tx(lang, 'Sifarişə uyğun ağıllı yemək/içki cütləşdirməsi (Pairing & Upsell)', 'Умные рекомендации и сочетания', 'Smart pairings & upsell recommendations')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAiAssistantOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-800/80 border border-slate-700/60 text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Content list */}
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400/80">
-                🎯 {tx(lang, 'Qonaqlara təklif üçün AI tövsiyələri:', 'Рекомендации для гостей:', 'Recommended suggestions for guests:')}
-              </div>
-
-              {aiPairingSuggestions.map((rec, idx) => (
-                <div
-                  key={`ai_rec_${idx}`}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3.5 flex items-center justify-between gap-3 transition hover:border-amber-400/40"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-300">
-                      <span>{rec.triggerItem}</span>
-                    </div>
-                    <div className="text-sm font-bold text-white mt-0.5 truncate">
-                      {rec.suggestedItem.item_name}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                      {rec.reason}
-                    </div>
-                    <div className="text-xs font-black text-amber-400 mt-1">
-                      {Number(rec.suggestedItem.price || 0).toFixed(2)} ₼
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playHapticSuccess();
-                      void onSelectItem(rec.suggestedItem, 1);
-                      setAiAssistantOpen(false);
-                    }}
-                    className="shrink-0 flex items-center gap-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 px-3 py-2 text-xs font-black text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition"
-                  >
-                    <span>+</span>
-                    <span>{tx(lang, 'Əlavə et', 'Добавить', 'Add')}</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer tips */}
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-              <span>💡 {tx(lang, 'Müştəri məmnuniyyətini və orta çeki artırır', 'Увеличивает средний чек', 'Increases guest satisfaction & ticket size')}</span>
-              <button
-                type="button"
-                onClick={() => setAiAssistantOpen(false)}
-                className="text-amber-400 hover:underline font-semibold"
-              >
-                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Long-press Quantity Selector Popover Overlay */}
       {longPressItem && (
