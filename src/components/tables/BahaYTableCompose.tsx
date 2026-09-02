@@ -5,6 +5,7 @@ import MenuGrid from './MenuGrid';
 import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../../lib/haptics';
 import OrderNoteModal from './OrderNoteModal';
 import { useAppStore } from '../../store';
+import { Trash2, LayoutGrid, Tag, Users, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft } from 'lucide-react';
 
 type BahaYTableComposeProps = {
   lang: string;
@@ -321,7 +322,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Table / Customer Avatar Badge */}
             <div className="h-10 w-10 shrink-0 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 text-sm shadow-md shadow-amber-400/20">
-              {tableLabel ? tableLabel.replace(/[^0-9a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'M' : 'M'}
+              <LayoutGrid size={20} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-black text-white truncate flex items-center gap-1.5">
@@ -331,8 +332,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 </span>
               </div>
               <div className="text-[11px] font-semibold text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                {waiterName && <span>👤 {waiterName} · </span>}
-                <span>👥 {guestCount || 2} {tx(lang, 'nəfər', 'гостей', 'guests')}</span>
+                {waiterName && <span><User size={10} /> {waiterName} · </span>}
+                <span><Users size={10} /> {guestCount || 2} {tx(lang, 'nəfər', 'гостей', 'guests')}</span>
               </div>
             </div>
           </div>
@@ -342,7 +343,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               onClick={onClearDrafts}
               className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/25 px-2.5 py-1.5 rounded-xl transition active:scale-95 flex items-center gap-1"
             >
-              <span>🗑️</span>
+              <Trash2 size={12} />
               <span>{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</span>
             </button>
           )}
@@ -355,7 +356,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             onClick={onBack}
             className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
           >
-            <span className="text-xs">🪑</span>
+            <ArrowLeft size={14} />
             <span className="truncate mt-0.5">{tx(lang, 'Masalar', 'Столы', 'Tables')}</span>
           </button>
           <button
@@ -370,13 +371,13 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
             }`}
           >
-            <span className="text-xs">🏷️</span>
+            <Tag size={14} />
             <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
           </button>
           <div
             className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 select-none"
           >
-            <span className="text-xs">👥</span>
+            <Users size={14} />
             <span className="truncate mt-0.5">{guestCount || 2} {tx(lang, 'Nəfər', 'Гостя', 'Guests')}</span>
           </div>
           <button
@@ -389,7 +390,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             }}
             className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
           >
-            <span className="text-xs">📝</span>
+            <FileText size={14} />
             <span className="truncate mt-0.5">{tx(lang, 'Qeyd', 'Заметка', 'Note')}</span>
           </button>
         </div>
@@ -473,7 +474,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
             >
-              <span>💵</span>
+              <Banknote size={15} />
               <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
             </button>
             <button
@@ -485,7 +486,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
             >
-              <span>💳</span>
+              <CreditCard size={15} />
               <span>{tx(lang, 'Kart', 'Карта', 'Card')}</span>
             </button>
             <button
@@ -497,7 +498,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   : 'text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
             >
-              <span>📱</span>
+              <QrCode size={15} />
               <span>{tx(lang, 'QR / App', 'QR / Приложение', 'QR Pay')}</span>
             </button>
           </div>
@@ -538,7 +539,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 onClick={onSettle}
                 className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border-2 border-slate-600 bg-transparent px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] disabled:opacity-50 taktil-target hover:border-slate-500 hover:text-white"
               >
-                🧾 {tx(lang, 'Hesabı Al', 'Счет', 'Bill')}
+                <Receipt size={16} />
+                <span>{tx(lang, 'Hesabı Al', 'Счет', 'Bill')}</span>
               </button>
             )}
 
@@ -548,10 +550,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="relative inline-flex min-h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.35)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
+                className="relative inline-flex min-h-12 flex-[1.4] items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.35)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
-                🚀 {tx(lang, 'Mətbəxə Göndər', 'В кухню', 'Place Order')}
+                <Send size={16} />
+                <span>{tx(lang, 'Mətbəxə Göndər', 'В кухню', 'Place Order')}</span>
               </button>
             ) : !tableOccupied ? (
               <button
@@ -569,9 +572,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             <button
               type="button"
               onClick={onBack}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition"
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition flex items-center gap-1"
             >
-              ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}
+              <ArrowLeft size={12} />
+              <span>{tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}</span>
             </button>
             {tableOccupied && (
               <button
@@ -584,7 +588,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 }}
                 className="text-[10px] font-semibold text-rose-400/60 hover:text-rose-400 transition"
               >
-                ⚠️ {tx(lang, 'Masayanı ləğv et', 'Отменить', 'Cancel')}
+                {tx(lang, 'Masayanı ləğv et', 'Отменить', 'Cancel table')}
               </button>
             )}
           </div>
@@ -602,7 +606,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 }}
                 className="text-[10px] font-semibold text-rose-400/70 transition active:text-rose-300 disabled:opacity-30 taktil-target"
               >
-                ⚠️ {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
+                {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
               </button>
             </div>
           )}
@@ -627,14 +631,14 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 title={tx(lang, 'Mətbəx zəngini səsləndir', 'Звуковой сигнал кухни', 'Test kitchen chime')}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
               >
-                🔊
+                <Volume2 size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => setSentPanelOpen(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 taktil-target"
               >
-                ↓
+                <ChevronDown size={18} />
               </button>
             </div>
           </div>

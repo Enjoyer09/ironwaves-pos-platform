@@ -5,7 +5,7 @@ import { save_push_token_live } from './api/crm';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid, ChevronDown } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -531,6 +531,7 @@ export default function App() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [scale, setScale] = useState(1);
+  const [moreModulesOpen, setMoreModulesOpen] = useState(false);
 
   useEffect(() => {
     const handleTriggerFastSwitch = () => {
@@ -2052,8 +2053,8 @@ export default function App() {
                 <LayoutGrid size={16} />
                 <span className="hidden sm:inline">
                   {currentUiMode === 'modern'
-                    ? tx(safeLang, 'Modern (BahaY)', 'Модерн (BahaY)', 'Modern (BahaY)')
-                    : tx(safeLang, 'Classic', 'Классика', 'Classic')}
+                    ? tx(safeLang, 'Müasir Rejim', 'Модерн', 'Modern')
+                    : tx(safeLang, 'Klassik', 'Классика', 'Classic')}
                 </span>
               </button>
               <button
@@ -2100,16 +2101,16 @@ export default function App() {
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <MessageCircleQuestion size={16} />
-                <span>{tx(safeLang, 'Help', 'Помощь', 'Help')}</span>
+                <span>{tx(safeLang, 'Kömək', 'Помощь', 'Help')}</span>
               </button>
               <button
                 onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
-                className="rounded-xl border border-rose-400/50 bg-gradient-to-b from-rose-500 to-rose-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/20 transition active:scale-[0.97]"
+                className="rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-3 py-2 text-xs font-bold text-slate-200 shadow-sm transition active:scale-[0.97]"
                 title={tx(safeLang, 'İstifadəçi dəyiş (PIN)', 'Сменить пользователя (PIN)', 'Switch user (PIN)')}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <UserRoundCog size={18} />
-                  {tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}
+                  <UserRoundCog size={15} className="text-slate-400" />
+                  <span>{tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}</span>
                 </span>
               </button>
               <button
@@ -2125,28 +2126,92 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none scroll-smooth touch-pan-x" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
-            {visibleModules.map((item) => {
-                const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
-                const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
-                return (
-                <button
-                  key={item.key}
-                  role="tab"
-                  aria-selected={resolvedModule === item.key}
-                  onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
-                  disabled={isDisabledOffline}
-                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-3.5 py-2 text-xs font-bold rounded-xl transition taktil-target active:scale-95 ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
-                  title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
-                  data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
-                  onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
-                  onMouseMove={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
-                  onMouseLeave={() => setDemoGuideBubble(null)}
-                >
-                  <span>{item.label}</span>
-                </button>
-                );
-              })}
+          {/* Module navigation tabs with More dropdown */}
+          <div className="hidden md:flex items-center gap-2 overflow-visible pb-1.5" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
+            {(() => {
+              const primaryLimit = 7;
+              const primaryModules = visibleModules.slice(0, primaryLimit);
+              const moreModules = visibleModules.slice(primaryLimit);
+              const isMoreActive = moreModules.some((m) => m.key === resolvedModule);
+
+              return (
+                <>
+                  {primaryModules.map((item) => {
+                    const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+                    const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
+                    return (
+                      <button
+                        key={item.key}
+                        role="tab"
+                        aria-selected={resolvedModule === item.key}
+                        onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
+                        disabled={isDisabledOffline}
+                        className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active font-black' : 'neon-chip font-bold'} whitespace-nowrap px-3.5 py-2 text-xs rounded-xl transition taktil-target active:scale-95 ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
+                        title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
+                        data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
+                        onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                        onMouseMove={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                        onMouseLeave={() => setDemoGuideBubble(null)}
+                      >
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  {/* More modules dropdown button */}
+                  {moreModules.length > 0 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setMoreModulesOpen(!moreModulesOpen)}
+                        className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-xs font-bold rounded-xl border transition taktil-target active:scale-95 ${
+                          isMoreActive
+                            ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 shadow-sm'
+                            : 'bg-slate-900/60 text-slate-300 border-slate-700/60 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>{tx(safeLang, 'Daha çox', 'Еще', 'More')}</span>
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${moreModulesOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {moreModulesOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setMoreModulesOpen(false)} />
+                          <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[200px] max-h-[360px] overflow-y-auto rounded-2xl border border-slate-700/80 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl space-y-0.5">
+                            {moreModules.map((item) => {
+                              const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+                              const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
+                              const isActive = resolvedModule === item.key;
+                              return (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  onClick={() => {
+                                    if (!isDisabledOffline) {
+                                      setCurrentModule(item.key);
+                                      setMoreModulesOpen(false);
+                                    }
+                                  }}
+                                  disabled={isDisabledOffline}
+                                  className={`flex w-full items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition ${
+                                    isActive
+                                      ? 'bg-amber-400 text-slate-950 font-black'
+                                      : 'text-slate-300 hover:bg-slate-850 hover:text-white'
+                                  } ${isDisabledOffline ? 'opacity-35 cursor-not-allowed' : ''}`}
+                                >
+                                  <span>{item.label}</span>
+                                  {isActive && <span className="text-[10px]">✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

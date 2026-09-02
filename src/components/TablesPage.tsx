@@ -2228,14 +2228,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
                           {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
                         </span>
-                        {/* Dəyiş button — hidden on mobile (auto-lock handles switching) */}
+                        {/* Dəyiş button — sleek neutral header action */}
                         {!isMobileView && (
                           <button
                             type="button"
                             onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
-                            className="inline-flex min-h-14 shrink-0 items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-500/20 px-6 py-3 text-base font-black text-amber-100 shadow-lg shadow-amber-500/15 transition hover:bg-amber-500/30 active:scale-95 taktil-target"
+                            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-4 py-2 text-xs font-bold text-slate-200 transition active:scale-95 taktil-target"
                           >
-                            👤 {tx(lang, 'Dəyiş', 'Сменить', 'Switch')}
+                            <span>👤</span>
+                            <span>{tx(lang, 'Dəyiş', 'Сменить', 'Switch')}</span>
                           </button>
                         )}
                       </div>
@@ -2745,7 +2746,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             className={`rounded-full px-4 py-2 text-sm font-semibold ${workspaceView === 'floor' ? 'bg-yellow-400 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
           >
             <MapPinned size={16} className="mr-2 inline" />
-            {tx(lang, 'Floor', 'Floor', 'Floor')}
+            {tx(lang, 'Zal Planı', 'План зала', 'Floor Plan')}
           </button>
           <button
             type="button"

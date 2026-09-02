@@ -224,12 +224,12 @@ function TableGrid({
                           ? 'bg-rose-500/20 text-rose-300 border border-rose-400/30 animate-pulse'
                           : elapsed >= 35
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                            : 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
+                            : 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/25'
                       }`}
                       title={tx(lang, `Masa ${elapsed} dəqiqədir açıqdır`, `Стол открыт ${elapsed} мин`, `Table open for ${elapsed} min`)}
                     >
                       <Clock size={10} />
-                      <span>{elapsed >= 60 ? `${Math.floor(elapsed / 60)}s ${elapsed % 60}d` : `${elapsed}d`}</span>
+                      <span>{elapsed >= 60 ? `${Math.floor(elapsed / 60)}${tx(lang, ' saat ', ' ч ', 'h ')}${elapsed % 60}${tx(lang, ' dəq', ' мин', 'm')}` : `${elapsed} ${tx(lang, 'dəq', 'мин', 'min')}`}</span>
                     </div>
                   );
                 })()}
