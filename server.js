@@ -114,11 +114,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (pathname === '/healthz') {
+  if (pathname === '/health' || pathname === '/healthz' || pathname === '/api/health') {
     res.statusCode = 200;
     setSecurityHeaders(res);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ status: 'ok' }));
+    res.end(JSON.stringify({ status: 'ok', time: new Date().toISOString() }));
     return;
   }
 
