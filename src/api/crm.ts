@@ -572,18 +572,21 @@ export async function get_customer_app_bootstrap_live(tenant_id?: string) {
   return apiRequest<any>('/api/v1/ops/customer-app/bootstrap', { method: 'GET', tenantId: null, auth: false });
 }
 
-export async function enroll_customer_app_live(
-  consent_accepted: boolean = true,
-  tenant_id?: string,
-  join_customer_type?: string,
-  join_discount_percent?: number,
-  name?: string,
-  birth_date?: string,
-) {
-  const tenantId = tenant_id || defaultTenant();
-  const cleanName = String(name || '').trim();
-  const cleanBirth = String(birth_date || '').trim() || undefined;
-  if (!consent_accepted) throw new Error('Consent must be accepted');
+export async function enroll_customer_app_live(params: {
+  tenant_id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  consent: boolean;
+  club?: string;
+  discount?: number;
+  registration_mode?: 'simple' | 'lightweight' | 'full';
+  birth_date?: string;
+}) {
+  const tenantId = params.tenant_id || defaultTenant();
+  const cleanName = String(params.name || '').trim();
+  const cleanBirth = String(params.birth_date || '').trim() || undefined;
+  if (!params.consent) throw new Error('Consent must be accepted');
   if (!isBackendEnabled()) {
     const customers = getCustomersLocal(tenantId);
     const card_id = `QR-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
@@ -592,14 +595,15 @@ export async function enroll_customer_app_live(
       id: uuidv4(),
       tenant_id: tenantId,
       card_id,
-      type: normalizeCustomerType(join_customer_type || 'golden'),
+      type: normalizeCustomerType(params.club || 'golden'),
       stars: 0,
-      discount_percent: Number.isFinite(join_discount_percent) ? Number(join_discount_percent) : 0,
+      discount_percent: Number.isFinite(params.discount) ? Number(params.discount) : 0,
       secret_token: token,
       created_at: new Date().toISOString(),
     };
-    if (cleanName) (newCustomer as any).name = cleanName;
+    if (cleanName && params.registration_mode !== 'simple') (newCustomer as any).name = cleanName;
     if (cleanBirth) (newCustomer as any).birth_date = cleanBirth;
+    if (params.email) (newCustomer as any).email = params.email;
     customers.push(newCustomer);
     saveCustomersLocal(tenantId, customers);
     send_notification({ card_ids: [card_id], message: 'Loyalty club hesabınız yaradıldı. QR kartınızı kassada göstərə bilərsiniz.' });
@@ -608,13 +612,15 @@ export async function enroll_customer_app_live(
   return apiRequest<{ success: boolean; card_id: string; token: string }>('/api/v1/ops/customer-app/enroll', {
     method: 'POST',
     tenantId: null,
-    auth: false,
     body: {
-      consent_accepted: true,
-      join_customer_type,
-      join_discount_percent,
-      name: cleanName || undefined,
+      consent_accepted: params.consent,
+      tenant_id: tenantId,
+      join_customer_type: params.club,
+      join_discount_percent: params.discount,
+      name: cleanName,
       birth_date: cleanBirth,
+      email: params.email,
+      registration_mode: params.registration_mode || 'full',
     },
   });
 }

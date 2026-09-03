@@ -205,14 +205,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return baseStores;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteNearest, locCoords, baseStores]);
-  const selectedStore = stores.find((s: any) => String(s.id) === String(selectedStoreId)) || stores[0] || null;
-  const setSelectedStore = React.useCallback((id: string) => {
-    setSelectedStoreId(id);
-    try {
-      localStorage.setItem('customer_store_id', id);
-    } catch {}
-  }, []);
   const [phone, setPhone] = React.useState('');
+  const [email, setEmail] = React.useState('');
   const [otpCode, setOtpCode] = React.useState('');
   const [otpSent, setOtpSent] = React.useState(false);
   const [otpSending, setOtpSending] = React.useState(false);
@@ -220,7 +214,20 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [otpError, setOtpError] = React.useState('');
   const [customerName, setCustomerName] = React.useState('');
   const [birthDate, setBirthDate] = React.useState('');
-  const [consentChecked, setConsentChecked] = React.useState(false);
+  const [consentChecked, setConsentChecked] = React.useState(true);
+
+  const isBootstrapMode = React.useMemo(() => {
+    return !!(data?.tenant_id && !sessionCreds.cardId);
+  }, [data, sessionCreds.cardId]);
+
+  const registrationMode: 'simple' | 'lightweight' | 'full' = (bootstrapData?.customer_app_settings?.registration_mode as any) || 'full';
+  const selectedStore = stores.find((s: any) => String(s.id) === String(selectedStoreId)) || stores[0] || null;
+  const setSelectedStore = React.useCallback((id: string) => {
+    setSelectedStoreId(id);
+    try {
+      localStorage.setItem('customer_store_id', id);
+    } catch {}
+  }, []);
   const [baristaMessages, setBaristaMessages] = React.useState<Array<{ role: 'assistant' | 'user'; text: string }>>([]);
   const [baristaInput, setBaristaInput] = React.useState('');
   const [fortuneText, setFortuneText] = React.useState('');
@@ -952,13 +959,22 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }
   };
 
-  const acceptConsentAndCreateCard = async () => {
+  const handleRegistrationSubmit = async () => {
+    if (registrationMode !== 'simple' && !customerName.trim()) {
+      setError(tx(safeLang, 'Adınızı daxil edin', 'Введите ваше имя', 'Please enter your name'));
+      return;
+    }
+    if (registrationMode === 'full' && !/.+@.+\..+/.test(email)) {
+      setError(tx(safeLang, 'Düzgün email daxil edin', 'Введите корректный email', 'Please enter a valid email'));
+      return;
+    }
     try {
       setAcceptingConsent(true);
+      setError('');
       const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
       const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || '';
       const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
-      const created = await enroll_customer_app_live(true, undefined, joinCustomerType, joinDiscount);
+      const created = await enroll_customer_app_live({ consent: true, club: joinCustomerType, discount: joinDiscount, registration_mode: registrationMode, name: customerName, email, birth_date: birthDate });
       const next = { cardId: created.card_id, token: created.token };
       setSessionCreds(next);
       if (typeof window !== 'undefined') {
@@ -1355,7 +1371,88 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               {tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}
             </div>
 
-            {!otpSent ? (
+            <div className="space-y-4">
+              {registrationMode === 'simple' && (
+                <div className="text-sm text-white/70 mb-4">
+                  {tx(safeLang, 'Sadəcə razılaşmanı təsdiq edib başlaya bilərsiniz.', 'Просто подтвердите согласие и начните.', 'Just confirm consent and start.')}
+                </div>
+              )}
+
+              {registrationMode !== 'simple' && (
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')} <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={60}
+                    placeholder={tx(safeLang, 'Məs. Aysel', 'Напр. Айсель', 'e.g. Aysel')}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+              )}
+
+              {registrationMode === 'full' && (
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    {tx(safeLang, 'Email adresiniz', 'Ваш email', 'Your email')} <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="example@mail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+              )}
+
+              {registrationMode !== 'simple' && (
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                    {tx(safeLang, 'Doğum tarixi (istəyə bağlı — doğum günü bonusu üçün 🎂)', 'Дата рождения (необязательно — для бонуса ко дню рождения 🎂)', 'Birth date (optional — for a birthday bonus 🎂)')}
+                  </label>
+                  <input
+                    type="date"
+                    value={birthDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    style={{ colorScheme: 'dark' }}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-start gap-2.5 cursor-pointer rounded-2xl bg-white/3 p-3 border border-white/5">
+                <input
+                  type="checkbox"
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-[#F48C24] flex-shrink-0"
+                />
+                <span className="text-[10px] leading-relaxed text-white/55">
+                  <span className="font-bold text-white block mb-0.5">
+                    {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
+                  </span>
+                  {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
+                </span>
+              </label>
+
+              <button
+                type="button"
+                disabled={!consentChecked || acceptingConsent}
+                onClick={handleRegistrationSubmit}
+                className="w-full rounded-2xl py-3.5 text-xs font-black text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110 shadow-lg shadow-orange-500/15 shimmer-btn"
+                style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
+              >
+                {acceptingConsent ? '...' : registrationMode === 'simple' ? tx(safeLang, 'Başla', 'Начать', 'Start') : tx(safeLang, 'Qeydiyyatdan keç', 'Зарегистрироваться', 'Sign up')}
+              </button>
+            </div>
+
+            {/* Legacy phone OTP flow — kept for backward compatibility */}
+            {false && !otpSent ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-white/60 mb-1.5">
@@ -1423,7 +1520,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept & Send Code')}
                 </button>
               </div>
-            ) : (
+            ) : false && (
               <div className="space-y-4">
                 <div>
                   <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Zap, Eye} from 'lucide-react';
+import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Zap, Eye, UserCheck} from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -45,6 +45,7 @@ export default function CustomerAppPanel() {
   const [form, setForm] = useState({
 
     enabled: true,
+    registration_mode: 'full' as 'simple' | 'lightweight' | 'full',
     program_mode: 'points' as 'points' | 'cashback',
     layout_preset: 'rewards' as 'rewards' | 'cashback' | 'playful',
     consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
@@ -88,6 +89,7 @@ export default function CustomerAppPanel() {
         setForm((prev) => ({
           ...prev,
           enabled: Boolean(c.enabled ?? true),
+          registration_mode: (c.registration_mode === 'simple' || c.registration_mode === 'lightweight') ? c.registration_mode : 'full',
           program_mode: c.program_mode === 'cashback' ? 'cashback' : 'points',
           layout_preset: c.layout_preset === 'cashback' || c.layout_preset === 'playful' ? c.layout_preset : 'rewards',
           consent_text: String(c.consent_text || prev.consent_text),
@@ -304,6 +306,7 @@ export default function CustomerAppPanel() {
   const save = async () => {
     await update_customer_app_settings_live({
       enabled: form.enabled,
+      registration_mode: form.registration_mode,
       program_mode: form.program_mode,
       layout_preset: form.layout_preset,
       consent_text: form.consent_text,
@@ -568,7 +571,79 @@ export default function CustomerAppPanel() {
         </div>
       </div>
 
-
+      <div className="metal-panel p-6 space-y-4">
+        <div className="flex items-center gap-2 text-lg font-bold text-slate-100">
+          <UserCheck size={18} />
+          {tx(lang, 'Qeydiyyat Axını', 'Поток регистрации', 'Registration Flow')}
+        </div>
+        <p className="text-sm text-slate-400">
+          {tx(lang, 
+            'Müştəri ilk QR skanda nə qədər məlumat verməlidir?',
+            'Какие данные клиент вводит при первом сканировании?',
+            'How much info does a customer provide on first QR scan?'
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3">
+          {/* 3 mode cards */}
+          {([
+            {
+              value: 'simple',
+              icon: '⚡',
+              titleAz: 'Sadə (Anonim)',
+              titleRu: 'Простой (Аноним)',
+              titleEn: 'Simple (Anonymous)',
+              descAz: 'Yalnız razılaşma → Bitdi. Ad, email tələb olunmur.',
+              descRu: 'Только согласие → Готово. Имя и email не требуются.',
+              descEn: 'Consent only → Done. No name or email required.',
+            },
+            {
+              value: 'lightweight',
+              icon: '👤',
+              titleAz: 'Orta (Ad məcburi)',
+              titleRu: 'Средний (Имя обязательно)',
+              titleEn: 'Lightweight (Name required)',
+              descAz: 'Razılaşma + Ad → Bitdi. Email tələb olunmur.',
+              descRu: 'Согласие + Имя → Готово. Email не требуется.',
+              descEn: 'Consent + Name → Done. No email required.',
+            },
+            {
+              value: 'full',
+              icon: '✉️',
+              titleAz: 'Tam (Ad + Email)',
+              titleRu: 'Полный (Имя + Email)',
+              titleEn: 'Full (Name + Email)',
+              descAz: 'Razılaşma + Ad + Email → Bitdi. Email dublikat hesabları bloklar.',
+              descRu: 'Согласие + Имя + Email → Готово. Email блокирует дубликаты.',
+              descEn: 'Consent + Name + Email → Done. Email prevents duplicate accounts.',
+            },
+          ] as const).map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              onClick={() => setForm(prev => ({ ...prev, registration_mode: mode.value }))}
+              className={`rounded-2xl border p-4 text-left transition ${
+                form.registration_mode === mode.value
+                  ? 'border-cyan-300 bg-cyan-400/10'
+                  : 'border-slate-700/70 bg-slate-950/30 hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{mode.icon}</span>
+                <span className="font-bold text-slate-100">{tx(lang, mode.titleAz, mode.titleRu, mode.titleEn)}</span>
+                {form.registration_mode === mode.value && (
+                  <span className="ml-auto rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">Seçilib</span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">{tx(lang, mode.descAz, mode.descRu, mode.descEn)}</p>
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void save(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+          </button>
+        </div>
+      </div>
 
       <div className="metal-panel p-6 space-y-4">
         <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><Star size={18} /> {tx(lang, 'Qazanma Qaydaları / Earn Rules', 'Правила заработка / Earn Rules', 'Earn Rules')}</div>
@@ -895,6 +970,9 @@ export default function CustomerAppPanel() {
               <div className="text-xs font-black text-white mb-1 drop-shadow-md">{form.app_name || 'Loyalty Club'}</div>
               <div className="text-base font-black text-white leading-tight drop-shadow-md">{form.hero_title}</div>
               <div className="text-[10px] text-white/90 mt-1 drop-shadow-md">{form.hero_subtitle}</div>
+              <div className="mt-2 inline-block rounded-full bg-black/40 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
+                {form.registration_mode === 'simple' ? '⚡ Sadə' : form.registration_mode === 'lightweight' ? '👤 Ad' : '✉️ Ad + Email'}
+              </div>
             </div>
             {/* Reward card */}
             <div className="mx-3 -mt-4 mb-3 p-3 shadow-lg relative bg-slate-800" style={{ 

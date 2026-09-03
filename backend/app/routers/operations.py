@@ -3963,6 +3963,18 @@ def enroll_customer_app(
     if app_settings.customer_consent_required and not bool(payload.get("consent_accepted", False)):
         raise HTTPException(status_code=400, detail="Consent must be accepted")
 
+    registration_mode = payload.get("registration_mode", "full")
+    email = payload.get("email")
+    if isinstance(email, str) and email.strip():
+        email = email.lower().strip()
+    else:
+        email = None
+
+    if registration_mode == "full" and email:
+        existing_customer = db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.email == email).first()
+        if existing_customer:
+            return {"success": True, "card_id": existing_customer.card_id, "token": existing_customer.secret_token}
+
     tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
     if not bool(tenant_app_settings.get("enabled", True)):
         raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
@@ -3972,7 +3984,7 @@ def enroll_customer_app(
         card_id = f"QR-{secrets.token_hex(4).upper()}"
     secret_token = secrets.token_urlsafe(18)
     join_type = _clean_customer_type(payload.get("join_customer_type") or tenant_app_settings.get("join_customer_type") or "golden")
-    clean_name = _clean_customer_name(payload.get("name")) if payload.get("name") else None
+    clean_name = _clean_customer_name(payload.get("name")) if payload.get("name") and registration_mode != "simple" else None
     parsed_birth = _parse_birth_date(payload.get("birth_date")) if payload.get("birth_date") else None
     customer = Customer(
         tenant_id=tenant.id,
@@ -3982,6 +3994,7 @@ def enroll_customer_app(
         discount_percent=Decimal(str(payload.get("join_discount_percent") or tenant_app_settings.get("join_discount_percent") or 0)),
         secret_token=secret_token,
         name=clean_name,
+        email=email,
         birth_date=parsed_birth,
     )
     db.add(customer)
