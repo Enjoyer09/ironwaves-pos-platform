@@ -1,11 +1,13 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Smartphone, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react';
 import { tx } from '../../../i18n';
 import type { Lang } from '../../../i18n';
 import { prepareImageDataUrl } from '../../../lib/image_upload';
 import ConfirmModal from '../../ConfirmModal';
 import type { StaffBenefitsState, RoleModules, SessionSettingsState } from './types';
 import { roleLabelMap, moduleLabelMap, moduleCatalog, defaultRoleModules } from './types';
+import { listAuthorizedTerminals, revokeAuthorizedTerminal, type AuthorizedTerminal } from '../../../lib/terminals';
+import { update_session_settings_live } from '../../../api/settings';
 
 export interface SecuritySettingsSectionProps {
   lang: string;
@@ -13,6 +15,7 @@ export interface SecuritySettingsSectionProps {
   renderPanelSuccess: (panelId: string) => React.ReactNode;
   notify: (type: 'success' | 'error' | 'info', message: string) => void;
   currentRole: string;
+  tenantId?: string;
 
   // Session security (sec-security)
   sessionSettings: SessionSettingsState;
@@ -99,6 +102,7 @@ export function SecuritySettingsSection({
   renderPanelSuccess,
   notify,
   currentRole,
+  tenantId,
 
   sessionSettings,
   setSessionSettings,
@@ -169,6 +173,63 @@ export function SecuritySettingsSection({
   resetTotpCode,
   setResetTotpCode,
 }: SecuritySettingsSectionProps) {
+  const [terminals, setTerminals] = useState<AuthorizedTerminal[]>([]);
+  const [loadingTerminals, setLoadingTerminals] = useState(false);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let mounted = true;
+    setLoadingTerminals(true);
+    listAuthorizedTerminals(tenantId)
+      .then((res) => {
+        if (mounted) setTerminals(res);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setLoadingTerminals(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [tenantId]);
+
+  const toggleDeviceAuth = async (enabled: boolean) => {
+    setSessionSettings((prev) => ({ ...prev, device_authorization_enabled: enabled }));
+    try {
+      await update_session_settings_live({
+        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
+        staff_pin_length: sessionSettings.staff_pin_length,
+        theme_mode: sessionSettings.theme_mode,
+        ui_mode: 'old',
+        login_background_url: sessionSettings.login_background_url || '',
+        device_authorization_enabled: enabled,
+      });
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+      notify(
+        'success',
+        enabled
+          ? tx(lang, 'Cihaz təsdiqlənməsi aktivləşdirildi', 'Авторизация устройств включена', 'Device authorization enabled')
+          : tx(lang, 'Cihaz təsdiqlənməsi söndürüldü', 'Авторизация устройств отключена', 'Device authorization disabled')
+      );
+    } catch (e: any) {
+      setSessionSettings((prev) => ({ ...prev, device_authorization_enabled: !enabled }));
+      notify('error', e?.message || 'Xəta baş verdi');
+    }
+  };
+
+  const handleRevokeTerminal = async (id: string, name: string) => {
+    if (!tenantId) return;
+    try {
+      await revokeAuthorizedTerminal(tenantId, id);
+      setTerminals((prev) => prev.filter((t) => t.id !== id));
+      notify('success', `${name} ${tx(lang, 'ləğv edildi', 'отозвано', 'revoked')}`);
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+    } catch (e: any) {
+      notify('error', e?.message || 'Xəta baş verdi');
+    }
+  };
+
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
   const passwordUsers = users.filter((u) => ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()));
@@ -236,6 +297,99 @@ export function SecuritySettingsSection({
               {tx(lang, '4 rəqəm daha sürətlidir, 6 rəqəm isə təhlükəsizlik üçün tövsiyə olunur.', '4 цифры быстрее, 6 цифр рекомендуются для безопасности.', '4 digits is faster; 6 digits is recommended for security.')}
             </div>
           </div>
+        </div>
+
+        {/* Device Authorization Card */}
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4 space-y-4 mt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Smartphone size={18} className="text-amber-400" />
+                <h3 className="text-sm font-bold text-slate-100">
+                  {tx(lang, 'Etibarlı Terminallar (Cihaz Təsdiqlənməsi)', 'Авторизация устройств / терминалов', 'Trusted Terminals (Device Authorization)')}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                {tx(
+                  lang,
+                  'Aktiv edildikdə kənar şəxslər domendən 4 rəqəmli PIN ilə daxil ola bilməzlər. Yalnız Admin tərəfindən təsdiqlənmiş kassa və planşetlər işləyir.',
+                  'При включении посторонние не смогут войти по 4-значному PIN. Работать будут только устройства, авторизованные администратором.',
+                  'When enabled, unauthorized devices cannot login via staff PIN. Only admin-approved POS terminals and tablets will work.'
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void toggleDeviceAuth(!sessionSettings.device_authorization_enabled)}
+              className={`min-h-10 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 ${
+                sessionSettings.device_authorization_enabled
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-white'
+              }`}
+            >
+              {sessionSettings.device_authorization_enabled ? (
+                <>
+                  <ShieldCheck size={16} />
+                  <span>{tx(lang, 'AKTİVDİR (ON)', 'ВКЛЮЧЕНО (ON)', 'ENABLED (ON)')}</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert size={16} />
+                  <span>{tx(lang, 'DEAKTİVDİR (OFF)', 'ОТКЛЮЧЕНО (OFF)', 'DISABLED (OFF)')}</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {sessionSettings.device_authorization_enabled && (
+            <div className="pt-3 border-t border-slate-800/80 space-y-3">
+              <div className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span>{tx(lang, 'Təsdiqlənmiş Cihazların Siyahısı', 'Список авторизованных устройств', 'Authorized Devices List')} ({terminals.length})</span>
+                {loadingTerminals && <span className="text-[10px] text-slate-500">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</span>}
+              </div>
+
+              {terminals.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-800 p-4 text-center text-xs text-slate-500">
+                  {tx(
+                    lang,
+                    'Hələ heç bir cihaz təsdiqlənməyib. Kassa və ya planşetdə giriş ekranında "Bu Cihazı Təsdiqlə" düyməsi ilə əlavə edin.',
+                    'Устройства еще не авторизованы. Авторизуйте их на экране входа через "Авторизовать это устройство".',
+                    'No authorized terminals yet. Authorize devices on the login screen using "Authorize This Device".'
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {terminals.map((term) => (
+                    <div
+                      key={term.id}
+                      className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{term.device_name}</span>
+                          <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                            {tx(lang, 'Aktiv', 'Активен', 'Active')}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-3">
+                          <span>{tx(lang, 'Admin', 'Админ', 'Admin')}: {term.authorized_by}</span>
+                          <span>{tx(lang, 'Tarix', 'Дата', 'Date')}: {new Date(term.authorized_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleRevokeTerminal(term.id, term.device_name)}
+                        className="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition"
+                        title={tx(lang, 'Cihazın icazəsini ləğv et', 'Отозвать устройство', 'Revoke Device')}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <hr className="border-slate-800/80 my-4" />

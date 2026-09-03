@@ -994,4 +994,30 @@ Son sabitləşdirmələr:
   - `python -m pytest -o asyncio_default_fixture_loop_scope=function`
 - `Recipes`: AI resept axını inventory fallback + Affogato üçün məcburi packaging qaydaları ilə sərtləşdirildi.
 - `Recipes UI`: `Yadda saxla` düyməsi disabled səbəbini tooltip ilə daha dəqiq göstərir (AI auto-save mesajı daxil).
+- `Təhlükəsizlik`: Etibarlı Terminallar və Cihaz Təsdiqlənməsi (Device Authorization) mexanizmi əlavə edildi.
+
+## 23. Cihaz Təsdiqlənməsi və Etibarlı Terminallar (Device Authorization)
+
+### 23.1. Bu nə üçün lazımdır?
+Bulud əsaslı sistemlərdə restoranın URL linkini (məsələn `gyrospos.ironwaves.store`) bilən kənar şəxslərin restorandan kənarda, şəxsi telefonlarından və ya evdən 4 rəqəmli ofisiant PIN-i ilə sistemə daxil olmasının qarşısını almaq üçün beynəlxalq POS standartlarına (Toast POS / Square) uyğun cihaz təsdiqləmə mexanizmidir.
+
+### 23.2. Necə aktiv edilir?
+1. **Admin / Menecer panelinə** daxil olun.
+2. **Ayarlar (Settings) -> Təhlükəsizlik (Security)** bölməsinə keçin.
+3. **"Etibarlı Terminallar (Cihaz Təsdiqlənməsi)"** açarını **AKTİVDİR (ON)** vəziyyətinə gətirin.
+*(Qeyd: Susmaya görə bu ayar DEAKTİVDİR / OFF qalır, yəni istəyə bağlıdır).*
+
+### 23.3. Restorandakı Kassaları və Planşetləri Necə Təsdiqləmək olar?
+1. Restorandakı 15" POS terminalında və ya ofisiant planşetində POS səhifəsini açın.
+2. Ekranda **"Təsdiqlənməmiş Terminal"** kilid pəncərəsi görünəcək.
+3. **"Bu Cihazı Təsdiqlə"** düyməsinə basın.
+4. Cihaza ad verin (məs: *"Kassa 1 - 15'' POS"*, *"Bar Planşet"*) və **Admin istifadəçi adı / şifrəsini** daxil edib təsdiqləyin.
+5. Cihaz daimi olaraq təsdiqlənir və işçilər sürətli PIN ilə işlərinə davam edə bilərlər.
+
+### 23.4. Cihazın İcazəsini Ləğv Etmək
+Əgər restoranda hər hansı planşet itərsə və ya işçi işdən çıxarsa:
+1. **Ayarlar -> Təhlükəsizlik** bölməsinə daxil olun.
+2. **"Təsdiqlənmiş Cihazların Siyahısı"** altında həmin cihazın yanındakı **Zibil qutusu (Sil)** ikonuna basın.
+3. Cihaz dərhal sistemdən xaric edilir və kənardan PIN girişi bloklanır.
+
 

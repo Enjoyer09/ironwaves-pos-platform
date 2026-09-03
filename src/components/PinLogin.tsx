@@ -1,13 +1,24 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
-import { Delete, Maximize2, Minimize2 } from 'lucide-react';
+import { Delete, Maximize2, Minimize2, ShieldAlert, Smartphone, CheckCircle2, Lock, X } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
 import { getResolvedTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
 import { updateDynamicPwaManifest } from '../lib/pwa_manifest';
+import { isCurrentDeviceAuthorized, authorizeCurrentDevice, type AuthorizedTerminal } from '../lib/terminals';
+
+function getRecommendedDeviceName(): string {
+  if (typeof navigator === 'undefined') return 'POS Terminal';
+  const ua = navigator.userAgent || '';
+  if (/iPad|Tablet/i.test(ua)) return 'Ofisiant Planşeti';
+  if (/Mobile|Android|iPhone/i.test(ua)) return 'Mobil Terminal';
+  if (/Mac/i.test(ua)) return 'Mac POS Terminal';
+  if (/Windows/i.test(ua)) return 'Windows 15" POS';
+  return 'Kassa Terminalı';
+}
 
 // ── macOS-style glass surfaces (PinLogin-only; kept separate from Phase 1 token work) ──
 // Frosted translucent card: blur 18px + saturate 140%, hairline border, soft layered shadow.
@@ -53,6 +64,41 @@ export default function PinLogin() {
     return !(cached && cached.company_name && cached.company_name !== 'iRonWaves POS');
   });
   const [isServerStarting, setIsServerStarting] = useState(false);
+
+  // Device authorization state
+  const [deviceAuthEnabled, setDeviceAuthEnabled] = useState(false);
+  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(true);
+  const [authorizedTerminal, setAuthorizedTerminal] = useState<AuthorizedTerminal | null>(null);
+  const [showDeviceAuthModal, setShowDeviceAuthModal] = useState(false);
+  const [authAdminUser, setAuthAdminUser] = useState('');
+  const [authAdminPass, setAuthAdminPass] = useState('');
+  const [authDeviceName, setAuthDeviceName] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isAuthorizingDevice, setIsAuthorizingDevice] = useState(false);
+
+  const checkDeviceAuth = React.useCallback(async () => {
+    if (!tenantId) return;
+    try {
+      const settings = await get_settings_live(tenantId);
+      const enabled = Boolean(settings?.session_settings?.device_authorization_enabled);
+      setDeviceAuthEnabled(enabled);
+      if (enabled) {
+        const check = await isCurrentDeviceAuthorized(tenantId, true);
+        setIsDeviceAuthorized(check.authorized);
+        setAuthorizedTerminal(check.terminal || null);
+      } else {
+        setIsDeviceAuthorized(true);
+      }
+    } catch {
+      setIsDeviceAuthorized(true);
+    }
+  }, [tenantId]);
+
+  React.useEffect(() => {
+    void checkDeviceAuth();
+    window.addEventListener('settings-updated', checkDeviceAuth as EventListener);
+    return () => window.removeEventListener('settings-updated', checkDeviceAuth as EventListener);
+  }, [checkDeviceAuth]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(true);
@@ -304,6 +350,43 @@ export default function PinLogin() {
       return;
     }
     setOwnerBootstrapAvailable(false);
+  };
+
+  const handleAuthorizeDeviceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authAdminUser.trim() || !authAdminPass.trim()) {
+      setAuthError(tx(safeLang, 'Admin istifadəçi adı və şifrə daxil edin', 'Введите имя админа и пароль', 'Enter admin username and password'));
+      return;
+    }
+    setIsAuthorizingDevice(true);
+    setAuthError('');
+    try {
+      // 1. Verify admin credentials
+      await authApi.admin_login(
+        authAdminUser.trim(),
+        authAdminPass,
+        tenantId,
+        riskContext,
+        false
+      );
+
+      // 2. Register terminal
+      const terminal = await authorizeCurrentDevice(
+        tenantId,
+        authDeviceName.trim() || getRecommendedDeviceName(),
+        authAdminUser.trim()
+      );
+
+      setIsDeviceAuthorized(true);
+      setAuthorizedTerminal(terminal);
+      setShowDeviceAuthModal(false);
+      setAuthAdminUser('');
+      setAuthAdminPass('');
+    } catch (err: any) {
+      setAuthError(err?.message || tx(safeLang, 'Admin doğrulaması uğursuz oldu', 'Ошибка проверки админа', 'Admin verification failed'));
+    } finally {
+      setIsAuthorizingDevice(false);
+    }
   };
 
   const demoAccounts = [
@@ -577,57 +660,103 @@ export default function PinLogin() {
           {/* PIN Pad or Admin login Form */}
           <div className={`rounded-[28px] ${GLASS_CARD} p-6 space-y-5`}>
             {mode === 'staff' ? (
-              <>
-                <div className="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">PIN</div>
-                  <div className="mt-1 min-h-10 text-3xl tracking-[0.5em] text-white font-extrabold flex items-center justify-center">
-                    {pin ? '•'.repeat(pin.length) : Array.from({ length: staffPinLength }).map(() => '•').join(' ')}
+              !isDeviceAuthorized ? (
+                <div className="text-center py-3 space-y-4">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-lg shadow-amber-500/10">
+                    <ShieldAlert size={28} />
                   </div>
-                  <div className="mt-1.5 text-xs text-slate-400">{t.pin_prompt}</div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white">
+                      {tx(safeLang, 'Təsdiqlənməmiş Terminal', 'Неавторизованное устройство', 'Unauthorized Terminal')}
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed px-2">
+                      {tx(
+                        safeLang,
+                        'Bu restoranda cihaz mühafizəsi aktivdir. Daxil olmaq üçün bu cihazı Admin hesabı ilə təsdiqləyin.',
+                        'В этом заведении включена защита устройств. Авторизуйте устройство через учетную запись администратора.',
+                        'Device protection is enabled for this restaurant. Please authorize this device with an Admin account.'
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthDeviceName(getRecommendedDeviceName());
+                      setShowDeviceAuthModal(true);
+                    }}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#d8b156] to-[#c9a24b] px-4 py-3 text-xs font-black text-[#161006] shadow-lg shadow-amber-500/20 hover:scale-[1.01] active:scale-95 transition"
+                  >
+                    <Smartphone size={16} />
+                    <span>{tx(safeLang, 'Bu Cihazı Təsdiqlə', 'Авторизовать это устройство', 'Authorize This Device')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('admin')}
+                    className="text-xs font-semibold text-slate-400 hover:text-white transition block mx-auto pt-1"
+                  >
+                    {tx(safeLang, 'Admin hesabı ilə daxil ol →', 'Войти как админ →', 'Sign in as Admin →')}
+                  </button>
                 </div>
+              ) : (
+                <>
+                  {deviceAuthEnabled && (
+                    <div className="flex items-center justify-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>{tx(safeLang, 'Təsdiqlənmiş Terminal', 'Авторизован', 'Authorized')}: {authorizedTerminal?.device_name || 'POS'}</span>
+                    </div>
+                  )}
 
-                <div className="grid grid-cols-3 gap-3" role="group" aria-label={tx(safeLang, 'PIN düymələri', 'Клавиатура PIN', 'PIN Keypad')}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <div className="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">PIN</div>
+                    <div className="mt-1 min-h-10 text-3xl tracking-[0.5em] text-white font-extrabold flex items-center justify-center">
+                      {pin ? '•'.repeat(pin.length) : Array.from({ length: staffPinLength }).map(() => '•').join(' ')}
+                    </div>
+                    <div className="mt-1.5 text-xs text-slate-400">{t.pin_prompt}</div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3" role="group" aria-label={tx(safeLang, 'PIN düymələri', 'Клавиатура PIN', 'PIN Keypad')}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        aria-label={`${num}`}
+                        onClick={() => handleKeyPress(num.toString())}
+                        disabled={isLoggingIn}
+                        className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
+                      >
+                        {num}
+                      </button>
+                    ))}
                     <button
-                      key={num}
                       type="button"
-                      aria-label={`${num}`}
-                      onClick={() => handleKeyPress(num.toString())}
+                      aria-label={tx(safeLang, 'Təmizlə', 'Очистить', 'Clear')}
+                      onClick={handleClear}
                       disabled={isLoggingIn}
-                      className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
+                      className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
                     >
-                      {num}
+                      CLR
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    aria-label={tx(safeLang, 'Təmizlə', 'Очистить', 'Clear')}
-                    onClick={handleClear}
-                    disabled={isLoggingIn}
-                    className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
-                  >
-                    CLR
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="0"
-                    onClick={() => handleKeyPress('0')}
-                    disabled={isLoggingIn}
-                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={tx(safeLang, 'Sil', 'Удалить', 'Delete')}
-                    onClick={() => setPin((prev) => prev.slice(0, -1))}
-                    disabled={isLoggingIn}
-                    className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-white transition"
-                  >
-                    <Delete size={20} />
-                  </button>
-                </div>
-              </>
+                    <button
+                      type="button"
+                      aria-label="0"
+                      onClick={() => handleKeyPress('0')}
+                      disabled={isLoggingIn}
+                      className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={tx(safeLang, 'Sil', 'Удалить', 'Delete')}
+                      onClick={() => setPin((prev) => prev.slice(0, -1))}
+                      disabled={isLoggingIn}
+                      className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-white transition"
+                    >
+                      <Delete size={20} />
+                    </button>
+                  </div>
+                </>
+              )
             ) : (
               <form className="space-y-3" onSubmit={handleAdminFormSubmit}>
                 <input className="neon-input text-sm min-h-11" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder={tx(safeLang, 'Admin istifadəçi adı', 'Имя администратора', 'Admin username')} />
@@ -658,15 +787,17 @@ export default function PinLogin() {
               </form>
             )}
 
-            <button
-              onClick={() => (mode === 'admin' ? handleAdminSubmit() : handleClear())}
-              disabled={isLoggingIn}
-              className={`w-full rounded-2xl py-3.5 text-sm font-extrabold transition-all active:scale-95 ${error ? 'bg-red-500 text-white animate-shake' : `${GLASS_ACCENT} text-[#161006] shadow-md hover:shadow-lg`}`}
-            >
-              {mode === 'staff'
-                ? (isLoggingIn ? tx(safeLang, 'Yoxlanılır...', 'Проверка...', 'Checking...') : tx(safeLang, 'PIN-i Sıfırla', 'Сбросить PIN', 'Reset PIN'))
-                : t.login}
-            </button>
+            {(!isStaffMode || isDeviceAuthorized) && (
+              <button
+                onClick={() => (mode === 'admin' ? handleAdminSubmit() : handleClear())}
+                disabled={isLoggingIn}
+                className={`w-full rounded-2xl py-3.5 text-sm font-extrabold transition-all active:scale-95 ${error ? 'bg-red-500 text-white animate-shake' : `${GLASS_ACCENT} text-[#161006] shadow-md hover:shadow-lg`}`}
+              >
+                {mode === 'staff'
+                  ? (isLoggingIn ? tx(safeLang, 'Yoxlanılır...', 'Проверка...', 'Checking...') : tx(safeLang, 'PIN-i Sıfırla', 'Сбросить PIN', 'Reset PIN'))
+                  : t.login}
+              </button>
+            )}
 
             {authErrorMessage && (
               <p className="text-center text-xs text-red-400 mt-2 font-semibold bg-red-400/10 py-2 rounded-xl border border-red-500/10">
@@ -694,6 +825,110 @@ export default function PinLogin() {
           © {new Date().getFullYear()} iRonWaves POS • {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
         </div>
       </div>
+
+      {/* Device Authorization Modal */}
+      {showDeviceAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className={`w-full max-w-md rounded-3xl ${GLASS_CARD} p-6 space-y-4 border border-white/10 shadow-2xl relative`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  <Smartphone size={18} />
+                </div>
+                <h3 className="text-base font-bold text-white">
+                  {tx(safeLang, 'Cihazı Təsdiqlə', 'Авторизация устройства', 'Authorize Device')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeviceAuthModal(false);
+                  setAuthError('');
+                }}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              {tx(
+                safeLang,
+                'Bu cihazı daimi işçi terminalı kimi təsdiqləmək üçün Admin məlumatlarını daxil edin.',
+                'Введите учетные данные администратора для регистрации этого устройства.',
+                'Enter admin credentials to register this device as an authorized terminal.'
+              )}
+            </p>
+
+            {authError && (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuthorizeDeviceSubmit} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  {tx(safeLang, 'Cihazın Adı', 'Название устройства', 'Device Name')}
+                </label>
+                <input
+                  className="neon-input text-sm min-h-11 w-full"
+                  value={authDeviceName}
+                  onChange={(e) => setAuthDeviceName(e.target.value)}
+                  placeholder="məs: Kassa 1 - 15'' POS"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  {tx(safeLang, 'Admin İstifadəçi Adı', 'Имя администратора', 'Admin Username')}
+                </label>
+                <input
+                  className="neon-input text-sm min-h-11 w-full"
+                  value={authAdminUser}
+                  onChange={(e) => setAuthAdminUser(e.target.value)}
+                  placeholder="admin"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  {tx(safeLang, 'Admin Şifrəsi', 'Пароль администратора', 'Admin Password')}
+                </label>
+                <input
+                  type="password"
+                  className="neon-input text-sm min-h-11 w-full"
+                  value={authAdminPass}
+                  onChange={(e) => setAuthAdminPass(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeviceAuthModal(false)}
+                  className="flex-1 min-h-11 rounded-xl border border-slate-700 bg-slate-800/80 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
+                >
+                  {tx(safeLang, 'İmtina', 'Отмена', 'Cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAuthorizingDevice}
+                  className="flex-[1.5] min-h-11 rounded-xl bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-xs font-black text-[#161006] shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition"
+                >
+                  {isAuthorizingDevice
+                    ? tx(safeLang, 'Yoxlanılır...', 'Проверка...', 'Verifying...')
+                    : tx(safeLang, 'Təsdiqlə və Aç', 'Авторизовать', 'Authorize & Unlock')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
