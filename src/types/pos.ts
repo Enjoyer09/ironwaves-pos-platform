@@ -190,8 +190,21 @@ export interface Settings {
     ui_mode?: 'old' | 'new';
     tables_ui_mode?: 'classic' | 'modern';
     login_background_url?: string;
+    device_authorization_enabled?: boolean;
   };
   tables_ui_mode?: 'classic' | 'modern';
+
+export interface AuthorizedTerminal {
+  id: string;
+  tenant_id: string;
+  device_name: string;
+  device_hash: string;
+  device_token: string;
+  authorized_by: string;
+  authorized_at: string;
+  last_seen_at: string;
+  is_active: boolean;
+}
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';
     remove_paper_packaging_for_table: boolean;

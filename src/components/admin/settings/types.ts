@@ -36,6 +36,7 @@ export interface SessionSettingsState {
   theme_mode: 'dark' | 'light';
   ui_mode: 'old';
   login_background_url: string;
+  device_authorization_enabled?: boolean;
 }
 
 export interface BeverageServiceSettingsState {

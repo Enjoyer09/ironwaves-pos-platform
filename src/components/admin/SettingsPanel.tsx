@@ -96,6 +96,7 @@ export default function SettingsPanel() {
     theme_mode: 'dark' as 'dark' | 'light',
     ui_mode: 'old' as 'old',
     login_background_url: '',
+    device_authorization_enabled: false,
   });
   const [beverageServiceSettings, setBeverageServiceSettings] = useState({
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
@@ -376,6 +377,7 @@ export default function SettingsPanel() {
         theme_mode: settingsRes.value.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
         ui_mode: 'old',
         login_background_url: String(settingsRes.value.session_settings?.login_background_url || ''),
+        device_authorization_enabled: Boolean(settingsRes.value.session_settings?.device_authorization_enabled),
       });
       setBeverageServiceSettings({
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
@@ -606,6 +608,7 @@ export default function SettingsPanel() {
         theme_mode: sessionSettings.theme_mode,
         ui_mode: 'old',
         login_background_url: sessionSettings.login_background_url || '',
+        device_authorization_enabled: sessionSettings.device_authorization_enabled === true,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'), 'session');
@@ -1621,6 +1624,7 @@ export default function SettingsPanel() {
           renderPanelSuccess={renderPanelSuccess}
           notify={notify}
           currentRole={currentRole}
+          tenantId={tenantId}
           sessionSettings={sessionSettings}
           setSessionSettings={setSessionSettings}
           saveSessionSettings={saveSessionSettings}

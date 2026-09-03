@@ -432,6 +432,7 @@ function getSettings(tenant_id?: string): Settings {
       staff_pin_length: 4,
       theme_mode: 'dark',
       ui_mode: 'old',
+      device_authorization_enabled: false,
     },
     beverage_service_settings: DEFAULT_BEVERAGE_SERVICE_SETTINGS,
     z_report_receipt_settings: DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
@@ -685,6 +686,7 @@ export function update_session_settings(payload: {
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old' | 'new';
   login_background_url?: string;
+  device_authorization_enabled?: boolean;
 }) {
   const settings = getSettings();
   const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 4);
@@ -699,6 +701,9 @@ export function update_session_settings(payload: {
     login_background_url: payload.login_background_url !== undefined
       ? payload.login_background_url
       : (settings.session_settings?.login_background_url || ''),
+    device_authorization_enabled: payload.device_authorization_enabled !== undefined
+      ? payload.device_authorization_enabled === true
+      : (settings.session_settings?.device_authorization_enabled === true),
   };
   saveSettings(settings);
   logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
@@ -1086,6 +1091,7 @@ export function get_settings(tenant_id?: string) {
       staff_pin_length: Number(s.session_settings.staff_pin_length || 4) === 4 ? 4 : 6,
       theme_mode: s.session_settings.theme_mode === 'light' ? 'light' : 'dark',
       ui_mode: 'old',
+      device_authorization_enabled: s.session_settings.device_authorization_enabled === true,
     };
   }
   s.bank_commission = {
@@ -1415,6 +1421,7 @@ export async function get_settings_live(tenant_id?: string) {
       staff_pin_length: Number(data?.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6,
       theme_mode: data?.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
       ui_mode: 'old',
+      device_authorization_enabled: data?.session_settings?.device_authorization_enabled === true,
     },
     feedback_settings: normalizeFeedbackSettings(scopedOverride || data?.feedback_settings),
     ai_config: {
@@ -1688,6 +1695,7 @@ export async function update_session_settings_live(payload: {
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old' | 'new';
   login_background_url?: string;
+  device_authorization_enabled?: boolean;
 }) {
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
