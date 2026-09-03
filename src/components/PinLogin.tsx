@@ -67,7 +67,8 @@ export default function PinLogin() {
 
   // Device authorization state
   const [deviceAuthEnabled, setDeviceAuthEnabled] = useState(false);
-  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(true);
+  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(false);
+  const [isCheckingDeviceAuth, setIsCheckingDeviceAuth] = useState(true);
   const [authorizedTerminal, setAuthorizedTerminal] = useState<AuthorizedTerminal | null>(null);
   const [showDeviceAuthModal, setShowDeviceAuthModal] = useState(false);
   const [authAdminUser, setAuthAdminUser] = useState('');
@@ -77,7 +78,11 @@ export default function PinLogin() {
   const [isAuthorizingDevice, setIsAuthorizingDevice] = useState(false);
 
   const checkDeviceAuth = React.useCallback(async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      setIsCheckingDeviceAuth(false);
+      setIsDeviceAuthorized(true);
+      return;
+    }
     try {
       const localSettings = get_settings(tenantId);
       let enabled = Boolean(localSettings?.session_settings?.device_authorization_enabled);
@@ -85,15 +90,20 @@ export default function PinLogin() {
         enabled = Boolean((branding as any).device_authorization_enabled);
       }
       setDeviceAuthEnabled(enabled);
+
       if (enabled) {
         const check = await isCurrentDeviceAuthorized(tenantId, true);
-        setIsDeviceAuthorized(check.authorized);
-        setAuthorizedTerminal(check.terminal || null);
+        const authOk = Boolean(check.authorized && check.terminal);
+        setIsDeviceAuthorized(authOk);
+        setAuthorizedTerminal(authOk ? (check.terminal || null) : null);
       } else {
         setIsDeviceAuthorized(true);
+        setAuthorizedTerminal(null);
       }
     } catch {
-      setIsDeviceAuthorized(true);
+      setIsDeviceAuthorized(false);
+    } finally {
+      setIsCheckingDeviceAuth(false);
     }
   }, [tenantId, branding]);
 
@@ -670,7 +680,14 @@ export default function PinLogin() {
           {/* PIN Pad or Admin login Form */}
           <div className={`rounded-[28px] ${GLASS_CARD} p-6 space-y-5`}>
             {mode === 'staff' ? (
-              !isDeviceAuthorized ? (
+              isCheckingDeviceAuth ? (
+                <div className="text-center py-8 space-y-3">
+                  <div className="h-7 w-7 mx-auto border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs text-slate-400 font-medium">
+                    {tx(safeLang, 'Cihaz təhlükəsizliyi yoxlanılır...', 'Проверка устройства...', 'Checking device authorization...')}
+                  </p>
+                </div>
+              ) : (deviceAuthEnabled && !isDeviceAuthorized) ? (
                 <div className="text-center py-3 space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-lg shadow-amber-500/10">
                     <ShieldAlert size={28} />
@@ -709,10 +726,10 @@ export default function PinLogin() {
                 </div>
               ) : (
                 <>
-                  {deviceAuthEnabled && (
+                  {deviceAuthEnabled && authorizedTerminal && (
                     <div className="flex items-center justify-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-300">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>{tx(safeLang, 'Təsdiqlənmiş Terminal', 'Авторизован', 'Authorized')}: {authorizedTerminal?.device_name || 'POS'}</span>
+                      <span>{tx(safeLang, 'Təsdiqlənmiş Terminal', 'Авторизован', 'Authorized')}: {authorizedTerminal.device_name}</span>
                     </div>
                   )}
 
