@@ -396,6 +396,25 @@ def _blacklist_token(db: Session, tenant_id: str, token: str, token_type: str, u
             pass
 
 
+def _setting_value(db: Session, tenant_id: str, key: str, default: Any = None) -> Any:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    if isinstance(default, (dict, list)):
+        try:
+            return json.loads(row.value)
+        except Exception:
+            return default
+    if isinstance(default, bool):
+        return str(row.value).lower() in {"1", "true", "yes"}
+    if isinstance(default, int):
+        try:
+            return int(row.value)
+        except Exception:
+            return default
+    return row.value
+
+
 def _tenant_pin_min_length(db: Session, tenant_id: str) -> int:
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "session_settings").first()
     try:
@@ -710,7 +729,15 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
     _assert_pin_format(pin, _tenant_pin_min_length(db, tenant.id))
 
     session_settings = _setting_value(db, tenant.id, "session_settings", {}) or {}
-    if session_settings.get("device_authorization_enabled"):
+    device_auth_enabled = False
+    if isinstance(session_settings, dict):
+        raw_auth_flag = session_settings.get("device_authorization_enabled")
+        if isinstance(raw_auth_flag, str):
+            device_auth_enabled = raw_auth_flag.lower() in {"1", "true", "yes"}
+        else:
+            device_auth_enabled = bool(raw_auth_flag)
+
+    if device_auth_enabled:
         device_token = str(request.headers.get("x-trusted-terminal-token") or "").strip()
         terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
         if not isinstance(terminals, list):
