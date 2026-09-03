@@ -265,32 +265,6 @@ export default function PinLogin() {
     });
   }, [branding?.company_name, branding?.logo_url, isBrandingLoading]);
 
-  React.useEffect(() => {
-    const syncPinLength = () => {
-      if (!tenantId) {
-        setStaffPinLength(4);
-        setPin((prev) => prev.slice(0, 4));
-        return;
-      }
-      get_settings_live(tenantId)
-        .then((settings) => {
-          const next = Number(settings?.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6;
-          if (typeof document !== 'undefined') {
-            document.documentElement.setAttribute('data-ui-mode', 'old');
-          }
-          window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-          setStaffPinLength(next);
-          setPin((prev) => prev.slice(0, next));
-        })
-        .catch(() => {
-          setStaffPinLength(4);
-          setPin((prev) => prev.slice(0, 4));
-        });
-    };
-    syncPinLength();
-    window.addEventListener('settings-updated', syncPinLength as EventListener);
-    return () => window.removeEventListener('settings-updated', syncPinLength as EventListener);
-  }, [tenantId]);
 
   React.useEffect(() => {
     if (!isPlatformHost) return;
