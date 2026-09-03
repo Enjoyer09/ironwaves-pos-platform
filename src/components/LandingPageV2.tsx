@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChefHat, ChevronDown, CreditCard, LayoutDashboard, Monitor, QrCode, ShieldCheck, Smartphone, Users, Wifi, Zap, MessageCircle } from 'lucide-react';
+import { ChefHat, ChevronDown, CreditCard, LayoutDashboard, Monitor, QrCode, ShieldCheck, ShieldAlert, Smartphone, Users, Wifi, Zap, MessageCircle, Lock, CheckCircle2, Sliders, Shield } from 'lucide-react';
 import { getApiBaseUrl } from '../api/client';
 
 type Lang = 'az' | 'ru' | 'en';
@@ -20,6 +20,7 @@ const SCREENSHOTS = [
 
 const FEATURES = [
   { icon: Monitor, key: 'pos', az: 'POS Satış', ru: 'POS Продажи', en: 'POS Sales', descAz: 'Sürətli satış, səbət, ödəniş, çek çapı — bir ekranda', descRu: 'Быстрые продажи, корзина, оплата, печать чека — на одном экране', descEn: 'Fast sales, cart, payment, receipt print — one screen' },
+  { icon: ShieldAlert, key: 'trusted_terminals', az: 'Etibarlı Terminallar', ru: 'Защита терминалов', en: 'Trusted Terminals', descAz: 'Yalnız təsdiqlənmiş kassa və planşetlər işləyir, kənar girişlər 100% bloklanır', descRu: 'Только авторизованные кассы и планшеты, сторонний доступ блокируется', descEn: 'Zero-trust pairing: only owner-approved POS devices can sign in' },
   { icon: Users, key: 'tables', az: 'Masa İdarəetməsi', ru: 'Управление столами', en: 'Table Management', descAz: 'Masa açma, sifariş, raund, hesab bağlama, masa köçürmə', descRu: 'Открытие стола, заказ, раунды, закрытие счета, перенос', descEn: 'Open table, order, rounds, close bill, transfer' },
   { icon: ChefHat, key: 'kds', az: 'Mətbəx Ekranı (KDS)', ru: 'Экран кухни (KDS)', en: 'Kitchen Display (KDS)', descAz: 'Real-time sifariş axını, status yeniləmə, hazırlıq vaxtı', descRu: 'Поток заказов в реальном времени, обновление статуса', descEn: 'Real-time order flow, status updates, prep time' },
   { icon: CreditCard, key: 'finance', az: 'Maliyyə & Kassa', ru: 'Финансы & Касса', en: 'Finance & Cash', descAz: 'Kassa balansı, transferlər, investor borcu, anomaly detection', descRu: 'Баланс кассы, переводы, долг инвестору, обнаружение аномалий', descEn: 'Cash balance, transfers, investor debt, anomaly detection' },
@@ -45,6 +46,7 @@ const PRICING = [
 
 const FAQ_ITEMS = [
   { q: { az: 'iRonWaves nədir?', ru: 'Что такое iRonWaves?', en: 'What is iRonWaves?' }, a: { az: 'iRonWaves — Azərbaycanda hazırlanmış cloud-based restoran idarəetmə platformasıdır. POS, masa, mətbəx, maliyyə, CRM və analitika modullarını bir sistemdə birləşdirir.', ru: 'iRonWaves — облачная платформа управления рестораном, разработанная в Азербайджане. Объединяет POS, столы, кухню, финансы, CRM и аналитику в одной системе.', en: 'iRonWaves is a cloud-based restaurant management platform built in Azerbaijan. It combines POS, tables, kitchen, finance, CRM and analytics in one system.' } },
+  { q: { az: 'Kənar şəxslər restorandan kənarda 4 rəqəmli PIN ilə kassaya girə bilərmi?', ru: 'Могут ли посторонние войти в кассу вне ресторана по PIN-коду?', en: 'Can outsiders access the POS outside the restaurant with staff PIN?' }, a: { az: 'Xeyr! iRonWaves "Etibarlı Terminallar" (Zero-Trust Device Authorization) texnologiyası ilə yalnız restoran daxilində Admin tərəfindən təsdiqlənmiş fiziki kassa və planşetlərə icazə verir. Kənar şəxs domendən 4 rəqəmli PIN ilə daxil olmağa çalışarsa sistem girişi avtomatik bloklayır.', ru: 'Нет! Технология «Авторизованные Терминалы» разрешает доступ только физическим кассам и планшетам, подтвержденным администратором. Попытка входа с постороннего устройства блокируется, даже если введен верный PIN.', en: 'No! iRonWaves Zero-Trust Terminal Pairing ensures that only hardware terminals and tablets verified by the Admin can log in. Outside devices attempting to enter via PIN are strictly blocked.' } },
   { q: { az: 'Quraşdırma lazımdır?', ru: 'Нужна ли установка?', en: 'Is installation required?' }, a: { az: 'Xeyr. iRonWaves tam web-based-dir. Brauzerdən açırsınız, işləyirsiniz. Heç bir proqram yükləmək lazım deyil. Kompüter, planşet və ya telefon — fərqi yoxdur.', ru: 'Нет. iRonWaves полностью веб-приложение. Открываете в браузере и работаете. Никакой установки не нужно. Компьютер, планшет или телефон — без разницы.', en: 'No. iRonWaves is fully web-based. Open in browser and work. No software to install. Computer, tablet or phone — it works everywhere.' } },
   { q: { az: 'Offline işləyir?', ru: 'Работает ли офлайн?', en: 'Does it work offline?' }, a: { az: 'Bəli. İnternet kəsiləndə POS satış davam edir. Satışlar lokal saxlanılır və internet qayıdanda avtomatik sinxron olunur. Heç bir satış itmir.', ru: 'Да. При отключении интернета POS продолжает работать. Продажи сохраняются локально и автоматически синхронизируются при восстановлении связи.', en: 'Yes. When internet drops, POS sales continue. Sales are stored locally and auto-sync when connection returns. No sale is ever lost.' } },
   { q: { az: 'Neçə terminal qoşula bilər?', ru: 'Сколько терминалов можно подключить?', en: 'How many terminals can connect?' }, a: { az: 'Starter planda 1, Pro-da 3, Enterprise-da limitsiz terminal. Hər terminal eyni anda işləyə bilər — real-time sinxronizasiya ilə.', ru: 'В плане Starter — 1, Pro — 3, Enterprise — без ограничений. Все терминалы работают одновременно с синхронизацией в реальном времени.', en: 'Starter plan: 1, Pro: 3, Enterprise: unlimited. All terminals work simultaneously with real-time sync.' } },
@@ -70,6 +72,7 @@ function FaqItem({ q, a, lang }: { q: Record<Lang, string>; a: Record<Lang, stri
 export default function LandingPageV2() {
   const [lang, setLang] = useState<Lang>('az');
   const [slideIndex, setSlideIndex] = useState(0);
+  const [terminalTab, setTerminalTab] = useState<'blocked' | 'authorized' | 'admin'>('blocked');
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -201,6 +204,229 @@ export default function LandingPageV2() {
                 <p className="mt-2 text-sm leading-relaxed text-slate-400">{tx(lang, f.descAz, f.descRu, f.descEn)}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── TRUSTED TERMINAL SECURITY SHOWCASE ─── */}
+      <section className="relative overflow-hidden border-t border-slate-800/60 bg-gradient-to-b from-[#0b0f19] via-[#0d1424] to-[#0a0f1a] px-6 py-24">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(216,177,86,0.08),transparent_50%)]" />
+        <div className="relative mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
+            {/* Left Col: Explanations */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs font-bold text-amber-300">
+                <ShieldCheck size={14} />
+                {tx(lang, 'Zero-Trust Terminal Mühafizəsi', 'Защита терминалов Zero-Trust', 'Zero-Trust POS Protection')}
+              </div>
+              <h2 className="text-3xl font-black md:text-5xl leading-tight">
+                {tx(lang, 'Kənar cihazlar üçün ', 'Полная защита от ', 'Zero unauthorized access ')}
+                <span className="bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                  {tx(lang, 'giriş 100% bloklanır', 'посторонних устройств', 'for outside devices')}
+                </span>
+              </h2>
+              <p className="text-base md:text-lg text-slate-300 leading-relaxed max-w-2xl">
+                {tx(
+                  lang,
+                  'Cloud POS sistemlərində ən böyük risk: kənar şəxslərin domendən 4 rəqəmli PIN ilə sistemə girməsidir. iRonWaves bu problemi həll etdi — yalnız restoran daxilində Admin tərəfindən təsdiqlənmiş fiziki kassa və planşetlər işləyir.',
+                  'Главный риск облачных касс: попытка входа вне заведения по 4-значному PIN. iRonWaves решает это — работают только физические кассы и планшеты, лично одобренные администратором.',
+                  'The biggest risk of cloud POS: outsiders accessing via 4-digit PIN remotely. iRonWaves solves this — only physical hardware and tablets authorized by the Admin are granted access.'
+                )}
+              </p>
+
+              {/* 3 Key Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div className="rounded-2xl border border-white/5 bg-slate-900/60 p-4 space-y-2 hover:border-amber-400/30 transition">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/10 text-amber-400">
+                    <Lock size={20} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">
+                    {tx(lang, 'Kənar Giriş Bloklanır', 'Блокировка извне', 'Remote Block')}
+                  </h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {tx(lang, 'PIN bilinsə belə, təsdiqlənməmiş telefon və kompüterlər açılmır.', 'Даже зная PIN, посторонние не войдут с телефона.', 'Unauthorized devices cannot enter even with PIN.')}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-slate-900/60 p-4 space-y-2 hover:border-amber-400/30 transition">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/10 text-yellow-400">
+                    <Smartphone size={20} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">
+                    {tx(lang, 'Tək Toxunuşla Təsdiq', 'Авторизация в 1 клик', '1-Tap Pairing')}
+                  </h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {tx(lang, 'Yeni kassa və ya planşet giriş ekranında Admin şifrəsi ilə təsdiqlənir.', 'Новое устройство подтверждается паролем админа.', 'New POS or tablet is verified on-screen with Admin password.')}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-slate-900/60 p-4 space-y-2 hover:border-amber-400/30 transition">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-400">
+                    <Sliders size={20} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">
+                    {tx(lang, 'Mərkəzi İdarəetmə', 'Центральный контроль', 'Central Control')}
+                  </h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {tx(lang, 'Bütün aktiv kassa və planşetlər paneldə görünür, istənilən an ləğv edilir.', 'Управление всеми кассами, отзыв доступа в 1 клик.', 'Manage all active POS units and revoke instantly.')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Col: Interactive Live Glass Widget */}
+            <div className="lg:col-span-5">
+              <div className="relative mx-auto max-w-md">
+                {/* Mode Selector Tabs */}
+                <div className="flex rounded-2xl bg-black/50 p-1 border border-white/10 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setTerminalTab('blocked')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${terminalTab === 'blocked' ? 'bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-[#161006] shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {tx(lang, '1. Kənar Cihaz', '1. Посторонний', '1. Unauthorized')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTerminalTab('authorized')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${terminalTab === 'authorized' ? 'bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-[#161006] shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {tx(lang, '2. Təsdiqlənmiş POS', '2. Касса POS', '2. Authorized POS')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTerminalTab('admin')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${terminalTab === 'admin' ? 'bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-[#161006] shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {tx(lang, '3. Nəzarət Paneli', '3. Панель', '3. Admin View')}
+                  </button>
+                </div>
+
+                {/* Card Container */}
+                <div className="relative rounded-[32px] border border-white/10 bg-[#0d1424]/90 p-7 shadow-2xl backdrop-blur-2xl">
+                  {terminalTab === 'blocked' && (
+                    <div className="space-y-6 text-center animate-fadeIn">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-xl shadow-amber-500/10">
+                        <ShieldAlert size={36} />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-white tracking-wide">
+                          {tx(lang, 'Təsdiqlənməmiş Terminal', 'Неавторизованное устройство', 'Unauthorized Terminal')}
+                        </h3>
+                        <p className="text-xs leading-relaxed text-slate-300 px-3">
+                          {tx(
+                            lang,
+                            'Bu restoranda cihaz mühafizəsi aktivdir. Daxil olmaq üçün bu cihazı Admin hesabı ilə təsdiqləyin.',
+                            'В этом заведении включена защита устройств. Авторизуйте устройство через учетную запись администратора.',
+                            'Device protection is enabled for this restaurant. Please authorize this device with an Admin account.'
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 space-y-3">
+                        <div className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#d8b156] to-[#c9a24b] px-5 py-3.5 text-xs font-black text-[#161006] shadow-lg shadow-amber-500/20 cursor-default">
+                          <Smartphone size={16} />
+                          <span>{tx(lang, 'Bu Cihazı Təsdiqlə', 'Авторизовать это устройство', 'Authorize This Device')}</span>
+                        </div>
+                        <div className="text-xs font-semibold text-slate-400 cursor-default">
+                          {tx(lang, 'Admin hesabı ilə daxil ol →', 'Войти как админ →', 'Sign in as Admin →')}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-left">
+                        <div className="flex items-center gap-2 text-xs font-bold text-red-300">
+                          <Lock size={14} />
+                          <span>{tx(lang, 'Kənar Giriş Cəhdi Rədd Edildi', 'Попытка стороннего входа отклонена', 'Remote Access Denied')}</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {tx(lang, 'Şəxsi telefon və ya kənar brauzerdən daxil olmağa icazə verilmir.', 'Доступ с личных телефонов или вне заведения запрещен.', 'Unauthorized browser access is blocked.')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {terminalTab === 'authorized' && (
+                    <div className="space-y-6 text-center animate-fadeIn">
+                      <div className="flex items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-300">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{tx(lang, 'Təsdiqlənmiş Terminal: Kassa #1 (Mac POS)', 'Авторизован: Касса #1 (Mac POS)', 'Authorized: POS Terminal #1')}</span>
+                      </div>
+
+                      {/* PIN Box */}
+                      <div className="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                          {tx(lang, 'HƏYƏT PIN KODU', 'PIN СОТРУДНИКА', 'STAFF PIN')}
+                        </div>
+                        <div className="mt-1 flex items-center justify-center gap-3 text-3xl font-extrabold text-amber-400 min-h-10">
+                          <span>•</span><span>•</span><span>•</span><span>•</span>
+                        </div>
+                      </div>
+
+                      {/* Simulated Keypad */}
+                      <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '✓'].map((key, idx) => (
+                          <div
+                            key={idx}
+                            className="flex h-11 items-center justify-center rounded-xl border border-white/5 bg-slate-900/60 text-sm font-bold text-slate-200"
+                          >
+                            {key}
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-[11px] text-emerald-300 font-medium">
+                        ✓ {tx(lang, 'Restoran daxilində saniyələr içində sürətli işçi girişi', 'Мгновенный вход персонала на авторизованной кассе', 'Instant staff login inside the restaurant')}
+                      </p>
+                    </div>
+                  )}
+
+                  {terminalTab === 'admin' && (
+                    <div className="space-y-4 text-left animate-fadeIn">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Shield size={18} className="text-amber-400" />
+                          <h4 className="text-sm font-bold text-white">
+                            {tx(lang, 'Təsdiqlənmiş Terminallar', 'Список устройств', 'Authorized Devices')}
+                          </h4>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">2 Aktiv</span>
+                      </div>
+
+                      {/* Device 1 */}
+                      <div className="rounded-xl border border-white/5 bg-slate-900/60 p-3 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                            <span className="text-xs font-bold text-white">Əsas Kassa (Mac POS)</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Təsdiq: Admin • Son giriş: 2 dəq əvvəl</div>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-400">Aktiv</span>
+                      </div>
+
+                      {/* Device 2 */}
+                      <div className="rounded-xl border border-white/5 bg-slate-900/60 p-3 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                            <span className="text-xs font-bold text-white">Ofisiant Planşeti #2 (iPad)</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Təsdiq: Admin • Son giriş: 15 dəq əvvəl</div>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-400">Aktiv</span>
+                      </div>
+
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+                          <span className="text-xs font-medium text-amber-200">{tx(lang, 'Cihaz Mühafizəsi Rejimi', 'Режим защиты устройств', 'Device Protection Mode')}</span>
+                          <span className="rounded-lg bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-950">ON</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
