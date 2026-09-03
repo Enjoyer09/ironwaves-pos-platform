@@ -50,7 +50,7 @@ export default function PinLogin() {
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
   const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
-  const tenantId = getResolvedTenantIdFromHost() || '';
+  const tenantId = getResolvedTenantIdFromHost() || getActiveTenantId() || '';
   const [branding, setBranding] = useState(() => (tenantId ? get_business_profile(tenantId) : null));
   const [tenantAccessState, setTenantAccessState] = useState<'ok' | 'not_found' | 'suspended'>('ok');
   const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
@@ -78,13 +78,14 @@ export default function PinLogin() {
   const [isAuthorizingDevice, setIsAuthorizingDevice] = useState(false);
 
   const checkDeviceAuth = React.useCallback(async () => {
-    if (!tenantId) {
+    const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
+    if (!targetTenant) {
       setIsCheckingDeviceAuth(false);
       setIsDeviceAuthorized(true);
       return;
     }
     try {
-      const localSettings = get_settings(tenantId);
+      const localSettings = get_settings(targetTenant);
       let enabled = Boolean(localSettings?.session_settings?.device_authorization_enabled);
       if (branding && (branding as any).device_authorization_enabled !== undefined) {
         enabled = Boolean((branding as any).device_authorization_enabled);
@@ -92,7 +93,7 @@ export default function PinLogin() {
       setDeviceAuthEnabled(enabled);
 
       if (enabled) {
-        const check = await isCurrentDeviceAuthorized(tenantId, true);
+        const check = await isCurrentDeviceAuthorized(targetTenant, true);
         const authOk = Boolean(check.authorized && check.terminal);
         setIsDeviceAuthorized(authOk);
         setAuthorizedTerminal(authOk ? (check.terminal || null) : null);
@@ -380,19 +381,20 @@ export default function PinLogin() {
     }
     setIsAuthorizingDevice(true);
     setAuthError('');
+    const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
     try {
       // 1. Verify admin credentials
       await authApi.admin_login(
         authAdminUser.trim(),
         authAdminPass,
-        tenantId,
+        targetTenant,
         riskContext,
         false
       );
 
       // 2. Register terminal
       const terminal = await authorizeCurrentDevice(
-        tenantId,
+        targetTenant,
         authDeviceName.trim() || getRecommendedDeviceName(),
         authAdminUser.trim()
       );

@@ -709,6 +709,18 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
         raise HTTPException(status_code=400, detail="PIN required")
     _assert_pin_format(pin, _tenant_pin_min_length(db, tenant.id))
 
+    session_settings = _setting_value(db, tenant.id, "session_settings", {}) or {}
+    if session_settings.get("device_authorization_enabled"):
+        device_token = str(request.headers.get("x-trusted-terminal-token") or "").strip()
+        terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
+        if not isinstance(terminals, list):
+            terminals = []
+        is_authorized = bool(device_token) and any(t.get("device_token") == device_token and t.get("is_active", True) for t in terminals)
+        if not is_authorized:
+            _add_auth_audit_log(db, tenant.id, "pin_login", "AUTH_DEVICE_NOT_AUTHORIZED", request)
+            db.commit()
+            raise HTTPException(status_code=403, detail="DEVICE_NOT_AUTHORIZED: Bu cihaz təsdiqlənməyib. Zəhmət olmasa cihazı Admin hesabı ilə təsdiqləyin.")
+
     users = (
         db.query(User)
         .filter(
