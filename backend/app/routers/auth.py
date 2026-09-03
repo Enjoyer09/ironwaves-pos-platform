@@ -740,6 +740,10 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
         else:
             device_auth_enabled = bool(raw_auth_flag)
 
+    # Demo tenant is always open for visitor exploration and exempt from device pairing blocks
+    if getattr(tenant, "domain", "") == settings.demo_tenant_domain or getattr(tenant, "slug", "") == "demo" or str(getattr(tenant, "id", "")).startswith("tenant_demo"):
+        device_auth_enabled = False
+
     if device_auth_enabled:
         device_token = str(request.headers.get("x-trusted-terminal-token") or getattr(payload, "terminal_token", None) or "").strip()
         terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
