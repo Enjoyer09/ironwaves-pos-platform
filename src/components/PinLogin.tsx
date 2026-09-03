@@ -7,6 +7,7 @@ import { get_business_profile, get_public_branding_live, get_settings_live } fro
 import { getResolvedTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
+import { updateDynamicPwaManifest } from '../lib/pwa_manifest';
 
 // ── macOS-style glass surfaces (PinLogin-only; kept separate from Phase 1 token work) ──
 // Frosted translucent card: blur 18px + saturate 140%, hairline border, soft layered shadow.
@@ -194,7 +195,11 @@ export default function PinLogin() {
     document.title = companyName
       ? `${companyName}${/ironwaves/i.test(companyName) ? '' : ' by IronWaves'}`
       : 'iRonWaves POS';
-  }, [branding?.company_name, isBrandingLoading]);
+    updateDynamicPwaManifest({
+      companyName: branding?.company_name,
+      logoUrl: branding?.logo_url,
+    });
+  }, [branding?.company_name, branding?.logo_url, isBrandingLoading]);
 
   React.useEffect(() => {
     const syncPinLength = () => {

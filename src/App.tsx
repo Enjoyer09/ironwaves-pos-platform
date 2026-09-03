@@ -30,6 +30,7 @@ import HelpAssistant from './components/HelpAssistant';
 import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
 import type { Settings } from './types/pos';
 import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, isPublicAppRoute, type ModuleKey } from './lib/navigation';
+import { updateDynamicPwaManifest } from './lib/pwa_manifest';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -1336,7 +1337,11 @@ export default function App() {
     document.title = companyName
       ? `${companyName}${/ironwaves/i.test(companyName) ? '' : ' by IronWaves'}`
       : 'iRonWaves POS';
-  }, [hostMode, profile?.company_name]);
+    updateDynamicPwaManifest({
+      companyName: profile?.company_name,
+      logoUrl: profile?.logo_url,
+    });
+  }, [hostMode, profile?.company_name, profile?.logo_url]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
