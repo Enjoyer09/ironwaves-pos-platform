@@ -1273,6 +1273,7 @@ export function update_customer_app_settings(payload: {
   show_notifications: boolean;
   campaigns_require_online?: boolean;
   campaign_activation_minutes?: number;
+  registration_mode?: 'simple' | 'lightweight' | 'full';
   earn_rate_per_azn?: number;
   min_purchase_for_earn?: number;
   birthday_bonus_points?: number;
@@ -1282,6 +1283,7 @@ export function update_customer_app_settings(payload: {
   const settings = getSettings();
   settings.customer_app_settings = {
     enabled: Boolean(payload.enabled),
+    registration_mode: payload.registration_mode || 'full',
     program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
     layout_preset: payload.layout_preset === 'cashback' || payload.layout_preset === 'playful' ? payload.layout_preset : 'rewards',
     consent_text: String(payload.consent_text || '').trim() || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
@@ -1581,6 +1583,12 @@ export async function update_customer_app_settings_live(payload: {
   show_notifications: boolean;
   campaigns_require_online?: boolean;
   campaign_activation_minutes?: number;
+  registration_mode?: 'simple' | 'lightweight' | 'full';
+  earn_rate_per_azn?: number;
+  min_purchase_for_earn?: number;
+  birthday_bonus_points?: number;
+  first_purchase_bonus?: number;
+  double_points_days?: number[];
 }) {
   if (!isBackendEnabled()) return update_customer_app_settings(payload);
   await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
