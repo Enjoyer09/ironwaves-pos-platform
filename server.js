@@ -80,6 +80,74 @@ function sendFile(filePath, res) {
   });
 }
 
+function getTenantBrandInfo(hostHeader) {
+  const host = String(hostHeader || '').split(':')[0].toLowerCase().trim();
+  let brandName = 'iRonWaves POS Platform';
+  let shortName = 'iRonWaves POS';
+  let description = 'iRonWaves Cloud POS & Restaurant Management Platform';
+  const themeColor = '#0f172a';
+  const bgColor = '#020617';
+  const iconSrc = '/logo.jpg';
+
+  if (host.endsWith('.ironwaves.store')) {
+    const subdomain = host.replace('.ironwaves.store', '').trim();
+    if (subdomain && subdomain !== 'www' && subdomain !== 'api' && subdomain !== 'menu') {
+      if (subdomain === 'super') {
+        brandName = 'iRonWaves POS Platform';
+        shortName = 'iRonWaves POS';
+      } else {
+        const formatted = subdomain
+          .split(/[-_]+/)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+        brandName = `${formatted} POS`;
+        shortName = `${formatted} POS`;
+        description = `${formatted} — Point of Sale & Restaurant Management`;
+      }
+    }
+  } else if (host && !host.includes('localhost') && !host.includes('127.0.0.1') && !host.includes('railway.app')) {
+    const mainDomain = host.replace(/^www\./, '').split('.')[0];
+    const formatted = mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1);
+    brandName = `${formatted} POS`;
+    shortName = `${formatted} POS`;
+    description = `${formatted} — Point of Sale & Restaurant Management`;
+  }
+
+  return {
+    name: brandName,
+    short_name: shortName,
+    description: description,
+    theme_color: themeColor,
+    background_color: bgColor,
+    display: 'standalone',
+    orientation: 'any',
+    start_url: '/',
+    scope: '/',
+    categories: ['food', 'business', 'point of sale'],
+    prefer_related_applications: false,
+    icons: [
+      {
+        src: iconSrc,
+        sizes: '192x192',
+        type: 'image/jpeg',
+        purpose: 'any',
+      },
+      {
+        src: iconSrc,
+        sizes: '512x512',
+        type: 'image/jpeg',
+        purpose: 'any',
+      },
+      {
+        src: iconSrc,
+        sizes: '512x512',
+        type: 'image/jpeg',
+        purpose: 'any maskable',
+      },
+    ],
+  };
+}
+
 const server = http.createServer((req, res) => {
   // Prevent null-byte injection crashes
   if ((req.url || '').includes('\x00') || (req.url || '').includes('%00')) {
@@ -119,6 +187,16 @@ const server = http.createServer((req, res) => {
     setSecurityHeaders(res);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ status: 'ok', time: new Date().toISOString() }));
+    return;
+  }
+
+  if (pathname === '/manifest.webmanifest' || pathname === '/manifest.json') {
+    const manifest = getTenantBrandInfo(req.headers.host);
+    res.statusCode = 200;
+    setSecurityHeaders(res);
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.end(JSON.stringify(manifest, null, 2));
     return;
   }
 
