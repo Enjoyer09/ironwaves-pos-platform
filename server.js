@@ -127,21 +127,21 @@ function getTenantBrandInfo(hostHeader) {
     prefer_related_applications: false,
     icons: [
       {
-        src: iconSrc,
+        src: '/ironwaves-192.png',
         sizes: '192x192',
-        type: 'image/jpeg',
+        type: 'image/png',
         purpose: 'any',
       },
       {
-        src: iconSrc,
+        src: '/ironwaves-512.png',
         sizes: '512x512',
-        type: 'image/jpeg',
+        type: 'image/png',
         purpose: 'any',
       },
       {
-        src: iconSrc,
+        src: '/ironwaves-512.png',
         sizes: '512x512',
-        type: 'image/jpeg',
+        type: 'image/png',
         purpose: 'any maskable',
       },
     ],
