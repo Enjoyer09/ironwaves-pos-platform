@@ -1273,6 +1273,11 @@ export function update_customer_app_settings(payload: {
   show_notifications: boolean;
   campaigns_require_online?: boolean;
   campaign_activation_minutes?: number;
+  earn_rate_per_azn?: number;
+  min_purchase_for_earn?: number;
+  birthday_bonus_points?: number;
+  first_purchase_bonus?: number;
+  double_points_days?: number[];
 }) {
   const settings = getSettings();
   settings.customer_app_settings = {
@@ -1305,6 +1310,11 @@ export function update_customer_app_settings(payload: {
     show_notifications: Boolean(payload.show_notifications),
     campaigns_require_online: payload.campaigns_require_online === true,
     campaign_activation_minutes: Number.isFinite(payload.campaign_activation_minutes) ? Math.max(1, Number(payload.campaign_activation_minutes)) : 15,
+    earn_rate_per_azn: Number.isFinite(payload.earn_rate_per_azn) ? Number(payload.earn_rate_per_azn) : 2,
+    min_purchase_for_earn: Number.isFinite(payload.min_purchase_for_earn) ? Number(payload.min_purchase_for_earn) : 0,
+    birthday_bonus_points: Number.isFinite(payload.birthday_bonus_points) ? Number(payload.birthday_bonus_points) : 10,
+    first_purchase_bonus: Number.isFinite(payload.first_purchase_bonus) ? Number(payload.first_purchase_bonus) : 5,
+    double_points_days: Array.isArray(payload.double_points_days) ? payload.double_points_days : [],
   };
   saveSettings(settings);
   logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', settings.customer_app_settings);
@@ -2304,5 +2314,47 @@ export async function run_central_backup_now_live(): Promise<any> {
   return apiRequest<any>('/api/v1/ops/database/run-central-backup-now', {
     method: 'POST',
     tenantId: null,
+  });
+}
+
+export async function list_campaigns_admin_live(tenantId: string): Promise<any[]> {
+  if (!isBackendEnabled()) {
+    return [];
+  }
+  return apiRequest<any[]>('/api/v1/ops/happy-hours', {
+    method: 'GET',
+    tenantId,
+  });
+}
+
+export async function create_campaign_live(payload: any, tenantId: string): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { id: 'campaign_' + Date.now(), name: payload.name };
+  }
+  return apiRequest<any>('/api/v1/ops/happy-hours', {
+    method: 'POST',
+    tenantId,
+    body: payload,
+  });
+}
+
+export async function update_campaign_live(id: string, payload: any, tenantId: string): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { success: true };
+  }
+  return apiRequest<any>(`/api/v1/ops/happy-hours/${id}`, {
+    method: 'PATCH',
+    tenantId,
+    body: payload,
+  });
+}
+
+export async function delete_campaign_live(id: string, tenantId: string): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { success: true };
+  }
+  return apiRequest<any>(`/api/v1/ops/happy-hours/${id}`, {
+    method: 'DELETE',
+    tenantId,
   });
 }

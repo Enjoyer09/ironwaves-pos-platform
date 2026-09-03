@@ -6643,6 +6643,29 @@ def accept_shift_handover_op(
     }
 
 
+class HappyHourUpdateIn(BaseModel):
+    name: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    discount_percent: int | None = None
+    days_of_week: list[int] | None = None
+    categories: str | None = None
+    is_active: bool | None = None
+
+@router.get("/happy-hours")
+def list_happy_hours(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    rows = db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).all()
+    return [{
+        "id": r.id, "name": r.name, "start_time": r.start_time, "end_time": r.end_time,
+        "discount_percent": r.discount_percent, "categories": r.categories,
+        "days_of_week": _json_load(r.days_of_week_json, []), "is_active": r.is_active
+    } for r in rows]
+
 @router.get("/happy-hours/active")
 def active_happy_hour(
     db: Session = Depends(get_db),
@@ -6685,9 +6708,9 @@ def create_happy_hour(
 
 
 @router.patch("/happy-hours/{happy_hour_id}")
-def update_happy_hour_status(
+def update_happy_hour(
     happy_hour_id: str,
-    payload: dict,
+    payload: HappyHourUpdateIn,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -6696,7 +6719,22 @@ def update_happy_hour_status(
     row = db.query(HappyHour).filter(HappyHour.id == happy_hour_id, HappyHour.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Happy hour not found")
-    row.is_active = bool(payload.get("is_active"))
+    
+    if payload.name is not None:
+        row.name = payload.name
+    if payload.start_time is not None:
+        row.start_time = payload.start_time
+    if payload.end_time is not None:
+        row.end_time = payload.end_time
+    if payload.discount_percent is not None:
+        row.discount_percent = payload.discount_percent
+    if payload.days_of_week is not None:
+        row.days_of_week_json = json.dumps(payload.days_of_week)
+    if payload.categories is not None:
+        row.categories = payload.categories
+    if payload.is_active is not None:
+        row.is_active = payload.is_active
+        
     db.commit()
     return {"success": True}
 

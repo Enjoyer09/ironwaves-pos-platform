@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Palette, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Zap, Eye} from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_settings_live, update_customer_app_settings_live, list_branches_live, create_branch_live, update_branch_live, delete_branch_live } from '../../api/settings';
+import { get_settings_live, update_customer_app_settings_live, list_branches_live, create_branch_live, update_branch_live, delete_branch_live , list_campaigns_admin_live, create_campaign_live, update_campaign_live, delete_campaign_live} from '../../api/settings';
 import { prepareImageDataUrl } from '../../lib/image_upload';
 
 const CRM_MEMBER_TYPES = [
@@ -33,7 +33,17 @@ export default function CustomerAppPanel() {
     is_default: false,
   });
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaignForm, setCampaignForm] = useState({
+    name: '', start_time: '10:00', end_time: '22:00',
+    discount_percent: '10', days_of_week: [1,2,3,4,5] as number[],
+    categories: 'ALL', is_active: true
+  });
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+
   const [form, setForm] = useState({
+
     enabled: true,
     program_mode: 'points' as 'points' | 'cashback',
     layout_preset: 'rewards' as 'rewards' | 'cashback' | 'playful',
@@ -63,6 +73,11 @@ export default function CustomerAppPanel() {
     show_notifications: true,
     campaigns_require_online: false,
     campaign_activation_minutes: '15',
+    earn_rate_per_azn: '2',
+    min_purchase_for_earn: '0',
+    birthday_bonus_points: '10',
+    first_purchase_bonus: '5',
+    double_points_days: [] as number[],
   });
 
   useEffect(() => {
@@ -101,6 +116,11 @@ export default function CustomerAppPanel() {
           show_notifications: Boolean(c.show_notifications ?? true),
           campaigns_require_online: Boolean(c.campaigns_require_online),
           campaign_activation_minutes: String(c.campaign_activation_minutes || 15),
+          earn_rate_per_azn: String(c.earn_rate_per_azn ?? 2),
+          min_purchase_for_earn: String(c.min_purchase_for_earn ?? 0),
+          birthday_bonus_points: String(c.birthday_bonus_points ?? 10),
+          first_purchase_bonus: String(c.first_purchase_bonus ?? 5),
+          double_points_days: Array.isArray(c.double_points_days) ? c.double_points_days : [],
         }));
       } catch (e: any) {
         notify('error', e?.message || 'Customer app settings yüklənmədi');
@@ -129,7 +149,78 @@ export default function CustomerAppPanel() {
     window.setTimeout(() => setSuccess(''), 2500);
   };
 
+
+  const loadCampaigns = async () => {
+    try {
+      const res = await list_campaigns_admin_live(tenantId);
+      setCampaigns(res || []);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Kampaniyalar yüklənə bilmədi', 'Не удалось загрузить кампании', 'Could not load campaigns'));
+    }
+  };
+
+  useEffect(() => {
+    void loadCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
+  const startEditCampaign = (c: any) => {
+    setEditingCampaignId(c.id);
+    setCampaignForm({
+      name: c.name || '',
+      start_time: c.start_time || '10:00',
+      end_time: c.end_time || '22:00',
+      discount_percent: String(c.discount_percent ?? 10),
+      days_of_week: Array.isArray(c.days_of_week) ? c.days_of_week : [1,2,3,4,5],
+      categories: c.categories || 'ALL',
+      is_active: Boolean(c.is_active),
+    });
+  };
+
+  const saveCampaign = async () => {
+    if (!campaignForm.name.trim()) {
+      notify('error', tx(lang, 'Kampaniya adı boş ola bilməz', 'Название кампании не может быть пустым', 'Campaign name is required'));
+      return;
+    }
+    const payload = {
+      name: campaignForm.name.trim(),
+      start_time: campaignForm.start_time,
+      end_time: campaignForm.end_time,
+      discount_percent: Number(campaignForm.discount_percent),
+      days_of_week: campaignForm.days_of_week,
+      categories: campaignForm.categories.trim() || 'ALL',
+      is_active: campaignForm.is_active,
+    };
+    try {
+      if (editingCampaignId) {
+        await update_campaign_live(editingCampaignId, payload, tenantId);
+      } else {
+        await create_campaign_live(payload, tenantId);
+      }
+      setCampaignForm({ name: '', start_time: '10:00', end_time: '22:00', discount_percent: '10', days_of_week: [1,2,3,4,5], categories: 'ALL', is_active: true });
+      setEditingCampaignId(null);
+      await loadCampaigns();
+      flash(tx(lang, 'Kampaniya yadda saxlanıldı', 'Кампания сохранена', 'Campaign saved'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Kampaniya saxlanıla bilmədi', 'Не удалось сохранить кампанию', 'Could not save campaign'));
+    }
+  };
+
+  const removeCampaign = async (campaignId: string) => {
+    if (typeof window !== 'undefined' && !window.confirm(tx(lang, 'Bu kampaniyanı silmək istəyirsiniz?', 'Удалить эту кампанию?', 'Delete this campaign?'))) {
+      return;
+    }
+    try {
+      await delete_campaign_live(campaignId, tenantId);
+      await loadCampaigns();
+      flash(tx(lang, 'Kampaniya silindi', 'Кампания удалена', 'Campaign deleted'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Kampaniya silinə bilmədi', 'Не удалось удалить кампанию', 'Could not delete campaign'));
+    }
+  };
+
   const loadBranches = async () => {
+
     try {
       const res = await list_branches_live(tenantId);
       setBranches(res?.branches || []);
@@ -241,6 +332,11 @@ export default function CustomerAppPanel() {
       show_notifications: form.show_notifications,
       campaigns_require_online: form.campaigns_require_online,
       campaign_activation_minutes: Number(form.campaign_activation_minutes || 15),
+      earn_rate_per_azn: Number(form.earn_rate_per_azn),
+      min_purchase_for_earn: Number(form.min_purchase_for_earn),
+      birthday_bonus_points: Number(form.birthday_bonus_points),
+      first_purchase_bonus: Number(form.first_purchase_bonus),
+      double_points_days: form.double_points_days,
     });
     flash(tx(lang, 'Customer app dizaynı yadda saxlanıldı', 'Дизайн customer app сохранен', 'Customer app design saved'));
   };
@@ -323,6 +419,7 @@ export default function CustomerAppPanel() {
 
   return (
     <div className="space-y-6">
+
       <div className="metal-panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-700/70 p-6">
           <Palette className="text-cyan-300" size={22} />
@@ -334,6 +431,8 @@ export default function CustomerAppPanel() {
         {success ? <div className="border-b border-emerald-400/20 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-200">{success}</div> : null}
       </div>
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-7 space-y-6">
       <div className="metal-panel p-6 space-y-4">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Hazır dizayn preset-ləri', 'Готовые дизайн-пресеты', 'Ready design presets')}</div>
@@ -469,6 +568,49 @@ export default function CustomerAppPanel() {
         </div>
       </div>
 
+
+
+      <div className="metal-panel p-6 space-y-4">
+        <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><Star size={18} /> {tx(lang, 'Qazanma Qaydaları / Earn Rules', 'Правила заработка / Earn Rules', 'Earn Rules')}</div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, '1 AZN = neçə xal?', '1 AZN = сколько баллов?', 'Earn rate per AZN')}</label>
+            <input className="neon-input" type="number" step="any" min={0} value={form.earn_rate_per_azn} onChange={(e) => setForm((prev) => ({ ...prev, earn_rate_per_azn: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Minimum alış məbləği', 'Мин. сумма покупки', 'Min purchase for earn')}</label>
+            <input className="neon-input" type="number" step="any" min={0} value={form.min_purchase_for_earn} onChange={(e) => setForm((prev) => ({ ...prev, min_purchase_for_earn: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Ad günü bonusu', 'Бонус на день рождения', 'Birthday bonus points')}</label>
+            <input className="neon-input" type="number" min={0} value={form.birthday_bonus_points} onChange={(e) => setForm((prev) => ({ ...prev, birthday_bonus_points: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'İlk alış bonusu', 'Бонус за первую покупку', 'First purchase bonus')}</label>
+            <input className="neon-input" type="number" min={0} value={form.first_purchase_bonus} onChange={(e) => setForm((prev) => ({ ...prev, first_purchase_bonus: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, '2x Xal günləri', 'Дни двойных баллов', 'Double points days')}</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[{ id: 1, az: 'B.E', ru: 'Пн', en: 'Mon' }, { id: 2, az: 'Ç.A', ru: 'Вт', en: 'Tue' }, { id: 3, az: 'Ç', ru: 'Ср', en: 'Wed' }, { id: 4, az: 'C.A', ru: 'Чт', en: 'Thu' }, { id: 5, az: 'C', ru: 'Пт', en: 'Fri' }, { id: 6, az: 'Ş', ru: 'Сб', en: 'Sat' }, { id: 7, az: 'B', ru: 'Вс', en: 'Sun' }].map((d) => (
+                <label key={d.id} className={`cursor-pointer rounded-lg px-3 py-1 text-sm font-semibold border ${form.double_points_days.includes(d.id) ? 'border-cyan-300 bg-cyan-500/20 text-cyan-200' : 'border-slate-700 bg-slate-900/50 text-slate-400'}`}>
+                  <input type="checkbox" className="hidden" checked={form.double_points_days.includes(d.id)} onChange={(e) => {
+                    const next = e.target.checked ? [...form.double_points_days, d.id] : form.double_points_days.filter(x => x !== d.id);
+                    setForm(p => ({ ...p, double_points_days: next }));
+                  }} />
+                  {tx(lang, d.az, d.ru, d.en)}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button type="button" onClick={() => { void save(); }} className="glossy-gold rounded-xl px-5 py-2 text-sm font-bold">
+            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+          </button>
+        </div>
+      </div>
+
       <div className="metal-panel p-6 space-y-4">
         <div className="text-lg font-bold text-slate-100">{tx(lang, 'Kassadakı onboarding QR', 'QR для кассы', 'Cashier onboarding QR')}</div>
         <p className="text-sm text-slate-400">{tx(lang, 'Bu QR-ni çap edib kassaya qoyun. İlk skanda razılaşma çıxacaq, qəbul edən müştəriyə sistem avtomatik unikal QR kart yaradacaq.', 'Распечатайте этот QR и поставьте на кассу. При первом скане покажется согласие, после подтверждения клиенту создастся уникальная QR-карта.', 'Print this QR and place it at the cashier. On first scan the customer sees consent, then gets a unique QR card automatically.')}</p>
@@ -495,6 +637,105 @@ export default function CustomerAppPanel() {
           <button type="button" onClick={downloadJoinQr} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
             {tx(lang, 'QR yüklə', 'Скачать QR', 'Download QR')}
           </button>
+        </div>
+      </div>
+
+
+
+      <div className="metal-panel p-6 space-y-4">
+        <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><Calendar size={18} /> {tx(lang, 'Kampaniyalar / Campaigns', 'Кампании / Campaigns', 'Campaigns / Happy Hours')}</div>
+        
+        <div className="space-y-2">
+          {campaigns.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-700/70 p-4 text-sm text-slate-400">
+              {tx(lang, 'Hələ kampaniya yoxdur — aşağıdan əlavə edin.', 'Кампаний пока нет — добавьте ниже.', 'No campaigns yet — add one below.')}
+            </div>
+          ) : campaigns.map((c: any) => (
+            <div key={c.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-slate-100">{c.name}</span>
+                  {!c.is_active ? <span className="rounded-full bg-rose-400/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">İnaktiv</span> : <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">Aktiv</span>}
+                  <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{c.discount_percent}% endirim</span>
+                </div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  <Clock size={12} className="inline mr-1" /> {c.start_time} - {c.end_time}
+                </div>
+                <div className="mt-1 flex gap-1">
+                   {(Array.isArray(c.days_of_week) ? c.days_of_week : []).map((d: number) => {
+                     const dayNames: any = { 1: {az: 'B.E', ru: 'Пн', en: 'Mon'}, 2: {az: 'Ç.A', ru: 'Вт', en: 'Tue'}, 3: {az: 'Ç', ru: 'Ср', en: 'Wed'}, 4: {az: 'C.A', ru: 'Чт', en: 'Thu'}, 5: {az: 'C', ru: 'Пт', en: 'Fri'}, 6: {az: 'Ş', ru: 'Сб', en: 'Sat'}, 7: {az: 'B', ru: 'Вс', en: 'Sun'} };
+                     return <span key={d} className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-300">{tx(lang, dayNames[d]?.az || '', dayNames[d]?.ru || '', dayNames[d]?.en || '')}</span>;
+                   })}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => startEditCampaign(c)} className="rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200">
+                  {tx(lang, 'Düzəlt', 'Изменить', 'Edit')}
+                </button>
+                <button type="button" onClick={() => removeCampaign(c.id)} className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-300">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4 space-y-3">
+          <div className="text-sm font-semibold text-slate-200">
+            {editingCampaignId ? tx(lang, 'Kampaniyanı düzəlt', 'Изменить кампанию', 'Edit campaign') : (
+              <span className="inline-flex items-center gap-1"><Plus size={14} /> {tx(lang, 'Yeni kampaniya', 'Новая кампания', 'New campaign')}</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="field-stack form-card md:col-span-2">
+              <span className="field-label">{tx(lang, 'Kampaniya adı *', 'Название *', 'Name *')}</span>
+              <input className="neon-input" value={campaignForm.name} onChange={(e) => setCampaignForm((p) => ({ ...p, name: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Başlanğıc saat', 'Время начала', 'Start time')}</span>
+              <input type="time" className="neon-input" value={campaignForm.start_time} onChange={(e) => setCampaignForm((p) => ({ ...p, start_time: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Bitiş saat', 'Время конца', 'End time')}</span>
+              <input type="time" className="neon-input" value={campaignForm.end_time} onChange={(e) => setCampaignForm((p) => ({ ...p, end_time: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+              <input className="neon-input" type="number" min={0} max={100} value={campaignForm.discount_percent} onChange={(e) => setCampaignForm((p) => ({ ...p, discount_percent: e.target.value }))} />
+            </label>
+            <label className="field-stack form-card">
+              <span className="field-label">{tx(lang, 'Kateqoriyalar', 'Категории', 'Categories')}</span>
+              <input className="neon-input" value={campaignForm.categories} onChange={(e) => setCampaignForm((p) => ({ ...p, categories: e.target.value }))} />
+            </label>
+            <div className="field-stack form-card md:col-span-2">
+              <span className="field-label">{tx(lang, 'Günlər', 'Дни', 'Days')}</span>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {[{ id: 1, az: 'B.E', ru: 'Пн', en: 'Mon' }, { id: 2, az: 'Ç.A', ru: 'Вт', en: 'Tue' }, { id: 3, az: 'Ç', ru: 'Ср', en: 'Wed' }, { id: 4, az: 'C.A', ru: 'Чт', en: 'Thu' }, { id: 5, az: 'C', ru: 'Пт', en: 'Fri' }, { id: 6, az: 'Ş', ru: 'Сб', en: 'Sat' }, { id: 7, az: 'B', ru: 'Вс', en: 'Sun' }].map((d) => (
+                  <label key={d.id} className={`cursor-pointer rounded-lg px-3 py-1 text-sm font-semibold border ${campaignForm.days_of_week.includes(d.id) ? 'border-cyan-300 bg-cyan-500/20 text-cyan-200' : 'border-slate-700 bg-slate-900/50 text-slate-400'}`}>
+                    <input type="checkbox" className="hidden" checked={campaignForm.days_of_week.includes(d.id)} onChange={(e) => {
+                      const next = e.target.checked ? [...campaignForm.days_of_week, d.id] : campaignForm.days_of_week.filter(x => x !== d.id);
+                      setCampaignForm(p => ({ ...p, days_of_week: next }));
+                    }} />
+                    {tx(lang, d.az, d.ru, d.en)}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+              <input type="checkbox" checked={campaignForm.is_active} onChange={(e) => setCampaignForm((p) => ({ ...p, is_active: e.target.checked }))} />
+              <span>{tx(lang, 'Aktivdir', 'Активно', 'Is active')}</span>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { void saveCampaign(); }} className="glossy-gold rounded-xl px-5 py-2 text-sm font-bold">
+              {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+            </button>
+            {editingCampaignId ? (
+              <button type="button" onClick={() => { setEditingCampaignId(null); setCampaignForm({ name: '', start_time: '10:00', end_time: '22:00', discount_percent: '10', days_of_week: [1,2,3,4,5], categories: 'ALL', is_active: true }); }} className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-bold text-slate-300">
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -586,6 +827,7 @@ export default function CustomerAppPanel() {
         </div>
       </div>
 
+
       <div className="metal-panel p-6 space-y-4">
         <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><Sparkles size={18} /> {tx(lang, 'Fun & AI Widgetlər', 'Fun & AI виджеты', 'Fun & AI widgets')}</div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -635,6 +877,48 @@ export default function CustomerAppPanel() {
         <div className="flex justify-end">
           <button onClick={() => { void save(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
+      </div>
+
+        </div>
+
+      <div className="lg:col-span-5">
+        <div className="sticky top-6 mx-auto max-w-xs">
+          <div className="text-xs text-center text-slate-400 mb-2 font-semibold"><Eye size={12} className="inline mb-0.5" /> {tx(lang, 'Canlı Ön Baxış', 'Превью', 'Live Preview')}</div>
+          <div className="rounded-[40px] border-[8px] border-slate-700 bg-slate-900 overflow-hidden shadow-2xl relative">
+            {/* Status bar */}
+            <div className="px-4 py-2 flex justify-between text-[9px] text-slate-400">
+              <span>9:41</span><span>●●●</span>
+            </div>
+            {/* Hero */}
+            <div className="px-4 pt-6 pb-8 text-center bg-cover bg-center" style={{ backgroundColor: form.background_color, backgroundImage: form.background_image_url ? `url(${form.background_image_url})` : 'none' }}>
+              {form.hero_image_url ? <img src={form.hero_image_url} alt="hero" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover border-2 border-white/20" /> : null}
+              <div className="text-xs font-black text-white mb-1 drop-shadow-md">{form.app_name || 'Loyalty Club'}</div>
+              <div className="text-base font-black text-white leading-tight drop-shadow-md">{form.hero_title}</div>
+              <div className="text-[10px] text-white/90 mt-1 drop-shadow-md">{form.hero_subtitle}</div>
+            </div>
+            {/* Reward card */}
+            <div className="mx-3 -mt-4 mb-3 p-3 shadow-lg relative bg-slate-800" style={{ 
+              backgroundColor: form.primary_color + '22', 
+              border: `1px solid ${form.primary_color}44`,
+              borderRadius: form.reward_card_style === 'rounded' ? '24px' : form.reward_card_style === 'soft-square' ? '12px' : '16px',
+              backdropFilter: form.reward_card_style === 'glass' ? 'blur(8px)' : 'none'
+            }}>
+              <div className="text-[9px] text-slate-300 uppercase tracking-wider">{form.points_label}</div>
+              <div className="text-2xl font-black" style={{ color: form.primary_color }}>0</div>
+              <div className="text-[9px] text-slate-400 mt-1">{form.reward_description}</div>
+            </div>
+            {/* Tab bar */}
+            <div className="flex justify-around py-3 border-t border-slate-700/50 mt-12 bg-slate-900/80">
+              {['🏠','🎁','📋','👤'].map((icon, i) => (
+                <div key={i} className="text-base opacity-50">{icon}</div>
+              ))}
+            </div>
+            {/* Live indicator */}
+            <div className="text-center py-2 text-[8px] text-slate-500 bg-slate-950">⚡ Dəyişikliklər real-time əks olunur</div>
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
   );
