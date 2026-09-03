@@ -68,8 +68,7 @@ export default function PinLogin() {
 
   // Device authorization state
   const [deviceAuthEnabled, setDeviceAuthEnabled] = useState(false);
-  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(false);
-  const [isCheckingDeviceAuth, setIsCheckingDeviceAuth] = useState(true);
+  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(true);
   const [authorizedTerminal, setAuthorizedTerminal] = useState<AuthorizedTerminal | null>(null);
   const [showDeviceAuthModal, setShowDeviceAuthModal] = useState(false);
   const [authAdminUser, setAuthAdminUser] = useState('');
@@ -81,7 +80,6 @@ export default function PinLogin() {
   const checkDeviceAuth = React.useCallback(async () => {
     const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
     if (!targetTenant) {
-      setIsCheckingDeviceAuth(false);
       setIsDeviceAuthorized(true);
       return;
     }
@@ -103,9 +101,7 @@ export default function PinLogin() {
         setAuthorizedTerminal(null);
       }
     } catch {
-      setIsDeviceAuthorized(false);
-    } finally {
-      setIsCheckingDeviceAuth(false);
+      setIsDeviceAuthorized(true);
     }
   }, [tenantId, branding]);
 
@@ -497,7 +493,7 @@ export default function PinLogin() {
   const restaurantImage = branding?.login_background_url || branding?.background_image_url || branding?.hero_image_url || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop';
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-full bg-[#0b0f19] text-slate-100 font-sans overflow-hidden select-none touch-none md:static md:h-screen md:flex md:flex-row">
+    <div className="fixed inset-0 h-[100dvh] w-full bg-[#0b0f19] text-slate-100 font-sans overflow-hidden md:static md:h-screen md:flex md:flex-row">
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
@@ -574,7 +570,7 @@ export default function PinLogin() {
 
       {/* RIGHT PANEL: Login pad */}
       <div 
-        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-[100dvh] max-h-[100dvh] md:h-screen overflow-hidden md:overflow-y-auto relative flex flex-col justify-between px-6 py-6 border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20 touch-none overscroll-none"
+        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-[100dvh] max-h-[100dvh] md:h-screen overflow-y-auto relative flex flex-col justify-between px-6 py-6 border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20"
         style={{ background: LOGIN_BG_GRADIENT }}
       >
         {/* Fullscreen toggle button */}
@@ -667,13 +663,15 @@ export default function PinLogin() {
 
             <div className="flex gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/5">
               <button 
-                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'staff' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
+                type="button"
+                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition cursor-pointer select-none ${mode === 'staff' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
                 onClick={() => setMode('staff')}
               >
                 {tx(safeLang, 'STAFF', 'ПЕРСОНАЛ', 'STAFF')}
               </button>
               <button 
-                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'admin' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
+                type="button"
+                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition cursor-pointer select-none ${mode === 'admin' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
                 onClick={() => setMode('admin')}
               >
                 {tx(safeLang, 'ADMIN', 'АДМИН', 'ADMIN')}
@@ -684,14 +682,7 @@ export default function PinLogin() {
           {/* PIN Pad or Admin login Form */}
           <div className={`rounded-[28px] ${GLASS_CARD} p-6 space-y-5`}>
             {mode === 'staff' ? (
-              isCheckingDeviceAuth ? (
-                <div className="text-center py-8 space-y-3">
-                  <div className="h-7 w-7 mx-auto border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-slate-400 font-medium">
-                    {tx(safeLang, 'Cihaz təhlükəsizliyi yoxlanılır...', 'Проверка устройства...', 'Checking device authorization...')}
-                  </p>
-                </div>
-              ) : (deviceAuthEnabled && !isDeviceAuthorized) ? (
+              (deviceAuthEnabled && !isDeviceAuthorized) ? (
                 <div className="text-center py-3 space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-300 shadow-lg shadow-amber-500/10">
                     <ShieldAlert size={28} />
@@ -715,7 +706,7 @@ export default function PinLogin() {
                       setAuthDeviceName(getRecommendedDeviceName());
                       setShowDeviceAuthModal(true);
                     }}
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#d8b156] to-[#c9a24b] px-4 py-3 text-xs font-black text-[#161006] shadow-lg shadow-amber-500/20 hover:scale-[1.01] active:scale-95 transition"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#d8b156] to-[#c9a24b] px-4 py-3 text-xs font-black text-[#161006] shadow-lg shadow-amber-500/20 hover:scale-[1.01] active:scale-95 transition cursor-pointer"
                   >
                     <Smartphone size={16} />
                     <span>{tx(safeLang, 'Bu Cihazı Təsdiqlə', 'Авторизовать это устройство', 'Authorize This Device')}</span>
@@ -723,7 +714,7 @@ export default function PinLogin() {
                   <button
                     type="button"
                     onClick={() => setMode('admin')}
-                    className="text-xs font-semibold text-slate-400 hover:text-white transition block mx-auto pt-1"
+                    className="text-xs font-semibold text-slate-400 hover:text-white transition block mx-auto pt-1 cursor-pointer"
                   >
                     {tx(safeLang, 'Admin hesabı ilə daxil ol →', 'Войти как админ →', 'Sign in as Admin →')}
                   </button>
