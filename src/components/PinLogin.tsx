@@ -3,12 +3,13 @@ import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
 import { Delete, Maximize2, Minimize2, ShieldAlert, Smartphone, CheckCircle2, Lock, X } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
-import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
-import { getResolvedTenantIdFromHost } from '../lib/tenant';
+import { get_business_profile, get_public_branding_live, get_settings_live, get_settings } from '../api/settings';
+import { getResolvedTenantIdFromHost, getActiveTenantId } from '../lib/tenant';
 import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
 import { updateDynamicPwaManifest } from '../lib/pwa_manifest';
-import { isCurrentDeviceAuthorized, authorizeCurrentDevice, type AuthorizedTerminal } from '../lib/terminals';
+import { isCurrentDeviceAuthorized, authorizeCurrentDevice } from '../lib/terminals';
+import type { AuthorizedTerminal } from '../types/pos';
 
 function getRecommendedDeviceName(): string {
   if (typeof navigator === 'undefined') return 'POS Terminal';
@@ -384,9 +385,10 @@ export default function PinLogin() {
     const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
     try {
       // 1. Verify admin credentials
-      await authApi.admin_login(
+      await authApi.password_login(
         authAdminUser.trim(),
         authAdminPass,
+        '',
         targetTenant,
         riskContext,
         false
