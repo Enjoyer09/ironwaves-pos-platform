@@ -6,6 +6,8 @@ import { LoginRiskContext } from '../lib/risk';
 import { apiRequest, isBackendEnabled } from './client';
 import { readScopedStorage, removeScopedStorage, writeScopedStorage } from '../lib/storage_keys';
 import { hashLocalCredential, verifyLocalCredential } from '../lib/local_auth';
+import { getStoredTerminalToken, isCurrentDeviceAuthorized } from '../lib/terminals';
+import { get_settings } from './settings';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
@@ -124,6 +126,9 @@ export const authApi = {
 
   // Staff və manager üçün PIN login
   pin_login: async (pin: string, tenant_id: string = getActiveTenantId()) => {
+    const resolvedTenant = tenant_id || getActiveTenantId();
+    const storedTerminalToken = getStoredTerminalToken(resolvedTenant);
+
     if (isBackendEnabled()) {
       try {
         const result = await apiRequest<any>('/api/v1/auth/pin-login', {
@@ -133,6 +138,7 @@ export const authApi = {
           timeoutMs: 7000,
           retryCount: 1,
           retryDelayMs: 400,
+          headers: storedTerminalToken ? { 'x-trusted-terminal-token': storedTerminalToken } : undefined,
           body: {
             pin: String(pin || ''),
             tenant_id: null,
@@ -142,7 +148,7 @@ export const authApi = {
         const user = {
           username: backendUser.username,
           role: backendUser.role,
-          tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
+          tenant_id: backendUser.tenant_id || resolvedTenant,
         };
 
         logEvent(user.username, 'SUCCESSFUL_LOGIN', { role: user.role, tenant_id: user.tenant_id, method: 'PIN', backend: true });
@@ -157,6 +163,14 @@ export const authApi = {
           throw error;
         }
         console.warn('Backend PIN login əlçatan deyil, local fallback istifadə olunur.');
+      }
+    }
+
+    const localSettings = get_settings(resolvedTenant);
+    if (localSettings?.session_settings?.device_authorization_enabled) {
+      const isAuth = await isCurrentDeviceAuthorized(resolvedTenant, true);
+      if (!isAuth.authorized) {
+        throw new Error('DEVICE_NOT_AUTHORIZED: Bu cihaz təsdiqlənməyib. Daxil olmaq üçün cihazı Admin hesabı ilə təsdiqləyin.');
       }
     }
 
