@@ -966,7 +966,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
-              allowBrowserFallback: true,
+              allowBrowserFallback: false,
             });
           } catch (printErr) {
             console.warn('Kitchen ticket print warning:', printErr);
@@ -1033,7 +1033,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               printerName: targetPrinter,
               useQz: Boolean(printSettings.use_qz),
               printEngine: printSettings.print_engine || 'raw_escpos',
-              allowBrowserFallback: true,
+              allowBrowserFallback: false,
             });
         } catch (printErr) {
           console.warn('Kitchen ticket print warning:', printErr);
@@ -1355,7 +1355,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           paperWidth: printSettings.paper_width || '80mm',
           printEngine: 'raw_escpos',
           rawCommands: rawCmds,
-          allowBrowserFallback: true,
+          allowBrowserFallback: false,
         }).then((res) => {
           if (res.success) {
             notify(
@@ -1754,7 +1754,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: tableReceiptRawCommands || undefined,
-      allowBrowserFallback: true,
+      allowBrowserFallback: false,
     });
     if (res.success) {
       if (res.method === 'agent') {
@@ -1846,7 +1846,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   paperWidth: printSettings.paper_width || '80mm',
                   printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                   useQz: Boolean(printSettings.use_qz),
-                  allowBrowserFallback: true,
+                  allowBrowserFallback: false,
                 });
               } catch (printErr) {
                 console.warn('Kitchen whole table void ticket print warning:', printErr);
@@ -2080,7 +2080,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     paperWidth: printSettings.paper_width || '80mm',
                     printerName: printSettings.kitchen_printer_name || printSettings.printer_name,
                     useQz: Boolean(printSettings.use_qz),
-                    allowBrowserFallback: true,
+                    allowBrowserFallback: false,
                   });
                 } catch (printErr) {
                   console.warn('Kitchen change ticket print warning:', printErr);

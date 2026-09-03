@@ -60,7 +60,7 @@ export async function printKitchenTicket(
     printerName,
     useQz = false,
     printEngine = 'raw_escpos',
-    allowBrowserFallback = true,
+    allowBrowserFallback = false,
   } = opts;
 
   // Dedupe yalnız və yalnız çağırıcı açıq şəkildə `opts.dedupe === true` VƏ `opts.dedupeKey`
