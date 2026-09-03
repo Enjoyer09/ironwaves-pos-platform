@@ -1041,6 +1041,7 @@ DEFAULT_SESSION_SETTINGS = {
     "ui_mode": "old",
     "tables_ui_mode": "classic",
     "login_background_url": "",
+    "device_authorization_enabled": False,
 }
 
 
@@ -3200,10 +3201,103 @@ def update_session_settings(
         "ui_mode": _clean_ui_mode(payload.get("ui_mode", current.get("ui_mode"))),
         "tables_ui_mode": tables_ui if tables_ui in {"classic", "modern"} else "classic",
         "login_background_url": _normalize_image_url(payload.get("login_background_url", current.get("login_background_url") or "")),
+        "device_authorization_enabled": bool(payload.get("device_authorization_enabled", current.get("device_authorization_enabled", False))),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
     return {"success": True, "session_settings": cleaned}
+
+
+@router.get("/terminals")
+def list_terminals(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
+    if not isinstance(terminals, list):
+        terminals = []
+    return {"terminals": terminals}
+
+
+@router.post("/terminals/authorize")
+def authorize_terminal(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
+    if not isinstance(terminals, list):
+        terminals = []
+    
+    new_term = {
+        "id": str(payload.get("id") or f"term_{int(datetime.utcnow().timestamp())}"),
+        "tenant_id": tenant.id,
+        "device_name": str(payload.get("device_name") or "POS Terminal").strip()[:100],
+        "device_hash": str(payload.get("device_hash") or "").strip(),
+        "device_token": str(payload.get("device_token") or "").strip(),
+        "authorized_by": user.username,
+        "authorized_at": str(payload.get("authorized_at") or datetime.utcnow().isoformat()),
+        "last_seen_at": str(payload.get("last_seen_at") or datetime.utcnow().isoformat()),
+        "is_active": True,
+    }
+    terminals.append(new_term)
+    _set_setting_value(db, tenant.id, "authorized_terminals", terminals)
+    db.commit()
+    return {"terminal": new_term}
+
+
+class TerminalVerifyIn(BaseModel):
+    device_token: str
+    device_hash: str = ""
+
+
+@router.post("/terminals/verify")
+def verify_terminal(
+    payload: TerminalVerifyIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    token = str(payload.device_token or "").strip()
+    if not token:
+        return {"authorized": False}
+    terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
+    if not isinstance(terminals, list):
+        terminals = []
+    
+    matched = None
+    for term in terminals:
+        if term.get("device_token") == token and term.get("is_active", True):
+            matched = term
+            term["last_seen_at"] = datetime.utcnow().isoformat()
+            break
+    
+    if matched:
+        _set_setting_value(db, tenant.id, "authorized_terminals", terminals)
+        db.commit()
+        return {"authorized": True, "terminal": matched}
+    return {"authorized": False}
+
+
+@router.delete("/terminals/{terminal_id}")
+def delete_terminal(
+    terminal_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
+    if not isinstance(terminals, list):
+        terminals = []
+    
+    updated = [t for t in terminals if str(t.get("id")) != str(terminal_id)]
+    _set_setting_value(db, tenant.id, "authorized_terminals", updated)
+    db.commit()
+    return {"success": True}
 
 
 @router.patch("/settings/staff-benefits")
@@ -3632,8 +3726,12 @@ def get_public_branding(
         bg_image = customer_app_settings.get("background_image_url") or ""
 
     login_bg = ""
+    device_auth = False
+    staff_pin_len = 4
     if isinstance(session_settings, dict):
         login_bg = session_settings.get("login_background_url") or ""
+        device_auth = bool(session_settings.get("device_authorization_enabled", False))
+        staff_pin_len = 4 if int(session_settings.get("staff_pin_length") or 4) == 4 else 6
 
     if not row:
       return {
@@ -3646,6 +3744,8 @@ def get_public_branding(
           "hero_image_url": _public_image_url(hero_image),
           "background_image_url": _public_image_url(bg_image),
           "login_background_url": _public_image_url(login_bg),
+          "device_authorization_enabled": device_auth,
+          "staff_pin_length": staff_pin_len,
       }
     return {
         "tenant_id": resolved_tenant.id,
@@ -3657,6 +3757,8 @@ def get_public_branding(
         "hero_image_url": _public_image_url(hero_image),
         "background_image_url": _public_image_url(bg_image),
         "login_background_url": _public_image_url(login_bg),
+        "device_authorization_enabled": device_auth,
+        "staff_pin_length": staff_pin_len,
     }
 
 

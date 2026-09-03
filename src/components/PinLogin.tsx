@@ -79,8 +79,11 @@ export default function PinLogin() {
   const checkDeviceAuth = React.useCallback(async () => {
     if (!tenantId) return;
     try {
-      const settings = await get_settings_live(tenantId);
-      const enabled = Boolean(settings?.session_settings?.device_authorization_enabled);
+      const localSettings = get_settings(tenantId);
+      let enabled = Boolean(localSettings?.session_settings?.device_authorization_enabled);
+      if (branding && (branding as any).device_authorization_enabled !== undefined) {
+        enabled = Boolean((branding as any).device_authorization_enabled);
+      }
       setDeviceAuthEnabled(enabled);
       if (enabled) {
         const check = await isCurrentDeviceAuthorized(tenantId, true);
@@ -92,7 +95,7 @@ export default function PinLogin() {
     } catch {
       setIsDeviceAuthorized(true);
     }
-  }, [tenantId]);
+  }, [tenantId, branding]);
 
   React.useEffect(() => {
     void checkDeviceAuth();
@@ -194,6 +197,13 @@ export default function PinLogin() {
             setBranding(data);
             setTenantAccessState('ok');
             setIsBrandingLoading(false);
+            if (data.device_authorization_enabled !== undefined) {
+              setDeviceAuthEnabled(Boolean(data.device_authorization_enabled));
+            }
+            if (data.staff_pin_length) {
+              const next = Number(data.staff_pin_length) === 4 ? 4 : 6;
+              setStaffPinLength(next);
+            }
           }
         })
         .catch((error) => {
