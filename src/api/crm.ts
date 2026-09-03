@@ -553,6 +553,8 @@ export async function get_customer_app_bootstrap_live(tenant_id?: string) {
     return {
       tenant_id: tenantId,
       enabled: settings.enabled !== false,
+      registration_mode: settings.registration_mode || 'full',
+      customer_app_settings: settings,
       branding: {
         company_name: profile?.company_name || 'iRonWaves POS',
         website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),

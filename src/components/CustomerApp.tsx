@@ -220,7 +220,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return !!(data?.tenant_id && !sessionCreds.cardId);
   }, [data, sessionCreds.cardId]);
 
-  const registrationMode: 'simple' | 'lightweight' | 'full' = (bootstrapData?.customer_app_settings?.registration_mode as any) || 'full';
+  const registrationMode: 'simple' | 'lightweight' | 'full' =
+    (bootstrapData?.registration_mode as any) ||
+    (bootstrapData?.customer_app_settings?.registration_mode as any) ||
+    (data?.customer_app_settings?.registration_mode as any) ||
+    'full';
   const selectedStore = stores.find((s: any) => String(s.id) === String(selectedStoreId)) || stores[0] || null;
   const setSelectedStore = React.useCallback((id: string) => {
     setSelectedStoreId(id);
@@ -770,10 +774,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       // Register background sync mechanisms
       void registerWebBackgroundSync({ cardId: sessionCreds.cardId, token: sessionCreds.token });
       void registerCapacitorBackgroundTask({ cardId: sessionCreds.cardId, token: sessionCreds.token });
-      return;
-    }
-    if (!joinMode) {
-      setLoading(false);
       return;
     }
     void (async () => {

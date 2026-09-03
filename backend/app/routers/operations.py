@@ -2993,6 +2993,12 @@ def update_customer_app_settings(
         "campaign_activation_minutes": max(1, int(payload.get("campaign_activation_minutes") or 15)),
         "birthday_enabled": bool(payload.get("birthday_enabled", False)),
         "birthday_bonus_stars": max(0, int(payload.get("birthday_bonus_stars") or 5)),
+        "registration_mode": str(payload.get("registration_mode") or "full").strip().lower() if str(payload.get("registration_mode") or "full").strip().lower() in {"simple", "lightweight", "full"} else "full",
+        "earn_rate_per_azn": max(0, float(payload.get("earn_rate_per_azn") or 2)),
+        "min_purchase_for_earn": max(0, float(payload.get("min_purchase_for_earn") or 0)),
+        "birthday_bonus_points": max(0, int(payload.get("birthday_bonus_points") or 10)),
+        "first_purchase_bonus": max(0, int(payload.get("first_purchase_bonus") or 5)),
+        "double_points_days": [int(d) for d in payload.get("double_points_days", []) if isinstance(d, (int, str)) and str(d).isdigit() and 1 <= int(d) <= 7],
     }
     _set_setting_value(db, tenant.id, "customer_app_settings", cleaned)
     db.commit()
@@ -3792,6 +3798,8 @@ def get_customer_app_bootstrap(
         "tenant_id": tenant.id,
         "enabled": bool(app_settings.get("enabled", True)),
         "onesignal_app_id": app_settings.get("onesignal_app_id"),
+        "registration_mode": str(app_settings.get("registration_mode") or "full"),
+        "customer_app_settings": app_settings,
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
@@ -3963,7 +3971,11 @@ def enroll_customer_app(
     if app_settings.customer_consent_required and not bool(payload.get("consent_accepted", False)):
         raise HTTPException(status_code=400, detail="Consent must be accepted")
 
-    registration_mode = payload.get("registration_mode", "full")
+    tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
+    if not bool(tenant_app_settings.get("enabled", True)):
+        raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
+
+    registration_mode = str(payload.get("registration_mode") or tenant_app_settings.get("registration_mode") or "full").strip().lower()
     email = payload.get("email")
     if isinstance(email, str) and email.strip():
         email = email.lower().strip()
@@ -3974,10 +3986,6 @@ def enroll_customer_app(
         existing_customer = db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.email == email).first()
         if existing_customer:
             return {"success": True, "card_id": existing_customer.card_id, "token": existing_customer.secret_token}
-
-    tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
-    if not bool(tenant_app_settings.get("enabled", True)):
-        raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
 
     card_id = f"QR-{secrets.token_hex(4).upper()}"
     while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
