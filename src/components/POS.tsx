@@ -1457,7 +1457,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             paperWidth: printSettings.paper_width || '80mm',
             printEngine: 'raw_escpos',
             rawCommands: rawCmds,
-            allowBrowserFallback: true,
+            allowBrowserFallback: false,
           }).then((res) => {
             if (res.success) {
               notify(
@@ -1842,7 +1842,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       paperWidth: printSettings.paper_width || '80mm',
       printEngine: 'raw_escpos',
       rawCommands: receiptRawCommands || undefined,
-      allowBrowserFallback: true,
+      allowBrowserFallback: false,
     });
     if (res.success) {
       if (res.method === 'agent') {
