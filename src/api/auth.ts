@@ -167,8 +167,9 @@ export const authApi = {
       }
     }
 
+    const isDemo = resolvedTenant === 'tenant_demo' || (typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store');
     const localSettings = get_settings(resolvedTenant);
-    if (localSettings?.session_settings?.device_authorization_enabled) {
+    if (!isDemo && localSettings?.session_settings?.device_authorization_enabled) {
       const isAuth = await isCurrentDeviceAuthorized(resolvedTenant, true);
       if (!isAuth.authorized) {
         throw new Error('DEVICE_NOT_AUTHORIZED: Bu cihaz təsdiqlənməyib. Daxil olmaq üçün cihazı Admin hesabı ilə təsdiqləyin.');

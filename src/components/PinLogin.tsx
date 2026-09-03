@@ -78,6 +78,12 @@ export default function PinLogin() {
   const [isAuthorizingDevice, setIsAuthorizingDevice] = useState(false);
 
   const checkDeviceAuth = React.useCallback(async () => {
+    if (isDemoHost) {
+      setDeviceAuthEnabled(false);
+      setIsDeviceAuthorized(true);
+      setAuthorizedTerminal(null);
+      return;
+    }
     const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
     if (!targetTenant) {
       setIsDeviceAuthorized(true);
