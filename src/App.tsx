@@ -31,6 +31,7 @@ import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession,
 import type { Settings } from './types/pos';
 import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, isPublicAppRoute, type ModuleKey } from './lib/navigation';
 import { updateDynamicPwaManifest } from './lib/pwa_manifest';
+import { initScreenWakeLock } from './lib/wakeLock';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -1325,6 +1326,11 @@ export default function App() {
     return () => {
       window.removeEventListener('app-perf', onPerf as EventListener);
     };
+  }, []);
+
+  useEffect(() => {
+    // Keep POS / KDS display awake and prevent screen dimming/sleep
+    initScreenWakeLock(true);
   }, []);
 
   useEffect(() => {

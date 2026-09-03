@@ -9,6 +9,7 @@ import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
 import { updateDynamicPwaManifest } from '../lib/pwa_manifest';
 import { isCurrentDeviceAuthorized, authorizeCurrentDevice } from '../lib/terminals';
+import { initScreenWakeLock } from '../lib/wakeLock';
 import type { AuthorizedTerminal } from '../types/pos';
 
 function getRecommendedDeviceName(): string {
@@ -131,6 +132,10 @@ export default function PinLogin() {
     };
     document.addEventListener('fullscreenchange', syncFullscreen);
     return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  React.useEffect(() => {
+    initScreenWakeLock(true);
   }, []);
 
   const toggleFullscreen = async () => {
