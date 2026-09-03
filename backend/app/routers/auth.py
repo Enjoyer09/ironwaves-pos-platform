@@ -741,7 +741,7 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
             device_auth_enabled = bool(raw_auth_flag)
 
     if device_auth_enabled:
-        device_token = str(request.headers.get("x-trusted-terminal-token") or "").strip()
+        device_token = str(request.headers.get("x-trusted-terminal-token") or getattr(payload, "terminal_token", None) or "").strip()
         terminals = _setting_value(db, tenant.id, "authorized_terminals", []) or []
         if not isinstance(terminals, list):
             terminals = []
@@ -756,7 +756,7 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
         .filter(
             User.tenant_id == tenant.id,
             User.is_active == True,
-            User.role.in_(["staff", "kitchen"]),
+            User.role.in_(["staff", "kitchen", "manager", "cashier", "waiter"]),
         )
         .all()
     )
