@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
 import json
 import logging
 import time
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 import pyotp
