@@ -5,30 +5,48 @@ import type { AuthorizedTerminal } from '../types/pos';
 
 const STORAGE_PREFIX = 'iw_trusted_terminal_token_';
 
-export function getStoredTerminalToken(tenantId: string): string {
-  if (typeof window === 'undefined' || !tenantId) return '';
+export function getStoredTerminalToken(tenantId?: string): string {
+  if (typeof window === 'undefined') return '';
   try {
-    return String(localStorage.getItem(`${STORAGE_PREFIX}${tenantId}`) || '').trim();
+    if (tenantId) {
+      const direct = String(localStorage.getItem(`${STORAGE_PREFIX}${tenantId}`) || '').trim();
+      if (direct) return direct;
+    }
+    const current = String(localStorage.getItem(`${STORAGE_PREFIX}current`) || '').trim();
+    if (current) return current;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        const val = String(localStorage.getItem(key) || '').trim();
+        if (val) return val;
+      }
+    }
+    return '';
   } catch {
     return '';
   }
 }
 
 export function setStoredTerminalToken(tenantId: string, token: string): void {
-  if (typeof window === 'undefined' || !tenantId) return;
+  if (typeof window === 'undefined') return;
   try {
     if (!token) {
-      localStorage.removeItem(`${STORAGE_PREFIX}${tenantId}`);
+      if (tenantId) localStorage.removeItem(`${STORAGE_PREFIX}${tenantId}`);
+      localStorage.removeItem(`${STORAGE_PREFIX}current`);
     } else {
-      localStorage.setItem(`${STORAGE_PREFIX}${tenantId}`, token.trim());
+      const clean = token.trim();
+      if (tenantId) localStorage.setItem(`${STORAGE_PREFIX}${tenantId}`, clean);
+      localStorage.setItem(`${STORAGE_PREFIX}current`, clean);
     }
   } catch {}
 }
 
 export function clearStoredTerminalToken(tenantId: string): void {
-  if (typeof window === 'undefined' || !tenantId) return;
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem(`${STORAGE_PREFIX}${tenantId}`);
+    if (tenantId) localStorage.removeItem(`${STORAGE_PREFIX}${tenantId}`);
+    localStorage.removeItem(`${STORAGE_PREFIX}current`);
   } catch {}
 }
 

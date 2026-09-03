@@ -27,6 +27,7 @@ class LoginIn(BaseModel):
 class PinLoginIn(BaseModel):
     pin: str = Field(min_length=4, max_length=15)
     tenant_id: str | None = None
+    terminal_token: str | None = None
 
 
 class RefreshIn(BaseModel):

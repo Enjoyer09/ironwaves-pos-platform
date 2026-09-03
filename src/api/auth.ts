@@ -134,14 +134,15 @@ export const authApi = {
         const result = await apiRequest<any>('/api/v1/auth/pin-login', {
           method: 'POST',
           auth: false,
-          tenantId: null,
+          tenantId: resolvedTenant || null,
           timeoutMs: 7000,
           retryCount: 1,
           retryDelayMs: 400,
           headers: storedTerminalToken ? { 'x-trusted-terminal-token': storedTerminalToken } : undefined,
           body: {
             pin: String(pin || ''),
-            tenant_id: null,
+            tenant_id: resolvedTenant || null,
+            terminal_token: storedTerminalToken || null,
           },
         });
         const backendUser = result?.user || {};
