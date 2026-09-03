@@ -251,12 +251,13 @@ function MenuGrid({
   };
 
   if (!isBahaYLab) {
-    // Legacy UI for other tenants
+    // 15" POS Touchscreen Optimized Grid for Classic Mode
     return (
-      <div className="flex min-h-0 flex-1 flex-col space-y-3">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+        {/* Search & Fast Mode Bar */}
+        <div className="flex gap-2 items-center">
           <input
-            className="neon-input"
+            className="neon-input flex-1 min-w-0"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
@@ -264,44 +265,85 @@ function MenuGrid({
           <button
             type="button"
             onClick={toggleImageVisibility}
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition active:scale-95 ${
+            className={`hidden sm:flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition shrink-0 ${
               hideImages
-                ? 'border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200'
-                : 'border-amber-300/40 bg-amber-500/10 text-amber-200'
+                ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
+                : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
             }`}
             title={tx(lang, 'Şəkilləri göstər/gizlə', 'Показать/скрыть фото', 'Show/hide images')}
           >
-            {hideImages ? '🖼️ OFF' : '🖼️ ON'}
+            <Zap size={14} />
+            <span>{tx(lang, 'Sürətli', 'Быстрый', 'Fast')}</span>
           </button>
-          <select className="neon-input min-w-[180px]" value={selectedCategory} onChange={(e) => onCategoryChange(e.target.value)}>
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category === 'ALL' ? tx(lang, 'Bütün kateqoriyalar', 'Все категории', 'All categories') : category}
-              </option>
-            ))}
-          </select>
         </div>
-        <div className="grid min-h-[220px] flex-1 grid-cols-2 gap-3 overflow-y-auto overscroll-y-contain rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 xl:grid-cols-3">
-          {items.map((item: any) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => { tapFeedback(); void onSelectItem(item); }}
-              className="min-h-[108px] rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/80 active:scale-[0.99]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="line-clamp-2 text-base font-bold text-slate-100">{item.item_name}</div>
-                  <div className="mt-2 text-xs text-slate-400">{item.category}</div>
+
+        {/* 15" Finger-Friendly Category Scroll Pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5 shrink-0">
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => {
+                  playHapticTouch();
+                  onCategoryChange(cat);
+                }}
+                className={`flex h-10 items-center justify-center whitespace-nowrap rounded-xl px-4 text-xs font-bold transition taktil-target active:scale-95 shrink-0 border ${
+                  isSelected
+                    ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-sm shadow-amber-400/20'
+                    : 'bg-slate-800/70 hover:bg-slate-700/70 text-slate-300 border-slate-700/60'
+                }`}
+              >
+                {cat === 'ALL' ? tx(lang, 'Hamısı', 'Все', 'All') : cat}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 15" High-Contrast Responsive Touch Grid (No Overlapping) */}
+        <div className="grid min-h-0 flex-1 grid-cols-2 md:grid-cols-3 gap-2 overflow-y-auto overscroll-y-contain content-start auto-rows-max pr-1 rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5">
+          {items.map((item: any) => {
+            const qtyInDraft = draftQtyMap.get(item.id) || 0;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  tapFeedback();
+                  void onSelectItem(item);
+                }}
+                className={`relative min-h-[76px] rounded-2xl border p-3 text-left transition select-none taktil-target active:scale-[0.97] flex flex-col justify-between gap-1.5 ${
+                  qtyInDraft > 0
+                    ? 'border-amber-400/80 bg-amber-500/10 shadow-sm shadow-amber-400/10'
+                    : 'border-slate-700/70 bg-slate-900/80 hover:border-slate-600 hover:bg-slate-800/80'
+                }`}
+              >
+                {qtyInDraft > 0 && (
+                  <div className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-950 shadow-md">
+                    {qtyInDraft}
+                  </div>
+                )}
+
+                <div className="min-w-0 pr-5">
+                  <div className="text-sm font-bold leading-tight text-white line-clamp-2">
+                    {item.item_name}
+                  </div>
                 </div>
-                <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-bold text-yellow-200">
-                  {Number(item.price || 0).toFixed(2)} ₼
+
+                <div className="flex items-center justify-between gap-2 mt-auto">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                    {item.category || ''}
+                  </div>
+                  <div className="rounded-lg bg-amber-400/20 border border-amber-400/35 px-2 py-0.5 text-xs font-black text-amber-300 shrink-0">
+                    {Number(item.price || 0).toFixed(2)} ₼
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
           {items.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400 md:col-span-2 xl:col-span-3">
+            <div className="col-span-full rounded-xl border border-dashed border-slate-700/60 px-4 py-8 text-center text-sm text-slate-400">
               {tx(lang, 'Bu filtrlə məhsul tapılmadı', 'По этому фильтру товары не найдены', 'No items found for this filter')}
             </div>
           ) : null}
