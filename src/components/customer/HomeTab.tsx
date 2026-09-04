@@ -176,9 +176,27 @@ export default function HomeTab({
   // `wallet.next_reward_at` kimi göndərir). `% 0` → NaN olmasın deyə clamp.
   const nextRewardAt = Math.max(1, Math.trunc(Number(wallet?.next_reward_at) || 10));
   const rewardRemaining = Math.max(0, nextRewardAt - starsBalance);
+  // P0.5 — əvvəl hədiyyə adı "pulsuz Latte" kimi hardcoded idi; tenant menyusunda
+  // Latte olmaya da bilər. Ad `customer_app_settings.reward_name`-dən gəlir
+  // (backend onu `wallet.reward_name` kimi göndərir). Backend default-u "Reward"-dur
+  // — bu "tenant seçməmişdir" sentineli sayılır və tərcümə olunmuş sözlə əvəzlənir.
+  const rewardNameRaw = String(wallet?.reward_name || '').trim();
+  const rewardName = rewardNameRaw && rewardNameRaw.toLowerCase() !== 'reward'
+    ? rewardNameRaw
+    : tx(safeLang, 'Hədiyyə', 'Награда', 'Reward');
+  // Backend default-u sabit "10 ulduza..." mətnidir — tenant həddi 8-dirsə yalan
+  // deyir. Ona görə default sentinel sayılır və mətn real həddən qurulur.
+  const REWARD_DESC_SENTINEL = '10 ulduza 1 pulsuz içki';
+  const rewardDescRaw = String(wallet?.reward_label || '').trim();
+  const rewardDescription = rewardDescRaw && rewardDescRaw !== REWARD_DESC_SENTINEL
+    ? rewardDescRaw
+    : tx(safeLang,
+        `${nextRewardAt} ulduza 1 ${rewardName}`,
+        `${nextRewardAt} звёзд → 1 ${rewardName}`,
+        `${nextRewardAt} stars → 1 ${rewardName}`);
   const rewardText = rewardRemaining > 0
-    ? tx(safeLang, `${rewardRemaining} ulduz qaldı → pulsuz Latte`, `${rewardRemaining} звезд до бесплатного Латте`, `${rewardRemaining} stars to a free Latte`)
-    : tx(safeLang, 'Pulsuz Latte hazır!', 'Бесплатный Латте готов!', 'Free Latte ready!');
+    ? tx(safeLang, `${rewardRemaining} ulduz qaldı → ${rewardName}`, `${rewardRemaining} звезд до «${rewardName}»`, `${rewardRemaining} stars to ${rewardName}`)
+    : tx(safeLang, `${rewardName} hazır!`, `«${rewardName}» готов!`, `${rewardName} ready!`);
 
   // P0.3 — möhür şəbəkəsi. Slot sayı həddin özüdür; 20-dən çox hədd 5-sütunlu
   // şəbəkədə oxunmaz olur, ona görə vizual limit var (rəqəm mətndə tam görünür).
@@ -199,6 +217,11 @@ export default function HomeTab({
   const heroSubtitle = String(branding?.hero_subtitle || '').trim()
     || tx(safeLang, 'Barista tövsiyəsi: günün brendini yoxla', 'Совет бариста: попробуй напиток дня', "Barista's tip: try the brew of the day");
 
+  // P0.5 — tenant adı. Əvvəl bir neçə yerdə platforma adı "iRonWaves" hardcoded
+  // idi və hər tenant-ın müştərisi onu görürdü.
+  const brandName = String(branding?.app_name || branding?.company_name || '').trim() || 'Loyalty';
+  const brandLogoUrl = String(branding?.logo_url || '').trim();
+
   // Birthday surprise detection
   const birthdaySoon = (() => {
     const bd = customer?.birth_date;
@@ -216,12 +239,45 @@ export default function HomeTab({
     if (h < 19) return tx(safeLang, 'Gün batımı: caramel latte ilə fasilə et', 'На закате: caramel latte на перерыв', 'Sunset: take a break with a caramel latte');
     return tx(safeLang, 'Axşam: decaf ilə rahatla', 'Вечер: расслабись с decaf', 'Evening: unwind with a decaf');
   })();
-  const surpriseMessages = [
-    tx(safeLang, 'Bu həftə aktiv ol: hər sifarişdə ulduz qazan!', 'Будь активен: звезды за каждый заказ!', 'Stay active: earn stars on every order!'),
-    tx(safeLang, 'Dostunu dəvət et, hər ikinizə ulduz!', 'Пригласи друга — звёзды вам обоим!', 'Invite a friend — stars for both!'),
-    tx(safeLang, 'Doğum günündə pulsuz içki səni gözləyir 🎂', 'В день рождения — бесплатный напиток 🎂', 'On your birthday a free drink awaits 🎂'),
-    tx(safeLang, 'Səhər 11-dən qabaq sifarişə 2x ulduz!', 'Заказ до 11 утра — 2x звёзды!', 'Order before 11am — 2x stars!'),
-  ];
+  // Kampaniya sayı — mətn yalnız real aktiv kampaniya varsa göstərilir.
+  const campaignsCount = Array.isArray((data as any)?.campaigns) ? (data as any).campaigns.length : 0;
+  // P0.6 — əvvəl burada 4 sabit mətn vardı, ikisi yalan idi:
+  //   • "Dostunu dəvət et, hər ikinizə ulduz!" — referral sistemi backend-də YOXDUR.
+  //   • "Səhər 11-dən qabaq sifarişə 2x ulduz!" — saatdan asılı çarpan yoxdur
+  //     (`double_points_days` ayarı da hələ heç yerdə oxunmur — P1.1).
+  // Kassada mübahisəyə səbəb olurdu. Artıq siyahı yalnız real qaydalardan qurulur.
+  const surpriseMessages = React.useMemo(() => {
+    const rows: string[] = [];
+    if (programMode === 'cashback') {
+      const pct = Number(wallet?.cashback_percent || 0);
+      rows.push(tx(safeLang,
+        `Hər sifarişdən ${pct}% cashback hesabına yazılır`,
+        `С каждого заказа ${pct}% кэшбэка зачисляется на счёт`,
+        `Every order earns ${pct}% cashback`));
+    } else {
+      rows.push(tx(safeLang,
+        `Hər qəhvə 1 ${wallet?.points_label || 'Ulduz'} — ${nextRewardAt} ulduza ${rewardName}`,
+        `Каждый кофе — 1 ${wallet?.points_label || 'звезда'}; ${nextRewardAt} звёзд → ${rewardName}`,
+        `Every coffee earns 1 ${wallet?.points_label || 'star'} — ${nextRewardAt} stars → ${rewardName}`));
+    }
+    if (rewardRemaining > 0) {
+      rows.push(rewardText);
+    } else {
+      rows.push(tx(safeLang, `${rewardName} hazırdır — kassada göstər`, `«${rewardName}» готов — покажите на кассе`, `${rewardName} is ready — show it at the counter`));
+    }
+    // Doğum günü vədi yalnız tenant ayarı açıq olanda verilir.
+    if (wallet?.birthday_enabled) {
+      rows.push(tx(safeLang,
+        'Doğum günündə bonus səni gözləyir 🎂',
+        'В день рождения тебя ждёт бонус 🎂',
+        'A birthday bonus is waiting for you 🎂'));
+    }
+    if (campaignsCount > 0) {
+      rows.push(tx(safeLang, 'Aktiv kampaniyalara bax — endirimlər var 🎯', 'Посмотри активные кампании — есть скидки 🎯', 'Check the active offers — discounts inside 🎯'));
+    }
+    return rows;
+  }, [programMode, wallet?.cashback_percent, wallet?.points_label, wallet?.birthday_enabled, nextRewardAt, rewardName, rewardRemaining, rewardText, campaignsCount, safeLang]);
+  // Gün ərzində sabit qalsın deyə indeks tarixə bağlıdır (əvvəlki davranış).
   const surpriseMessage = surpriseMessages[new Date().getDate() % surpriseMessages.length];
   const reorderAll = async () => {
     for (const it of (recentItems || []).slice(0, 6)) {
@@ -319,8 +375,13 @@ export default function HomeTab({
           className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-95 transition-all duration-150 ${headerBtn}`}>
           <Menu size={18} />
         </button>
-        <img src="/logo.jpg" alt="Emalathhana" width={36} height={36}
-          className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-md" />
+        {/* P0.5 — əvvəl hardcoded `/logo.jpg` + alt="Emalathhana" idi. */}
+        {brandLogoUrl ? (
+          <img src={brandLogoUrl} alt={brandName} width={36} height={36}
+            className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-md" />
+        ) : (
+          <div className={`h-9 w-9 rounded-xl flex items-center justify-center border text-lg shadow-md ${isLight ? 'bg-orange-50 border-orange-100' : 'bg-white/10 border-white/20'}`}>☕</div>
+        )}
         <button type="button"
           onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
           aria-label={tx(safeLang, 'Wallet-ə əlavə et', 'Добавить в Wallet', 'Add to Wallet')}
@@ -493,7 +554,7 @@ export default function HomeTab({
           <div className="flex gap-3">
             <span className="text-2xl float-slow">☕</span>
             <div>
-              <h4 className="text-[13px] font-bold text-yellow-500">{tx(safeLang, 'iRonWaves-ə yaxınsan!', 'Рядом с iRonWaves!', 'Near iRonWaves!')}</h4>
+              <h4 className="text-[13px] font-bold text-yellow-500">{tx(safeLang, 'Yaxınlıqdasan!', 'Вы рядом!', "You're nearby!")}</h4>
               <p className={`mt-0.5 text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>{tx(safeLang, 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟', 'Заходи, преврати свои звезды в кофе! 🌟', 'Come in and turn your stars into coffee! 🌟')}</p>
             </div>
           </div>
@@ -520,7 +581,7 @@ export default function HomeTab({
               }}>
               <div className="flex justify-between items-center relative z-10 w-full">
                 <div>
-                  <p className={`text-[9px] font-bold uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>iRonWaves Loyalty</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>{brandName}</p>
                   <h1 className="mt-0.5 text-[14px] font-bold text-[#2B1B1A] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
                 </div>
                 <span className={`text-[9px] font-bold uppercase px-2.5 py-1 text-white border rounded-lg ${
@@ -577,7 +638,7 @@ export default function HomeTab({
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-ping" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'iRonWaves'}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{brandName}</p>
                   </div>
                   <h1 className="mt-2 text-xl font-bold text-white tracking-tight drop-shadow-lg font-cozy">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
                 </div>
@@ -722,19 +783,20 @@ export default function HomeTab({
                         `Collected ${starsBalance} / ${nextRewardAt} stars`)}
                     </div>
                     <div className="space-y-0.5">
-                      {[
-                        { stars: Math.max(1, Math.round(nextRewardAt * 0.3)), label: tx(safeLang, 'Çay / Espresso', 'Чай / Эспрессо', 'Tea / Espresso') },
-                        { stars: Math.max(1, Math.round(nextRewardAt * 0.6)), label: tx(safeLang, 'Cappuccino / Latte', 'Капучино / Латте', 'Cappuccino / Latte') },
-                        { stars: nextRewardAt, label: tx(safeLang, 'Böyük Qəhvə + Desert', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
-                      ].map((m, mIdx) => {
-                        const isUnlocked = starsBalance >= m.stars;
-                        return (
-                          <div key={mIdx} className={`flex items-center gap-2 text-[10px] stagger-fade-in stagger-${mIdx + 1}`}>
-                            <span className={`h-2 w-2 rounded-full transition-all duration-500 ${isUnlocked ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
-                            <span className={isUnlocked ? `${headerText} font-black` : `${textMuted} font-semibold`}>{m.stars}★ · {m.label}</span>
-                          </div>
-                        );
-                      })}
+                      {/* P0.6 — əvvəl burada 3 uydurma pillə vardı: "Çay / Espresso"
+                          (0.3×), "Cappuccino / Latte" (0.6×), "Böyük Qəhvə + Desert"
+                          (1.0×). Backend-də pilləli hədiyyə kataloqu yoxdur
+                          (`wallet.rewards` tək sintetik sətirdir), yəni müştəri
+                          heç vaxt ala bilmədiyi hədiyyələri görürdü. Artıq yalnız
+                          real hədiyyə göstərilir; nərdivan tier kataloqu gələndə
+                          (P1.2) qaytarılacaq. */}
+                      <div className="flex items-center gap-2 text-[10px] stagger-fade-in stagger-1">
+                        <span className={`h-2 w-2 rounded-full transition-all duration-500 ${rewardRemaining === 0 ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
+                        <span className={rewardRemaining === 0 ? `${headerText} font-black` : `${textMuted} font-semibold`}>
+                          {nextRewardAt}★ · {rewardName}
+                        </span>
+                      </div>
+                      <p className={`pl-4 text-[10px] font-semibold ${textMuted}`}>{rewardDescription}</p>
                     </div>
                   </div>
                 </div>
@@ -746,7 +808,7 @@ export default function HomeTab({
                 </div>
                 <div className={`mt-2 flex items-center justify-between text-[11px] ${textMuted}`}>
                   <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-                  <span className={`font-bold ${isLight ? 'text-slate-700' : 'text-white/80'}`}>{wallet.reward_name || 'Reward'} ({progressPercent}%)</span>
+                  <span className={`font-bold ${isLight ? 'text-slate-700' : 'text-white/80'}`}>{rewardName} ({progressPercent}%)</span>
                 </div>
               </div>
             )}

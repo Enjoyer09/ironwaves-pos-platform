@@ -476,9 +476,12 @@ type PreOrderSuccessProps = {
   safeLang: string;
   isLight: boolean;
   paymentMethod: 'counter' | 'card' | 'wallet';
+  // P0.5 — logo artıq tenant branding-indən gəlir (əvvəl `/logo.jpg` hardcoded idi).
+  brandLogoUrl?: string;
+  brandName?: string;
 };
 
-export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrderSuccess, safeLang, isLight, paymentMethod }: PreOrderSuccessProps) {
+export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrderSuccess, safeLang, isLight, paymentMethod, brandLogoUrl = '', brandName = '' }: PreOrderSuccessProps) {
   if (!preOrderSuccess) return null;
   const dlgBg = isLight ? 'bg-white/92 backdrop-blur-2xl' : 'bg-[#0D0B0A]/92 backdrop-blur-2xl';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
@@ -496,8 +499,11 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
         <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[32px]"
           style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.05), transparent)' }} />
 
-        <img src="/logo.jpg" alt="Emalathhana" width={56} height={56}
-          className="relative mx-auto h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
+        {/* P0.5 — əvvəl hardcoded `/logo.jpg` + alt="Emalathhana" idi. */}
+        {brandLogoUrl ? (
+          <img src={brandLogoUrl} alt={brandName || 'brand'} width={56} height={56}
+            className="relative mx-auto h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
+        ) : null}
         <div className="relative mx-auto h-20 w-20 rounded-full flex items-center justify-center text-4xl animate-bounce"
           style={{ background: 'linear-gradient(135deg, rgba(244,140,36,0.15), rgba(244,140,36,0.05))', border: '1px solid rgba(244,140,36,0.20)' }}>
           🎉
@@ -667,6 +673,9 @@ type OrderTabProps = {
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   paymentMethod: 'counter' | 'card' | 'wallet';
   setPaymentMethod: (v: 'counter' | 'card' | 'wallet') => void;
+  // P0.5 — tenant logosu/adı (PreOrderSuccess modalı üçün).
+  brandLogoUrl?: string;
+  brandName?: string;
 };
 
 export default function OrderTab({
@@ -678,7 +687,8 @@ export default function OrderTab({
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
   setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty,
   searchQuery, setSearchQuery, paymentMethod, setPaymentMethod, activeOrders, designMode = 'classic',
-  stores = [], selectedStoreId = '', setSelectedStore
+  stores = [], selectedStoreId = '', setSelectedStore,
+  brandLogoUrl = '', brandName = ''
 }: OrderTabProps) {
   const [showStorePicker, setShowStorePicker] = React.useState(false);
   const cats = React.useMemo(() => {
@@ -1044,7 +1054,7 @@ export default function OrderTab({
 
       <PreOrderSuccess preOrderSuccess={preOrderSuccess} preOrderSuccessId={preOrderSuccessId}
         setPreOrderSuccess={setPreOrderSuccess} safeLang={safeLang} isLight={isLight}
-        paymentMethod={paymentMethod} />
+        paymentMethod={paymentMethod} brandLogoUrl={brandLogoUrl} brandName={brandName} />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { CustomerAppTier, PosLayoutConfig, Settings, User } from '../types/pos';
-import { getActiveTenantId } from '../lib/tenant';
+import { getActiveTenantId, filterTenantRecords } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
 import { readScopedStorage, removeScopedStorage } from '../lib/storage_keys';
@@ -2406,9 +2406,72 @@ export async function run_central_backup_now_live(): Promise<any> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Kampaniyalar (happy hours) — lokal rejim + backend cütlüyü
+//
+// P0.7 — əvvəl bu dörd funksiyanın lokal qolu YALAN qaytarırdı:
+// `create_campaign_live` saxta `id` ('campaign_' + Date.now()), update/delete
+// isə heç nə etmədən `{ success: true }`. Nəticə: panel "Kampaniya yadda
+// saxlanıldı" yazırdı, dərhal sonra `loadCampaigns()` boş siyahı gətirirdi və
+// müştəri tətbiqində heç nə görünmürdü — səssiz uğursuzluq.
+//
+// Artıq lokal rejimdə `db_sim`-in `happy_hours` cədvəlinə real yazılır.
+// Bu cədvəli `crm.ts` müştəri sessiyasında (`campaigns` bloku) və POS-un
+// `happy_hours.ts` modulu da oxuyur, yəni lokal yazı həqiqətən tətbiqdə
+// görünür — CLAUDE.md-dəki dual-mode paritetinə uyğun.
+// ---------------------------------------------------------------------------
+
+type LocalCampaignRow = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  discount_percent: number;
+  // `days_of_week` panelin/backend API-nin formatıdır, `days_of_week_json` isə
+  // backend DB sütununun adıdır — `crm.ts` müştəri tərəfində məhz onu oxuyur
+  // (`crm.ts:799`). Lokal sətir hər iki oxuyucu ilə uyğun olsun deyə ikisi də
+  // yazılır; dəyər eynidir, çevirmə yoxdur.
+  days_of_week: number[];
+  days_of_week_json: number[];
+  categories: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+};
+
+// Gün nömrələnməsi bütün sistemdə B.E=1 … Bazar=7-dir: backend
+// `now.weekday() + 1` (`operations.py:6900`), panel çipləri `id: 1..7`
+// (`CustomerAppPanel.tsx:894`), `crm.ts` `getDay() === 0 ? 7 : getDay()`.
+// Köhnə lokal sətirlərdə 0 (Bazar) ola bilər — 7-yə çevrilir.
+const normalizeCampaignPayload = (payload: any) => {
+  const rawDays = Array.isArray(payload?.days_of_week)
+    ? payload.days_of_week
+    : Array.isArray(payload?.days_of_week_json)
+      ? payload.days_of_week_json
+      : [];
+  const days = Array.from(new Set(
+    rawDays
+      .map((d: any) => (Number(d) === 0 ? 7 : Number(d)))
+      .filter((d: number) => Number.isInteger(d) && d >= 1 && d <= 7),
+  )).sort((a, b) => (a as number) - (b as number)) as number[];
+  const discount = Number(payload?.discount_percent);
+  return {
+    name: String(payload?.name || '').trim(),
+    start_time: String(payload?.start_time || '00:00'),
+    end_time: String(payload?.end_time || '23:59'),
+    discount_percent: Number.isFinite(discount) ? discount : 0,
+    days_of_week: days,
+    days_of_week_json: days,
+    categories: String(payload?.categories || 'ALL').trim() || 'ALL',
+    is_active: payload?.is_active === undefined ? true : Boolean(payload.is_active),
+  };
+};
+
 export async function list_campaigns_admin_live(tenantId: string): Promise<any[]> {
   if (!isBackendEnabled()) {
-    return [];
+    // Müştəri tətbiqi ilə eyni filtr (`crm.ts` də `filterTenantRecords` işlədir).
+    return filterTenantRecords(getDB<LocalCampaignRow>('happy_hours'), resolveTenant(tenantId));
   }
   return apiRequest<any[]>('/api/v1/ops/happy-hours', {
     method: 'GET',
@@ -2418,7 +2481,17 @@ export async function list_campaigns_admin_live(tenantId: string): Promise<any[]
 
 export async function create_campaign_live(payload: any, tenantId: string): Promise<any> {
   if (!isBackendEnabled()) {
-    return { id: 'campaign_' + Date.now(), name: payload.name };
+    const rows = getDB<LocalCampaignRow>('happy_hours');
+    const row: LocalCampaignRow = {
+      id: uuidv4(),
+      tenant_id: resolveTenant(tenantId),
+      ...normalizeCampaignPayload(payload),
+      created_at: new Date().toISOString(),
+    };
+    rows.push(row);
+    setDB('happy_hours', rows);
+    logEvent('system', 'HAPPY_HOUR_CREATE', { name: row.name, discount: row.discount_percent, categories: row.categories });
+    return row;
   }
   return apiRequest<any>('/api/v1/ops/happy-hours', {
     method: 'POST',
@@ -2429,7 +2502,20 @@ export async function create_campaign_live(payload: any, tenantId: string): Prom
 
 export async function update_campaign_live(id: string, payload: any, tenantId: string): Promise<any> {
   if (!isBackendEnabled()) {
-    return { success: true };
+    const tid = resolveTenant(tenantId);
+    const rows = getDB<LocalCampaignRow>('happy_hours');
+    // Tenant yoxlanışı: super_admin tenant dəyişdirdikdə başqa tenant-ın
+    // sətrini təsadüfən yenidən yazmamaq üçün id + tenant birlikdə axtarılır.
+    const row = rows.find((r) => r?.id === id && (!r?.tenant_id || r.tenant_id === tid));
+    if (!row) {
+      throw new Error('Kampaniya tapılmadı');
+    }
+    Object.assign(row, normalizeCampaignPayload({ ...row, ...payload }), {
+      updated_at: new Date().toISOString(),
+    });
+    setDB('happy_hours', rows);
+    logEvent('system', 'HAPPY_HOUR_UPDATE', { id, name: row.name, discount: row.discount_percent });
+    return row;
   }
   return apiRequest<any>(`/api/v1/ops/happy-hours/${id}`, {
     method: 'PATCH',
@@ -2440,6 +2526,14 @@ export async function update_campaign_live(id: string, payload: any, tenantId: s
 
 export async function delete_campaign_live(id: string, tenantId: string): Promise<any> {
   if (!isBackendEnabled()) {
+    const tid = resolveTenant(tenantId);
+    const rows = getDB<LocalCampaignRow>('happy_hours');
+    const row = rows.find((r) => r?.id === id && (!r?.tenant_id || r.tenant_id === tid));
+    if (!row) {
+      throw new Error('Kampaniya tapılmadı');
+    }
+    setDB('happy_hours', rows.filter((r) => r?.id !== id));
+    logEvent('system', 'HAPPY_HOUR_DELETE', { id, name: row.name });
     return { success: true };
   }
   return apiRequest<any>(`/api/v1/ops/happy-hours/${id}`, {

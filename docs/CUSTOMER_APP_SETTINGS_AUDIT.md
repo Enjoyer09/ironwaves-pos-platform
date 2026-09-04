@@ -13,6 +13,14 @@ amma etmir, nə itir.
 
 ## 1. Nəticə: 4 / 10
 
+> **P0 tam bitdi (2026-09-04) — yenidən qiymət: 7 / 10.** Aşağıdaki cədvəl **auditin ilk
+> anına** aiddir. P0.1–P0.7-dən sonra dəyişən ballar: real təsir 3 → **7** (yalnız 4 qazanma
+> sahəsi ölü qalır — P1.1), bütövlük 2 → **8** (PATCH artıq merge edir), ön baxışın doğruluğu
+> 2 → **8** (yalanlar silindi, ölü sahələr nişanlandı). Dəyişməyənlər: vahid idarə mərkəzi 3
+> (kampaniya hələ 2 paneldə — P2), panelin UX-i 4 (P1.4), müşahidə olunabilirlik 1 (P3).
+> "Panel istifadəçiyə yalan deyir" cümləsi artıq **doğru deyil**: hər saxlanan sahə ya real
+> işləyir, ya da "tətbiqdə hələ işləmir" nişanı daşıyır.
+
 Panel kağız üzərində zəngindir — 34 sahə, 3 dizayn preseti, canlı telefon ön baxışı, kampaniya
 və filial CRUD. Problem odur ki, **bu sahələrin təxminən yarısı heç bir şeyə təsir etmir**, bir
 qismi isə saxlanarkən başqa parametrləri silir.
@@ -51,6 +59,13 @@ yaşıl bildiriş görür — və kassa heç vaxt o qaydaya görə xal vermir.
 ---
 
 ## 3. Kritik tapıntılar
+
+> **Status (2026-09-04).** Bu bölmə **auditin ilk anını** qeyd edir və tarixi sənəd kimi
+> olduğu kimi saxlanılır — sətir nömrələri o vaxtkı koda aiddir və artıq sürüşüb. Hansı
+> tapıntının bağlandığı §5-dəki P0 bloklarındadır: **3.1** → P0.1 ✅, **3.2** → P0.2 ✅,
+> **3.4** → P0.3 ✅, **3.7** → P0.3 + P0.4 ✅ (yalnız 4 qazanma sahəsi qalır → P1.1),
+> **3.8** → P0.5 ✅, **3.9** → P0.6 ✅. Açıq qalanlar: **3.3** və `tiers` multiplier (P1.1),
+> **3.5** (P1.2), **3.6** (P1.3), **3.10**, **3.11**.
 
 ### 3.1 Kök səbəb: `PATCH` bütün obyekti əvəz edir
 
@@ -373,22 +388,143 @@ kimi bütöv gövdəyə verir və `#0b1220` sentinel qaydasını eyni cür işl�
 `python3 -m compileall -q app tests` → OK; hədd normalizasiyası cədvəli Python və TypeScript
 tərəfində ayrı-ayrı işlədildi — 15 hal, hər ikisində eyni nəticə.
 
-**P0.4 — Ön baxışı dürüstləşdir.** Ön baxış yalnız **real oxunan** sahələri render etməlidir.
-İşləməyən sahənin yanında "tətbiqdə hələ tətbiq olunmur" nişanı olmalıdır. Tab bar-ın 4 emojisi
-real tab siyahısı ilə uzlaşdırılmalıdır.
+**P0.4 — Ön baxışı dürüstləşdir.** ✅ **KODLANDI (2026-09-04).** Ön baxışın üç yalanı silindi,
+ölü sahələr isə nişanlandı.
 
-**P0.5 — Tenant sızmalarını təmizlə.** `/logo.jpg` + `alt="Emalathhana"` → `branding.logo_url`;
-`logo_url` üçün panelə şəkil yükləmə inputu; `CAFE_LAT/CAFE_LNG` → default filialın
-koordinatları (`list_branches_live` artıq mövcuddur); milestone adları və "pulsuz Latte"
-mətni → `reward_name` / konfiqurasiya.
+**Ölü sahələrin dəqiq siyahısı.** Panelin 30 açarı bir-bir izlənildi (`backend/app` grep +
+`pos.py` accrual oxusu): yalnız **dördü** heç kim tərəfindən oxunmur — `earn_rate_per_azn`,
+`min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days`. Onlar backend-də
+yalnız default-larda və normalizer-də görünür; `pos.py:721-752` accrual-ı isə yalnız
+`reward_threshold` və içki sayına baxır. Bu dördünün yanında artıq `NotAppliedBadge`
+("tətbiqdə hələ işləmir", `title`-da tam izah) var, sahələr isə **redaktə edilə bilən qalır**
+— dəyər saxlanılır, P1.1-də qoşulacaq. Kartın başında real qayda bir dəfə açıq yazılır:
+"Hazırda POS hər içkiyə 1 ⟨points_label⟩ yazır və ⟨reward_threshold⟩ tamamlananda
+1 ⟨reward_name⟩ açır. Məbləğə görə hesablama, minimum alış həddi və 2x günlər hələ
+qoşulmayıb."
 
-**P0.6 — Yerinə yetirilməyən vədləri sil.** Referral mətnini (`HomeTab.tsx:191-204`) və
-`surpriseMessages`-dəki 2 saxta vədi çıxar — ya da onları real qayda ilə əvəzlə. Hazırda
-bunlar kassada mübahisə mənbəyidir.
+**Silinən üç yalan:**
 
-**P0.7 — Lokal rejim səssiz uğursuzluğunu düzəlt.** `create_campaign_live` lokal rejimdə
-saxta `id` qaytarır; ya `db_sim` üzərində real yazsın, ya da UI aydın şəkildə
-"backend tələb olunur" desin.
+| Ön baxışda nə vardı | Reallıq | Nə oldu |
+|---|---|---|
+| Tab bar-da 4 uydurma emoji (🏠🎁📋👤) | Tətbiqdə 5–6 tab var, adları və sırası fərqlidir (`CustomerApp.tsx:1764-1775`) | Real siyahı (`previewTabs`) + lucide ikonları; **AI tab-ı yalnız Barista/Falçı açıq olanda** — tətbiqdəki eyni şərt |
+| Hero-da `registration_mode` nişanı | O ayar yalnız **qoşulma ekranını** dəyişir, ana səhifədə heç bir nişan yoxdur | Nişan silindi, çərçivənin altında "Qoşulma ekranı: …" izahına çevrildi |
+| `hero_image_url` dairəvi avatar kimi | Tətbiqdə loyallıq **kartının fonudur** (`HomeTab.tsx:622-624`) | Avatar silindi, şəkil kartın fonuna qradientlə verildi; form sahəsi "Hero şəkli" → "Loyallıq kartının şəkli" (**açar adı `hero_image_url` qalır** — dəyişmək mövcud tenant dəyərlərini itirərdi) |
+
+**Əlavə olunan:** kartda `reward_threshold`-dan qurulan möhür sırası (10-da kəsilir, qalanı
+"+N" kimi) — ən təsirli ayar ön baxışda ümumiyyətlə görünmürdü.
+
+**"Real-time" vədi də silindi.** "⚡ Dəyişikliklər real-time əks olunur" zolağı yalan idi:
+tətbiqdə ayar polling-i **yoxdur** (yalnız 8 saniyəlik sifariş yeniləməsi,
+`CustomerApp.tsx:481`). Yerinə: "Ön baxış siz yazdıqca yenilənir. Müştəri tətbiqi yalnız
+«Yadda saxla»-dan sonra, tətbiq yenidən açıldıqda dəyişir."
+
+**Toxunulan fayl:** `src/components/admin/CustomerAppPanel.tsx`.
+
+**P0.5 — Tenant sızmalarını təmizlə.** ✅ **KODLANDI (2026-09-04).** Müştəriyə görünən heç bir
+mətndə/şəkildə artıq başqa kafənin və ya platformanın adı yoxdur.
+
+| Sızma | Nə idi | Nə oldu |
+|---|---|---|
+| Logo | `<img src="/logo.jpg" alt="Emalathhana">` — 3 yerdə (HomeTab başlığı, onboarding, sifariş uğur modalı) | `branding.logo_url`; yoxdursa ☕ ikonu (`HomeTab`) və ya heç nə (modallar) |
+| Brauzer başlığı | `customer.html`-də statik `<title>Emalathhana</title>` | `customer.html` → "Loyalty Club" (neytral), üstəlik `CustomerApp` branding yüklənəndə `document.title` + favicon + apple-touch-icon-u tenant-a görə yazır |
+| Platforma adı | "iRonWaves-ə yaxınsan!", "iRonWaves Loyalty", `branding.app_name \|\| 'iRonWaves'` | `brandName` (`company_name` → `app_name` → "Loyalty"); geofence başlığı isə tamamilə adsız oldu: "Yaxınlıqdasan!" |
+| Geofence | `CAFE_LAT/CAFE_LNG = 40.37767, 49.84583` hardcoded | Filial koordinatlarından (`data.stores`); **ən yaxın** filial seçilir və adı bildirişdə keçir |
+| Hədiyyə adı | "pulsuz Latte" hardcoded (tenant menyusunda Latte olmaya bilər) | `wallet.reward_name`; backend default-u `"Reward"` sentinel sayılır və tərcümə olunmuş "Hədiyyə" ilə əvəzlənir |
+
+**Bir qərar dəyişdi: panelə logo yükləmə inputu QOYULMADI.** Audit "logo_url üçün panelə şəkil
+yükləmə inputu" yazırdı, amma kod oxunandan sonra bu təhlükəli çıxdı: `logo_url`
+`customer_app_settings`-in içində deyil, `BusinessProfile` sütunudur və
+`PUT /business-profile` **bütün obyekti əvəz edir** — yalnız logo göndərmək VÖEN, ƏDV, NKA
+seriya nömrəsi və fiskal açarı silərdi. Ona görə panel logonu **yalnız oxuyur** və
+"Ayarlar → Biznes profili"-nə yönləndirir. Vahid yükləmə nöqtəsi P2-də (business-profile
+PATCH-i yazıldıqdan sonra) qoyulacaq.
+
+**Geofence-də mühüm davranış:** filialın koordinatı yoxdursa geofence **heç işə salınmır**.
+Səhv yerdə bildiriş göndərməkdənsə heç göndərməmək düzgündür. `watchPosition` hər render-də
+yenidən qurulmasın deyə effekt asılılığı koordinatları kodlayan sabit `geofenceKey`-dir.
+
+**Qalan tək fallback:** join ekranının footer-i (`CustomerApp.tsx:1656`) tenant `app_name`
+qoymayıbsa hələ "iRonWaves App v1.2.0" yazır — branding o mərhələdə hələ yüklənməmiş ola
+bilər. Platforma-səviyyəli manifest ikonu (`server.js:90`, `scripts/gen_icons.py:14`,
+`public/logo.jpg`) da qəsdən toxunulmadı: per-tenant manifest mexanizmi yoxdur, bu ayrı işdir.
+
+**Toxunulan fayllar:** `customer.html`, `src/components/CustomerApp.tsx`,
+`src/components/customer/HomeTab.tsx`, `src/components/customer/OrderTab.tsx`,
+`src/components/admin/CustomerAppPanel.tsx`.
+
+**P0.6 — Yerinə yetirilməyən vədləri sil.** ✅ **KODLANDI (2026-09-04).** Tətbiq artıq yalnız
+backend-də **həqiqətən mövcud** olan qaydaları vəd edir.
+
+Silinən vədlər (hamısı kassada mübahisə mənbəyi idi):
+
+| Vəd | Niyə yalan idi |
+|---|---|
+| "Dostunu dəvət et, hər ikinizə ulduz!" | Referral sistemi backend-də ümumiyyətlə yoxdur — nə cədvəl, nə endpoint |
+| "Səhər 11-dən qabaq sifarişə 2x ulduz!" | Saatdan asılı çarpan yoxdur; `double_points_days` ayarı da hələ heç yerdə oxunmur (P1.1) |
+| "Doğum günündə pulsuz içki səni gözləyir 🎂" | Hər tenant-da göstərilirdi, halbuki `birthday_enabled` default **False**-dur |
+| 3 pilləli hədiyyə nərdivanı — "Çay / Espresso" (0.3×), "Cappuccino / Latte" (0.6×), "Böyük Qəhvə + Desert" (1.0×) | Backend-də pilləli hədiyyə kataloqu yoxdur; `wallet.rewards` **tək sintetik sətirdir**. Müştəri heç vaxt ala bilmədiyi 2 hədiyyə görürdü |
+
+`surpriseMessages` artıq sabit massiv deyil, real vəziyyətdən qurulan `useMemo`-dur: proqram
+rejimi (`points` → "hər qəhvə 1 ⟨points_label⟩", `cashback` → "hər sifarişdən N% cashback"),
+hədiyyəyə qalan məsafə, **`birthday_enabled` açıqsa** doğum günü sətri, **aktiv kampaniya
+varsa** kampaniya sətri. Gün ərzində mətn sabit qalsın deyə indeks əvvəlki kimi tarixə
+bağlıdır.
+
+Nərdivanın yerinə tək **real** hədiyyə sətri qaldı (`⟨reward_threshold⟩★ · ⟨reward_name⟩`) və
+altında `reward_description`. Nərdivan tier kataloqu gələndə (P1.2) qaytarılacaq.
+
+**Backend-də 1 sətir dəyişiklik:** `get_customer_app_session` artıq cavabda
+`birthday_enabled` göndərir — tətbiq bunu bilmədən doğum günü vədini gizlədə bilməzdi. Lokal
+rejim paritetdədir (`crm.ts:494` eyni açarı verir). Əlavə açardır, mövcud testlərin heç biri
+sessiya cavabının açar dəstini dəqiq yoxlamır.
+
+**Hədiyyə mətnlərində sentinel qaydası.** Backend `reward_name` üçün `"Reward"`,
+`reward_label` üçün sabit `"10 ulduza 1 pulsuz içki"` default-u göndərir. İkincisi tenant həddi
+8-dirsə **yalan deyir**, ona görə hər ikisi "tenant seçməmişdir" sentineli sayılır və mətn real
+həddən qurulur — bu, P0.3-dəki `#0b1220` fon sentinelinin eyni məntiqidir.
+
+**Toxunulan fayllar:** `src/components/customer/HomeTab.tsx`,
+`backend/app/routers/operations.py`.
+
+**P0.7 — Lokal rejim səssiz uğursuzluğunu düzəlt.** ✅ **KODLANDI (2026-09-04).** Problem
+auditdə yazılandan **daha genişdir** — üç bağlı defekt tapıldı, hamısı düzəldildi.
+
+1. **Dörd funksiyanın lokal qolu yalan qaytarırdı.** `create_campaign_live` saxta id
+   (`'campaign_' + Date.now()`), `update`/`delete` heç nə etmədən `{ success: true }`,
+   `list_campaigns_admin_live` isə həmişə `[]`. Nəticə: panel "yadda saxlanıldı" yazırdı,
+   dərhal sonra siyahı boş gəlirdi, tətbiqdə heç nə görünmürdü. Artıq dördü də `db_sim`-in
+   `happy_hours` cədvəlinə **real yazır/oxuyur** — CLAUDE.md-dəki dual-mode paritetinə uyğun.
+2. **Lokal rejimdə kampaniya QR-ı heç vaxt təsdiqlənə bilməzdi.** `crm.ts`-in validasiyası
+   yalnız `days_of_week_json` sahəsini oxuyurdu — bu ad backend DB sütunundandır, heç bir
+   lokal yazıcı onu yaratmırdı. Artıq hər lokal yazı **hər iki adı** (`days_of_week` +
+   `days_of_week_json`) yazır, hər iki oxuyucu isə hər ikisini qəbul edir.
+3. **Bazar günü heç bir happy hour aktiv görünmürdü.** `happy_hours.ts::get_active_happy_hour`
+   `getDay()` işlədirdi (Bazar = 0), halbuki sistemin konvensiyası **B.E=1 … Bazar=7**-dir.
+
+**Gün nömrələnməsi — bu, az qala səhv kodlanacaqdı.** Lokal `HappyHour` tipinin şərhi
+"0=Sunday" yazır, ona görə ilk normalizer `0..6` yoxlayırdı. Üç mənbə əksini sübut etdi:
+`operations.py:6900` (`now.weekday() + 1`), `CustomerAppPanel.tsx:894` (çip `id: 1..7`),
+`TablesHappyHourPanel.tsx:132`. `0..6` filtri Bazar gününü səssizcə atardı. Normalizer artıq
+`1..7` yoxlayır, köhnə `0`-ı **7-yə çevirir**, təkrarları silir və sıralayır.
+
+**Əlavə qorunmalar:** `update`/`delete` sətri `id` **+ `tenant_id`** ilə birlikdə axtarır —
+super_admin tenant dəyişdirəndə başqa tenant-ın kampaniyasını təsadüfən yazmasın; lokal oxu
+backend-in `created_at desc` sıralamasını təkrarlayır (`operations.py:4503`); cavab formaları
+`operations.py:4658-4668` ilə sahə-sahə tutuşdurulub.
+
+**Toxunulan fayllar:** `src/api/settings.ts`, `src/api/crm.ts`, `src/api/happy_hours.ts`.
+
+### P0 yoxlaması (P0.4–P0.7, 2026-09-04)
+
+- `npx tsc --noEmit -p tsconfig.json` → **33 xəta** = dəyişməyən baseline, **sıfır yeni**;
+  toxunulan fayllarda xəta yoxdur.
+- `python3 -m compileall -q app tests` → OK.
+- `npm run build` bu mühitdə işləmir (node_modules darwin-arm64 → `@rollup/rollup-linux-arm64-gnu`
+  tapılmır), `pytest` isə quraşdırılmayıb — ona görə testlərə təsir **əl ilə** yoxlanıldı:
+  sessiya cavabına əlavə edilən `birthday_enabled` açarı additivdir, test bazasında sessiya
+  cavabının açar dəstini dəqiq yoxlayan assert yoxdur (`set(...keys())` / `sorted(...keys())`
+  axtarışı boşdur).
+- Lokal/backend paritet yoxlaması: `birthday_enabled` hər iki qolda göndərilir.
 
 ### P1 — Çatışmayan tək-mənbə nəzarətləri
 
@@ -469,6 +605,20 @@ Minimum dəst:
 | 2 saxta `surpriseMessages` vədi | `HomeTab.tsx` | Arxasında qayda yoxdur |
 | `window.confirm` silmə dialoqları | `:212,284` | Layihənin `ConfirmModal`-ı var, istifadə edilməlidir |
 
+**Bu siyahıdan nə oldu (2026-09-04).** `layout_preset`, `reward_card_style` və 3 preset
+**silinmədi, real işlədildi** (P0.3-də səbəb yazılıb — preset 12 real sahə doldurur). Referral
+mətni və 2 saxta vəd **silindi** (P0.6). Qalanı (filial CRUD-un yeri, `CRM_MEMBER_TYPES`
+nüsxəsi, 4 Save düyməsi, `window.confirm`) P1.4/P2-dədir.
+
+**Qəsdən toxunulmayanlar — səbəbi ilə:**
+
+| Nə | Səbəb |
+|---|---|
+| `server.js:90` `const iconSrc = '/logo.jpg'`, `scripts/gen_icons.py:14`, `public/logo.jpg` | PWA manifest ikonu platforma səviyyəsindədir; per-tenant manifest mexanizmi yoxdur. Ayrı iş — subdomain-ə görə manifest generasiyası tələb edir |
+| `src/lib/customer_utils.ts` ölü kodu — `getWeatherInfo` (`:63-116`, heç yerdə import edilmir), `BARISTA_QUICK_PROMPTS` (`:7-11`), `getProductImage` (`:23-42`, hardcoded Unsplash URL-ləri) | İstifadə edilmir, yəni müştəriyə yalan demir. Təmizləmə P2-də, ayrı commit-də |
+| İki panelin eyni `happy_hours` cədvəlinə yazması (`CustomerAppPanel` vs `TablesHappyHourPanel`) | Birləşdirmə P2-dir (§4.1); indi hər ikisi düzgün yazır, sadəcə bir-birini görmür |
+| `birthday_bonus_stars` açarı | Bir buraxılışdan sonra tam çıxarılacaq — hazırda lazy migrasiya üçün güzgü kimi lazımdır (P0.2) |
+
 ---
 
 ## 7. Təklif olunan struktur
@@ -504,9 +654,24 @@ tier 4 yerdə, rəng 3 sistemdə yaşayır, real loyallıq qaydası isə `pos.py
 P0.1 (PATCH merge) tək başına 4 kritik tapıntını həll edir və digər hər şeyin ön şərtidir;
 P1.1 (accrual mühərriki + points ledger) isə P3-ün ön şərtidir.
 
+**2026-09-04 vəziyyəti: P0.1–P0.7 hamısı bitdi.** Panel artıq yalan demir — hər saxlanan sahə
+ya real işləyir, ya "tətbiqdə hələ işləmir" nişanı daşıyır; hər save mövcud açarları qoruyur;
+müştəri tətbiqində başqa tenantın loqosu/adı və arxası olmayan vəd qalmadı; lokal rejim
+backend rejimi ilə paritetdədir. **Növbəti addım P1.1** — `earn_rate_per_azn`,
+`min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` və `tiers` multiplier-ini
+tək accrual mühərrikinə bağlamaq + `unit="points"` ledger yazısı (§3.11).
+
 ---
 
 ## Əlavə — istinad xəritəsi
+
+> Sətir nömrələri **2026-09-03 vəziyyətinə** aiddir və P0 dəyişiklikləri onları sürüşdürdü.
+> Simvol adı ilə axtarmaq daha etibarlıdır. P0-dan sonra **yox olmuş** istinadlar: hardcoded
+> loqo, geofence koordinatları, milestone adları, 10 yuvalı sabit ştamp şəbəkəsi, hardcoded
+> hero mətni — bunlar artıq ayarlardan gəlir. Yeni tək-mənbə nöqtələri: gün nömrələnməsi
+> (`operations.py::create_happy_hour` → `now.weekday() + 1`), hədd normalizasiyası
+> (`pos.py::_reward_threshold`, `src/lib/loyalty.ts::normalizeRewardThreshold`), ad günü
+> bonusu (`operations.py::_canonical_birthday_bonus`, `settings.ts::canonicalBirthdayBonus`).
 
 | Mövzu | Fayl:sətir |
 |---|---|
