@@ -15,7 +15,9 @@ Müştərinin doğum günü bugünə düşərsə:
      sətri varsa grant təkrarlanmır (multi-worker qorunması).
 
 Default olaraq qapalıdır: tenant `customer_app_settings.birthday_enabled`
-açmadan heç bir müştəriyə grant verilmir.
+açmadan heç bir müştəriyə grant verilmir. Bonus miqdarı
+`customer_app_settings.birthday_bonus_points` açarından oxunur (köhnə
+`birthday_bonus_stars` fallback olaraq qalır); 0 = bonus verilmir.
 """
 
 import json
@@ -40,7 +42,7 @@ BAKU_TZ_NAME = "Asia/Baku"
 BAKU_UTC_OFFSET = timedelta(hours=4)
 
 SCHEDULER_CHECK_INTERVAL = 1800  # hər 30 dəqiqə yoxla (saniyə)
-DEFAULT_BIRTHDAY_BONUS = 5  # default bonus ulduz sayı
+DEFAULT_BIRTHDAY_BONUS = 10  # default bonus xal sayı (panel defaultu ilə eynidir)
 GUARD_SETTING_KEY = "birthday_scheduler_last_run"
 
 # Session-level Postgres advisory lock açarı. Çoxlu uvicorn worker-i / replica
@@ -148,6 +150,7 @@ def _grant_birthday(
     *,
     today: date,
     bonus: int,
+    points_label: str = "Ulduz",
 ) -> bool:
     """
     Tək müştəriyə doğum günü grant-ı verir.
@@ -186,7 +189,7 @@ def _grant_birthday(
         Notification(
             tenant_id=tenant.id,
             card_id=customer.card_id,
-            message=f"Doğum gününüz mübarək! 🎂 +{bonus} ★ hesabınıza əlavə edildi",
+            message=f"Doğum gününüz mübarək! 🎂 +{bonus} {points_label} hesabınıza əlavə edildi",
         )
     )
     return True
@@ -195,6 +198,39 @@ def _grant_birthday(
 # ──────────────────────────────────────────
 # Skan (əsas məntiq — test edilə bilər)
 # ──────────────────────────────────────────
+
+def _resolve_bonus(app_settings: dict) -> int:
+    """
+    Ad günü bonusunu `customer_app_settings`-dən oxuyur (P0.2).
+
+    Kanonik açar `birthday_bonus_points`-dur — admin paneli məhz onu yazır.
+    Köhnə tenant-larda yalnız `birthday_bonus_points` yoxdur, `birthday_bonus_stars`
+    var: ona görə fallback saxlanılır (deploy sırası əhəmiyyət kəsb etməsin).
+
+    `0` legal dəyərdir və "bonus verilməsin" mənasını daşıyır — köhnə `max(1, ...)`
+    admini 0 yaza bilməkdən məhrum edirdi.
+    """
+    for key in ("birthday_bonus_points", "birthday_bonus_stars"):
+        if key not in app_settings:
+            continue
+        raw = app_settings.get(key)
+        if raw is None or isinstance(raw, bool) or (isinstance(raw, str) and not raw.strip()):
+            continue
+        try:
+            return max(0, min(1000, int(float(raw))))
+        except (ValueError, TypeError):
+            continue
+    return DEFAULT_BIRTHDAY_BONUS
+
+
+def _resolve_points_label(app_settings: dict) -> str:
+    """Bildiriş mətni üçün tenant-ın öz vahid adı ('Ulduz', 'Xal', 'Cashback'...)."""
+    label = app_settings.get("points_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()[:32]
+    mode = str(app_settings.get("program_mode") or "points").strip().lower()
+    return "Cashback" if mode == "cashback" else "Ulduz"
+
 
 def run_birthday_scan(db: Session, today: date | None = None) -> dict[str, Any]:
     """
@@ -231,10 +267,11 @@ def run_birthday_scan(db: Session, today: date | None = None) -> dict[str, Any]:
 
             if not bool(app_settings.get("birthday_enabled", False)):
                 continue
-            try:
-                bonus = max(1, int(app_settings.get("birthday_bonus_stars") or DEFAULT_BIRTHDAY_BONUS))
-            except (ValueError, TypeError):
-                bonus = DEFAULT_BIRTHDAY_BONUS
+            bonus = _resolve_bonus(app_settings)
+            if bonus <= 0:
+                # Proqram aktiv, amma admin bonusu 0 qoyub → heç nə verilmir.
+                continue
+            points_label = _resolve_points_label(app_settings)
 
             today_md = tenant_today.strftime("%m-%d")
             customers = (
@@ -246,12 +283,14 @@ def run_birthday_scan(db: Session, today: date | None = None) -> dict[str, Any]:
                 try:
                     if not customer.birth_date or customer.birth_date.strftime("%m-%d") != today_md:
                         continue
-                    if _grant_birthday(db, tenant, customer, today=tenant_today, bonus=bonus):
+                    if _grant_birthday(
+                        db, tenant, customer, today=tenant_today, bonus=bonus, points_label=points_label
+                    ):
                         granted += 1
                         if _send_customer_push(
                             customer,
                             "Doğum gününüz mübarək! 🎂",
-                            f"+{bonus} ★ hesabınıza əlavə edildi",
+                            f"+{bonus} {points_label} hesabınıza əlavə edildi",
                         ):
                             notified += 1
                     else:

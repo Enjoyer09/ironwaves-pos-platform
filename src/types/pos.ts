@@ -150,6 +150,16 @@ export type PosLayoutConfig = {
   };
 };
 
+/** Loyallıq tier nərdivanının bir pilləsi — `customer_app_settings.tiers` mənbəyi. */
+export interface CustomerAppTier {
+  key: string;
+  label: { az: string; ru: string; en: string };
+  threshold: number;
+  color: string;
+  multiplier: number;
+  discount_percent?: number;
+}
+
 // --- MODUL 15: SETTINGS ---
 export interface Settings {
   tenant_id: string;
@@ -361,6 +371,16 @@ export interface Settings {
     show_notifications: boolean;
     campaigns_require_online?: boolean;
     campaign_activation_minutes?: number;
+    registration_mode?: 'simple' | 'lightweight' | 'full';
+    earn_rate_per_azn?: number;
+    min_purchase_for_earn?: number;
+    first_purchase_bonus?: number;
+    double_points_days?: number[];
+    birthday_enabled?: boolean;
+    birthday_bonus_points?: number;
+    birthday_bonus_stars?: number;
+    onesignal_app_id?: string;
+    tiers?: CustomerAppTier[];
   };
   pos_layout?: PosLayoutConfig;
   pos_layout_draft?: PosLayoutConfig;

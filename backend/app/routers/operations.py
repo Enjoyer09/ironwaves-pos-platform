@@ -1278,38 +1278,10 @@ def get_app_settings(
             "logo_shape": "rounded",
         },
     )
-    customer_app_settings = getv(
-        "customer_app_settings",
-        {
-            "enabled": True,
-            "program_mode": "points",
-            "layout_preset": "rewards",
-            "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
-            "join_customer_type": "golden",
-            "join_discount_percent": 5,
-            "app_name": "Loyalty Club",
-            "hero_title": "Xoş gəldiniz",
-            "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
-            "hero_image_url": "",
-            "background_image_url": "",
-            "background_color": "#0b1220",
-            "points_label": "Ulduz",
-            "reward_name": "Reward",
-            "reward_threshold": 10,
-            "reward_description": "10 ulduza 1 pulsuz içki",
-            "reward_card_style": "rounded",
-            "cashback_percent": 5,
-            "primary_color": "#facc15",
-            "accent_color": "#22d3ee",
-            "show_qr_card": True,
-            "show_wallet": True,
-            "ai_barista_enabled": False,
-            "ai_falci_enabled": False,
-            "show_campaigns": True,
-            "show_history": True,
-            "show_notifications": True,
-        },
-    )
+    # P0.1 — GET həmişə tam normalize olunmuş blob qaytarır: köhnə tenant-larda
+    # olmayan açarlar (tiers, birthday_*, earn_rate_per_azn, onesignal_app_id)
+    # burada doldurulur, yoxsa panel onları formaya yükləyə bilmir.
+    customer_app_settings = _normalize_customer_app_settings(getv("customer_app_settings", {}), strict=False)
     pos_layout = getv(
         "pos_layout",
         {
@@ -2953,6 +2925,243 @@ def get_public_landing_settings(db: Session = Depends(get_db)):
     return _normalize_landing_settings(value)
 
 
+# --- Customer App settings ------------------------------------------------------
+# P0.1: Bu endpoint əvvəllər gələn payload-dan sıfırdan yeni dict qururdu, yəni
+# panelin göndərmədiyi hər açar (tiers, birthday_enabled, onesignal_app_id) hər
+# save-də silinirdi. Artıq mövcud dəyər oxunur, payload onun üzərinə merge olunur
+# və nəticə normalizasiya edilir — `settings/landing` endpointi ilə eyni model.
+
+DEFAULT_CUSTOMER_APP_SETTINGS: dict = {
+    "enabled": True,
+    "program_mode": "points",
+    "layout_preset": "rewards",
+    "registration_mode": "full",
+    "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
+    "join_customer_type": "golden",
+    "join_discount_percent": 5.0,
+    "app_name": "Loyalty Club",
+    "hero_title": "Xoş gəldiniz",
+    "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
+    "hero_image_url": "",
+    "background_image_url": "",
+    "background_color": "#0b1220",
+    "points_label": "Ulduz",
+    "reward_name": "Reward",
+    "reward_threshold": 10,
+    "reward_description": "10 ulduza 1 pulsuz içki",
+    "reward_card_style": "rounded",
+    "cashback_percent": 5.0,
+    "primary_color": "#facc15",
+    "accent_color": "#22d3ee",
+    "show_qr_card": True,
+    "show_wallet": True,
+    "ai_barista_enabled": False,
+    "ai_falci_enabled": False,
+    "show_campaigns": True,
+    "show_history": True,
+    "show_notifications": True,
+    "campaigns_require_online": False,
+    "campaign_activation_minutes": 15,
+    "birthday_enabled": False,
+    # P0.2 — `birthday_bonus_points` kanonikdir; `birthday_bonus_stars` yalnız köhnə
+    # oxucular (scheduler-in əvvəlki versiyası) üçün saxlanılan güzgüdür, eyni dəyər.
+    "birthday_bonus_stars": 10,
+    "earn_rate_per_azn": 2.0,
+    "min_purchase_for_earn": 0.0,
+    "birthday_bonus_points": 10,
+    "first_purchase_bonus": 5,
+    "double_points_days": [],
+    "onesignal_app_id": "",
+}
+
+# `tiers` defaultu DEFAULT_TIERS-dən gəlir (bu fayl daha aşağıda təyin edir), ona
+# görə yuxarıdaki literal-a qoyulmur — normalizer içində çağırış vaxtı oxunur.
+CUSTOMER_APP_SETTING_KEYS: frozenset = frozenset({*DEFAULT_CUSTOMER_APP_SETTINGS, "tiers"})
+
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+
+
+def _norm_hex_color(value, fallback: str) -> str:
+    """Rəng dəyərləri müştəri tətbiqində inline style-a düşür — yalnız hex qəbul edirik."""
+    candidate = str(value or "").strip()
+    return candidate if _HEX_COLOR_RE.match(candidate) else fallback
+
+
+def _norm_choice(value, allowed: set[str], fallback: str) -> str:
+    candidate = str(value or "").strip().lower()
+    return candidate if candidate in allowed else fallback
+
+
+def _norm_text(value, fallback: str, limit: int = 500) -> str:
+    candidate = str(value or "").strip()
+    return candidate[:limit] if candidate else fallback
+
+
+def _norm_int(value, fallback: int, minimum: int = 0, maximum: int | None = None) -> int:
+    """0 qanuni dəyərdir (bonus söndürmək üçün) — ona görə `x or default` işlədilmir."""
+    if value is None or (isinstance(value, str) and not value.strip()) or isinstance(value, bool):
+        parsed = int(fallback)
+    else:
+        try:
+            parsed = int(float(value))
+        except (TypeError, ValueError):
+            parsed = int(fallback)
+    if parsed < minimum:
+        parsed = max(minimum, int(fallback)) if minimum > 0 else minimum
+    return min(parsed, maximum) if maximum is not None else parsed
+
+
+def _norm_float(value, fallback: float, minimum: float = 0.0, maximum: float | None = None) -> float:
+    if value is None or (isinstance(value, str) and not value.strip()) or isinstance(value, bool):
+        parsed = float(fallback)
+    else:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            parsed = float(fallback)
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):  # NaN / inf
+        parsed = float(fallback)
+    if parsed < minimum:
+        parsed = max(minimum, float(fallback)) if minimum > 0 else minimum
+    return round(min(parsed, maximum) if maximum is not None else parsed, 4)
+
+
+def _default_customer_app_tiers() -> list[dict]:
+    """Dərin kopya — `label` dict-i paylaşılsa, çağıran tərəf modul defaultunu dəyişə bilər."""
+    return [{**t, "label": dict(t["label"])} for t in DEFAULT_TIERS]
+
+
+def _norm_customer_app_tiers(value) -> list[dict]:
+    """Tier nərdivanı — indi yazıla bilir (əvvəl PATCH-də tamamilə itirdi)."""
+    rows = value if isinstance(value, list) else None
+    if not rows:
+        return _default_customer_app_tiers()
+    cleaned: list[dict] = []
+    for row in rows[:12]:
+        if not isinstance(row, dict):
+            continue
+        key = re.sub(r"[^a-z0-9_]", "", str(row.get("key") or "").strip().lower())[:32]
+        if not key:
+            continue
+        raw_label = row.get("label")
+        if isinstance(raw_label, dict):
+            label = {
+                "az": _norm_text(raw_label.get("az"), key, 60),
+                "ru": _norm_text(raw_label.get("ru"), _norm_text(raw_label.get("az"), key, 60), 60),
+                "en": _norm_text(raw_label.get("en"), _norm_text(raw_label.get("az"), key, 60), 60),
+            }
+        else:
+            single = _norm_text(raw_label, key, 60)
+            label = {"az": single, "ru": single, "en": single}
+        cleaned.append(
+            {
+                "key": key,
+                "label": label,
+                "threshold": _norm_int(row.get("threshold"), 0, minimum=0, maximum=1_000_000),
+                "color": _norm_hex_color(row.get("color"), "#cd7f32"),
+                "multiplier": _norm_float(row.get("multiplier"), 1.0, minimum=0.0, maximum=10.0),
+                "discount_percent": _norm_float(row.get("discount_percent"), 0.0, minimum=0.0, maximum=100.0),
+            }
+        )
+    if not cleaned:
+        return _default_customer_app_tiers()
+    cleaned.sort(key=lambda t: t["threshold"])
+    # Ən aşağı pillə həmişə 0-dan başlamalıdır, yoxsa yeni müştəri tier-siz qalır.
+    cleaned[0]["threshold"] = 0
+    return cleaned
+
+
+def _has_meaningful_value(raw: dict, key: str) -> bool:
+    """Açar var və mənalı dəyər daşıyır? (None / boş sətir / bool "yoxdur" sayılır)"""
+    if key not in raw:
+        return False
+    v = raw.get(key)
+    if v is None or isinstance(v, bool):
+        return False
+    if isinstance(v, str) and not v.strip():
+        return False
+    return True
+
+
+def _canonical_birthday_bonus(raw: dict) -> int:
+    """P0.2 — ad günü bonusunun KANONİK açarı `birthday_bonus_points`-dur.
+
+    Köhnə tenant-larda yalnız `birthday_bonus_stars` yazılıb. Points göndərilməyibsə
+    stars dəyəri points-ə köçürülür (lazy migrasiya — Alembic-lə JSON data migrasiyası
+    yerinə, canlı DB üçün daha təhlükəsiz). Nəticə hər iki açara yazılır ki, deploy
+    sırasından asılı olmayaraq köhnə oxucular da eyni rəqəmi görsün.
+    """
+    d = DEFAULT_CUSTOMER_APP_SETTINGS
+    default = d["birthday_bonus_points"]
+    if _has_meaningful_value(raw, "birthday_bonus_points"):
+        return _norm_int(raw.get("birthday_bonus_points"), default, 0, 1000)
+    if _has_meaningful_value(raw, "birthday_bonus_stars"):
+        return _norm_int(raw.get("birthday_bonus_stars"), default, 0, 1000)
+    return int(default)
+
+
+def _normalize_customer_app_settings(value: dict | None, *, strict: bool = True) -> dict:
+    """Merge nəticəsini validasiya edir. Allow-list-dən kənar açar nəticəyə düşmür.
+
+    `strict=True` (PATCH) — həddi aşan şəkil üçün 400 qaytarır ki, admin səhvi görsün.
+    `strict=False` (GET) — köhnə/xarab data oxunuşu 400-ə çevirməsin, sadəcə boşaldılsın.
+    """
+    raw = value if isinstance(value, dict) else {}
+    d = DEFAULT_CUSTOMER_APP_SETTINGS
+    norm_image = _normalize_image_url if strict else _public_image_url
+    birthday_bonus = _canonical_birthday_bonus(raw)
+    raw_days = raw.get("double_points_days")
+    days = sorted(
+        {
+            int(str(x).strip())
+            for x in (raw_days if isinstance(raw_days, list) else [])
+            if str(x).strip().isdigit() and 1 <= int(str(x).strip()) <= 7
+        }
+    )
+    return {
+        "enabled": bool(raw.get("enabled", d["enabled"])),
+        "program_mode": _norm_choice(raw.get("program_mode"), {"points", "cashback"}, d["program_mode"]),
+        "layout_preset": _norm_choice(raw.get("layout_preset"), {"rewards", "cashback", "playful"}, d["layout_preset"]),
+        "registration_mode": _norm_choice(raw.get("registration_mode"), {"simple", "lightweight", "full"}, d["registration_mode"]),
+        "consent_text": _norm_text(raw.get("consent_text"), d["consent_text"], 1000),
+        "join_customer_type": _norm_text(raw.get("join_customer_type"), d["join_customer_type"], 32),
+        "join_discount_percent": _norm_float(raw.get("join_discount_percent"), d["join_discount_percent"], 0.0, 100.0),
+        "app_name": _norm_text(raw.get("app_name"), d["app_name"], 60),
+        "hero_title": _norm_text(raw.get("hero_title"), d["hero_title"], 120),
+        "hero_subtitle": _norm_text(raw.get("hero_subtitle"), d["hero_subtitle"], 240),
+        "hero_image_url": norm_image(raw.get("hero_image_url") or ""),
+        "background_image_url": norm_image(raw.get("background_image_url") or ""),
+        "background_color": _norm_hex_color(raw.get("background_color"), d["background_color"]),
+        "points_label": _norm_text(raw.get("points_label"), d["points_label"], 32),
+        "reward_name": _norm_text(raw.get("reward_name"), d["reward_name"], 60),
+        "reward_threshold": _norm_int(raw.get("reward_threshold"), d["reward_threshold"], 1, 1000),
+        "reward_description": _norm_text(raw.get("reward_description"), d["reward_description"], 240),
+        "reward_card_style": _norm_choice(raw.get("reward_card_style"), {"rounded", "soft-square", "glass"}, d["reward_card_style"]),
+        "cashback_percent": _norm_float(raw.get("cashback_percent"), d["cashback_percent"], 0.0, 100.0),
+        "primary_color": _norm_hex_color(raw.get("primary_color"), d["primary_color"]),
+        "accent_color": _norm_hex_color(raw.get("accent_color"), d["accent_color"]),
+        "show_qr_card": bool(raw.get("show_qr_card", d["show_qr_card"])),
+        "show_wallet": bool(raw.get("show_wallet", d["show_wallet"])),
+        "ai_barista_enabled": bool(raw.get("ai_barista_enabled", d["ai_barista_enabled"])),
+        "ai_falci_enabled": bool(raw.get("ai_falci_enabled", d["ai_falci_enabled"])),
+        "show_campaigns": bool(raw.get("show_campaigns", d["show_campaigns"])),
+        "show_history": bool(raw.get("show_history", d["show_history"])),
+        "show_notifications": bool(raw.get("show_notifications", d["show_notifications"])),
+        "campaigns_require_online": bool(raw.get("campaigns_require_online", d["campaigns_require_online"])),
+        "campaign_activation_minutes": _norm_int(raw.get("campaign_activation_minutes"), d["campaign_activation_minutes"], 1, 1440),
+        "birthday_enabled": bool(raw.get("birthday_enabled", d["birthday_enabled"])),
+        # P0.2 — iki açar bir dəyəri güzgüləyir; kanonik olan `birthday_bonus_points`.
+        "birthday_bonus_stars": birthday_bonus,
+        "earn_rate_per_azn": _norm_float(raw.get("earn_rate_per_azn"), d["earn_rate_per_azn"], 0.0, 1000.0),
+        "min_purchase_for_earn": _norm_float(raw.get("min_purchase_for_earn"), d["min_purchase_for_earn"], 0.0, 100000.0),
+        "birthday_bonus_points": birthday_bonus,
+        "first_purchase_bonus": _norm_int(raw.get("first_purchase_bonus"), d["first_purchase_bonus"], 0, 1000),
+        "double_points_days": days,
+        "onesignal_app_id": _norm_text(raw.get("onesignal_app_id"), d["onesignal_app_id"], 64),
+        "tiers": _norm_customer_app_tiers(raw.get("tiers")),
+    }
+
+
 @router.patch("/settings/customer-app")
 def update_customer_app_settings(
     payload: dict,
@@ -2961,48 +3170,36 @@ def update_customer_app_settings(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    cleaned = {
-        "enabled": bool(payload.get("enabled", True)),
-        "program_mode": "cashback" if str(payload.get("program_mode") or "").strip().lower() == "cashback" else "points",
-        "layout_preset": str(payload.get("layout_preset") or "rewards").strip().lower() if str(payload.get("layout_preset") or "rewards").strip().lower() in {"rewards", "cashback", "playful"} else "rewards",
-        "consent_text": str(payload.get("consent_text") or "").strip() or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
-        "join_customer_type": str(payload.get("join_customer_type") or "golden").strip() or "golden",
-        "join_discount_percent": max(0, float(payload.get("join_discount_percent") or 5)),
-        "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
-        "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
-        "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
-        "hero_image_url": _normalize_image_url(payload.get("hero_image_url") or ""),
-        "background_image_url": _normalize_image_url(payload.get("background_image_url") or ""),
-        "background_color": str(payload.get("background_color") or "").strip() or "#0b1220",
-        "points_label": str(payload.get("points_label") or "").strip() or "Ulduz",
-        "reward_name": str(payload.get("reward_name") or "").strip() or "Reward",
-        "reward_threshold": max(1, int(payload.get("reward_threshold") or 10)),
-        "reward_description": str(payload.get("reward_description") or "").strip() or "10 ulduza 1 pulsuz içki",
-        "reward_card_style": str(payload.get("reward_card_style") or "rounded").strip().lower() if str(payload.get("reward_card_style") or "rounded").strip().lower() in {"rounded", "soft-square", "glass"} else "rounded",
-        "cashback_percent": max(0, float(payload.get("cashback_percent") or 5)),
-        "primary_color": str(payload.get("primary_color") or "").strip() or "#facc15",
-        "accent_color": str(payload.get("accent_color") or "").strip() or "#22d3ee",
-        "show_qr_card": bool(payload.get("show_qr_card", True)),
-        "show_wallet": bool(payload.get("show_wallet", True)),
-        "ai_barista_enabled": bool(payload.get("ai_barista_enabled", False)),
-        "ai_falci_enabled": bool(payload.get("ai_falci_enabled", False)),
-        "show_campaigns": bool(payload.get("show_campaigns", True)),
-        "show_history": bool(payload.get("show_history", True)),
-        "show_notifications": bool(payload.get("show_notifications", True)),
-        "campaigns_require_online": bool(payload.get("campaigns_require_online", False)),
-        "campaign_activation_minutes": max(1, int(payload.get("campaign_activation_minutes") or 15)),
-        "birthday_enabled": bool(payload.get("birthday_enabled", False)),
-        "birthday_bonus_stars": max(0, int(payload.get("birthday_bonus_stars") or 5)),
-        "registration_mode": str(payload.get("registration_mode") or "full").strip().lower() if str(payload.get("registration_mode") or "full").strip().lower() in {"simple", "lightweight", "full"} else "full",
-        "earn_rate_per_azn": max(0, float(payload.get("earn_rate_per_azn") or 2)),
-        "min_purchase_for_earn": max(0, float(payload.get("min_purchase_for_earn") or 0)),
-        "birthday_bonus_points": max(0, int(payload.get("birthday_bonus_points") or 10)),
-        "first_purchase_bonus": max(0, int(payload.get("first_purchase_bonus") or 5)),
-        "double_points_days": [int(d) for d in payload.get("double_points_days", []) if isinstance(d, (int, str)) and str(d).isdigit() and 1 <= int(d) <= 7],
-    }
-    _set_setting_value(db, tenant.id, "customer_app_settings", cleaned)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Payload obyekt olmalıdır")
+
+    # Allow-list: naməlum açar qəbul edilmir, amma göndərilməyən açar da silinmir.
+    incoming = {k: v for k, v in payload.items() if k in CUSTOMER_APP_SETTING_KEYS}
+    rejected = sorted(set(payload) - CUSTOMER_APP_SETTING_KEYS)
+
+    current = _setting_value(db, tenant.id, "customer_app_settings", {})
+    if not isinstance(current, dict):
+        current = {}
+    merged = _normalize_customer_app_settings({**current, **incoming})
+
+    changed = sorted(k for k in CUSTOMER_APP_SETTING_KEYS if current.get(k) != merged.get(k))
+    _set_setting_value(db, tenant.id, "customer_app_settings", merged)
+    if changed:
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="CUSTOMER_APP_SETTINGS_UPDATED",
+                details=json.dumps({"changed": changed, "rejected": rejected}, ensure_ascii=False)[:2000],
+            )
+        )
     db.commit()
-    return {"success": True}
+    return {
+        "success": True,
+        "changed": changed,
+        "rejected": rejected,
+        "customer_app_settings": merged,
+    }
 
 
 @router.patch("/settings/pos-layout")

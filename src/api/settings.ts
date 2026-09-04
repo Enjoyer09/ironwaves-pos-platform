@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
-import { PosLayoutConfig, Settings, User } from '../types/pos';
+import { CustomerAppTier, PosLayoutConfig, Settings, User } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
@@ -376,6 +376,224 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
   };
 }
 
+/**
+ * P0.1 — Customer App ayarlarının tək default mənbəyi.
+ * Əvvəl bu obyekt faylda iki yerdə təkrarlanırdı və `update_customer_app_settings`
+ * onu hər save-də sıfırdan qururdu, yəni panelin göndərmədiyi açar (tiers,
+ * birthday_enabled, onesignal_app_id) itirdi. Artıq merge + normalize edilir.
+ */
+export const DEFAULT_CUSTOMER_APP_TIERS: CustomerAppTier[] = [
+  { key: 'bronze', label: { az: 'Bürünc', ru: 'Бронза', en: 'Bronze' }, threshold: 0, color: '#cd7f32', multiplier: 1, discount_percent: 0 },
+  { key: 'silver', label: { az: 'Gümüş', ru: 'Серебро', en: 'Silver' }, threshold: 100, color: '#c0c0c0', multiplier: 1, discount_percent: 0 },
+  { key: 'gold', label: { az: 'Qızıl', ru: 'Золото', en: 'Gold' }, threshold: 300, color: '#d8b156', multiplier: 1.5, discount_percent: 0 },
+];
+
+export const DEFAULT_CUSTOMER_APP_SETTINGS: NonNullable<Settings['customer_app_settings']> = {
+  enabled: true,
+  program_mode: 'points',
+  layout_preset: 'rewards',
+  registration_mode: 'full',
+  consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+  join_customer_type: 'golden',
+  join_discount_percent: 5,
+  app_name: 'Loyalty Club',
+  hero_title: 'Xoş gəldiniz',
+  hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+  hero_image_url: '',
+  background_image_url: '',
+  background_color: '#0b1220',
+  points_label: 'Ulduz',
+  reward_name: 'Reward',
+  reward_threshold: 10,
+  reward_description: '10 ulduza 1 pulsuz içki',
+  reward_card_style: 'rounded',
+  cashback_percent: 5,
+  primary_color: '#facc15',
+  accent_color: '#22d3ee',
+  show_qr_card: true,
+  show_wallet: true,
+  ai_barista_enabled: false,
+  ai_falci_enabled: false,
+  show_campaigns: true,
+  show_history: true,
+  show_notifications: true,
+  campaigns_require_online: false,
+  campaign_activation_minutes: 15,
+  birthday_enabled: false,
+  birthday_bonus_points: 10,
+  // P0.2 — `birthday_bonus_points` kanonikdir; bu açar yalnız köhnə oxucular üçün güzgüdür.
+  birthday_bonus_stars: 10,
+  earn_rate_per_azn: 2,
+  min_purchase_for_earn: 0,
+  first_purchase_bonus: 5,
+  double_points_days: [],
+  onesignal_app_id: '',
+  tiers: DEFAULT_CUSTOMER_APP_TIERS,
+};
+
+export const CUSTOMER_APP_SETTING_KEYS = Object.keys(DEFAULT_CUSTOMER_APP_SETTINGS) as Array<
+  keyof NonNullable<Settings['customer_app_settings']>
+>;
+
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+function normHex(value: unknown, fallback: string): string {
+  const candidate = String(value ?? '').trim();
+  return HEX_COLOR_RE.test(candidate) ? candidate : fallback;
+}
+
+function normText(value: unknown, fallback: string, limit = 500): string {
+  const candidate = String(value ?? '').trim();
+  return candidate ? candidate.slice(0, limit) : fallback;
+}
+
+function normChoice<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  const candidate = String(value ?? '').trim().toLowerCase() as T;
+  return allowed.includes(candidate) ? candidate : fallback;
+}
+
+/** Backend `_public_image_url` güzgüsü: data URL 350k-a, adi URL 2048-ə qədər. Truncate YOX. */
+const MAX_EMBEDDED_IMAGE_CHARS = 350_000;
+const MAX_IMAGE_URL_LENGTH = 2048;
+
+function normImageUrl(value: unknown): string {
+  const candidate = String(value ?? '').trim();
+  if (!candidate) return '';
+  if (candidate.startsWith('data:')) {
+    return candidate.startsWith('data:image/') && candidate.length <= MAX_EMBEDDED_IMAGE_CHARS ? candidate : '';
+  }
+  return candidate.length > MAX_IMAGE_URL_LENGTH ? '' : candidate;
+}
+
+/** 0 qanuni dəyərdir (bonusu söndürmək üçün) — ona görə `x || default` işlədilmir. */
+function normNum(value: unknown, fallback: number, min: number, max: number, integer = false): number {
+  const parsed = value === '' || value === null || value === undefined || typeof value === 'boolean' ? NaN : Number(value);
+  let next = Number.isFinite(parsed) ? parsed : fallback;
+  if (next < min) next = min > 0 ? Math.max(min, fallback) : min;
+  next = Math.min(next, max);
+  return integer ? Math.round(next) : Math.round(next * 10000) / 10000;
+}
+
+/** Dərin kopya — `label` obyekti paylaşılsa, çağıran tərəf modul defaultunu dəyişə bilər. */
+function cloneDefaultCustomerAppTiers(): CustomerAppTier[] {
+  return DEFAULT_CUSTOMER_APP_TIERS.map((t) => ({ ...t, label: { ...t.label } }));
+}
+
+function normCustomerAppTiers(value: unknown): CustomerAppTier[] {
+  const rows = Array.isArray(value) ? value : null;
+  if (!rows || rows.length === 0) return cloneDefaultCustomerAppTiers();
+  const cleaned: CustomerAppTier[] = [];
+  for (const row of rows.slice(0, 12)) {
+    if (!row || typeof row !== 'object') continue;
+    const source = row as Record<string, any>;
+    const key = String(source.key || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32);
+    if (!key) continue;
+    const rawLabel = source.label;
+    const labelObj = rawLabel && typeof rawLabel === 'object' ? rawLabel : null;
+    const az = normText(labelObj ? labelObj.az : rawLabel, key, 60);
+    cleaned.push({
+      key,
+      label: {
+        az,
+        ru: normText(labelObj ? labelObj.ru : rawLabel, az, 60),
+        en: normText(labelObj ? labelObj.en : rawLabel, az, 60),
+      },
+      threshold: normNum(source.threshold, 0, 0, 1000000, true),
+      color: normHex(source.color, '#cd7f32'),
+      multiplier: normNum(source.multiplier, 1, 0, 10),
+      discount_percent: normNum(source.discount_percent, 0, 0, 100),
+    });
+  }
+  if (cleaned.length === 0) return cloneDefaultCustomerAppTiers();
+  cleaned.sort((a, b) => a.threshold - b.threshold);
+  // Ən aşağı pillə 0-dan başlamalıdır, yoxsa yeni müştəri tier-siz qalır.
+  cleaned[0].threshold = 0;
+  return cleaned;
+}
+
+function normBool(value: unknown, fallback: boolean): boolean {
+  return value === undefined || value === null ? fallback : Boolean(value);
+}
+
+/** Açar mənalı dəyər daşıyır? (yoxdur / null / boş sətir / bool → "yoxdur") */
+function hasMeaningfulValue(raw: Record<string, any>, key: string): boolean {
+  if (!(key in raw)) return false;
+  const v = raw[key];
+  if (v === null || v === undefined || typeof v === 'boolean') return false;
+  if (typeof v === 'string' && !v.trim()) return false;
+  return true;
+}
+
+/**
+ * P0.2 — ad günü bonusunun kanonik açarı `birthday_bonus_points`-dur (backend güzgüsü).
+ * Köhnə blob-da yalnız `birthday_bonus_stars` varsa dəyər ona köçürülür (lazy migrasiya),
+ * sonra hər iki açar eyni rəqəmi göstərir.
+ */
+function canonicalBirthdayBonus(raw: Record<string, any>): number {
+  const fallback = DEFAULT_CUSTOMER_APP_SETTINGS.birthday_bonus_points ?? 10;
+  if (hasMeaningfulValue(raw, 'birthday_bonus_points')) return normNum(raw.birthday_bonus_points, fallback, 0, 1000, true);
+  if (hasMeaningfulValue(raw, 'birthday_bonus_stars')) return normNum(raw.birthday_bonus_stars, fallback, 0, 1000, true);
+  return fallback;
+}
+
+/**
+ * P0.1 — açar-açar normalize. `source` artıq merge olunmuş obyektdir
+ * (`{...mövcud, ...payload}`), ona görə burada heç bir açar itmir.
+ * Argument verilmədikdə tam default dəst (tiers klonlanmış) qaytarır.
+ */
+export function normalizeCustomerAppSettings(source?: unknown): NonNullable<Settings['customer_app_settings']> {
+  const raw = (source && typeof source === 'object' ? source : {}) as Record<string, any>;
+  const d = DEFAULT_CUSTOMER_APP_SETTINGS;
+  const birthdayBonus = canonicalBirthdayBonus(raw);
+  const days = Array.isArray(raw.double_points_days)
+    ? Array.from(new Set(raw.double_points_days.map((x: unknown) => Number(x)).filter((n: number) => Number.isInteger(n) && n >= 1 && n <= 7))).sort(
+        (a, b) => a - b,
+      )
+    : [...(d.double_points_days || [])];
+  return {
+    enabled: normBool(raw.enabled, d.enabled),
+    program_mode: normChoice(raw.program_mode, ['points', 'cashback'] as const, d.program_mode || 'points'),
+    layout_preset: normChoice(raw.layout_preset, ['rewards', 'cashback', 'playful'] as const, d.layout_preset || 'rewards'),
+    registration_mode: normChoice(raw.registration_mode, ['simple', 'lightweight', 'full'] as const, d.registration_mode || 'full'),
+    consent_text: normText(raw.consent_text, d.consent_text || '', 1000),
+    join_customer_type: normText(raw.join_customer_type, d.join_customer_type || 'golden', 40),
+    join_discount_percent: normNum(raw.join_discount_percent, d.join_discount_percent ?? 5, 0, 100),
+    app_name: normText(raw.app_name, d.app_name, 60),
+    hero_title: normText(raw.hero_title, d.hero_title, 120),
+    hero_subtitle: normText(raw.hero_subtitle, d.hero_subtitle, 240),
+    hero_image_url: normImageUrl(raw.hero_image_url),
+    background_image_url: normImageUrl(raw.background_image_url),
+    background_color: normHex(raw.background_color, d.background_color || '#0b1220'),
+    points_label: normText(raw.points_label, d.points_label, 30),
+    reward_name: normText(raw.reward_name, d.reward_name, 60),
+    reward_threshold: normNum(raw.reward_threshold, d.reward_threshold, 1, 1000, true),
+    reward_description: normText(raw.reward_description, d.reward_description, 240),
+    reward_card_style: normChoice(raw.reward_card_style, ['rounded', 'soft-square', 'glass'] as const, d.reward_card_style || 'rounded'),
+    cashback_percent: normNum(raw.cashback_percent, d.cashback_percent ?? 5, 0, 100),
+    primary_color: normHex(raw.primary_color, d.primary_color),
+    accent_color: normHex(raw.accent_color, d.accent_color),
+    show_qr_card: normBool(raw.show_qr_card, d.show_qr_card ?? true),
+    show_wallet: normBool(raw.show_wallet, d.show_wallet ?? true),
+    ai_barista_enabled: normBool(raw.ai_barista_enabled, d.ai_barista_enabled ?? false),
+    ai_falci_enabled: normBool(raw.ai_falci_enabled, d.ai_falci_enabled ?? false),
+    show_campaigns: normBool(raw.show_campaigns, d.show_campaigns),
+    show_history: normBool(raw.show_history, d.show_history),
+    show_notifications: normBool(raw.show_notifications, d.show_notifications),
+    campaigns_require_online: normBool(raw.campaigns_require_online, d.campaigns_require_online ?? false),
+    campaign_activation_minutes: normNum(raw.campaign_activation_minutes, d.campaign_activation_minutes ?? 15, 1, 1440, true),
+    birthday_enabled: normBool(raw.birthday_enabled, d.birthday_enabled ?? false),
+    // P0.2 — iki açar bir dəyəri güzgüləyir; kanonik olan `birthday_bonus_points`.
+    birthday_bonus_points: birthdayBonus,
+    birthday_bonus_stars: birthdayBonus,
+    earn_rate_per_azn: normNum(raw.earn_rate_per_azn, d.earn_rate_per_azn ?? 2, 0, 1000),
+    min_purchase_for_earn: normNum(raw.min_purchase_for_earn, d.min_purchase_for_earn ?? 0, 0, 100000),
+    first_purchase_bonus: normNum(raw.first_purchase_bonus, d.first_purchase_bonus ?? 5, 0, 1000, true),
+    double_points_days: days,
+    onesignal_app_id: normText(raw.onesignal_app_id, '', 64),
+    tiers: normCustomerAppTiers(raw.tiers),
+  };
+}
+
 function readFeedbackOverrides(): Record<string, NonNullable<Settings['feedback_settings']>> {
   if (typeof window === 'undefined') return {};
   try {
@@ -489,36 +707,7 @@ function getSettings(tenant_id?: string): Settings {
       splash_bg_color: '#000000',
     },
     feedback_settings: DEFAULT_FEEDBACK_SETTINGS,
-    customer_app_settings: {
-      enabled: true,
-      program_mode: 'points',
-      layout_preset: 'rewards',
-      consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
-      join_customer_type: 'golden',
-      join_discount_percent: 5,
-      app_name: 'Loyalty Club',
-      hero_title: 'Xoş gəldiniz',
-      hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
-      hero_image_url: '',
-      background_image_url: '',
-      background_color: '#0b1220',
-      points_label: 'Ulduz',
-      reward_name: 'Reward',
-      reward_threshold: 10,
-      reward_description: '10 ulduza 1 pulsuz içki',
-      reward_card_style: 'rounded',
-      cashback_percent: 5,
-      primary_color: '#facc15',
-      accent_color: '#22d3ee',
-      show_qr_card: true,
-      show_wallet: true,
-      ai_barista_enabled: false,
-      ai_falci_enabled: false,
-      show_campaigns: true,
-      show_history: true,
-      show_notifications: true,
-      campaigns_require_online: false,
-    },
+    customer_app_settings: normalizeCustomerAppSettings(),
     pos_layout: DEFAULT_POS_LAYOUT,
     pos_layout_draft: DEFAULT_POS_LAYOUT,
     landing_settings: {
@@ -926,38 +1115,9 @@ export function get_settings(tenant_id?: string) {
   if (!s.z_report_receipt_settings) {
     s.z_report_receipt_settings = DEFAULT_Z_REPORT_RECEIPT_SETTINGS;
   }
-  if (!s.customer_app_settings) {
-    s.customer_app_settings = {
-      enabled: true,
-      program_mode: 'points',
-      layout_preset: 'rewards',
-      consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
-      join_customer_type: 'golden',
-      join_discount_percent: 5,
-      app_name: 'Loyalty Club',
-      hero_title: 'Xoş gəldiniz',
-      hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
-      hero_image_url: '',
-      background_image_url: '',
-      background_color: '#0b1220',
-      points_label: 'Ulduz',
-      reward_name: 'Reward',
-      reward_threshold: 10,
-      reward_description: '10 ulduza 1 pulsuz içki',
-      reward_card_style: 'rounded',
-      cashback_percent: 5,
-      primary_color: '#facc15',
-      accent_color: '#22d3ee',
-      show_qr_card: true,
-      show_wallet: true,
-      ai_barista_enabled: false,
-      ai_falci_enabled: false,
-      show_campaigns: true,
-      show_history: true,
-      show_notifications: true,
-      campaigns_require_online: false,
-    };
-  }
+  // P0.1 — həmişə normalize et: köhnə tenant blob-larında olmayan açarlar
+  // (tiers, birthday_enabled, onesignal_app_id) oxunuşda doldurulur.
+  s.customer_app_settings = normalizeCustomerAppSettings(s.customer_app_settings);
   if (!s.pos_layout) {
     s.pos_layout = JSON.parse(JSON.stringify(DEFAULT_POS_LAYOUT));
   }
@@ -1243,84 +1403,30 @@ export function update_feedback_settings(payload: NonNullable<Settings['feedback
   return { success: true, feedback_settings: settings.feedback_settings };
 }
 
-export function update_customer_app_settings(payload: {
-  enabled: boolean;
-  program_mode?: 'points' | 'cashback';
-  layout_preset?: 'rewards' | 'cashback' | 'playful';
-  consent_text?: string;
-  join_customer_type?: string;
-  join_discount_percent?: number;
-  app_name: string;
-  hero_title: string;
-  hero_subtitle: string;
-  hero_image_url?: string;
-  background_image_url?: string;
-  background_color?: string;
-  points_label: string;
-  reward_name: string;
-  reward_threshold: number;
-  reward_description: string;
-  reward_card_style?: 'rounded' | 'soft-square' | 'glass';
-  cashback_percent?: number;
-  primary_color: string;
-  accent_color: string;
-  show_qr_card?: boolean;
-  show_wallet?: boolean;
-  ai_barista_enabled?: boolean;
-  ai_falci_enabled?: boolean;
-  show_campaigns: boolean;
-  show_history: boolean;
-  show_notifications: boolean;
-  campaigns_require_online?: boolean;
-  campaign_activation_minutes?: number;
-  registration_mode?: 'simple' | 'lightweight' | 'full';
-  earn_rate_per_azn?: number;
-  min_purchase_for_earn?: number;
-  birthday_bonus_points?: number;
-  first_purchase_bonus?: number;
-  double_points_days?: number[];
-}) {
+export type CustomerAppSettingsPatch = Partial<NonNullable<Settings['customer_app_settings']>>;
+
+/**
+ * P0.1 — lokal rejimdə də MERGE. Əvvəl bu funksiya obyekti sıfırdan qururdu,
+ * ona görə panelin göndərmədiyi açar (tiers, birthday_enabled, birthday_bonus_stars,
+ * onesignal_app_id) hər save-də silinirdi. Artıq allow-list + merge + normalize.
+ */
+export function update_customer_app_settings(payload: CustomerAppSettingsPatch) {
   const settings = getSettings();
-  settings.customer_app_settings = {
-    enabled: Boolean(payload.enabled),
-    registration_mode: payload.registration_mode || 'full',
-    program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
-    layout_preset: payload.layout_preset === 'cashback' || payload.layout_preset === 'playful' ? payload.layout_preset : 'rewards',
-    consent_text: String(payload.consent_text || '').trim() || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
-    join_customer_type: String(payload.join_customer_type || '').trim() || 'golden',
-    join_discount_percent: Number.isFinite(payload.join_discount_percent) ? Math.max(0, Number(payload.join_discount_percent)) : 5,
-    app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
-    hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
-    hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
-    hero_image_url: String(payload.hero_image_url || '').trim(),
-    background_image_url: String(payload.background_image_url || '').trim(),
-    background_color: String(payload.background_color || '').trim() || '#0b1220',
-    points_label: String(payload.points_label || '').trim() || 'Ulduz',
-    reward_name: String(payload.reward_name || '').trim() || 'Reward',
-    reward_threshold: Number.isFinite(payload.reward_threshold) ? Math.max(1, Number(payload.reward_threshold)) : 10,
-    reward_description: String(payload.reward_description || '').trim() || '10 ulduza 1 pulsuz içki',
-    reward_card_style: payload.reward_card_style === 'soft-square' || payload.reward_card_style === 'glass' ? payload.reward_card_style : 'rounded',
-    cashback_percent: Number.isFinite(payload.cashback_percent) ? Math.max(0, Number(payload.cashback_percent)) : 5,
-    primary_color: String(payload.primary_color || '').trim() || '#facc15',
-    accent_color: String(payload.accent_color || '').trim() || '#22d3ee',
-    show_qr_card: payload.show_qr_card !== false,
-    show_wallet: payload.show_wallet !== false,
-    ai_barista_enabled: payload.ai_barista_enabled === true,
-    ai_falci_enabled: payload.ai_falci_enabled === true,
-    show_campaigns: Boolean(payload.show_campaigns),
-    show_history: Boolean(payload.show_history),
-    show_notifications: Boolean(payload.show_notifications),
-    campaigns_require_online: payload.campaigns_require_online === true,
-    campaign_activation_minutes: Number.isFinite(payload.campaign_activation_minutes) ? Math.max(1, Number(payload.campaign_activation_minutes)) : 15,
-    earn_rate_per_azn: Number.isFinite(payload.earn_rate_per_azn) ? Number(payload.earn_rate_per_azn) : 2,
-    min_purchase_for_earn: Number.isFinite(payload.min_purchase_for_earn) ? Number(payload.min_purchase_for_earn) : 0,
-    birthday_bonus_points: Number.isFinite(payload.birthday_bonus_points) ? Number(payload.birthday_bonus_points) : 10,
-    first_purchase_bonus: Number.isFinite(payload.first_purchase_bonus) ? Number(payload.first_purchase_bonus) : 5,
-    double_points_days: Array.isArray(payload.double_points_days) ? payload.double_points_days : [],
-  };
+  const current = (settings.customer_app_settings || {}) as Record<string, any>;
+  const incoming: Record<string, any> = {};
+  const rejected: string[] = [];
+  for (const [key, value] of Object.entries(payload || {})) {
+    if ((CUSTOMER_APP_SETTING_KEYS as string[]).includes(key)) incoming[key] = value;
+    else rejected.push(key);
+  }
+  const merged = normalizeCustomerAppSettings({ ...current, ...incoming });
+  const changed = (CUSTOMER_APP_SETTING_KEYS as string[]).filter(
+    (key) => JSON.stringify(current[key]) !== JSON.stringify((merged as Record<string, any>)[key]),
+  );
+  settings.customer_app_settings = merged;
   saveSettings(settings);
-  logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', settings.customer_app_settings);
-  return { success: true, customer_app_settings: settings.customer_app_settings };
+  logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', { changed, rejected });
+  return { success: true, changed, rejected, customer_app_settings: merged };
 }
 
 export function update_pos_layout_settings(payload: NonNullable<Settings['pos_layout']>) {
@@ -1553,47 +1659,22 @@ export async function send_public_table_service(
   });
 }
 
-export async function update_customer_app_settings_live(payload: {
-  enabled: boolean;
-  program_mode?: 'points' | 'cashback';
-  layout_preset?: 'rewards' | 'cashback' | 'playful';
-  consent_text?: string;
-  join_customer_type?: string;
-  join_discount_percent?: number;
-  app_name: string;
-  hero_title: string;
-  hero_subtitle: string;
-  hero_image_url?: string;
-  background_image_url?: string;
-  background_color?: string;
-  points_label: string;
-  reward_name: string;
-  reward_threshold: number;
-  reward_description: string;
-  reward_card_style?: 'rounded' | 'soft-square' | 'glass';
-  cashback_percent?: number;
-  primary_color: string;
-  accent_color: string;
-  show_qr_card?: boolean;
-  show_wallet?: boolean;
-  ai_barista_enabled?: boolean;
-  ai_falci_enabled?: boolean;
-  show_campaigns: boolean;
-  show_history: boolean;
-  show_notifications: boolean;
-  campaigns_require_online?: boolean;
-  campaign_activation_minutes?: number;
-  registration_mode?: 'simple' | 'lightweight' | 'full';
-  earn_rate_per_azn?: number;
-  min_purchase_for_earn?: number;
-  birthday_bonus_points?: number;
-  first_purchase_bonus?: number;
-  double_points_days?: number[];
-}) {
+/**
+ * P0.1 — qismən payload qəbul edir. Backend merge edib tam normalize olunmuş
+ * obyekti qaytarır; lokal güzgü həmin cavabla doldurulur (payload ilə deyil),
+ * yoxsa lokal kopya serverdəki dəyərlərdən geri qalır.
+ */
+export async function update_customer_app_settings_live(payload: CustomerAppSettingsPatch) {
   if (!isBackendEnabled()) return update_customer_app_settings(payload);
-  await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
-  update_customer_app_settings(payload);
-  return { success: true };
+  const res = await apiRequest<{
+    success?: boolean;
+    changed?: string[];
+    rejected?: string[];
+    customer_app_settings?: CustomerAppSettingsPatch;
+  }>('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
+  const authoritative = res && typeof res.customer_app_settings === 'object' ? res.customer_app_settings : payload;
+  update_customer_app_settings(authoritative || payload);
+  return { success: true, changed: res?.changed || [], rejected: res?.rejected || [] };
 }
 
 export interface TenantBranchPayload {
