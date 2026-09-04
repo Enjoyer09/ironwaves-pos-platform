@@ -10,6 +10,8 @@ Covers:
   - POST /customer-app/profile/birthday validation (format/past/age/session)
   - session exposes birth_date
   - settings PATCH accepts birthday_enabled / birthday_bonus_stars
+  - P0.2: birthday_bonus_points is the canonical key (stars = legacy mirror/fallback),
+    bonus 0 grants nothing, notification text uses the tenant's points_label
   - daily guard marker roundtrip
 """
 import importlib
@@ -160,7 +162,9 @@ def test_birthday_grant_full_flow(monkeypatch):
     assert notif is not None
     assert "+5" in notif.message
 
-    assert push_calls == [("fcm:test-token", "Doğum gününüz mübarək! 🎂", "+5 ★ hesabınıza əlavə edildi")]
+    # P0.2 — mətn artıq hardcoded "★" deyil, tenant-ın `points_label`-ından gəlir
+    # (seed-də points_label yoxdur → program_mode='points' üçün fallback "Ulduz").
+    assert push_calls == [("fcm:test-token", "Doğum gününüz mübarək! 🎂", "+5 Ulduz hesabınıza əlavə edildi")]
 
     db.close()
     engine.dispose()
@@ -543,6 +547,125 @@ def test_birthday_settings_patch_accepts_keys():
     saved = json.loads(row.value)
     assert saved["birthday_enabled"] is True
     assert saved["birthday_bonus_stars"] == 7
+    # P0.2 — köhnə `birthday_bonus_stars` dəyəri kanonik açara köçürülür və hər iki
+    # açar həmin rəqəmi güzgüləyir (deploy sırasından asılılıq qalmır).
+    assert saved["birthday_bonus_points"] == 7
+
+    db.close()
+    engine.dispose()
+
+
+def test_birthday_settings_patch_points_key_is_canonical():
+    """P0.2 — panel `birthday_bonus_points` yazır; stars ona uyğunlaşdırılır."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    # Köhnə tenant: yalnız stars yazılıb (5).
+    tenant = _seed_tenant(db, birthday_enabled=True, bonus=5)
+    admin = type("U", (), {"username": "admin-1", "role": "admin"})()
+
+    res = operations.update_customer_app_settings(
+        payload={"birthday_bonus_points": 20},
+        db=db,
+        tenant=tenant,
+        user=admin,
+    )
+    assert res["success"] is True
+
+    row = (
+        db.query(Setting)
+        .filter(Setting.tenant_id == tenant.id, Setting.key == "customer_app_settings")
+        .first()
+    )
+    saved = json.loads(row.value)
+    assert saved["birthday_bonus_points"] == 20
+    assert saved["birthday_bonus_stars"] == 20  # güzgü
+    assert saved["birthday_enabled"] is True  # göndərilməyən açar silinmir (P0.1)
+
+    db.close()
+    engine.dispose()
+
+
+def test_birthday_bonus_resolution_prefers_points_key():
+    """P0.2 — scheduler kanonik açarı oxuyur, köhnə açar fallback qalır, 0 legaldır."""
+    assert bd._resolve_bonus({"birthday_bonus_points": 25, "birthday_bonus_stars": 5}) == 25
+    assert bd._resolve_bonus({"birthday_bonus_stars": 7}) == 7  # köhnə tenant
+    assert bd._resolve_bonus({}) == bd.DEFAULT_BIRTHDAY_BONUS
+    assert bd._resolve_bonus({"birthday_bonus_points": 0}) == 0  # əvvəl max(1,..) 1-ə qaldırırdı
+    assert bd._resolve_bonus({"birthday_bonus_points": None, "birthday_bonus_stars": 9}) == 9
+    assert bd._resolve_bonus({"birthday_bonus_points": "abc"}) == bd.DEFAULT_BIRTHDAY_BONUS
+    assert bd._resolve_bonus({"birthday_bonus_points": 99999}) == 1000  # üst hədd
+
+
+def test_birthday_zero_bonus_grants_nothing(monkeypatch):
+    """P0.2 — bonus 0 olanda proqram aktiv olsa da heç nə verilmir."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = _seed_tenant(db, birthday_enabled=True, bonus=0)
+    customer = _seed_customer(db, tenant, birth_date=date(1995, 8, 16))
+
+    monkeypatch.setattr("app.routers.pos.send_push_notification", lambda *a, **k: None)
+
+    result = bd.run_birthday_scan(db, today=date(2026, 8, 16))
+
+    assert result["granted"] == 0
+    db.refresh(customer)
+    assert customer.stars == 10  # toxunulmayıb
+    assert (
+        db.query(LoyaltyLedgerEntry)
+        .filter(LoyaltyLedgerEntry.tenant_id == tenant.id, LoyaltyLedgerEntry.unit == "birthday")
+        .count()
+        == 0
+    )
+
+    db.close()
+    engine.dispose()
+
+
+def test_birthday_notification_uses_tenant_points_label(monkeypatch):
+    """P0.2 — bildiriş mətni hardcoded '★' deyil, tenant-ın vahid adını işlədir."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = Tenant(id="tenant-lbl", name="iRonWaves", slug="ironwaves-lbl", domain="lbl.ironwaves.store")
+    db.add(tenant)
+    db.add(
+        Setting(
+            tenant_id=tenant.id,
+            key="customer_app_settings",
+            value=json.dumps(
+                {
+                    "enabled": True,
+                    "program_mode": "points",
+                    "points_label": "Xal",
+                    "birthday_enabled": True,
+                    "birthday_bonus_points": 3,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    customer = _seed_customer(db, tenant, card_id="QR-LBL0001", birth_date=date(1990, 8, 16))
+
+    push_calls: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        "app.routers.pos.send_push_notification",
+        lambda token, title, body: push_calls.append((token, title, body)),
+    )
+
+    result = bd.run_birthday_scan(db, today=date(2026, 8, 16))
+    assert result["granted"] == 1
+
+    notif = (
+        db.query(Notification)
+        .filter(Notification.tenant_id == tenant.id, Notification.card_id == customer.card_id)
+        .first()
+    )
+    assert notif is not None
+    assert "+3 Xal" in notif.message
+    assert "★" not in notif.message
+    assert push_calls == [("fcm:test-token", "Doğum gününüz mübarək! 🎂", "+3 Xal hesabınıza əlavə edildi")]
 
     db.close()
     engine.dispose()

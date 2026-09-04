@@ -76,6 +76,7 @@ export default function CustomerAppPanel() {
     campaign_activation_minutes: '15',
     earn_rate_per_azn: '2',
     min_purchase_for_earn: '0',
+    birthday_enabled: false,
     birthday_bonus_points: '10',
     first_purchase_bonus: '5',
     double_points_days: [] as number[],
@@ -120,7 +121,10 @@ export default function CustomerAppPanel() {
           campaign_activation_minutes: String(c.campaign_activation_minutes || 15),
           earn_rate_per_azn: String(c.earn_rate_per_azn ?? 2),
           min_purchase_for_earn: String(c.min_purchase_for_earn ?? 0),
-          birthday_bonus_points: String(c.birthday_bonus_points ?? 10),
+          birthday_enabled: Boolean(c.birthday_enabled ?? false),
+          // P0.2 — kanonik açar `birthday_bonus_points`; köhnə tenant-da yalnız
+          // `birthday_bonus_stars` ola bilər, ona görə fallback saxlanılır.
+          birthday_bonus_points: String(c.birthday_bonus_points ?? c.birthday_bonus_stars ?? 10),
           first_purchase_bonus: String(c.first_purchase_bonus ?? 5),
           double_points_days: Array.isArray(c.double_points_days) ? c.double_points_days : [],
         }));
@@ -337,6 +341,7 @@ export default function CustomerAppPanel() {
       campaign_activation_minutes: Number(form.campaign_activation_minutes || 15),
       earn_rate_per_azn: Number(form.earn_rate_per_azn),
       min_purchase_for_earn: Number(form.min_purchase_for_earn),
+      birthday_enabled: form.birthday_enabled,
       birthday_bonus_points: Number(form.birthday_bonus_points),
       first_purchase_bonus: Number(form.first_purchase_bonus),
       double_points_days: form.double_points_days,
@@ -658,7 +663,33 @@ export default function CustomerAppPanel() {
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Ad günü bonusu', 'Бонус на день рождения', 'Birthday bonus points')}</label>
-            <input className="neon-input" type="number" min={0} value={form.birthday_bonus_points} onChange={(e) => setForm((prev) => ({ ...prev, birthday_bonus_points: e.target.value }))} />
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              max={1000}
+              value={form.birthday_bonus_points}
+              disabled={!form.birthday_enabled}
+              onChange={(e) => setForm((prev) => ({ ...prev, birthday_bonus_points: e.target.value }))}
+            />
+            <label className="mt-2 flex items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={form.birthday_enabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, birthday_enabled: e.target.checked }))}
+              />
+              <span>{tx(lang, 'Ad günü bonusu avtomatik verilsin', 'Автоматически начислять бонус на день рождения', 'Grant birthday bonus automatically')}</span>
+            </label>
+            <div className="mt-1 text-xs text-slate-500">
+              {form.birthday_enabled
+                ? tx(
+                    lang,
+                    `Hər müştəriyə ildə bir dəfə +${form.birthday_bonus_points || 0} ${form.points_label} və bildiriş göndərilir.`,
+                    `Каждому клиенту раз в год +${form.birthday_bonus_points || 0} ${form.points_label} и уведомление.`,
+                    `Each customer gets +${form.birthday_bonus_points || 0} ${form.points_label} once a year, plus a notification.`,
+                  )
+                : tx(lang, 'Söndürülüb — heç bir bonus verilmir.', 'Отключено — бонус не начисляется.', 'Disabled — no bonus is granted.')}
+            </div>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'İlk alış bonusu', 'Бонус за первую покупку', 'First purchase bonus')}</label>
