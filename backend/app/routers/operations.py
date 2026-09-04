@@ -4641,6 +4641,10 @@ def get_customer_app_session(
             "reward_name": str(app_settings.get("reward_name") or "Reward"),
             "program_mode": program_mode,
             "cashback_percent": float(cashback_percent),
+            # P0.6 — tətbiq "doğum günündə hədiyyə var" mətnini yalnız ayar
+            # həqiqətən açıq olanda göstərməlidir; əvvəl bunu bilmirdi və hər
+            # tenant-da vəd edirdi.
+            "birthday_enabled": bool(app_settings.get("birthday_enabled")),
             "rewards": [
                 {
                     "id": "default-reward",

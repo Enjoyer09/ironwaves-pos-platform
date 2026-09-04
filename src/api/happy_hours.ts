@@ -38,14 +38,25 @@ export function get_active_happy_hour() {
   const tenantId = defaultTenant();
   const happyHours = getDB<HappyHour>('happy_hours');
   const now = new Date();
-  const currentDay = now.getDay(); // 0-6 (Bazar - Şənbə)
+  // Gün nömrələnməsi backend ilə eynidir: B.E=1 … Bazar=7
+  // (`operations.py:6900` → `now.weekday() + 1`). `getDay()` Bazar üçün 0
+  // qaytarır, ona görə çevrilir — əvvəl bu səbəbdən bazar günü heç bir
+  // happy hour aktiv görünmürdü.
+  const currentDay = now.getDay() === 0 ? 7 : now.getDay();
   const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
   for (const hh of happyHours) {
     if (hh.tenant_id !== tenantId || !hh.is_active) continue;
-    
-    // Gün yoxlanışı
-    if (!hh.days_of_week.includes(currentDay)) continue;
+
+    // Gün yoxlanışı — sətir backend ixracından gəlibsə sahə
+    // `days_of_week_json` adlanır.
+    const rawDays = Array.isArray(hh.days_of_week)
+      ? hh.days_of_week
+      : Array.isArray((hh as any).days_of_week_json)
+        ? (hh as any).days_of_week_json
+        : [];
+    const days = rawDays.map((d: any) => (Number(d) === 0 ? 7 : Number(d)));
+    if (!days.includes(currentDay)) continue;
 
     // Saat yoxlanışı
     if (currentTime >= hh.start_time && currentTime <= hh.end_time) {

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Zap, Eye, UserCheck} from 'lucide-react';
+import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Eye, UserCheck, AlertTriangle, Home, Coffee, Gift, MessageSquare, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_settings_live, update_customer_app_settings_live, list_branches_live, create_branch_live, update_branch_live, delete_branch_live , list_campaigns_admin_live, create_campaign_live, update_campaign_live, delete_campaign_live} from '../../api/settings';
+import { get_settings_live, update_customer_app_settings_live, get_business_profile_live, list_branches_live, create_branch_live, update_branch_live, delete_branch_live , list_campaigns_admin_live, create_campaign_live, update_campaign_live, delete_campaign_live} from '../../api/settings';
 import { prepareImageDataUrl } from '../../lib/image_upload';
 
 const CRM_MEMBER_TYPES = [
@@ -14,6 +14,32 @@ const CRM_MEMBER_TYPES = [
   { value: 'ikram', label: 'Ikram (100%)', discount: 100 },
   { value: 'telebe', label: 'Tələbə (15%)', discount: 15 },
 ];
+
+// P0.4 — ön baxış dürüstlüyü.
+// Panelin bəzi sahələri yadda saxlanılır, amma nə POS-un ulduz hesablaması, nə
+// müştəri tətbiqi onları OXUMUR. Əvvəl bu sahələr işləyən sahələrlə eyni
+// görünürdü və menecer real olmayan qayda qurduğunu düşünürdü. Artıq belə
+// sahələr açıq nişanlanır.
+//
+// Hazırda oxunmayan sahələr (yoxlanıldı: `pos.py` ulduz hesablaması yalnız
+// `reward_threshold` + içki sayına baxır — `pos.py:721-752`):
+//   • earn_rate_per_azn     • min_purchase_for_earn
+//   • first_purchase_bonus  • double_points_days
+// Bunlar P1.1-də real qaydalara bağlanacaq.
+function NotAppliedBadge({ lang }: { lang: any }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200"
+      title={tx(lang,
+        'Dəyər yadda saxlanılır, lakin POS ulduz hesablaması və müştəri tətbiqi onu hələ oxumur.',
+        'Значение сохраняется, но POS и клиентское приложение его пока не читают.',
+        'The value is stored, but POS accrual and the customer app do not read it yet.')}
+    >
+      <AlertTriangle size={10} />
+      {tx(lang, 'tətbiqdə hələ işləmir', 'пока не применяется', 'not applied yet')}
+    </span>
+  );
+}
 
 export default function CustomerAppPanel() {
   const { user, lang, notify } = useAppStore();
@@ -41,6 +67,13 @@ export default function CustomerAppPanel() {
     categories: 'ALL', is_active: true
   });
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+
+  // P0.5 — logo `customer_app_settings`-in içində DEYİL; o `BusinessProfile.logo_url`
+  // sütunudur və yalnız `PUT /business-profile` ilə yazılır. Həmin endpoint bütün
+  // sahələri (VÖEN, ƏDV dərəcəsi, NKA nömrəsi, fiskal açar) payload-dan tam
+  // əvəzləyir — buradan yalnız logo göndərmək fiskal məlumatı silərdi. Ona görə
+  // burada logo yalnız OXUNUR və istifadəçi Biznes profilinə yönləndirilir.
+  const [brandLogoUrl, setBrandLogoUrl] = useState('');
 
   const [form, setForm] = useState({
 
@@ -130,6 +163,14 @@ export default function CustomerAppPanel() {
         }));
       } catch (e: any) {
         notify('error', e?.message || 'Customer app settings yüklənmədi');
+      }
+      // Logo ayrı mənbədəndir (Biznes profili) — uğursuzluq ayarların
+      // yüklənməsini pozmasın deyə ayrı try/catch.
+      try {
+        const profile = await get_business_profile_live(tenantId);
+        setBrandLogoUrl(String((profile as any)?.logo_url || '').trim());
+      } catch {
+        setBrandLogoUrl('');
       }
     })();
   }, [tenantId]);
@@ -441,6 +482,25 @@ export default function CustomerAppPanel() {
       ? { background: 'linear-gradient(180deg, #2A1A10 0%, #160D07 100%)' }
       : { backgroundColor: form.background_color };
 
+  // ── P0.4 — ön baxış yalnız tətbiqin REAL oxuduğu sahələri göstərir ────────
+  // Möhür sayı `reward_threshold`-dan gəlir (HomeTab-da eyni qayda, P0.3);
+  // çox böyük hədd ön baxışı doldurmasın deyə 10-da kəsilir.
+  const previewThreshold = Math.max(1, Math.min(60, Number(form.reward_threshold) || 10));
+  const previewStampCount = Math.min(10, previewThreshold);
+
+  // Tətbiqin alt naviqasiyası ilə eyni siyahı və eyni şərt
+  // (`CustomerApp.tsx:1764-1775`) — AI tab-ı yalnız Barista/Falçı açıq olanda.
+  const previewTabs: Array<{ key: string; label: string; icon: React.ReactNode }> = [
+    { key: 'home', label: tx(lang, 'Ana', 'Главная', 'Home'), icon: <Home size={13} /> },
+    { key: 'order', label: tx(lang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={13} /> },
+    { key: 'offers', label: tx(lang, 'Kampaniya', 'Кампании', 'Offers'), icon: <Gift size={13} /> },
+    { key: 'feedback', label: tx(lang, 'Rəy', 'Отзыв', 'Feedback'), icon: <MessageSquare size={13} /> },
+    ...(form.ai_barista_enabled || form.ai_falci_enabled
+      ? [{ key: 'ai', label: 'AI', icon: <Sparkles size={13} /> }]
+      : []),
+    { key: 'profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={13} /> },
+  ];
+
   return (
     <div className="space-y-6">
 
@@ -500,6 +560,29 @@ export default function CustomerAppPanel() {
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'App adı', 'Название приложения', 'App name')}</label>
             <input className="neon-input" value={form.app_name} onChange={(e) => setForm((prev) => ({ ...prev, app_name: e.target.value }))} />
+          </div>
+          {/* P0.5 — logo burada YAZILMIR. Səbəb: logo Biznes profilinin sütunudur və
+              onun endpoint-i bütün fiskal sahələri (VÖEN, ƏDV, NKA) üzərinə yazır. */}
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Logo', 'Логотип', 'Logo')}</label>
+            <div className="flex items-center gap-3">
+              {brandLogoUrl ? (
+                <img src={brandLogoUrl} alt="logo" className="h-12 w-12 rounded-xl object-cover border border-white/15" />
+              ) : (
+                <div className="h-12 w-12 rounded-xl border border-dashed border-white/20 flex items-center justify-center text-lg opacity-60">☕</div>
+              )}
+              <p className="text-[11px] leading-snug opacity-70">
+                {brandLogoUrl
+                  ? tx(lang,
+                      'Müştəri tətbiqi bu logonu göstərir. Dəyişmək üçün: Ayarlar → Biznes profili.',
+                      'Приложение показывает этот логотип. Изменить: Настройки → Профиль бизнеса.',
+                      'The customer app shows this logo. To change it: Settings → Business profile.')
+                  : tx(lang,
+                      'Logo yüklənməyib — tətbiqdə ☕ ikonu görünür. Yükləmək üçün: Ayarlar → Biznes profili.',
+                      'Логотип не загружен — в приложении отображается ☕. Загрузить: Настройки → Профиль бизнеса.',
+                      'No logo uploaded — the app shows a ☕ icon. Upload it in Settings → Business profile.')}
+              </p>
+            </div>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
@@ -599,10 +682,20 @@ export default function CustomerAppPanel() {
             </div>
           </label>
           <div className="space-y-2">
-            <div className="text-sm text-slate-300">{tx(lang, 'Hero şəkli', 'Hero изображение', 'Hero image')}</div>
+            <div className="text-sm text-slate-300">{tx(lang, 'Loyallıq kartının şəkli', 'Изображение карты лояльности', 'Loyalty card image')}</div>
+            {/* P0.4 — ad dürüstləşdirildi. Bu şəkil hero-nun arxasında deyil,
+                ana səhifədəki loyallıq kartının fonunda işlənir
+                (`HomeTab.tsx:622-624`). Açar adı `hero_image_url` olaraq qalır —
+                onu dəyişmək mövcud tenant ayarlarını itirərdi. */}
             <input className="neon-input" value={form.hero_image_url} onChange={(e) => setForm((prev) => ({ ...prev, hero_image_url: e.target.value }))} placeholder={tx(lang, 'Şəkil URL və ya data URL', 'URL или data URL', 'Image URL or data URL')} />
             <input className="neon-input" type="file" accept="image/*" onChange={(e) => handleImage('hero_image_url', e.target.files?.[0])} />
             {form.hero_image_url ? <img src={form.hero_image_url} alt="hero preview" className="h-24 w-full rounded-xl object-cover" /> : null}
+            <div className="text-[11px] leading-snug text-slate-500">
+              {tx(lang,
+                'Ana səhifədəki kartın fonu kimi göstərilir, üzərinə tündləşdirici qradient qoyulur.',
+                'Показывается как фон карты на главной, поверх накладывается затемняющий градиент.',
+                'Rendered as the home-screen card background, under a darkening gradient.')}
+            </div>
           </div>
           <div className="space-y-2">
             <div className="text-sm text-slate-300">{tx(lang, 'Arxa fon şəkli', 'Фоновое изображение', 'Background image')}</div>
@@ -689,13 +782,27 @@ export default function CustomerAppPanel() {
 
       <div className="metal-panel p-6 space-y-4">
         <div className="flex items-center gap-2 text-lg font-bold text-slate-100"><Star size={18} /> {tx(lang, 'Qazanma Qaydaları / Earn Rules', 'Правила заработка / Earn Rules', 'Earn Rules')}</div>
+        {/* P0.4 — real qayda burada bir dəfə açıq yazılır ki, aşağıdaki
+            nişanlanmış sahələr yanlış təsəvvür yaratmasın. */}
+        <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-3 text-[11px] leading-snug text-slate-400">
+          {tx(lang,
+            `Hazırda POS hər içkiyə 1 ${form.points_label} yazır və ${form.reward_threshold || 10} ${form.points_label} tamamlananda 1 ${form.reward_name} açır. Məbləğə görə hesablama, minimum alış həddi və 2x günlər hələ qoşulmayıb.`,
+            `Сейчас POS начисляет 1 ${form.points_label} за напиток, а на ${form.reward_threshold || 10} открывается 1 ${form.reward_name}. Начисление по сумме, минимальная покупка и дни 2x пока не подключены.`,
+            `Today POS grants 1 ${form.points_label} per drink and unlocks 1 ${form.reward_name} at ${form.reward_threshold || 10}. Amount-based earning, minimum purchase and 2x days are not wired yet.`)}
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, '1 AZN = neçə xal?', '1 AZN = сколько баллов?', 'Earn rate per AZN')}</label>
+            <label className="field-label flex flex-wrap items-center gap-2">
+              {tx(lang, '1 AZN = neçə xal?', '1 AZN = сколько баллов?', 'Earn rate per AZN')}
+              <NotAppliedBadge lang={lang} />
+            </label>
             <input className="neon-input" type="number" step="any" min={0} value={form.earn_rate_per_azn} onChange={(e) => setForm((prev) => ({ ...prev, earn_rate_per_azn: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Minimum alış məbləği', 'Мин. сумма покупки', 'Min purchase for earn')}</label>
+            <label className="field-label flex flex-wrap items-center gap-2">
+              {tx(lang, 'Minimum alış məbləği', 'Мин. сумма покупки', 'Min purchase for earn')}
+              <NotAppliedBadge lang={lang} />
+            </label>
             <input className="neon-input" type="number" step="any" min={0} value={form.min_purchase_for_earn} onChange={(e) => setForm((prev) => ({ ...prev, min_purchase_for_earn: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
@@ -729,11 +836,17 @@ export default function CustomerAppPanel() {
             </div>
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'İlk alış bonusu', 'Бонус за первую покупку', 'First purchase bonus')}</label>
+            <label className="field-label flex flex-wrap items-center gap-2">
+              {tx(lang, 'İlk alış bonusu', 'Бонус за первую покупку', 'First purchase bonus')}
+              <NotAppliedBadge lang={lang} />
+            </label>
             <input className="neon-input" type="number" min={0} value={form.first_purchase_bonus} onChange={(e) => setForm((prev) => ({ ...prev, first_purchase_bonus: e.target.value }))} />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, '2x Xal günləri', 'Дни двойных баллов', 'Double points days')}</label>
+            <label className="field-label flex flex-wrap items-center gap-2">
+              {tx(lang, '2x Xal günləri', 'Дни двойных баллов', 'Double points days')}
+              <NotAppliedBadge lang={lang} />
+            </label>
             <div className="flex flex-wrap gap-2 mt-2">
               {[{ id: 1, az: 'B.E', ru: 'Пн', en: 'Mon' }, { id: 2, az: 'Ç.A', ru: 'Вт', en: 'Tue' }, { id: 3, az: 'Ç', ru: 'Ср', en: 'Wed' }, { id: 4, az: 'C.A', ru: 'Чт', en: 'Thu' }, { id: 5, az: 'C', ru: 'Пт', en: 'Fri' }, { id: 6, az: 'Ş', ru: 'Сб', en: 'Sat' }, { id: 7, az: 'B', ru: 'Вс', en: 'Sun' }].map((d) => (
                 <label key={d.id} className={`cursor-pointer rounded-lg px-3 py-1 text-sm font-semibold border ${form.double_points_days.includes(d.id) ? 'border-cyan-300 bg-cyan-500/20 text-cyan-200' : 'border-slate-700 bg-slate-900/50 text-slate-400'}`}>
@@ -1034,33 +1147,74 @@ export default function CustomerAppPanel() {
             </div>
             {/* Hero — fon artıq gövdədən gəlir (P0.3), hero şəffafdır */}
             <div className="px-4 pt-6 pb-8 text-center">
-              {form.hero_image_url ? <img src={form.hero_image_url} alt="hero" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover border-2 border-white/20" /> : null}
+              {/* P0.4 — `hero_image_url` əvvəl burada dairəvi avatar kimi
+                  göstərilirdi; tətbiqdə isə loyallıq kartının fonudur
+                  (`HomeTab.tsx:622-624`), ona görə aşağıya köçürüldü. */}
               <div className="text-xs font-black text-white mb-1 drop-shadow-md">{form.app_name || 'Loyalty Club'}</div>
               <div className="text-base font-black text-white leading-tight drop-shadow-md">{form.hero_title}</div>
               <div className="text-[10px] text-white/90 mt-1 drop-shadow-md">{form.hero_subtitle}</div>
-              <div className="mt-2 inline-block rounded-full bg-black/40 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
-                {form.registration_mode === 'simple' ? '⚡ Sadə' : form.registration_mode === 'lightweight' ? '👤 Ad' : '✉️ Ad + Email'}
-              </div>
+              {/* P0.4 — əvvəl burada `registration_mode` nişanı vardı. Tətbiqin
+                  ana səhifəsində belə nişan YOXDUR (o ayar yalnız qoşulma
+                  ekranındaki sahələri müəyyən edir), ona görə çıxarıldı və
+                  çərçivənin altında ayrıca izah kimi verilir. */}
             </div>
             {/* Reward card */}
-            <div className="mx-3 -mt-4 mb-3 p-3 shadow-lg relative bg-slate-800" style={{ 
-              backgroundColor: form.primary_color + '22', 
+            <div className="mx-3 -mt-4 mb-3 p-3 shadow-lg relative bg-slate-800" style={{
+              ...(form.hero_image_url
+                ? {
+                    backgroundImage: `linear-gradient(180deg, rgba(26,67,41,0.2), rgba(13,11,10,0.95)), url(${form.hero_image_url})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }
+                : { backgroundColor: form.primary_color + '22' }),
               border: `1px solid ${form.primary_color}44`,
               borderRadius: form.reward_card_style === 'rounded' ? '24px' : form.reward_card_style === 'soft-square' ? '12px' : '16px',
               backdropFilter: form.reward_card_style === 'glass' ? 'blur(8px)' : 'none'
             }}>
               <div className="text-[9px] text-slate-300 uppercase tracking-wider">{form.points_label}</div>
               <div className="text-2xl font-black" style={{ color: form.primary_color }}>0</div>
+              {/* P0.4 — tətbiqin ana səhifəsində möhür şəbəkəsi `reward_threshold`-dan
+                  qurulur (P0.3). Ön baxışda ən təsirli ayar görünmürdü. */}
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {Array.from({ length: previewStampCount }).map((_, i) => (
+                  <span key={i} className="h-2 w-2 rounded-full border" style={{ borderColor: form.primary_color + '66' }} />
+                ))}
+                {previewThreshold > previewStampCount ? (
+                  <span className="text-[8px] font-bold text-slate-400">+{previewThreshold - previewStampCount}</span>
+                ) : null}
+              </div>
               <div className="text-[9px] text-slate-400 mt-1">{form.reward_description}</div>
             </div>
-            {/* Tab bar */}
+            {/* Tab bar — P0.4: real tab siyahısı (`CustomerApp.tsx:1764-1775`).
+                Əvvəl burada 4 uydurma emoji vardı (🏠🎁📋👤): nə sayı, nə
+                ardıcıllığı tətbiqlə uyğun gəlmirdi. AI tab-ı yalnız Barista və
+                ya Falçı açıq olanda görünür — tətbiqdə də eyni şərtlədir. */}
             <div className="flex justify-around py-3 border-t border-slate-700/50 mt-12 bg-slate-900/80">
-              {['🏠','🎁','📋','👤'].map((icon, i) => (
-                <div key={i} className="text-base opacity-50">{icon}</div>
+              {previewTabs.map((tab, i) => (
+                <div key={tab.key} className={`flex flex-col items-center gap-0.5 ${i === 0 ? 'text-slate-200' : 'text-slate-500'}`}>
+                  {tab.icon}
+                  <span className="text-[7px] font-semibold leading-none">{tab.label}</span>
+                </div>
               ))}
             </div>
-            {/* Live indicator */}
-            <div className="text-center py-2 text-[8px] text-slate-500 bg-slate-950">⚡ Dəyişikliklər real-time əks olunur</div>
+          </div>
+          {/* P0.4 — çərçivənin altındaki izahlar: bunlar ana səhifədə deyil,
+              başqa ekranlarda təsir edir, ona görə telefonun içində göstərilmir. */}
+          <div className="mt-2 space-y-1 text-[10px] leading-snug text-slate-500">
+            <div>
+              <span className="font-semibold text-slate-400">{tx(lang, 'Qoşulma ekranı:', 'Экран регистрации:', 'Join screen:')}</span>{' '}
+              {form.registration_mode === 'simple'
+                ? tx(lang, 'yalnız razılıq — ad/email soruşulmur', 'только согласие — без имени/email', 'consent only — no name/email')
+                : form.registration_mode === 'lightweight'
+                  ? tx(lang, 'ad soruşulur', 'запрашивается имя', 'name is requested')
+                  : tx(lang, 'ad + email soruşulur', 'запрашиваются имя и email', 'name + email are requested')}
+            </div>
+            <div>
+              {tx(lang,
+                'Ön baxış siz yazdıqca yenilənir. Müştəri tətbiqi yalnız "Yadda saxla"-dan sonra, tətbiq yenidən açıldıqda dəyişir.',
+                'Превью обновляется по мере ввода. Клиентское приложение меняется только после «Сохранить» и повторного открытия.',
+                'The preview updates as you type. The customer app changes only after Save, on its next open.')}
+            </div>
           </div>
         </div>
       </div>

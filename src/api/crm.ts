@@ -406,7 +406,12 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .slice(0, 20);
     const profile = getDB<any>('business_profile').find((row) => row.tenant_id === tenantId);
-    const happyHours = filterTenantRecords(getDB<any>('happy_hours'), tenantId).filter((row) => row.is_active).slice(0, 12);
+    const happyHours = filterTenantRecords(getDB<any>('happy_hours'), tenantId)
+      .filter((row) => row.is_active)
+      // Backend `created_at desc` sıralayır (`operations.py:4503`) — lokal
+      // rejimdə sıra eyni olsun deyə burada da sıralanır.
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+      .slice(0, 12);
     const stars = Number(customer.stars || 0);
     const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
     if (settings.enabled === false) {
@@ -485,6 +490,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         reward_name: settings.reward_name || 'Reward',
         program_mode: programMode,
         cashback_percent: cashbackPercent,
+        // P0.6 — backend güzgüsü: doğum günü vədi yalnız ayar açıq olanda görünür.
+        birthday_enabled: Boolean(settings.birthday_enabled),
         rewards: [
           {
             id: 'default-reward',
@@ -794,7 +801,10 @@ export async function validate_pos_campaign_live(campaign_id: string, card_id: s
     const weekday = now.getDay() === 0 ? 7 : now.getDay();
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     let days: number[] = [];
-    const rawDays = happyHour.days_of_week_json;
+    // P0.7 — sətir backend ixracından gəlibsə sahə `days_of_week_json`, panel
+    // lokal yazıbsa `days_of_week` adlanır. Əvvəl yalnız birincisi oxunurdu,
+    // ona görə lokal rejimdə kampaniya QR-ı HEÇ VAXT təsdiqlənmirdi.
+    const rawDays = happyHour.days_of_week_json ?? happyHour.days_of_week;
     if (Array.isArray(rawDays)) {
       days = rawDays.map(Number);
     } else if (typeof rawDays === 'string') {
@@ -804,6 +814,8 @@ export async function validate_pos_campaign_live(campaign_id: string, card_id: s
         days = [];
       }
     }
+    // Köhnə lokal sətirlərdə bazar günü 0 kimi yazıla bilərdi.
+    days = days.map((d) => (d === 0 ? 7 : d));
     if (!days.includes(weekday) || happyHour.start_time > currentTime || currentTime > happyHour.end_time) {
       return { valid: false };
     }

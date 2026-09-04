@@ -663,6 +663,48 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }
     : null;
 
+  // ── P0.5 — tenant kimliyi (əvvəl "iRonWaves" hardcoded idi) ───────────────
+  // Müştəri tətbiqi tenant-ın öz brendini göstərməlidir; platformanın adı
+  // müştəriyə görünən mətnlərdə olmamalıdır.
+  const brandDisplayName = String(
+    branding?.company_name || branding?.app_name
+    || bootstrapData?.branding?.company_name || bootstrapData?.branding?.app_name || ''
+  ).trim();
+  const brandLogoUrl = String(branding?.logo_url || bootstrapData?.branding?.logo_url || '').trim();
+
+  // `customer.html`-də statik `<title>Emalathhana</title>` vardı — bütün tenant-lar
+  // brauzer tabında başqa kafənin adını görürdü. Başlıq (və favicon) artıq
+  // branding yüklənəndə tenant-a görə yazılır.
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (brandDisplayName) document.title = brandDisplayName;
+    if (!brandLogoUrl) return;
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (icon) icon.href = brandLogoUrl;
+    const touchIcon = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+    if (touchIcon) touchIcon.href = brandLogoUrl;
+  }, [brandDisplayName, brandLogoUrl]);
+
+  // ── P0.5 — geofence artıq tenant filiallarından oxunur ────────────────────
+  // Əvvəl `CAFE_LAT/CAFE_LNG = 40.37767, 49.84583` hardcoded idi — yəni HƏR
+  // tenant-ın müştərisi Bakıdakı bir konkret kafənin yanından keçəndə bildiriş
+  // alırdı. Filialın koordinatı yoxdursa geofence heç işə salınmır (səhv yerdə
+  // bildiriş göndərməkdənsə heç göndərməmək düzgündür).
+  const geofenceTargets = React.useMemo(() => {
+    const rows = Array.isArray((data as any)?.stores) ? (data as any).stores : [];
+    return rows
+      .map((row: any) => ({
+        name: String(row?.name || '').trim(),
+        lat: Number(row?.latitude),
+        lng: Number(row?.longitude),
+      }))
+      .filter((row: { lat: number; lng: number }) =>
+        Number.isFinite(row.lat) && Number.isFinite(row.lng) && (row.lat !== 0 || row.lng !== 0));
+  }, [(data as any)?.stores]);
+  // `baseStores` hər render-də yeni massiv qurur, ona görə effekt asılılığı üçün
+  // sabit açar lazımdır — yoxsa `watchPosition` hər render-də yenidən qurulardı.
+  const geofenceKey = geofenceTargets.map((row: { lat: number; lng: number }) => `${row.lat},${row.lng}`).join('|');
+
   // Live Activity — start on data load, update on wallet change
   const hasStartedLiveActivityRef = React.useRef(false);
   React.useEffect(() => {
@@ -1238,9 +1280,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   React.useEffect(() => {
     if (!('geolocation' in navigator)) return;
+    // P0.5 — filial koordinatı yoxdursa geofence söndürülür. Əvvəl burada
+    // hardcoded bir kafənin koordinatı vardı və bütün tenant-lara aid idi.
+    if (geofenceTargets.length === 0) return;
 
-    const CAFE_LAT = 40.37767;
-    const CAFE_LNG = 49.84583;
     const GEOFENCE_RADIUS_METERS = 100;
 
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -1262,32 +1305,41 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const dist = getDistance(
-          position.coords.latitude,
-          position.coords.longitude,
-          CAFE_LAT,
-          CAFE_LNG
-        );
+        // Ən yaxın filialı seç — çox filiallı tenant-da hansına yaxın olduğunu
+        // bildirişdə adla demək lazımdır.
+        let nearest: { name: string; dist: number } | null = null;
+        for (const target of geofenceTargets) {
+          const dist = getDistance(position.coords.latitude, position.coords.longitude, target.lat, target.lng);
+          if (!nearest || dist < nearest.dist) nearest = { name: target.name, dist };
+        }
+        if (!nearest) return;
 
-        if (dist <= GEOFENCE_RADIUS_METERS) {
+        if (nearest.dist <= GEOFENCE_RADIUS_METERS) {
           const now = Date.now();
           if (now - lastNotifiedAt > 3600000) {
             lastNotifiedAt = now;
-            
+
+            // Ad şəkilçisi (-ə/-a) tenant adına görə dəyişir, ona görə başlıq
+            // şəkilçisiz saxlanılır və ad mətnin içində verilir.
+            const placeName = nearest.name || brandDisplayName;
+            const title = tx(safeLang, 'Yaxınlıqdasan! ☕', 'Вы рядом! ☕', "You're nearby! ☕");
+            const body = placeName
+              ? tx(safeLang,
+                  `${placeName} — içəri keç, ulduzlarını qəhvəyə çevir! 🌟`,
+                  `${placeName} — заходите и обменяйте звёзды на кофе! 🌟`,
+                  `${placeName} — come in and turn your stars into coffee! 🌟`)
+              : tx(safeLang,
+                  'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟',
+                  'Заходите и обменяйте звёзды на кофе! 🌟',
+                  'Come in and turn your stars into coffee! 🌟');
+
             if ('Notification' in window) {
+              const show = () => new Notification(title, { body, icon: brandLogoUrl || undefined });
               if (Notification.permission === 'granted') {
-                new Notification('iRonWaves-ə yaxınsan! ☕', {
-                  body: 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟',
-                  icon: branding.logo_url || '',
-                });
+                show();
               } else if (Notification.permission !== 'denied') {
                 Notification.requestPermission().then((permission) => {
-                  if (permission === 'granted') {
-                    new Notification('iRonWaves-ə yaxınsan! ☕', {
-                      body: 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟',
-                      icon: branding.logo_url || '',
-                    });
-                  }
+                  if (permission === 'granted') show();
                 });
               }
             }
@@ -1305,7 +1357,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [branding.logo_url]);
+    // `geofenceKey` koordinatları tam kodlayır; `geofenceTargets` referansı hər
+    // render-də dəyişir, ona görə asılılıq açardır.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geofenceKey, brandDisplayName, brandLogoUrl, safeLang]);
 
   // Persist localFavorites to localStorage
   React.useEffect(() => {
@@ -1598,7 +1653,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
         {/* Footer info text */}
         <div className="text-center text-[9px] font-semibold text-white/20 mt-auto relative z-10 w-full max-w-md mx-auto">
-          iRonWaves App v1.2.0 · {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
+          {bootstrapBranding.app_name || 'iRonWaves'} App v1.2.0 · {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
         </div>
       </div>
     );
@@ -1978,6 +2033,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             stores={stores}
             selectedStoreId={selectedStore?.id || ''}
             setSelectedStore={setSelectedStore}
+            brandLogoUrl={brandLogoUrl}
+            brandName={brandDisplayName}
           />
           </div>
         )}
@@ -2247,8 +2304,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               {tx(safeLang, 'Keç', 'Пропустить', 'Skip')}
             </button>
 
-            <img src="/logo.jpg" alt="Emalathhana" width={56} height={56}
-              className="relative mx-auto mt-1 h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
+            {/* P0.5 — əvvəl hardcoded `/logo.jpg` + alt="Emalathhana" idi. */}
+            {brandLogoUrl ? (
+              <img src={brandLogoUrl} alt={brandDisplayName || 'brand'} width={56} height={56}
+                className="relative mx-auto mt-1 h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
+            ) : null}
             <div className="relative text-6xl mt-2">{ONBOARD_SLIDES[onboardStep].icon}</div>
             <div className="relative space-y-2">
               <h2 className="text-xl font-black leading-tight">{ONBOARD_SLIDES[onboardStep].title[safeLang as 'az' | 'ru' | 'en']}</h2>
