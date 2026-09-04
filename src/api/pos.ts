@@ -8,6 +8,7 @@ import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 import { getActiveTenantId } from '../lib/tenant';
+import { normalizeRewardThreshold } from '../lib/loyalty';
 
 const getCardSaleCommissionPercent = (tenant_id: string) => {
   const settings = get_settings(tenant_id);
@@ -42,6 +43,16 @@ const getBeverageServiceSettings = (tenant_id: string) => {
     discount_scope: 'all_items',
   };
 };
+
+/**
+ * P0.3 — hədiyyə həddi (`customer_app_settings.reward_threshold`).
+ *
+ * Düstur `src/lib/loyalty.ts`-də tək yerdə saxlanılır; `crm.ts` (customer app
+ * lokal sessiyası) eyni funksiyanı işlədir. Backend güzgüsü:
+ * `pos.py::_reward_threshold` / `operations.py::_norm_int(raw, 10, 1, 1000)`.
+ */
+export const getRewardThreshold = (tenant_id: string): number =>
+  normalizeRewardThreshold((get_settings(tenant_id).customer_app_settings as any)?.reward_threshold);
 
 // FUNKSIYA: calculate_total
 export const isPromoEligibleCategory = (categoryName: string) => {
@@ -86,6 +97,7 @@ export const calculate_total = (
   happy_hour: any = null,
   customer_stars: number | null = null,
   _beverageSettingsOverride?: { discount_scope?: string; coffee_selection_mode?: string; summer_promo_enabled?: boolean },
+  _rewardThresholdOverride?: number,
 ) => {
   const beverageSettings = _beverageSettingsOverride || getBeverageServiceSettings(tenant_id);
   const discountScope = beverageSettings.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items';
@@ -114,11 +126,15 @@ export const calculate_total = (
   // Eco-cup logic
   const eco_rate = is_eco_cup && customer_type !== 'Ikram' ? new Decimal(0.05) : new Decimal(0);
 
-  // Stamps: each coffee gives 1 stamp. 10 stamps => 1 free coffee.
+  // Stamps: each coffee gives 1 stamp. `reward_threshold` stamps => 1 free coffee.
+  // P0.3 — hədd artıq ayardandır (əvvəl hardcoded 10 idi, backend ilə uyğunsuz ola bilirdi).
+  const rewardThreshold = _rewardThresholdOverride && _rewardThresholdOverride >= 1
+    ? Math.trunc(_rewardThresholdOverride)
+    : getRewardThreshold(tenant_id);
   const coffee_qty = cart_items.reduce((acc, item) => acc + (isCoffeeLike(item as any) ? item.qty : 0), 0);
   const loyaltyEnabled = customer_stars !== null && customer_stars !== undefined;
   const safeStars = loyaltyEnabled ? Math.max(0, Number(customer_stars) || 0) : 0;
-  const free_coffees = loyaltyEnabled ? Math.floor((safeStars + coffee_qty) / 10) : 0;
+  const free_coffees = loyaltyEnabled ? Math.floor((safeStars + coffee_qty) / rewardThreshold) : 0;
 
   // Buy-1-Get-2nd-50%-Off Promo
   const eligibleUnits: {
@@ -190,7 +206,7 @@ export const calculate_total = (
   const final_total = Decimal.max(new Decimal(0), discounted_subtotal.minus(free_discount)).toDecimalPlaces(2);
   const discount_amount = raw_total.minus(final_total).toDecimalPlaces(2);
   const customer_stars_after = loyaltyEnabled
-    ? (coffee_qty > 0 ? (safeStars + coffee_qty) % 10 : safeStars)
+    ? (coffee_qty > 0 ? (safeStars + coffee_qty) % rewardThreshold : safeStars)
     : 0;
 
   return {

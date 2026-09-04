@@ -307,16 +307,71 @@ kanonik açar oldu; `birthday_bonus_stars` yalnız güzgü/fallback kimi saxlan�
 
 Qalan hədəf: `birthday_bonus_stars` açarını bir buraxılışdan sonra tamamilə çıxarmaq.
 
-**P0.3 — Ölü sahələri ya işlət, ya çıxar.** Hər bir sahə üçün iki yoldan biri seçilməlidir:
+**P0.3 — Ölü sahələri ya işlət, ya çıxar.** ✅ **KODLANDI (2026-09-04)** — `tiers` multiplier
+istisna olmaqla (P1.1-ə keçirildi, aşağıda səbəb var).
 
-| Sahə | Tövsiyə |
-|---|---|
-| `earn_rate_per_azn`, `min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` | **İşlət** — `pos.py` accrual-ını bu ayarlardan oxutmaq (P1.1) |
-| `reward_threshold` | **İşlət** — `pos.py:718-720` və `HomeTab.tsx:515` hardcoded 10-u ayardan al |
-| `layout_preset`, `reward_card_style` | **Çıxar** — 3 preset real fərq yaratmır, saxta seçim yaradır |
-| `background_color`, `background_image_url` | **İşlət** (asan) — `HomeTab` root fonunu bunlardan al |
-| `hero_title`, `hero_subtitle` | **İşlət** — `HomeTab.tsx:322-347` hardcoded hero mətnini əvəz et |
-| `tiers` multiplier | **İşlət və ya sil** — göndərilir, tətbiq olunmur; yarımçıq vəd |
+| Sahə | Tövsiyə | Nə oldu |
+|---|---|---|
+| `earn_rate_per_azn`, `min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` | **İşlət** — `pos.py` accrual-ını bu ayarlardan oxutmaq (P1.1) | P1.1-də qalır |
+| `reward_threshold` | **İşlət** — `pos.py:718-720` və `HomeTab.tsx:515` hardcoded 10-u ayardan al | ✅ 4 oxuyucu bir açarda birləşdi |
+| `reward_card_style` | ~~Çıxar~~ → **İşlət** | ✅ kartın radius/blur-una bağlandı |
+| `layout_preset` | ~~Çıxar~~ → **Saxla, adını dürüstləşdir** | ✅ "Sürətli başlanğıc dəstləri" |
+| `background_color`, `background_image_url` | **İşlət** (asan) | ✅ tətbiq gövdəsinin fonu |
+| `hero_title`, `hero_subtitle` | **İşlət** — `HomeTab.tsx:322-347` hardcoded hero mətnini əvəz et | ✅ ayardan, köhnə mətn fallback |
+| `tiers` multiplier | **İşlət və ya sil** — göndərilir, tətbiq olunmur | P1.1-ə keçirildi |
+
+**`reward_threshold` — dörd oxuyucu, bir düstur.** Ən ciddi tapıntı burada idi: hədd oxu
+yolunda (`operations.py` sessiya `next_reward_at` və reward claim) hörmət olunurdu, **yazı
+yolunda isə yox** — `pos.py` accrual-ı `// 10` və `% 10` saxlayırdı, `src/api/pos.ts` isə
+`/ 10`. Yəni tenant həddi 8 qoysa müştəri tətbiqdə "8" görürdü, kassada 10-luq dövrə ilə
+qazanırdı. Artıq hamısı eyni funksiyanı işlədir:
+
+- `pos.py::_reward_threshold` (yeni) — satış accrual-ı; `operations.py::_norm_int` güzgüsü.
+- `operations.py` — iki oxu sahəsi `_norm_int(raw, 10, 1, 1000)`-ə keçdi. Köhnə
+  `max(1, int(raw or 10))` legacy `"8.5"` dəyərində **ValueError → 500** verirdi.
+- `src/lib/loyalty.ts::normalizeRewardThreshold` (yeni fayl) — `src/api/pos.ts` və
+  `src/api/crm.ts` üçün tək mənbə. Ayrı fayldır ki, `crm.ts` (customer app-ın tək API
+  modulu) `pos.ts` vasitəsilə `decimal.js` + finance kodunu customer bundle-ına dartmasın.
+
+Vacib semantika: **0, mənfi və format xətası default 10-a düşür — 1-ə DEYİL.** Hədd 1 olsa
+hər qəhvə pulsuz olar, yəni səhv oxuma kassanı dağıdar; 10-a düşmək sadəcə köhnə davranışdır.
+
+**Fon (`background_color` / `background_image_url`).** `CustomerApp.tsx` gövdə fonuna bağlandı,
+üç qorunma ilə: (1) backend `#0b1220`-ni "seçilməmiş" default kimi göndərir, ona görə o dəyər
+sentinel sayılır və tətbiqin isti qradienti qalır — frontend onsuz da backend-in
+`#facc15`/`#22d3ee` rəng default-larını bu cür saymırdı; (2) rəng yalnız **tünd temada**
+tətbiq olunur, çünki işıqlı temada mətn `text-slate-900`-dır və tenant tünd rəng seçsə mətn
+oxunmaz olardı; (3) şəkil inline `url(...)` içinə düşdüyü üçün hex/URL validasiyası var
+(CSS injection) və şəklin üstündə tünd pərdə qoyulur ki, ağ mətnin kontrastı qalsın.
+
+**`layout_preset` silinmədi.** Auditin ilk tövsiyəsi "çıxar" idi, amma kod oxunandan sonra
+qərar dəyişdi: `applyPreset` **12 real sahəni** birdən yazır (`program_mode`, `app_name`,
+`hero_title`, `hero_subtitle`, `consent_text`, `background_color`, `points_label`,
+`reward_name`, `reward_description`, `reward_card_style`, `primary_color`, `accent_color`,
+bəzən AI açarları). Yalan adında idi — "Hazır dizayn preset-ləri" layout mühərriki vəd
+edirdi. Ad "Sürətli başlanğıc dəstləri" oldu, təsvirlər hər dəstin **hansı sahələri**
+doldurduğunu yazır, `layout_preset` isə hansı düymənin seçili qaldığını yadda saxlayır.
+
+**`reward_card_style` də silinmədi** — panelin öz ön baxışı onu artıq tətbiq edirdi və
+backend `branding`-də göndərirdi; real etmək ~5 sətir oldu (radius + glass blur, HomeTab-ın
+üç kart üzündə). Tenant-ın seçdiyi dəyəri silməkdənsə işlətmək düzgündür.
+
+**`tiers` multiplier P1.1-ə keçirildi.** Bugün nə customer app-da, nə paneldə görünür (tier
+redaktoru hələ yoxdur — o, P1.2-dir), yəni **heç kimə yalan demir**. Tək accrual funksiyası
+yazılanda oraya girməlidir; indi yarımçıq bağlamaq iki yerdə multiplier məntiqi yaradardı.
+
+**Ön baxış da düzəldildi (P0.4-ün bir hissəsi).** Panel `background_color`-u yalnız hero
+blokuna verirdi, halbuki sahənin adı "Ümumi arxa fon rəngi"-dir. Ön baxış artıq real tətbiq
+kimi bütöv gövdəyə verir və `#0b1220` sentinel qaydasını eyni cür işlədir.
+
+**Toxunulan fayllar:** `backend/app/routers/pos.py`, `backend/app/routers/operations.py`,
+`backend/tests/test_reward_threshold_setting.py` (yeni, 6 test), `src/lib/loyalty.ts` (yeni),
+`src/api/pos.ts`, `src/api/crm.ts`, `src/components/customer/HomeTab.tsx`,
+`src/components/CustomerApp.tsx`, `src/components/admin/CustomerAppPanel.tsx`.
+
+**Yoxlama:** `npx tsc --noEmit` → 33 xəta (dəyişməyən baseline, sıfır yeni);
+`python3 -m compileall -q app tests` → OK; hədd normalizasiyası cədvəli Python və TypeScript
+tərəfində ayrı-ayrı işlədildi — 15 hal, hər ikisində eyni nəticə.
 
 **P0.4 — Ön baxışı dürüstləşdir.** Ön baxış yalnız **real oxunan** sahələri render etməlidir.
 İşləməyən sahənin yanında "tətbiqdə hələ tətbiq olunmur" nişanı olmalıdır. Tab bar-ın 4 emojisi

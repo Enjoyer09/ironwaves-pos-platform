@@ -4570,7 +4570,9 @@ def get_customer_app_session(
     )
 
     stars = int(customer.stars or 0)
-    next_reward_at = max(1, int(app_settings.get("reward_threshold") or 10))
+    # P0.3 — `pos.py::_reward_threshold` ilə eyni hədlər. Köhnə `int(x or 10)`
+    # "8.5" kimi legacy dəyərdə ValueError → 500 verirdi.
+    next_reward_at = _norm_int(app_settings.get("reward_threshold"), 10, 1, 1000)
     program_mode = str(app_settings.get("program_mode") or "points").strip().lower()
     cashback_percent = Decimal(str(app_settings.get("cashback_percent") or 0))
     cashback_earned = Decimal("0.00")
@@ -4837,7 +4839,7 @@ def claim_customer_reward(
         "customer_app_settings",
         {"reward_threshold": 10, "reward_name": "Reward", "reward_description": "10 ulduza 1 pulsuz içki"},
     )
-    threshold = max(1, int(app_settings.get("reward_threshold") or 10))
+    threshold = _norm_int(app_settings.get("reward_threshold"), 10, 1, 1000)
     pending_count = (
         db.query(RewardClaim)
         .filter(RewardClaim.tenant_id == tenant.id, RewardClaim.card_id == customer.card_id, RewardClaim.status == "PENDING")

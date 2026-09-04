@@ -327,6 +327,32 @@ def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool
     return any(token in haystack for token in ["kofe", "qəhvə", "qehve", "coffee"])
 
 
+def _reward_threshold(app_settings: dict) -> int:
+    """
+    `customer_app_settings.reward_threshold` — neçə ulduza 1 hədiyyə (P0.3).
+
+    Əvvəl bu rəqəm satış axınında hardcoded `10` idi, halbuki customer-app
+    (`operations.py` session + reward claim) ayardan oxuyurdu — nəticədə tenant
+    həddi 8 qoysa müştəri tətbiqdə "8" görür, kassada isə 10-luq dövrə ilə
+    qazanırdı. İndi hər üç yer eyni açarı, eyni hədlərlə oxuyur.
+
+    Semantika `operations.py::_norm_int(raw, 10, 1, 1000)` güzgüsüdür:
+    0 / mənfi / format xətası → default 10 (1 DEYİL — hədd 1 olsa hər qəhvə
+    pulsuz olar, yəni səhv oxuma kassanı dağıdar). Satış axınıdır, ona görə
+    heç bir hal exception atmamalıdır.
+    """
+    raw = app_settings.get("reward_threshold")
+    if raw is None or isinstance(raw, bool) or (isinstance(raw, str) and not raw.strip()):
+        return 10
+    try:
+        parsed = int(float(raw))
+    except (TypeError, ValueError):
+        return 10
+    if parsed < 1:
+        return 10
+    return min(parsed, 1000)
+
+
 def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
@@ -697,6 +723,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     )
     program_mode = str(customer_program.get("program_mode") or "points").strip().lower()
     cashback_percent = Decimal(str(customer_program.get("cashback_percent") or 0))
+    # P0.3 — hədiyyə həddi artıq ayardan gəlir (əvvəl hardcoded 10 idi).
+    reward_threshold = _reward_threshold(customer_program)
     beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
 
@@ -720,8 +748,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     free_coffees = 0
     customer_stars_after = 0
     if current_stars is not None:
-        free_coffees = int((current_stars + coffee_qty) // 10)
-        customer_stars_after = (current_stars + coffee_qty) % 10 if coffee_qty > 0 else current_stars
+        free_coffees = int((current_stars + coffee_qty) // reward_threshold)
+        customer_stars_after = (current_stars + coffee_qty) % reward_threshold if coffee_qty > 0 else current_stars
         if free_coffees > 0 and coffee_unit_prices:
             coffee_unit_prices.sort()
             free_discount = sum(coffee_unit_prices[:free_coffees], Decimal("0"))
