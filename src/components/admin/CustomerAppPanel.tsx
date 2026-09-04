@@ -425,6 +425,22 @@ export default function CustomerAppPanel() {
     link.click();
   };
 
+  // ── P0.3 — ön baxış fonu real tətbiqin qaydası ilə ────────────────────────
+  // `CustomerApp.tsx` `#0b1220`-ni "seçilməmiş" sentinel kimi sayır (backend-in
+  // öz default-udur), o halda tətbiqin isti qradienti qalır. Ön baxış da eyni
+  // qaydanı işlətməlidir, yoxsa panel real olmayan nəticə vəd edir.
+  const previewBgIsDefault = String(form.background_color || '').trim().toLowerCase() === '#0b1220';
+  const previewBgStyle: React.CSSProperties = form.background_image_url
+    ? {
+        backgroundColor: previewBgIsDefault ? '#160D07' : form.background_color,
+        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.78)), url(${form.background_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : previewBgIsDefault
+      ? { background: 'linear-gradient(180deg, #2A1A10 0%, #160D07 100%)' }
+      : { backgroundColor: form.background_color };
+
   return (
     <div className="space-y-6">
 
@@ -443,19 +459,28 @@ export default function CustomerAppPanel() {
         <div className="lg:col-span-7 space-y-6">
       <div className="metal-panel p-6 space-y-4">
         <div className="space-y-3">
-          <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Hazır dizayn preset-ləri', 'Готовые дизайн-пресеты', 'Ready design presets')}</div>
+          {/* P0.3 — adlar dürüstləşdirildi: bunlar layout mühərriki deyil, sahə doldurma
+              qısayollarıdır (ad, hero mətni, rənglər, reward adı və s. birdən yazılır).
+              `layout_preset` yalnız hansı düymənin seçili qaldığını yadda saxlayır. */}
+          <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Sürətli başlanğıc dəstləri', 'Наборы для быстрого старта', 'Quick-start bundles')}</div>
+          <div className="text-[11px] leading-snug text-slate-500">
+            {tx(lang,
+              'Bir kliklə ad, hero mətni, rənglər və reward adlarını birlikdə doldurur. Hər sahəni sonra ayrıca dəyişə bilərsiniz.',
+              'Одним кликом заполняет название, текст hero, цвета и названия reward. Каждое поле потом можно изменить.',
+              'Fills the app name, hero text, colors and reward labels in one click. Every field stays individually editable.')}
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <button type="button" onClick={() => applyPreset('rewards')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'rewards' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
               <div className="font-bold text-slate-100">Rewards</div>
-              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Starbucks tipli reward-first görünüş', 'Reward-first стиль', 'Reward-first layout')}</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Ulduz toplama mətnləri, standart fon, sarı-mavi rənglər', 'Тексты для сбора звёзд, стандартный фон, жёлто-синий', 'Star-collection copy, default background, yellow/cyan')}</div>
             </button>
             <button type="button" onClick={() => applyPreset('cashback')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'cashback' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
               <div className="font-bold text-slate-100">Cashback</div>
-              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Balans və cashback fokuslu görünüş', 'Фокус на cashback', 'Cashback-first layout')}</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Cashback rejimi, balans mətnləri, yaşıl fon', 'Режим cashback, тексты баланса, зелёный фон', 'Cashback mode, balance copy, teal background')}</div>
             </button>
             <button type="button" onClick={() => applyPreset('playful')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'playful' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
               <div className="font-bold text-slate-100">Playful</div>
-              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'AI və əyləncəli bloklar ön planda', 'Игровой стиль с AI', 'Playful AI-first layout')}</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'AI Barista + Falçı açılır, çəhrayı-bənövşəyi rənglər', 'Включает AI Barista + Falçı, розово-фиолетовый', 'Turns on AI Barista + Falçı, pink/violet palette')}</div>
             </button>
           </div>
         </div>
@@ -559,6 +584,18 @@ export default function CustomerAppPanel() {
             <div className="flex items-center gap-3">
               <input type="color" value={form.background_color} onChange={(e) => setForm((prev) => ({ ...prev, background_color: e.target.value }))} className="h-12 w-16 cursor-pointer rounded-lg border border-slate-600 bg-transparent p-1" />
               <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-100" style={{ backgroundColor: form.background_color }}>{form.background_color}</div>
+            </div>
+            {/* P0.3 — ayarın real davranışı açıq yazılır: sentinel + yalnız tünd tema */}
+            <div className="mt-2 text-[11px] leading-snug text-slate-500">
+              {previewBgIsDefault
+                ? tx(lang,
+                    '#0b1220 = "seçilməmiş". Tətbiq öz standart fonunu göstərir.',
+                    '#0b1220 = «не выбрано». Приложение показывает свой стандартный фон.',
+                    '#0b1220 means "not set" — the app keeps its own default background.')
+                : tx(lang,
+                    'Yalnız tünd temada tətbiq olunur (işıqlı temada mətn oxunmaz olardı).',
+                    'Применяется только в тёмной теме (в светлой текст стал бы нечитаемым).',
+                    'Applies in dark theme only (light theme text would become unreadable).')}
             </div>
           </label>
           <div className="space-y-2">
@@ -990,13 +1027,13 @@ export default function CustomerAppPanel() {
       <div className="lg:col-span-5">
         <div className="sticky top-6 mx-auto max-w-xs">
           <div className="text-xs text-center text-slate-400 mb-2 font-semibold"><Eye size={12} className="inline mb-0.5" /> {tx(lang, 'Canlı Ön Baxış', 'Превью', 'Live Preview')}</div>
-          <div className="rounded-[40px] border-[8px] border-slate-700 bg-slate-900 overflow-hidden shadow-2xl relative">
+          <div className="rounded-[40px] border-[8px] border-slate-700 bg-slate-900 overflow-hidden shadow-2xl relative" style={previewBgStyle}>
             {/* Status bar */}
             <div className="px-4 py-2 flex justify-between text-[9px] text-slate-400">
               <span>9:41</span><span>●●●</span>
             </div>
-            {/* Hero */}
-            <div className="px-4 pt-6 pb-8 text-center bg-cover bg-center" style={{ backgroundColor: form.background_color, backgroundImage: form.background_image_url ? `url(${form.background_image_url})` : 'none' }}>
+            {/* Hero — fon artıq gövdədən gəlir (P0.3), hero şəffafdır */}
+            <div className="px-4 pt-6 pb-8 text-center">
               {form.hero_image_url ? <img src={form.hero_image_url} alt="hero" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover border-2 border-white/20" /> : null}
               <div className="text-xs font-black text-white mb-1 drop-shadow-md">{form.app_name || 'Loyalty Club'}</div>
               <div className="text-base font-black text-white leading-tight drop-shadow-md">{form.hero_title}</div>

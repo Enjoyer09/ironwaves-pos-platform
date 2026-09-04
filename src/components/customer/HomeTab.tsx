@@ -172,11 +172,32 @@ export default function HomeTab({
 
   // Next-reward clarity (Starbucks-style "X stars to a free drink")
   const starsBalance = Number(wallet?.stars_balance ?? 0);
-  const nextRewardAt = Number(wallet?.next_reward_at || 10);
+  // P0.3 — hədd `customer_app_settings.reward_threshold`-dan gəlir (backend onu
+  // `wallet.next_reward_at` kimi göndərir). `% 0` → NaN olmasın deyə clamp.
+  const nextRewardAt = Math.max(1, Math.trunc(Number(wallet?.next_reward_at) || 10));
   const rewardRemaining = Math.max(0, nextRewardAt - starsBalance);
   const rewardText = rewardRemaining > 0
     ? tx(safeLang, `${rewardRemaining} ulduz qaldı → pulsuz Latte`, `${rewardRemaining} звезд до бесплатного Латте`, `${rewardRemaining} stars to a free Latte`)
     : tx(safeLang, 'Pulsuz Latte hazır!', 'Бесплатный Латте готов!', 'Free Latte ready!');
+
+  // P0.3 — möhür şəbəkəsi. Slot sayı həddin özüdür; 20-dən çox hədd 5-sütunlu
+  // şəbəkədə oxunmaz olur, ona görə vizual limit var (rəqəm mətndə tam görünür).
+  const stampSlots = Math.min(nextRewardAt, 20);
+  const stampsFilled = starsBalance > 0 && starsBalance % nextRewardAt === 0
+    ? Math.min(nextRewardAt, stampSlots)
+    : Math.min(starsBalance % nextRewardAt, stampSlots);
+
+  // P0.3 — `reward_card_style` artıq real fərq yaradır (admin ön baxışındakı
+  // eyni xəritə: CustomerAppPanel.tsx). Əvvəl ayar yazılırdı, heç yerdə oxunmurdu.
+  const cardStyle = String(branding?.reward_card_style || 'rounded').trim().toLowerCase();
+  const cardRadius = cardStyle === 'soft-square' ? '12px' : cardStyle === 'glass' ? '16px' : '24px';
+  const cardBlur = cardStyle === 'glass' ? 'blur(8px)' : undefined;
+
+  // P0.3 — hero mətni tenant ayarındandır; ayar boşdursa köhnə mətn fallback qalır.
+  const heroTitle = String(branding?.hero_title || '').trim()
+    || tx(safeLang, 'Bugün hansı qəhvə ilə başlayırıq?', 'С чего начнём кофе сегодня?', "What coffee shall we start with today?");
+  const heroSubtitle = String(branding?.hero_subtitle || '').trim()
+    || tx(safeLang, 'Barista tövsiyəsi: günün brendini yoxla', 'Совет бариста: попробуй напиток дня', "Barista's tip: try the brew of the day");
 
   // Birthday surprise detection
   const birthdaySoon = (() => {
@@ -328,10 +349,10 @@ export default function HomeTab({
             {coffeeGreeting(safeLang)} {customer.name ? `, ${customer.name}` : ''}
           </p>
           <h1 className="mt-1 text-[22px] leading-tight font-bold text-white">
-            {tx(safeLang, 'Bugün hansı qəhvə ilə başlayırıq?', 'С чего начнём кофе сегодня?', "What coffee shall we start with today?")}
+            {heroTitle}
           </h1>
           <p className="mt-1.5 text-[12px] font-semibold text-white/80">
-            {tx(safeLang, "Barista tövsiyəsi: günün brendini yoxla", 'Совет бариста: попробуй напиток дня', "Barista's tip: try the brew of the day")}
+            {heroSubtitle}
           </p>
           <button
             type="button"
@@ -490,7 +511,7 @@ export default function HomeTab({
           {isRetro ? (
             <div className="absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden retro-card"
               style={{
-                borderRadius: '24px',
+                borderRadius: cardRadius,
                 padding: '20px',
                 transform: 'rotateY(0deg)',
                 WebkitTransform: 'rotateY(0deg)',
@@ -511,12 +532,10 @@ export default function HomeTab({
                 </span>
               </div>
 
-              {/* 10 Stamps Grid */}
+              {/* Stamps grid — slot sayı `reward_threshold`-dan gəlir (P0.3) */}
               <div className="grid grid-cols-5 gap-y-3 gap-x-2 my-2 justify-items-center relative z-10">
-                {Array.from({ length: 10 }).map((_, slotIdx) => {
-                  const totalStarsCount = Number(wallet.stars_balance ?? 0);
-                  const activeStampsCount = totalStarsCount > 0 && totalStarsCount % 10 === 0 ? 10 : totalStarsCount % 10;
-                  const isStamped = slotIdx < activeStampsCount;
+                {Array.from({ length: stampSlots }).map((_, slotIdx) => {
+                  const isStamped = slotIdx < stampsFilled;
                   return (
                     <div key={slotIdx} className={`retro-stamp-slot ${isStamped ? 'retro-stamp-active' : ''}`}>
                       {isStamped ? (
@@ -537,12 +556,14 @@ export default function HomeTab({
           ) : (
             <div className={`absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden card-sweep ${isLight ? 'card-premium-glow-light' : 'card-premium-glow'}`}
               style={{
-                borderRadius: '24px',
+                borderRadius: cardRadius,
                 borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.08)',
                 background: heroImage
                   ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(13, 11, 10, 0.95)), url(${heroImage}) center/cover`
                   : `linear-gradient(135deg, ${tierColor}2E 0%, #1C2029 45%, #0C0F14 100%)`,
                 padding: '24px',
+                backdropFilter: cardBlur,
+                WebkitBackdropFilter: cardBlur,
                 transform: 'rotateY(0deg)',
                 WebkitTransform: 'rotateY(0deg)',
                 backfaceVisibility: 'hidden',
@@ -550,7 +571,7 @@ export default function HomeTab({
               }}>
               {/* Glossy highlight bar */}
               <div className="absolute inset-x-0 top-0 h-28 pointer-events-none"
-                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%)', borderRadius: '24px 24px 0 0' }} />
+                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%)', borderRadius: `${cardRadius} ${cardRadius} 0 0` }} />
 
               <div className="flex items-start justify-between gap-4 relative z-10">
                 <div>
@@ -600,7 +621,7 @@ export default function HomeTab({
           {/* CARD BACK */}
           <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#2B1B1A] dark:text-white' : 'text-white'}`}
             style={{
-              borderRadius: '24px',
+              borderRadius: cardRadius,
               borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(255,255,255,0.06)',
               background: isRetro
                 ? (isLight ? '#FFFDF9' : '#1E1714')
@@ -613,7 +634,7 @@ export default function HomeTab({
             }}>
             {/* Glossy highlight */}
             <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 22%)', borderRadius: '24px 24px 0 0' }} />
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 22%)', borderRadius: `${cardRadius} ${cardRadius} 0 0` }} />
             {cardQr ? (
               <div className="rounded-2xl bg-white p-3 shadow-2xl border border-white/5 ring-1 ring-black/5">
                 <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
@@ -696,17 +717,17 @@ export default function HomeTab({
                   <div className="flex-1 space-y-1.5">
                     <div className={`text-[11px] font-bold ${headerText}`}>
                       {tx(safeLang,
-                        `${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} ulduz topladınız`,
-                        `Вы собрали ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} звезд`,
-                        `Collected ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} stars`)}
+                        `${starsBalance} / ${nextRewardAt} ulduz topladınız`,
+                        `Вы собрали ${starsBalance} / ${nextRewardAt} звезд`,
+                        `Collected ${starsBalance} / ${nextRewardAt} stars`)}
                     </div>
                     <div className="space-y-0.5">
                       {[
-                        { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.3), label: tx(safeLang, 'Çay / Espresso', 'Чай / Эспрессо', 'Tea / Espresso') },
-                        { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.6), label: tx(safeLang, 'Cappuccino / Latte', 'Капучино / Латте', 'Cappuccino / Latte') },
-                        { stars: Number(wallet.next_reward_at || 10), label: tx(safeLang, 'Böyük Qəhvə + Desert', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
+                        { stars: Math.max(1, Math.round(nextRewardAt * 0.3)), label: tx(safeLang, 'Çay / Espresso', 'Чай / Эспрессо', 'Tea / Espresso') },
+                        { stars: Math.max(1, Math.round(nextRewardAt * 0.6)), label: tx(safeLang, 'Cappuccino / Latte', 'Капучино / Латте', 'Cappuccino / Latte') },
+                        { stars: nextRewardAt, label: tx(safeLang, 'Böyük Qəhvə + Desert', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
                       ].map((m, mIdx) => {
-                        const isUnlocked = Number(wallet.stars_balance ?? 0) >= m.stars;
+                        const isUnlocked = starsBalance >= m.stars;
                         return (
                           <div key={mIdx} className={`flex items-center gap-2 text-[10px] stagger-fade-in stagger-${mIdx + 1}`}>
                             <span className={`h-2 w-2 rounded-full transition-all duration-500 ${isUnlocked ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />

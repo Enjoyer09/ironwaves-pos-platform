@@ -4,6 +4,7 @@ import { logEvent } from '../lib/logger';
 import { Customer, CustomerType, Notification } from '../types/pos';
 import { filterTenantRecords, getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled, getApiBaseUrl } from './client';
+import { normalizeRewardThreshold } from '../lib/loyalty';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -414,7 +415,7 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     const pendingClaims = (getDB<any>('reward_claims') || [])
       .filter((row) => String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && row.status === 'PENDING')
       .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-    const nextRewardAt = Math.max(1, Number(settings.reward_threshold || 10));
+    const nextRewardAt = normalizeRewardThreshold(settings.reward_threshold);
     const programMode = String(settings.program_mode || 'points').toLowerCase() === 'cashback' ? 'cashback' : 'points';
     const cashbackPercent = Math.max(0, Number(settings.cashback_percent || 0));
     const ledgerRows = (getDB<any>('loyalty_ledger') || []).filter(
@@ -667,7 +668,7 @@ export async function claim_customer_reward_live(card_id: string, token: string,
     );
     if (!customer) throw new Error('Customer session is invalid');
     const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
-    const threshold = Math.max(1, Number(settings.reward_threshold || 10));
+    const threshold = normalizeRewardThreshold(settings.reward_threshold);
     const allClaims = getDB<any>('reward_claims') || [];
     const tenantClaims = allClaims.filter((row) => String(row.tenant_id || '') === tenantId);
     const foreignClaims = allClaims.filter((row) => String(row.tenant_id || '') !== tenantId);

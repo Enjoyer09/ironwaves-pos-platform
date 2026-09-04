@@ -632,6 +632,37 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const heroImage = String(branding?.hero_image_url || '');
   const aiBaristaEnabled = branding?.ai_barista_enabled === true;
 
+  // ── P0.3 — tenant fonu (`background_color` / `background_image_url`) ──────
+  // Bu iki ayar paneldə var, backend `branding`-də göndərir, amma indiyə qədər
+  // heç yerdə oxunmurdu. Diqqət edilən iki nüans:
+  //   1. `#0b1220` backend-in "heç nə seçilməmiş" default-udur (operations.py).
+  //      Onu tətbiq etsək fon seçməyən BÜTÜN tenant-ların isti qradienti tünd
+  //      göy rəngə dönərdi — ona görə default sentinel kimi sayılır.
+  //   2. Yalnız tünd temada tətbiq olunur. İşıqlı temada mətn `text-slate-900`-dır;
+  //      tenant tünd rəng seçsə mətn oxunmaz olardı. İşıqlı tema neytral qalır.
+  const LEGACY_DEFAULT_BG = '#0b1220';
+  const isHexColor = (v: string) => /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
+  const tenantBgColorRaw = String(branding?.background_color || '').trim();
+  const tenantBgColor = isHexColor(tenantBgColorRaw) && tenantBgColorRaw.toLowerCase() !== LEGACY_DEFAULT_BG
+    ? tenantBgColorRaw
+    : '';
+  // Şəkil URL-i inline `url(...)` içinə düşür — mötərizə/sitat qırılması olmasın.
+  const tenantBgImageRaw = String(branding?.background_image_url || '').trim();
+  const tenantBgImage = tenantBgImageRaw && !/["'()\\]|\s/.test(tenantBgImageRaw) ? tenantBgImageRaw : '';
+  const hasTenantBg = !isLight && Boolean(tenantBgColor || tenantBgImage);
+  const tenantBgStyle: React.CSSProperties | null = hasTenantBg
+    ? {
+        // Şəklin üstündə tünd pərdə: ağ mətnin kontrastı hər şəkildə qalsın.
+        backgroundColor: tenantBgColor || '#160D07',
+        backgroundImage: tenantBgImage
+          ? `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.78)), url(${tenantBgImage})`
+          : undefined,
+        backgroundSize: tenantBgImage ? 'cover' : undefined,
+        backgroundPosition: tenantBgImage ? 'center' : undefined,
+        backgroundAttachment: tenantBgImage ? 'fixed' : undefined,
+      }
+    : null;
+
   // Live Activity — start on data load, update on wallet change
   const hasStartedLiveActivityRef = React.useRef(false);
   React.useEffect(() => {
@@ -1725,14 +1756,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain customer-app-wrapper transition-colors duration-300 ${
         isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'
       }`}
-      style={{
-        background: isLight
-          ? `linear-gradient(180deg, #FCF4EA 0%, #F2E4D2 100%)`
-          : `linear-gradient(180deg, #2A1A10 0%, #160D07 100%)`,
-      }}
+      style={
+        // P0.3 — tenant fonu varsa onu istifadə et, yoxsa köhnə qradient qalır.
+        tenantBgStyle || {
+          background: isLight
+            ? `linear-gradient(180deg, #FCF4EA 0%, #F2E4D2 100%)`
+            : `linear-gradient(180deg, #2A1A10 0%, #160D07 100%)`,
+        }
+      }
     >
       {/* Dynamic Aurora and Real-world Noise Background Layers */}
-      {!isLight && (
+      {!isLight && !hasTenantBg && (
         <>
           <div className="customer-app-aurora" />
           <div className="customer-app-noise" />
