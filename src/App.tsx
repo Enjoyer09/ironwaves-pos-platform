@@ -5,7 +5,7 @@ import { save_push_token_live } from './api/crm';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid, ChevronDown } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid, ChevronDown, Package, Users, Settings as SettingsIcon } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -534,6 +534,7 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [scale, setScale] = useState(1);
   const [moreModulesOpen, setMoreModulesOpen] = useState(false);
+  const [openDropdownMenu, setOpenDropdownMenu] = useState<string | null>(null);
 
   useEffect(() => {
     const handleTriggerFastSwitch = () => {
@@ -2138,62 +2139,178 @@ export default function App() {
             </div>
           </div>
 
-          {/* Module navigation tabs with More dropdown */}
-          <div className="hidden md:flex items-center gap-2 overflow-visible pb-1.5" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
-            {(() => {
-              const primaryLimit = 7;
-              const primaryModules = visibleModules.slice(0, primaryLimit);
-              const moreModules = visibleModules.slice(primaryLimit);
-              const isMoreActive = moreModules.some((m) => m.key === resolvedModule);
+          {/* Module navigation tabs with Logical Grouping */}
+          {(() => {
+            const isModern = currentUiMode === 'modern';
+            const OPERATIONAL_KEYS: ModuleKey[] = ['pos', 'tables', 'kds', 'zreport'];
+            const MANAGEMENT_KEYS: ModuleKey[] = ['dashboard', 'finance', 'analytics'];
+            const CATALOG_KEYS: ModuleKey[] = ['menu', 'recipes', 'inventory', 'suppliers'];
+            const CUSTOMER_KEYS: ModuleKey[] = ['crm', 'customerapp'];
+            const SYSTEM_KEYS: ModuleKey[] = ['settings', 'ai', 'notes', 'logs', 'database', 'landing', 'tenants'];
+
+            const operationalModules = OPERATIONAL_KEYS
+              .map((k) => visibleModules.find((m) => m.key === k))
+              .filter(Boolean) as typeof visibleModules;
+
+            const managementModules = MANAGEMENT_KEYS
+              .map((k) => visibleModules.find((m) => m.key === k))
+              .filter(Boolean) as typeof visibleModules;
+
+            const catalogModules = CATALOG_KEYS
+              .map((k) => visibleModules.find((m) => m.key === k))
+              .filter(Boolean) as typeof visibleModules;
+
+            const customerModules = CUSTOMER_KEYS
+              .map((k) => visibleModules.find((m) => m.key === k))
+              .filter(Boolean) as typeof visibleModules;
+
+            const assignedKeys = new Set([...OPERATIONAL_KEYS, ...MANAGEMENT_KEYS, ...CATALOG_KEYS, ...CUSTOMER_KEYS, ...SYSTEM_KEYS]);
+            const extraModules = visibleModules.filter((m) => !assignedKeys.has(m.key));
+
+            const systemModules = [
+              ...SYSTEM_KEYS.map((k) => visibleModules.find((m) => m.key === k)).filter(Boolean),
+              ...extraModules,
+            ] as typeof visibleModules;
+
+            const dropdownGroups = [
+              {
+                id: 'catalog',
+                label: tx(safeLang, 'Kataloq', 'Каталог', 'Catalog'),
+                icon: <Package size={13} className="shrink-0" />,
+                modules: catalogModules,
+              },
+              {
+                id: 'customers',
+                label: tx(safeLang, 'Müştərilər', 'Клиенты', 'Customers'),
+                icon: <Users size={13} className="shrink-0" />,
+                modules: customerModules,
+              },
+              {
+                id: 'system',
+                label: tx(safeLang, 'Sistem', 'Система', 'System'),
+                icon: <SettingsIcon size={13} className="shrink-0" />,
+                modules: systemModules,
+              },
+            ].filter((g) => g.modules.length > 0);
+
+            const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+
+            const renderDirectButton = (item: (typeof visibleModules)[0]) => {
+              const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
+              const isActive = resolvedModule === item.key;
+
+              const btnClasses = isModern
+                ? `flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all duration-150 active:scale-95 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-400/25 ring-1 ring-white/30 scale-[1.02]'
+                      : 'text-slate-300 font-semibold hover:text-white hover:bg-white/10'
+                  } ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`
+                : `flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 text-xs rounded-xl transition taktil-target active:scale-95 ${
+                    isActive
+                      ? 'neon-chip neon-chip-active font-black'
+                      : 'neon-chip font-bold'
+                  } ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`;
 
               return (
-                <>
-                  {primaryModules.map((item) => {
-                    const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
-                    const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
-                    return (
-                      <button
-                        key={item.key}
-                        role="tab"
-                        aria-selected={resolvedModule === item.key}
-                        onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
-                        disabled={isDisabledOffline}
-                        className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active font-black' : 'neon-chip font-bold'} whitespace-nowrap px-3.5 py-2 text-xs rounded-xl transition taktil-target active:scale-95 ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
-                        title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
-                        data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
-                        onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
-                        onMouseMove={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
-                        onMouseLeave={() => setDemoGuideBubble(null)}
-                      >
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
+                <button
+                  key={item.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    if (!isDisabledOffline) {
+                      setCurrentModule(item.key);
+                      setOpenDropdownMenu(null);
+                    }
+                  }}
+                  disabled={isDisabledOffline}
+                  className={btnClasses}
+                  title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
+                  data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
+                  onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseMove={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseLeave={() => setDemoGuideBubble(null)}
+                >
+                  <span>{item.label}</span>
+                </button>
+              );
+            };
 
-                  {/* More modules dropdown button */}
-                  {moreModules.length > 0 && (
-                    <div className="relative">
+            return (
+              <div
+                className={
+                  isModern
+                    ? 'hidden md:flex items-center gap-1.5 overflow-visible p-1 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/20'
+                    : 'hidden md:flex items-center gap-1.5 overflow-visible pb-1.5'
+                }
+                role="tablist"
+                aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}
+              >
+                {/* 1. Core Operations (POS, Masalar, Mətbəx, Z-Hesabat) */}
+                {operationalModules.map(renderDirectButton)}
+
+                {/* Divider between Operations and Management */}
+                {operationalModules.length > 0 && managementModules.length > 0 && (
+                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-6 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
+                )}
+
+                {/* 2. Management (Dashboard, Maliyyə, Analitika) */}
+                {managementModules.map(renderDirectButton)}
+
+                {/* Divider between Management/Operations and Dropdown Groups */}
+                {(operationalModules.length > 0 || managementModules.length > 0) && dropdownGroups.length > 0 && (
+                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-6 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
+                )}
+
+                {/* 3. Group Dropdowns (Kataloq, Müştərilər, Sistem) */}
+                {dropdownGroups.map((group, gIdx) => {
+                  const activeChild = group.modules.find((m) => m.key === resolvedModule);
+                  const isGroupActive = Boolean(activeChild);
+                  const isOpen = openDropdownMenu === group.id;
+                  const isLast = gIdx === dropdownGroups.length - 1;
+
+                  const dropdownBtnClasses = isModern
+                    ? `flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all duration-150 active:scale-95 ${
+                        isGroupActive
+                          ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-400/25 ring-1 ring-white/30 scale-[1.02]'
+                          : 'text-slate-300 font-semibold hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10'
+                      }`
+                    : `flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-xs rounded-xl border transition taktil-target active:scale-95 ${
+                        isGroupActive
+                          ? 'bg-amber-400 text-slate-950 font-black border-amber-400 shadow-sm'
+                          : 'bg-slate-900/60 text-slate-300 font-bold border-slate-700/60 hover:bg-slate-800'
+                      }`;
+
+                  return (
+                    <div key={group.id} className="relative">
                       <button
                         type="button"
-                        onClick={() => setMoreModulesOpen(!moreModulesOpen)}
-                        className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-xs font-bold rounded-xl border transition taktil-target active:scale-95 ${
-                          isMoreActive
-                            ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 shadow-sm'
-                            : 'bg-slate-900/60 text-slate-300 border-slate-700/60 hover:bg-slate-800'
-                        }`}
+                        onClick={() => setOpenDropdownMenu(isOpen ? null : group.id)}
+                        className={dropdownBtnClasses}
+                        title={group.label}
                       >
-                        <span>{tx(safeLang, 'Daha çox', 'Еще', 'More')}</span>
-                        <ChevronDown size={14} className={`transition-transform duration-200 ${moreModulesOpen ? 'rotate-180' : ''}`} />
+                        {group.icon}
+                        <span>
+                          {activeChild ? `${group.label}: ${activeChild.label}` : group.label}
+                        </span>
+                        <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
 
-                      {moreModulesOpen && (
+                      {isOpen && (
                         <>
-                          <div className="fixed inset-0 z-40" onClick={() => setMoreModulesOpen(false)} />
-                          <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[200px] max-h-[360px] overflow-y-auto rounded-2xl border border-slate-700/80 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl space-y-0.5">
-                            {moreModules.map((item) => {
-                              const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+                          <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownMenu(null)} />
+                          <div
+                            className={
+                              isModern
+                                ? `absolute ${isLast ? 'right-0' : 'left-0'} top-full mt-2 z-50 min-w-[210px] max-h-[380px] overflow-y-auto rounded-2xl border border-white/15 bg-slate-900/90 p-1.5 shadow-2xl backdrop-blur-2xl space-y-0.5`
+                                : `absolute ${isLast ? 'right-0' : 'left-0'} top-full mt-1.5 z-50 min-w-[200px] max-h-[360px] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl space-y-0.5`
+                            }
+                          >
+                            <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400/80 border-b border-slate-800/80 mb-1">
+                              {group.label}
+                            </div>
+                            {group.modules.map((item) => {
                               const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
-                              const isActive = resolvedModule === item.key;
+                              const isItemActive = resolvedModule === item.key;
                               return (
                                 <button
                                   key={item.key}
@@ -2201,18 +2318,18 @@ export default function App() {
                                   onClick={() => {
                                     if (!isDisabledOffline) {
                                       setCurrentModule(item.key);
-                                      setMoreModulesOpen(false);
+                                      setOpenDropdownMenu(null);
                                     }
                                   }}
                                   disabled={isDisabledOffline}
                                   className={`flex w-full items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition ${
-                                    isActive
+                                    isItemActive
                                       ? 'bg-amber-400 text-slate-950 font-black'
-                                      : 'text-slate-300 hover:bg-slate-850 hover:text-white'
+                                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                   } ${isDisabledOffline ? 'opacity-35 cursor-not-allowed' : ''}`}
                                 >
                                   <span>{item.label}</span>
-                                  {isActive && <span className="text-[10px]">✓</span>}
+                                  {isItemActive && <span className="text-[10px] font-black">✓</span>}
                                 </button>
                               );
                             })}
@@ -2220,11 +2337,11 @@ export default function App() {
                         </>
                       )}
                     </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Offline Mode Banner */}
