@@ -4111,18 +4111,69 @@ def update_session_settings(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    """PATCH semantikası: yalnız göndərilən sahələr dəyişir.
+
+    Qeyd (P0.5): burada əvvəl "payload üzərindən qur + bir neçə sahə üçün
+    current-a fallback" var idi. Nəticədə göndərilməyən `idle_logout_minutes`
+    /`virtual_keyboard_enabled`/`staff_pin_length` sessizcə default-a qayıdırdı
+    (avtomatik çıxışın sönməsi riski). İndi hər sahə üçün qayda eynidir:
+    açar payload-da yoxdursa (və ya dəyəri `None`-dursa) mövcud dəyər saxlanılır,
+    mövcud dəyər yoxdursa DEFAULT_SESSION_SETTINGS-dən götürülür.
+    """
     _ensure_admin(user)
     current = _setting_value(db, tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS) or {}
-    tables_ui = str(payload.get("tables_ui_mode") or current.get("tables_ui_mode") or "classic").strip().lower()
+    if not isinstance(current, dict):
+        current = {}
+
+    def merge_value(key: str):
+        """Omitted/None → current, onu da yoxdursa default. Sahəyə xas təmizləmə sonradan."""
+        if key in payload and payload[key] is not None:
+            return payload[key]
+        if key in current and current[key] is not None:
+            return current[key]
+        return DEFAULT_SESSION_SETTINGS[key]
+
+    def merged_int(key: str) -> int:
+        """Tam ədədə çevir; alınmırsa (zibil dəyər) 0 deyil, mövcud dəyərə qayıt —
+        garbage-in avtomatik çıxışı söndürməsin."""
+        raw = merge_value(key)
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            try:
+                return max(0, int(current.get(key) or 0))
+            except (TypeError, ValueError):
+                return max(0, int(DEFAULT_SESSION_SETTINGS[key]))
+
+    def merged_pin() -> int:
+        """PIN uzunluğu yalnız açıq şəkildə 4/6 göndərildikdə dəyişir.
+        Zibil dəyər sessizcə default 4-ə qayıtmır — mövcud dəyər saxlanılır."""
+        raw = merge_value("staff_pin_length")
+        try:
+            pin = int(raw)
+        except (TypeError, ValueError):
+            pin = None
+        if pin in (4, 6):
+            return pin
+        try:
+            current_pin = int(current.get("staff_pin_length"))
+        except (TypeError, ValueError):
+            current_pin = None
+        return current_pin if current_pin in (4, 6) else int(DEFAULT_SESSION_SETTINGS["staff_pin_length"])
+
+    tables_ui = re.fullmatch(
+        r"(classic|modern)",
+        str(merge_value("tables_ui_mode") or current.get("tables_ui_mode") or "").strip().lower(),
+    )
     cleaned = {
-        "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
-        "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
-        "staff_pin_length": _clean_staff_pin_length(payload.get("staff_pin_length")),
-        "theme_mode": _clean_theme_mode(payload.get("theme_mode", current.get("theme_mode"))),
-        "ui_mode": _clean_ui_mode(payload.get("ui_mode", current.get("ui_mode"))),
-        "tables_ui_mode": tables_ui if tables_ui in {"classic", "modern"} else "classic",
-        "login_background_url": _normalize_image_url(payload.get("login_background_url", current.get("login_background_url") or "")),
-        "device_authorization_enabled": bool(payload.get("device_authorization_enabled", current.get("device_authorization_enabled", False))),
+        "idle_logout_minutes": merged_int("idle_logout_minutes"),
+        "virtual_keyboard_enabled": bool(merge_value("virtual_keyboard_enabled")),
+        "staff_pin_length": merged_pin(),
+        "theme_mode": _clean_theme_mode(merge_value("theme_mode")),
+        "ui_mode": _clean_ui_mode(merge_value("ui_mode")),
+        "tables_ui_mode": tables_ui.group(1) if tables_ui else "classic",
+        "login_background_url": _normalize_image_url(merge_value("login_background_url")),
+        "device_authorization_enabled": bool(merge_value("device_authorization_enabled")),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()

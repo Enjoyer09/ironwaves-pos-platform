@@ -4,6 +4,8 @@ import { tx } from '../../../i18n';
 import { upload_menu_image_live } from '../../../api/menu';
 import type { DeliveryIntegrationsState, QrMenuSettingsState, FeedbackSettingsState, BaseSectionProps } from './types';
 import type { DeliveryMenuMapping } from '../../../api/integrations';
+import ConfirmModal from '../../ConfirmModal';
+import type { Lang } from '../../../i18n';
 
 export interface IntegrationsSettingsSectionProps extends BaseSectionProps {
   tenantId: string;
@@ -48,6 +50,10 @@ export interface IntegrationsSettingsSectionProps extends BaseSectionProps {
   autoFeedbackPortalUrl: string;
   newFeedbackTag: string;
   setNewFeedbackTag: (value: string) => void;
+
+  // Delete-mapping confirmation (ConfirmModal instead of native confirm())
+  pendingDeleteMappingId: string | null;
+  setPendingDeleteMappingId: (id: string | null) => void;
 }
 
 export function IntegrationsSettingsSection({
@@ -80,6 +86,8 @@ export function IntegrationsSettingsSection({
   autoFeedbackPortalUrl,
   newFeedbackTag,
   setNewFeedbackTag,
+  pendingDeleteMappingId,
+  setPendingDeleteMappingId,
 }: IntegrationsSettingsSectionProps) {
   // QR poster generation
   const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
@@ -168,6 +176,7 @@ export function IntegrationsSettingsSection({
               value={deliveryIntegrations.bolt_food_provider_id} 
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_provider_id: e.target.value }))} 
               placeholder="Provider ID" 
+              aria-label={tx(lang, 'Bolt Food Provider ID', 'Bolt Food Provider ID', 'Bolt Food Provider ID')}
             />
             <input 
               className="neon-input md:col-span-2" 
@@ -175,6 +184,7 @@ export function IntegrationsSettingsSection({
               value={deliveryIntegrations.bolt_food_secret_key} 
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
               placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
+              aria-label={tx(lang, 'Bolt Food Secret Key', 'Bolt Food Secret Key', 'Bolt Food Secret Key')}
             />
             {deliveryIntegrations.bolt_food_enabled && (
               <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
@@ -217,6 +227,7 @@ export function IntegrationsSettingsSection({
               value={deliveryIntegrations.wolt_venue_id} 
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_venue_id: e.target.value }))} 
               placeholder="Venue ID" 
+              aria-label={tx(lang, 'Wolt Venue ID', 'Wolt Venue ID', 'Wolt Venue ID')}
             />
             <input 
               className="neon-input md:col-span-2" 
@@ -224,6 +235,7 @@ export function IntegrationsSettingsSection({
               value={deliveryIntegrations.wolt_client_secret} 
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
               placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
+              aria-label={tx(lang, 'Wolt Client Secret', 'Wolt Client Secret', 'Wolt Client Secret')}
             />
             {deliveryIntegrations.wolt_enabled && (
               <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
@@ -365,7 +377,7 @@ export function IntegrationsSettingsSection({
                       </td>
                       <td className="p-3 text-right">
                         <button
-                          onClick={() => handleDeleteDeliveryMenuMapping(mapping.id)}
+                          onClick={() => setPendingDeleteMappingId(mapping.id)}
                           className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition-colors font-semibold"
                         >
                           {tx(lang, 'Sil', 'Удалить', 'Delete')}
@@ -988,7 +1000,7 @@ export function IntegrationsSettingsSection({
               />
               <button
                 type="button"
-                className="neon-btn rounded-xl px-4 py-2 font-bold"
+                className="glossy-gold rounded-xl px-4 py-2 font-bold"
                 onClick={() => {
                   const tag = newFeedbackTag.trim();
                   if (tag && !feedbackSettings.preset_tags.includes(tag)) {
@@ -1036,6 +1048,26 @@ export function IntegrationsSettingsSection({
           />
         </div>
       </div>
+
+      {/* Delete-mapping confirmation — shared modal (native confirm() əvəzi) */}
+      <ConfirmModal
+        open={Boolean(pendingDeleteMappingId)}
+        title={tx(lang, 'Xəritələnməni sil', 'Удалить сопоставление', 'Delete mapping')}
+        message={tx(
+          lang,
+          'Bu xəritələnməni silmək istədiyinizdən əminsiniz? Silinəndən sonra Bolt/Wolt məhsulu daxili menyuya bağlanmayacaq.',
+          'Вы уверены, что хотите удалить это сопоставление? После удаления товар Bolt/Wolt не будет связан с внутренним меню.',
+          'Are you sure you want to delete this mapping? Afterwards the Bolt/Wolt item will no longer be linked to the internal menu.',
+        )}
+        lang={lang as Lang}
+        onCancel={() => setPendingDeleteMappingId(null)}
+        onConfirm={() => {
+          if (pendingDeleteMappingId) {
+            void handleDeleteDeliveryMenuMapping(pendingDeleteMappingId);
+          }
+          setPendingDeleteMappingId(null);
+        }}
+      />
     </>
   );
 }

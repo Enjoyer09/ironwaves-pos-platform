@@ -734,7 +734,7 @@ export function OperationSettingsSection({
 
       {/* Print Agent Setup Modal */}
       {printAgentModalOpen ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-4">
           <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-100">
