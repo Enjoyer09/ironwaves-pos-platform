@@ -275,6 +275,7 @@ export default function SettingsPanel() {
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
   const [deliveryMenuMappings, setDeliveryMenuMappings] = useState<DeliveryMenuMapping[]>([]);
   const [deliveryMenuMappingsLoading, setDeliveryMenuMappingsLoading] = useState(false);
+  const [pendingDeleteMappingId, setPendingDeleteMappingId] = useState<string | null>(null);
   const [newDeliveryMenuMapping, setNewDeliveryMenuMapping] = useState({
     provider: 'bolt' as 'bolt' | 'wolt',
     external_item_id: '',
@@ -1252,15 +1253,12 @@ export default function SettingsPanel() {
   };
 
   const handleDeleteDeliveryMenuMapping = async (id: string) => {
-    if (!confirm(tx(lang, 'Bu xəritələnməni silmək istədiyinizdən əminsiniz?', 'Вы уверены, что хотите удалить это сопоставление?', 'Are you sure you want to delete this mapping?'))) {
-      return;
-    }
     try {
       await deleteDeliveryMenuMapping(id);
       setDeliveryMenuMappings((prev) => prev.filter((m) => m.id !== id));
       notify('success', tx(lang, 'Xəritələnmə silindi', 'Сопоставление удалено', 'Mapping deleted'));
     } catch (err: any) {
-      notify('error', err.message || 'Error deleting mapping');
+      notify('error', err.message || tx(lang, 'Xəritələnməni silmək alınmadı', 'Не удалось удалить сопоставление', 'Error deleting mapping'));
     }
   };
 
@@ -1695,6 +1693,8 @@ export default function SettingsPanel() {
         setNewDeliveryMenuMapping={setNewDeliveryMenuMapping}
         handleAddDeliveryMenuMapping={handleAddDeliveryMenuMapping}
         handleDeleteDeliveryMenuMapping={handleDeleteDeliveryMenuMapping}
+        pendingDeleteMappingId={pendingDeleteMappingId}
+        setPendingDeleteMappingId={setPendingDeleteMappingId}
         menuCatalog={menuCatalog}
         qrMenuSettings={qrMenuSettings}
         setQrMenuSettings={setQrMenuSettings}

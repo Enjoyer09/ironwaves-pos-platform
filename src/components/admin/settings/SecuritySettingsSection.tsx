@@ -511,6 +511,7 @@ export function SecuritySettingsSection({
             value={staffBenefits.daily_limit_azn}
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, daily_limit_azn: e.target.value }))}
             placeholder={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
+            aria-label={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
           />
           <input
             className="neon-input"
@@ -519,6 +520,7 @@ export function SecuritySettingsSection({
             value={staffBenefits.coffee_unit_cap_azn}
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, coffee_unit_cap_azn: e.target.value }))}
             placeholder={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
+            aria-label={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
           />
           <input
             className="neon-input"
@@ -527,6 +529,7 @@ export function SecuritySettingsSection({
             value={staffBenefits.other_unit_cap_azn}
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, other_unit_cap_azn: e.target.value }))}
             placeholder={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
+            aria-label={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
           />
           <select
             className="neon-input md:col-span-2"
@@ -613,7 +616,7 @@ export function SecuritySettingsSection({
         </div>
         {renderPanelSuccess('role_modules')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold transition-transform duration-100 active:translate-y-px active:scale-[0.98]">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
+          <PanelSaveButton panelKey="role_modules" onSave={() => { void saveRoleModules(); }} label={tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')} />
         </div>
       </div>
 
@@ -623,12 +626,21 @@ export function SecuritySettingsSection({
           <div className="metal-panel p-6 space-y-4">
             <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Şifrə Yenilə', 'Смена пароля', 'Change Password')}</h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <input className="neon-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={tx(lang, 'Mövcud şifrə', 'Текущий пароль', 'Current password')} />
-              <input className="neon-input" type="password" value={newOwnPassword} onChange={(e) => setNewOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} />
-              <input className="neon-input" type="password" value={confirmOwnPassword} onChange={(e) => setConfirmOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə təkrarı', 'Повторите пароль', 'Confirm new password')} />
+              <label className="block text-xs font-medium text-slate-300">
+                {tx(lang, 'Mövcud şifrə', 'Текущий пароль', 'Current password')}
+                <input className="neon-input mt-1 w-full" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+              </label>
+              <label className="block text-xs font-medium text-slate-300">
+                {tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')}
+                <input className="neon-input mt-1 w-full" type="password" value={newOwnPassword} onChange={(e) => setNewOwnPassword(e.target.value)} />
+              </label>
+              <label className="block text-xs font-medium text-slate-300">
+                {tx(lang, 'Yeni şifrə təkrarı', 'Повторите пароль', 'Confirm new password')}
+                <input className="neon-input mt-1 w-full" type="password" value={confirmOwnPassword} onChange={(e) => setConfirmOwnPassword(e.target.value)} />
+              </label>
             </div>
             <div className="flex justify-end">
-              <button onClick={() => { void handleChangeOwnPassword(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Şifrəni Yenilə', 'Обновить пароль', 'Update Password')}</button>
+              <PanelSaveButton panelKey="own_password" onSave={() => { void handleChangeOwnPassword(); }} label={tx(lang, 'Şifrəni Yenilə', 'Обновить пароль', 'Update Password')} />
             </div>
           </div>
 
@@ -693,7 +705,7 @@ export function SecuritySettingsSection({
                         onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder={tx(lang, '6 rəqəmli kod', '6-значный код', '6-digit code')}
                       />
-                      <button onClick={() => { void handleVerifyTotp(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">
+                      <button onClick={() => { void handleVerifyTotp(); }} className="glossy-gold rounded-xl px-5 py-2 font-bold">
                         {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Verify')}
                       </button>
                     </div>
@@ -755,6 +767,7 @@ export function SecuritySettingsSection({
               onChange={(e) => setNewUserName(e.target.value)}
               type="text"
               placeholder={tx(lang, 'Ad / istifadəçi adı', 'Имя / логин', 'Name / username')}
+              aria-label={tx(lang, 'Yeni istifadəçi adı', 'Имя нового пользователя', 'New username')}
               className="neon-input"
             />
             <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)} className="neon-input bg-transparent">
@@ -769,6 +782,7 @@ export function SecuritySettingsSection({
                 onChange={(e) => setNewUserPassword(e.target.value)}
                 type="password"
                 placeholder={tx(lang, 'Şifrə', 'Пароль', 'Password')}
+                aria-label={tx(lang, 'Yeni istifadəçi şifrəsi', 'Пароль нового пользователя', 'New user password')}
                 className="neon-input"
               />
             ) : (
@@ -777,6 +791,7 @@ export function SecuritySettingsSection({
                 onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
                 type="text"
                 placeholder={tx(lang, 'PIN', 'PIN', 'PIN')}
+                aria-label={tx(lang, 'Yeni istifadəçi PIN-i', 'PIN нового пользователя', 'New user PIN')}
                 className="neon-input"
               />
             )}
@@ -806,8 +821,8 @@ export function SecuritySettingsSection({
                 <option key={u.id || u.username} value={u.username}>{u.username}</option>
               ))}
             </select>
-            <input value={targetPin} onChange={(e) => setTargetPin(e.target.value.replace(/\D/g, '').slice(0, 15))} type="text" placeholder={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} className="neon-input" />
-            <button onClick={() => { void handleUpdatePin(); }} className="neon-btn px-4 py-2">{tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')}</button>
+            <input value={targetPin} onChange={(e) => setTargetPin(e.target.value.replace(/\D/g, '').slice(0, 15))} type="text" placeholder={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} aria-label={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} className="neon-input" />
+            <PanelSaveButton panelKey="update_pin" onSave={() => { void handleUpdatePin(); }} label={tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 pt-4 md:grid-cols-3">
@@ -817,8 +832,8 @@ export function SecuritySettingsSection({
                 <option key={u.id || u.username} value={u.username}>{u.username} ({u.role})</option>
               ))}
             </select>
-            <input value={targetPassword} onChange={(e) => setTargetPassword(e.target.value)} type="password" placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} className="neon-input" />
-            <button onClick={() => { void handleUpdatePasswordForUser(); }} className="neon-btn px-4 py-2">{tx(lang, 'Şifrə Dəyiş', 'Изменить пароль', 'Change Password')}</button>
+            <input value={targetPassword} onChange={(e) => setTargetPassword(e.target.value)} type="password" placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} aria-label={tx(lang, 'Yeni şifrə (seçilmiş admin üçün)', 'Новый пароль (для выбранного админа)', 'New password (for selected admin)')} className="neon-input" />
+            <PanelSaveButton panelKey="update_password" onSave={() => { void handleUpdatePasswordForUser(); }} label={tx(lang, 'Şifrə Dəyiş', 'Изменить пароль', 'Change Password')} />
           </div>
         </div>
       </div>
@@ -846,11 +861,9 @@ export function SecuritySettingsSection({
             </div>
           </div>
         </div>
-      ) : null}
-
-      {/* Reset System Modal */}
+      ) : null}        {/* Reset System Modal */}
       {resetModalOpen ? (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Bütün sistemi sıfırla', 'Сбросить всю систему', 'Reset entire system')}</h3>
             <p className="mt-2 text-sm text-slate-300">

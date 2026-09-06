@@ -45,6 +45,7 @@ export function EmailSettingsSection({
         <select
           className="neon-input"
           value={emailSettings.provider}
+          aria-label={tx(lang, 'Email provayderi', 'Провайдер email', 'Email provider')}
           onChange={(e) =>
             setEmailSettings((prev: any) => ({ ...prev, provider: e.target.value }))
           }
@@ -60,6 +61,7 @@ export function EmailSettingsSection({
             setEmailSettings((prev: any) => ({ ...prev, sender_email: e.target.value }))
           }
           placeholder={tx(lang, 'Göndərən email', 'Email отправителя', 'Sender email')}
+          aria-label={tx(lang, 'Göndərən email', 'Email отправителя', 'Sender email')}
         />
         <input
           className="neon-input"
@@ -68,6 +70,7 @@ export function EmailSettingsSection({
             setEmailSettings((prev: any) => ({ ...prev, recipient_emails: e.target.value }))
           }
           placeholder={tx(lang, 'Default alıcılar (vergüllə)', 'Получатели по умолчанию (через запятую)', 'Default recipients (comma separated)')}
+          aria-label={tx(lang, 'Default alıcılar (vergüllə)', 'Получатели по умолчанию (через запятую)', 'Default recipients (comma separated)')}
         />
         {emailSettings.provider === 'resend' ? (
           <input
@@ -77,6 +80,7 @@ export function EmailSettingsSection({
               setEmailSettings((prev: any) => ({ ...prev, resend_api_key: e.target.value }))
             }
             placeholder="re_..."
+            aria-label={tx(lang, 'Resend API key', 'Resend API key', 'Resend API key')}
           />
         ) : null}
         {emailSettings.provider === 'webhook' ? (
@@ -87,6 +91,7 @@ export function EmailSettingsSection({
               setEmailSettings((prev: any) => ({ ...prev, webhook_url: e.target.value }))
             }
             placeholder={tx(lang, 'Webhook URL', 'Webhook URL', 'Webhook URL')}
+            aria-label={tx(lang, 'Webhook URL', 'Webhook URL', 'Webhook URL')}
           />
         ) : null}
         <input
@@ -98,6 +103,7 @@ export function EmailSettingsSection({
             setEmailSettings((prev: any) => ({ ...prev, timeout_sec: e.target.value }))
           }
           placeholder={tx(lang, 'Timeout (san)', 'Timeout (сек)', 'Timeout (sec)')}
+          aria-label={tx(lang, 'Timeout (saniyə)', 'Тайм-аут (сек)', 'Timeout (seconds)')}
         />
       </div>
       {renderPanelSuccess('email')}
