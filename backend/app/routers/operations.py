@@ -58,6 +58,7 @@ from app.models import (
     OrderItem,
     OrderRound,
     Payment,
+    PushDelivery,
     Recipe,
     Reservation,
     RewardClaim,
@@ -105,7 +106,45 @@ from app.services.legacy_import_service import (
     verify_restore_dependencies as _verify_restore_dependencies,
     verify_restored_tables as _verify_restored_tables,
 )
+# P1.1 — 2x günlərin normalizasiyası accrual mühərriki ilə **eyni** funksiyadan
+# gəlməlidir, yoxsa panel "2x gün yoxdur" göstərib kassa 2x verə bilər.
+from app.services.loyalty_accrual import (
+    DEFAULT_EARN_BASIS,
+    EARN_BASIS_CHOICES,
+    MAX_TIER_MULTIPLIER,
+    resolve_double_days as _resolve_double_days,
+)
 from app.core.config import settings as app_settings
+# P1.4 — push: saf normalizer/göndərici + DB tərəfi (konfiqurasiya, jurnal).
+from app.services.push_dispatch import (
+    client_app_id_for_tenant,
+    count_broadcasts_today,
+    load_push_settings,
+    resolve_audience_for_tenant,
+    resolve_tenant_push_config,
+    send_bulk_push,
+    send_event_push,
+)
+# Seqment mühərriki: ön baxış və broadcast **eyni** funksiyadan keçir (P0.4).
+from app.services.push_audience import (
+    AUDIENCE_SEGMENTS,
+    DEFAULT_DORMANT_DAYS,
+    DEFAULT_NEW_DAYS,
+    MAX_AUDIENCE_DAYS,
+    SEGMENT_LABELS,
+    normalize_audience_spec,
+)
+from app.services.push_service import (
+    MAX_BROADCAST_DAILY_LIMIT,
+    MAX_BROADCAST_RECIPIENTS,
+    MAX_PUSH_BODY,
+    MAX_PUSH_TITLE,
+    PUSH_KINDS,
+    PUSH_SECRET_SENTINEL,
+    normalize_push_settings,
+    push_settings_response,
+    sanitize_push_text,
+)
 from app.security import hash_password, hash_token, verify_password
 import logging
 
@@ -1085,6 +1124,47 @@ class SendEmailIn(BaseModel):
     recipients: list[str] | None = None
 
 
+# --- P1.4 — push bildiriş idarəsi ------------------------------------------------
+# `onesignal_rest_api_key` üçün `PUSH_SECRET_SENTINEL` ("__keep__") göndərilə bilər:
+# panel maskalanmış açarı əlində saxlamaq məcburiyyətində qalmır. Sahə heç
+# göndərilməsə də açar qalır (PATCH merge top-level açar səviyyəsindədir), amma
+# forma boş sətir göndərəndə açarın silinməsi real risk idi.
+class PushSettingsIn(BaseModel):
+    enabled: bool | None = None
+    event_push_enabled: bool | None = None
+    broadcast_enabled: bool | None = None
+    onesignal_rest_api_key: str | None = None
+    #: Açarı **silmək** üçün açıq bayraq. Boş sətir silmir — GET cavabı açarı
+    #: maskalayıb boş qaytarır, yəni sadə round-trip PATCH onu udardı.
+    clear_onesignal_rest_api_key: bool = False
+    broadcast_daily_limit: int | None = None
+    #: `customer_app_settings.onesignal_app_id` ilə eyni sahə — panel push blokunda
+    #: bir yerdə redaktə edə bilsin deyə burada da qəbul olunur və müvafiq bloba yazılır.
+    onesignal_app_id: str | None = None
+
+
+class PushAudienceIn(BaseModel):
+    segment: str = "all"
+    value: str = ""
+    days: int | None = None
+    min_stars: int | None = None
+
+
+class PushBroadcastIn(BaseModel):
+    title: str = ""
+    body: str
+    url: str | None = None
+    audience: PushAudienceIn | None = None
+
+
+class PushTestIn(BaseModel):
+    title: str = ""
+    body: str = ""
+    #: Ya konkret müştəri kartı, ya da abunəlik id-si (panel öz cihazının id-sini yaza bilər).
+    card_id: str | None = None
+    token: str | None = None
+
+
 class RewardClaimIn(BaseModel):
     reward_id: str | None = None
 
@@ -1368,6 +1448,13 @@ def get_app_settings(
         "ai_config",
         {"provider": "unknown", "model": "auto", "autodetected": True, "ollama_freeapi_enabled": False, "updated_at": ""},
     )
+    # P1.4 — push ayarları ayrı `push_settings` açarındadır (REST açarı
+    # `customer_app_settings`-də saxlanıla bilməz: o blob müştəri sessiyasında hər
+    # telefona qaytarılır). Maska `email_settings` ilə eyni qaydadadır; `_set`
+    # bayraqları hər rolda gəlir ki, manager "açar yoxdur" deyə səhv qərar verməsin.
+    push_settings = push_settings_response(
+        getv("push_settings", {}), reveal=_can_view_sensitive_settings(user)
+    )
     response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     return {
         "tenant_id": tenant.id,
@@ -1390,6 +1477,7 @@ def get_app_settings(
         "qr_settings": qr_settings,
         "qr_menu_settings": qr_menu_settings,
         "customer_app_settings": customer_app_settings,
+        "push_settings": push_settings,
         "pos_layout": pos_layout,
         "landing_settings": getv(
             "landing_settings",
@@ -2971,12 +3059,21 @@ DEFAULT_CUSTOMER_APP_SETTINGS: dict = {
     "birthday_bonus_points": 10,
     "first_purchase_bonus": 5,
     "double_points_days": [],
+    # P1.1 — qazanma keçidləri. Hamısı **sönülü/köhnə davranış** ilə başlayır,
+    # çünki yuxarıdaki `earn_rate_per_azn=2.0` / `first_purchase_bonus=5` və
+    # `DEFAULT_TIERS`-dəki `gold.multiplier=1.5` artıq mövcud tenant-ların
+    # blobunda oturur — qapısız qoşulsa hər tenant xəbərsiz dəyişərdi.
+    "earn_basis": DEFAULT_EARN_BASIS,
+    "first_purchase_bonus_enabled": False,
+    "tier_multiplier_enabled": False,
     "onesignal_app_id": "",
 }
 
 # `tiers` defaultu DEFAULT_TIERS-dən gəlir (bu fayl daha aşağıda təyin edir), ona
 # görə yuxarıdaki literal-a qoyulmur — normalizer içində çağırış vaxtı oxunur.
-CUSTOMER_APP_SETTING_KEYS: frozenset = frozenset({*DEFAULT_CUSTOMER_APP_SETTINGS, "tiers"})
+# `rewards` (P1.3) də literal-da deyil: defaultu boş siyahıdır və `d[...]` axtarışları
+# skalyar qalsın deyə siyahı açarları allow-list-ə əl ilə əlavə olunur.
+CUSTOMER_APP_SETTING_KEYS: frozenset = frozenset({*DEFAULT_CUSTOMER_APP_SETTINGS, "tiers", "rewards"})
 
 _HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
@@ -3037,7 +3134,7 @@ def _norm_customer_app_tiers(value) -> list[dict]:
     if not rows:
         return _default_customer_app_tiers()
     cleaned: list[dict] = []
-    for row in rows[:12]:
+    for row in rows[:MAX_CUSTOMER_APP_TIERS]:
         if not isinstance(row, dict):
             continue
         key = re.sub(r"[^a-z0-9_]", "", str(row.get("key") or "").strip().lower())[:32]
@@ -3058,8 +3155,11 @@ def _norm_customer_app_tiers(value) -> list[dict]:
                 "key": key,
                 "label": label,
                 "threshold": _norm_int(row.get("threshold"), 0, minimum=0, maximum=1_000_000),
-                "color": _norm_hex_color(row.get("color"), "#cd7f32"),
-                "multiplier": _norm_float(row.get("multiplier"), 1.0, minimum=0.0, maximum=10.0),
+                "color": _norm_hex_color(row.get("color"), FALLBACK_TIER_COLOR),
+                # Hədd `loyalty_accrual.MAX_TIER_MULTIPLIER`-dən gəlir, sərt `10.0` deyil:
+                # normalizer, `_compute_tier` və accrual eyni həddi işlətməlidir, yoxsa
+                # ayar 25-i saxlayır, panel 25 göstərir, kassa 10 sayır.
+                "multiplier": _norm_float(row.get("multiplier"), 1.0, minimum=0.0, maximum=MAX_TIER_MULTIPLIER),
                 "discount_percent": _norm_float(row.get("discount_percent"), 0.0, minimum=0.0, maximum=100.0),
             }
         )
@@ -3069,6 +3169,216 @@ def _norm_customer_app_tiers(value) -> list[dict]:
     # Ən aşağı pillə həmişə 0-dan başlamalıdır, yoxsa yeni müştəri tier-siz qalır.
     cleaned[0]["threshold"] = 0
     return cleaned
+
+
+def _tier_threshold(row) -> int:
+    """Bir tier sətrinin həddi — **yazma və oxuma üçün eyni qayda**.
+
+    Niyə ayrı funksiya: hədd beş yerdə oxunur (`_norm_customer_app_tiers`,
+    `_compute_tier`-in sıralaması, müqayisəsi, `current_threshold`,
+    `next_threshold`) və hər biri öz variantını yazanda nərdivan iki rejimdə
+    fərqli sıralanırdı. JS güzgüsü: `crm.ts::computeTier`-dəki `threshold()`
+    köməkçisi və `loyalty.ts::findTierMultiplier` — ikisi də
+    `Math.max(0, Math.trunc(Number(x)))` edir.
+    """
+    return _norm_int((row or {}).get("threshold"), 0, minimum=0, maximum=1_000_000)
+
+
+# --- P1.3 — hədiyyə kataloqu ----------------------------------------------------
+# Əvvəl "hədiyyə" tək bir ad + hədd idi (`reward_name` + `reward_threshold`), yəni
+# tenant yalnız BİR hədiyyə təyin edə bilirdi və müştəri tətbiqi sintetik bir sətir
+# (`id: "default-reward"`) alırdı. Kataloq bunu sıraya çevirir.
+#
+# Nərdivandan (`tiers`) qəsdən İKİ fərqi var:
+#   1. **Boş massiv defaultla əvəz olunmur.** Nərdivan üçün "pillə yoxdur" mənasız
+#      haldır (müştəri tier-siz qalır), hədiyyə üçün tam qanunidir: kataloq boş
+#      olanda köhnə tək hədiyyə işləyir. Yəni panel `rewards: []` göndərə **bilər**,
+#      `tiers: []` göndərə **bilmir** (o, nərdivanı defaulta sıfırlayır).
+#   2. **Təkrar `id` səssizcə atılır** (ilk sətir qalır). Nərdivanda təkrar açar
+#      yalnız görüntü problemidir; burada claim `id` ilə tapılır — iki sətir eyni
+#      id ilə qalsa müştəri 5 xallıq hədiyyəyə basıb 50 xal ödəyə bilər.
+MAX_CUSTOMER_APP_REWARDS: int = 20
+MAX_REWARD_POINTS_COST: int = 1_000_000
+MAX_REWARD_STOCK_LIMIT: int = 1_000_000
+
+# Kataloq boş olanda müştəri tətbiqinə göndərilən köhnə sintetik sətrin id-si.
+# `pos.py` və `crm.ts` bu sabiti tanıyır — dəyişsə köhnə claim-lər bağlantısız qalar.
+LEGACY_REWARD_ID: str = "default-reward"
+
+# Tier açarından fərqli olaraq defis qəbul edilir, çünki köhnə id `default-reward`-dur.
+_REWARD_ID_RE = re.compile(r"[^a-z0-9_-]")
+
+
+def _norm_reward_id(value) -> str:
+    return _REWARD_ID_RE.sub("", str(value or "").strip().lower())[:32]
+
+
+def _norm_i18n_text(value, fallback: str, limit: int) -> dict:
+    """`{az, ru, en}` mətn — tier `label` qaydasının eynisi: ru/en boşdursa az-a düşür."""
+    if isinstance(value, dict):
+        az = _norm_text(value.get("az"), fallback, limit)
+        return {
+            "az": az,
+            "ru": _norm_text(value.get("ru"), az, limit),
+            "en": _norm_text(value.get("en"), az, limit),
+        }
+    single = _norm_text(value, fallback, limit)
+    return {"az": single, "ru": single, "en": single}
+
+
+def _norm_customer_app_rewards(value) -> list[dict]:
+    """Hədiyyə kataloqu. Boş/xarab giriş → `[]` (kataloq yoxdur), default DEYİL."""
+    rows = value if isinstance(value, list) else None
+    if not rows:
+        return []
+    cleaned: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        if len(cleaned) >= MAX_CUSTOMER_APP_REWARDS:
+            break
+        if not isinstance(row, dict):
+            continue
+        rid = _norm_reward_id(row.get("id"))
+        if not rid or rid in seen:
+            continue
+        seen.add(rid)
+        cleaned.append(
+            {
+                "id": rid,
+                "title": _norm_i18n_text(row.get("title"), rid, 60),
+                # Açıqlama boş qala bilər (fallback ""), ad qala bilməz (fallback id).
+                "description": _norm_i18n_text(row.get("description"), "", 240),
+                # `0`/mənfi → default 10 (1-ə DEYİL): `normalizeRewardThreshold` ilə
+                # eyni qayda — 1 xallıq hədiyyə səhvən qoyulsa hər şey pulsuz olardı.
+                "points_cost": _norm_int(
+                    row.get("points_cost"),
+                    DEFAULT_CUSTOMER_APP_SETTINGS["reward_threshold"],
+                    1,
+                    MAX_REWARD_POINTS_COST,
+                ),
+                # Menyu bağlantısı: boş sətir = "istənilən məhsul" (köhnə davranış).
+                "menu_item_id": str(row.get("menu_item_id") or "").strip()[:64],
+                # Açar yoxdursa aktiv sayılır; `None` açıq şəkildə "deaktiv"dir.
+                "active": bool(row.get("active", True)),
+                "stock_limit": _norm_int(row.get("stock_limit"), 0, 0, MAX_REWARD_STOCK_LIMIT),
+            }
+        )
+    # Ucuzdan bahaya — müştəri tətbiqindəki nərdivan bu sıra ilə oxunur.
+    cleaned.sort(key=lambda r: r["points_cost"])
+    return cleaned
+
+
+def _reward_catalog(app_settings: dict | None) -> list[dict]:
+    """Effektiv hədiyyə kataloqu — **oxu yolunun tək mənbəyi**.
+
+    Kataloq boş olanda köhnə tək hədiyyə (`reward_name` / `reward_threshold` /
+    `reward_description`) bir sətir kimi qaytarılır, id-si `LEGACY_REWARD_ID`.
+    Belə olanda müştəri tətbiqi və claim endpointi eyni kodu işlədir — əvvəl
+    sintetik sətir `wallet` blokunun içində əl ilə yığılırdı və claim endpointi
+    ayarları yenidən oxuyurdu, yəni iki yerdə iki fərqli qayda vardı.
+
+    JS güzgüsü: `src/api/crm.ts::resolveRewardCatalog`.
+    """
+    settings = app_settings if isinstance(app_settings, dict) else {}
+    rows = _norm_customer_app_rewards(settings.get("rewards"))
+    if rows:
+        return rows
+    d = DEFAULT_CUSTOMER_APP_SETTINGS
+    name = _norm_text(settings.get("reward_name"), d["reward_name"], 60)
+    desc = _norm_text(settings.get("reward_description"), d["reward_description"], 240)
+    return [
+        {
+            "id": LEGACY_REWARD_ID,
+            "title": {"az": name, "ru": name, "en": name},
+            "description": {"az": desc, "ru": desc, "en": desc},
+            "points_cost": _norm_int(settings.get("reward_threshold"), d["reward_threshold"], 1, 1000),
+            "menu_item_id": "",
+            "active": True,
+            "stock_limit": 0,
+        }
+    ]
+
+
+def _reward_stock_used(db: Session, tenant_id: str, rows: list[dict]) -> dict[str, int]:
+    """Stoku məhdud sətirlər üçün istifadə olunmuş say (PENDING + REDEEMED claim).
+
+    Niyə stok qalığı ayar blobunda saxlanılmır: qalıq **dəyişən vəziyyətdir**, blob
+    isə konfiqurasiyadır. Blobda saylayıcı olsaydı iki paralel claim eyni qalığı
+    oxuyub ikisi də keçərdi (ayar PATCH-i satış tranzaksiyası ilə kilidlənmir).
+    Claim sətirləri isə onsuz da tranzaksiyanın bir hissəsidir — tier-in
+    saxlanılmaması ilə eyni prinsip (`_compute_tier` da oxu vaxtı hesablanır).
+
+    Yalnız `stock_limit > 0` olan sətirlər sayılır: limitsiz sətir üçün sayğac
+    lazım deyil, köhnə claim-lərin `reward_id`-si isə NULL-dur (kataloqsuz dövr)
+    və onların limiti həmişə 0-dır.
+    """
+    limited = [str(r.get("id") or "") for r in rows if int(r.get("stock_limit") or 0) > 0]
+    if not limited:
+        return {}
+    counts = (
+        db.query(RewardClaim.reward_id, func.count(RewardClaim.id))
+        .filter(
+            RewardClaim.tenant_id == tenant_id,
+            RewardClaim.reward_id.in_(limited),
+            RewardClaim.status.in_(("PENDING", "REDEEMED")),
+        )
+        .group_by(RewardClaim.reward_id)
+        .all()
+    )
+    return {str(rid): int(cnt or 0) for rid, cnt in counts}
+
+
+def _reward_catalog_payload(
+    rows: list[dict],
+    *,
+    spendable: int,
+    stock_used: dict[str, int] | None = None,
+    menu_names: dict[str, str] | None = None,
+    lang: str = "az",
+) -> list[dict]:
+    """Kataloq → `wallet.rewards`. Yalnız aktiv sətirlər çıxır.
+
+    `available_count` qaydası köhnə düsturun ümumiləşdirilmiş halıdır:
+    köhnə `stars // threshold - pending_count` ↔ yeni `spendable // points_cost`,
+    çünki `spendable` artıq PENDING claim-lərin `points_cost` cəmi çıxılmış
+    balansdır. Bütün sətirlər eyni qiymətdə olanda iki düstur eynidir.
+    """
+    used = stock_used or {}
+    names = menu_names or {}
+    safe_spendable = max(0, int(spendable))
+    payload: list[dict] = []
+    for row in rows:
+        if not bool(row.get("active", True)):
+            continue
+        cost = max(1, int(row.get("points_cost") or 1))
+        by_points = safe_spendable // cost
+        limit = int(row.get("stock_limit") or 0)
+        remaining = max(0, limit - int(used.get(str(row.get("id")), 0))) if limit > 0 else None
+        count = by_points if remaining is None else min(by_points, remaining)
+        title = row.get("title") if isinstance(row.get("title"), dict) else {}
+        desc = row.get("description") if isinstance(row.get("description"), dict) else {}
+        menu_item_id = str(row.get("menu_item_id") or "")
+        payload.append(
+            {
+                "id": str(row.get("id") or ""),
+                # `title`/`description` sətir kimi qalır (köhnə app bunu belə oxuyur),
+                # `*_i18n` isə tərcüməni verir — tətbiq öz dilini özü seçir.
+                "title": str(title.get(lang) or title.get("az") or ""),
+                "description": str(desc.get(lang) or desc.get("az") or ""),
+                "title_i18n": {k: str(title.get(k) or "") for k in ("az", "ru", "en")},
+                "description_i18n": {k: str(desc.get(k) or "") for k in ("az", "ru", "en")},
+                # `threshold` köhnə adıdır, `points_cost` yeni — dəyər eynidir.
+                "threshold": cost,
+                "points_cost": cost,
+                "menu_item_id": menu_item_id,
+                "menu_item_name": str(names.get(menu_item_id, "")) if menu_item_id else "",
+                "stock_limit": limit,
+                "stock_remaining": remaining,
+                "available_count": int(count),
+                "locked": int(count) <= 0,
+            }
+        )
+    return payload
 
 
 def _has_meaningful_value(raw: dict, key: str) -> bool:
@@ -3110,14 +3420,8 @@ def _normalize_customer_app_settings(value: dict | None, *, strict: bool = True)
     d = DEFAULT_CUSTOMER_APP_SETTINGS
     norm_image = _normalize_image_url if strict else _public_image_url
     birthday_bonus = _canonical_birthday_bonus(raw)
-    raw_days = raw.get("double_points_days")
-    days = sorted(
-        {
-            int(str(x).strip())
-            for x in (raw_days if isinstance(raw_days, list) else [])
-            if str(x).strip().isdigit() and 1 <= int(str(x).strip()) <= 7
-        }
-    )
+    # P1.1 — accrual mühərriki ilə tək mənbə (köhnə `0` = Bazar da xilas olur).
+    days = sorted(_resolve_double_days(raw))
     return {
         "enabled": bool(raw.get("enabled", d["enabled"])),
         "program_mode": _norm_choice(raw.get("program_mode"), {"points", "cashback"}, d["program_mode"]),
@@ -3157,8 +3461,14 @@ def _normalize_customer_app_settings(value: dict | None, *, strict: bool = True)
         "birthday_bonus_points": birthday_bonus,
         "first_purchase_bonus": _norm_int(raw.get("first_purchase_bonus"), d["first_purchase_bonus"], 0, 1000),
         "double_points_days": days,
+        # P1.1 — keçidlər (bax: `app/services/loyalty_accrual.py`).
+        "earn_basis": _norm_choice(raw.get("earn_basis"), set(EARN_BASIS_CHOICES), d["earn_basis"]),
+        "first_purchase_bonus_enabled": bool(raw.get("first_purchase_bonus_enabled", d["first_purchase_bonus_enabled"])),
+        "tier_multiplier_enabled": bool(raw.get("tier_multiplier_enabled", d["tier_multiplier_enabled"])),
         "onesignal_app_id": _norm_text(raw.get("onesignal_app_id"), d["onesignal_app_id"], 64),
         "tiers": _norm_customer_app_tiers(raw.get("tiers")),
+        # P1.3 — hədiyyə kataloqu. Boş siyahı qanuni haldır (köhnə tək hədiyyə işləyir).
+        "rewards": _norm_customer_app_rewards(raw.get("rewards")),
     }
 
 
@@ -3297,6 +3607,411 @@ def update_email_settings(
     _set_setting_value(db, tenant.id, "email_settings", cleaned)
     db.commit()
     return {"success": True}
+
+
+# --- P1.4c — push bildiriş endpointləri ------------------------------------------
+# Rol bölgüsü: **oxuma** (status, ön baxış, tarixçə) manager-ə açıqdır — kampaniyanı
+# adətən o planlayır; **yazma** (ayar, test, broadcast) yalnız admin-dir, çünki
+# göndərilmiş bildiriş geri alınmır.
+
+#: Tarixçə səhifəsi. Panel "daha çox" istəyəndə `limit` göndərir.
+PUSH_HISTORY_LIMIT = 50
+MAX_PUSH_HISTORY_LIMIT = 200
+
+
+def _push_config_public(config) -> dict:
+    """Panelə göstərilən konfiqurasiya vəziyyəti — **REST açarı YOX**, yalnız bayraq."""
+    return {
+        "ok": bool(config.ok),
+        "source": config.source,
+        "reason": config.reason,
+        "app_id_set": bool(config.app_id),
+        "rest_key_set": bool(config.rest_api_key),
+    }
+
+
+def _push_tiers(db: Session, tenant_id: str) -> list[dict]:
+    """Seqment üçün normalizasiya olunmuş tier nərdivanı (`tier` seqmenti onu işlədir)."""
+    blob = _setting_value(db, tenant_id, "customer_app_settings", {})
+    return _norm_customer_app_tiers((blob or {}).get("tiers") if isinstance(blob, dict) else None)
+
+
+def _push_broadcast_state(db: Session, tenant_id: str, push_settings: dict) -> dict:
+    """Gündəlik hədd vəziyyəti. `daily_limit=0` **bloklanıb** deməkdir (limitsiz deyil)."""
+    limit = int(push_settings.get("broadcast_daily_limit") or 0)
+    used = count_broadcasts_today(db, tenant_id)
+    return {
+        "enabled": bool(push_settings.get("broadcast_enabled")),
+        "daily_limit": limit,
+        "used_today": used,
+        "remaining": max(0, limit - used),
+        "max_daily_limit": MAX_BROADCAST_DAILY_LIMIT,
+    }
+
+
+@router.patch("/settings/push-settings")
+def update_push_settings(
+    payload: PushSettingsIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Push ayarları. `None` = "göndərilməyib" → mövcud dəyər qalır.
+
+    REST açarı üçün `PUSH_SECRET_SENTINEL` dəstəklənir, yəni panel maskalanmış
+    açarı geri göndərmək məcburiyyətində deyil. `update_email_settings`-dəki
+    "boş sətir açarı silir" tələsi burada **qəsdən** təkrarlanmır.
+    """
+    _ensure_admin(user)
+    current = normalize_push_settings(_setting_value(db, tenant.id, "push_settings", {}))
+    incoming = {
+        key: value
+        for key, value in (
+            ("enabled", payload.enabled),
+            ("event_push_enabled", payload.event_push_enabled),
+            ("broadcast_enabled", payload.broadcast_enabled),
+            ("onesignal_rest_api_key", payload.onesignal_rest_api_key),
+            ("broadcast_daily_limit", payload.broadcast_daily_limit),
+        )
+        if value is not None
+    }
+    # Boş açar "sil" demir: GET cavabı sirri maskalayır, yəni panelin sadə
+    # round-trip PATCH-i açarı udardı (`update_email_settings`-dəki tələ). Silmək
+    # üçün açıq bayraq var; `PUSH_SECRET_SENTINEL` isə "olduğu kimi saxla" deyir.
+    if "onesignal_rest_api_key" in incoming and not str(incoming["onesignal_rest_api_key"]).strip():
+        incoming.pop("onesignal_rest_api_key", None)
+    if payload.clear_onesignal_rest_api_key:
+        incoming["onesignal_rest_api_key"] = ""
+    merged = normalize_push_settings({**current, **incoming}, current=current)
+    changed = sorted(k for k in merged if current.get(k) != merged.get(k))
+    _set_setting_value(db, tenant.id, "push_settings", merged)
+
+    # App id **`customer_app_settings`-də qalır**: brauzer SDK-sının init parametridir
+    # (publikdir) və müştəri sessiyası onu oradan oxuyur. İki yerdə saxlamaq iki
+    # mənbə yaradar, göndərici ilə SDK yenə ayrı app-a baxa bilər.
+    app_id_changed = False
+    if payload.onesignal_app_id is not None:
+        app_blob = _setting_value(db, tenant.id, "customer_app_settings", {})
+        if not isinstance(app_blob, dict):
+            app_blob = {}
+        # Yalnız bu açar yazılır. Bütün blobu `_normalize_customer_app_settings`-dən
+        # keçirmək iki pis nəticədən birini verərdi: `strict=True` ilə push ayarının
+        # saxlanması **başqa** sahənin (məs. böyük şəkil) səhvinə görə 400 olardı,
+        # `strict=False` ilə o sahə səssizcə boşalardı. Normalizasiya sahə ilə
+        # eynidir (`_norm_text(..., 64)` — bax `_normalize_customer_app_settings`).
+        app_id = _norm_text(payload.onesignal_app_id, "", 64)
+        app_id_changed = str(app_blob.get("onesignal_app_id") or "").strip() != app_id
+        if app_id_changed:
+            _set_setting_value(db, tenant.id, "customer_app_settings", {**app_blob, "onesignal_app_id": app_id})
+
+    if changed or app_id_changed:
+        # Jurnala **açar adları** yazılır, dəyər yox.
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="PUSH_SETTINGS_UPDATED",
+                details=json.dumps(
+                    {"changed": changed, "app_id_changed": app_id_changed}, ensure_ascii=False
+                )[:2000],
+            )
+        )
+    db.commit()
+
+    config, _ = resolve_tenant_push_config(db, tenant.id)
+    return {
+        "success": True,
+        "changed": changed,
+        "app_id_changed": app_id_changed,
+        # `_ensure_admin` onsuz da `_can_view_sensitive_settings` ilə eyni dəstdir.
+        "push_settings": push_settings_response(merged, reveal=True),
+        "onesignal_app_id": client_app_id_for_tenant(db, tenant.id),
+        "config": _push_config_public(config),
+    }
+
+
+def _push_audience_spec(payload: PushAudienceIn | None) -> dict:
+    """`PushAudienceIn` → normalizerin dict-i. `None` = default (`all`)."""
+    if payload is None:
+        return normalize_audience_spec(None)
+    return normalize_audience_spec(
+        {
+            "segment": payload.segment,
+            "value": payload.value,
+            "days": payload.days,
+            "min_stars": payload.min_stars,
+        }
+    )
+
+
+@router.get("/push/status")
+def get_push_status(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Panelin push blokunun bütün vəziyyəti bir sorğuda."""
+    _ensure_manager(user)
+    config, push_settings = resolve_tenant_push_config(db, tenant.id)
+    tiers = _push_tiers(db, tenant.id)
+    # Abunəçi sayı ön baxışla **eyni** funksiyadan gəlir; ayrı sayğac panelə iki
+    # fərqli rəqəm göstərər ("1 240 abunəçi" / "412 alıcı") və heç biri izah olunmaz.
+    audience = resolve_audience_for_tenant(db, tenant.id, {"segment": "all"}, tiers=tiers)
+    return {
+        "config": _push_config_public(config),
+        "settings": push_settings_response(push_settings, reveal=_can_view_sensitive_settings(user)),
+        "onesignal_app_id": client_app_id_for_tenant(db, tenant.id),
+        "subscribers": audience.as_dict(),
+        "broadcast": _push_broadcast_state(db, tenant.id, push_settings),
+        "segments": [
+            {
+                "key": key,
+                "label": SEGMENT_LABELS.get(key, key),
+                "needs_days": key in ("new", "dormant"),
+                "needs_value": key == "tier",
+                "needs_min_stars": key == "has_balance",
+                "default_days": DEFAULT_NEW_DAYS if key == "new" else DEFAULT_DORMANT_DAYS,
+            }
+            for key in AUDIENCE_SEGMENTS
+        ],
+        "tiers": [{"key": t["key"], "label": t["label"], "threshold": t["threshold"]} for t in tiers],
+        # Panel maskalanmış açarı geri göndərmək əvəzinə bu sentineli göndərir.
+        # Sətri frontend-də ayrıca sabit kimi yazmaq iki mənbə yaradardı.
+        "secret_sentinel": PUSH_SECRET_SENTINEL,
+        "limits": {
+            "title": MAX_PUSH_TITLE,
+            "body": MAX_PUSH_BODY,
+            "max_recipients": MAX_BROADCAST_RECIPIENTS,
+            "max_days": MAX_AUDIENCE_DAYS,
+        },
+    }
+
+
+@router.post("/push/preview")
+def preview_push_audience(
+    payload: PushAudienceIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Seqmentin ön baxışı — göndərmə ilə **eyni** funksiyadan keçir (P0.4).
+
+    Heç nə göndərilmir, jurnal yazılmır. Cavabda token siyahısı yoxdur
+    (`PushAudience.as_dict`), yalnız saylar və izah mətni.
+    """
+    _ensure_manager(user)
+    tiers = _push_tiers(db, tenant.id)
+    spec = _push_audience_spec(payload)
+    audience = resolve_audience_for_tenant(db, tenant.id, spec, tiers=tiers)
+    config, push_settings = resolve_tenant_push_config(db, tenant.id)
+    return {
+        "audience": audience.as_dict(),
+        "spec": spec,
+        "config": _push_config_public(config),
+        "broadcast": _push_broadcast_state(db, tenant.id, push_settings),
+    }
+
+
+@router.post("/push/test")
+def send_push_test(
+    payload: PushTestIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Tək abunəliyə test bildirişi (`kind="test"`).
+
+    `broadcast_enabled` tələb olunmur — test məhz o açarı yandırmadan
+    konfiqurasiyanı yoxlamaq üçündür. Master açar (`enabled`) isə hörmət olunur:
+    söndürülü tenant-da heç nə getməməlidir.
+    """
+    _ensure_admin(user)
+    token = str(payload.token or "").strip()
+    card_id = str(payload.card_id or "").strip()
+    if not token and card_id:
+        customer = (
+            db.query(Customer)
+            .filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id)
+            .first()
+        )
+        if not customer:
+            raise HTTPException(status_code=404, detail="Müştəri tapılmadı")
+        token = str(customer.push_token or "").strip()
+        if not token:
+            raise HTTPException(status_code=400, detail="Bu müştəridə bildiriş abunəliyi yoxdur")
+    if not token:
+        raise HTTPException(status_code=400, detail="Test üçün kart nömrəsi və ya abunəlik id-si lazımdır")
+
+    title, body = sanitize_push_text(
+        payload.title or "Test bildirişi",
+        payload.body or "Bu, admin panelindən göndərilən test bildirişidir.",
+    )
+    result, config = send_bulk_push(
+        db,
+        tenant.id,
+        tokens=[token],
+        title=title,
+        body=body,
+        kind="test",
+        segment="test",
+        segment_value=(card_id or None),
+        created_by=user.username,
+    )
+    db.commit()
+    return {
+        "success": bool(result.ok),
+        "result": result.as_log_dict(),
+        "config": _push_config_public(config),
+    }
+
+
+@router.post("/push/broadcast")
+def send_push_broadcast(
+    payload: PushBroadcastIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Seqmentə kütləvi bildiriş.
+
+    Şərtlər **göndərmədən əvvəl** yoxlanır və səbəb 400/429 ilə qaytarılır: söndürülü
+    açar ucbatından yaranan `skipped` sətri panelə "getdi" kimi görünərdi.
+    """
+    _ensure_admin(user)
+    push_settings = load_push_settings(db, tenant.id)
+    if not bool(push_settings.get("enabled", True)):
+        raise HTTPException(status_code=400, detail="Push bildirişləri söndürülüb (Ayarlar → Bildirişlər).")
+    if not bool(push_settings.get("broadcast_enabled", False)):
+        raise HTTPException(status_code=400, detail="Kütləvi bildiriş söndürülüb (Ayarlar → Bildirişlər).")
+
+    state = _push_broadcast_state(db, tenant.id, push_settings)
+    if state["daily_limit"] <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Gündəlik broadcast həddi 0-dır — göndərmə bloklanıb. Ayarlarda həddi artırın.",
+        )
+    if state["remaining"] <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Gündəlik hədd doldu ({state['used_today']}/{state['daily_limit']}). "
+                "Sayğac tenant-ın gecə yarısında sıfırlanır."
+            ),
+        )
+
+    config, _ = resolve_tenant_push_config(db, tenant.id)
+    if not config.ok:
+        raise HTTPException(status_code=400, detail=config.reason or "Push konfiqurasiyası tamamlanmayıb.")
+
+    title, body = sanitize_push_text(payload.title, payload.body)
+    if not body:
+        raise HTTPException(status_code=400, detail="Bildiriş mətni boşdur.")
+    # OneSignal yalnız https keçidi qəbul edir; digərini səssiz atmaq admini
+    # "keçid işləmir" deyə saatlarla axtarmağa məcbur edərdi.
+    url = str(payload.url or "").strip()
+    if url and not url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Keçid ünvanı https:// ilə başlamalıdır.")
+
+    tiers = _push_tiers(db, tenant.id)
+    spec = _push_audience_spec(payload.audience)
+    audience = resolve_audience_for_tenant(db, tenant.id, spec, tiers=tiers)
+    if not audience.tokens:
+        # Boş göndərmə jurnalda "failed" sətri yaratmasın — bu, seqmentin nəticəsidir,
+        # provayderin xətası deyil. Səbəb hər pillənin sayı ilə qaytarılır.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Seçilmiş seqmentdə çatdırıla bilən abunəçi yoxdur (uyğun müştəri: "
+                f"{audience.matched}, abunəliyi olan: {audience.with_token}, çatdırılmayan "
+                f"cihaz tokeni: {audience.undeliverable})."
+            ),
+        )
+
+    result, config = send_bulk_push(
+        db,
+        tenant.id,
+        tokens=audience.tokens,
+        title=title,
+        body=body,
+        kind="broadcast",
+        segment=spec["segment"],
+        segment_value=audience.label,
+        created_by=user.username,
+        url=(url or None),
+    )
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="PUSH_BROADCAST_SENT",
+            details=json.dumps(
+                {
+                    "segment": spec,
+                    "recipients": audience.recipients,
+                    "matched": audience.matched,
+                    "status": result.status,
+                    "accepted": result.accepted,
+                    "failed": result.failed,
+                    "title": title,
+                },
+                ensure_ascii=False,
+            )[:2000],
+        )
+    )
+    db.commit()
+    return {
+        "success": bool(result.ok),
+        "result": result.as_log_dict(),
+        "audience": audience.as_dict(),
+        "config": _push_config_public(config),
+        "broadcast": _push_broadcast_state(db, tenant.id, push_settings),
+    }
+
+
+@router.get("/push/history")
+def get_push_history(
+    limit: int = Query(PUSH_HISTORY_LIMIT, ge=1, le=MAX_PUSH_HISTORY_LIMIT),
+    kind: str | None = Query(None),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Göndərmə tarixçəsi (`push_deliveries`), yeni sətir əvvəldə.
+
+    `details` qaytarılmır: içindəki `provider_ids` panelə heç nə demir və sətri
+    lüzumsuz ağırlaşdırır. `error` isə qalır — "niyə çatmadı" sualının cavabıdır.
+    """
+    _ensure_manager(user)
+    query = db.query(PushDelivery).filter(PushDelivery.tenant_id == tenant.id)
+    clean_kind = str(kind or "").strip().lower()
+    if clean_kind in PUSH_KINDS:
+        query = query.filter(PushDelivery.kind == clean_kind)
+    rows = query.order_by(PushDelivery.created_at.desc()).limit(int(limit)).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "kind": row.kind,
+                "event": row.event,
+                "title": row.title,
+                "body": row.body,
+                "segment": row.segment,
+                "segment_value": row.segment_value,
+                "card_id": row.card_id,
+                "status": row.status,
+                "config_source": row.config_source,
+                "recipients": int(row.recipients or 0),
+                "accepted": int(row.accepted or 0),
+                "failed": int(row.failed or 0),
+                "error": row.error,
+                "created_by": row.created_by,
+            }
+            for row in rows
+        ],
+        "count": len(rows),
+        "kinds": list(PUSH_KINDS),
+    }
 
 
 @router.patch("/settings/service-fee")
@@ -3994,7 +4709,11 @@ def get_customer_app_bootstrap(
     return {
         "tenant_id": tenant.id,
         "enabled": bool(app_settings.get("enabled", True)),
-        "onesignal_app_id": app_settings.get("onesignal_app_id"),
+        # P1.4 — SDK-nın init edəcəyi app id göndəricinin işlətdiyi mənbə ilə **eyni
+        # prioritetlə** həll olunur (tenant → platforma). Əvvəl yalnız blobdaki
+        # tenant dəyəri qaytarılırdı: boş olanda brauzer heç bir app-a abunə olmurdu,
+        # yəni platforma açarları düz olsa da push getmirdi.
+        "onesignal_app_id": client_app_id_for_tenant(db, tenant.id),
         "registration_mode": str(app_settings.get("registration_mode") or "full"),
         "customer_app_settings": app_settings,
         "branding": {
@@ -4401,41 +5120,80 @@ def verify_customer_otp(
 
 
 DEFAULT_TIERS: list[dict] = [
-    {"key": "bronze", "label": {"az": "Bürünc", "ru": "Бронза", "en": "Bronze"}, "threshold": 0, "color": "#cd7f32", "multiplier": 1},
-    {"key": "silver", "label": {"az": "Gümüş", "ru": "Серебро", "en": "Silver"}, "threshold": 100, "color": "#c0c0c0", "multiplier": 1},
-    {"key": "gold", "label": {"az": "Qızıl", "ru": "Золото", "en": "Gold"}, "threshold": 300, "color": "#d8b156", "multiplier": 1.5},
+    {"key": "bronze", "label": {"az": "Bürünc", "ru": "Бронза", "en": "Bronze"}, "threshold": 0, "color": "#cd7f32", "multiplier": 1, "discount_percent": 0.0},
+    {"key": "silver", "label": {"az": "Gümüş", "ru": "Серебро", "en": "Silver"}, "threshold": 100, "color": "#c0c0c0", "multiplier": 1, "discount_percent": 0.0},
+    {"key": "gold", "label": {"az": "Qızıl", "ru": "Золото", "en": "Gold"}, "threshold": 300, "color": "#d8b156", "multiplier": 1.5, "discount_percent": 0.0},
 ]
+
+# P1.2 — tier tapılmayanda işlənən rəng. Frontend güzgüsü:
+# `src/lib/loyalty.ts::FALLBACK_TIER_COLOR` (o da ən aşağı pillənin rəngidir).
+FALLBACK_TIER_COLOR: str = DEFAULT_TIERS[0]["color"]
+
+# P1.2 — nərdivanın maksimum sətir sayı. Frontend güzgüsü:
+# `src/lib/loyalty.ts::MAX_LOYALTY_TIERS`. Panel bu həddə çatanda "əlavə et"
+# düyməsini söndürür, backend isə artığını sadəcə kəsir — hədd iki tərəfdə
+# fərqlənsə panel saxlaya bildiyini düşünüb səssizcə sətir itirər.
+MAX_CUSTOMER_APP_TIERS: int = 12
 
 
 def _compute_tier(lifetime_stars: int, tiers: list[dict] | None) -> dict:
-    """Derive the current tier and progress to the next from lifetime stars."""
+    """Derive the current tier and progress to the next from lifetime stars.
+
+    P1.2d — hədd **hər yerdə eyni** oxunur (`_tier_threshold`). Əvvəl funksiya
+    üç fərqli qayda işlədirdi: sıralama `max(0, int(...))`, müqayisə xam
+    `int(...)`, `next_threshold` isə yenə xam. Nəticələr:
+
+    * sıralama mənfi həddi 0 sayır, müqayisə isə mənfi qəbul edir → normalizədən
+      keçməmiş blobda seçilən pillə `crm.ts::computeTier`-dən fərqlənirdi;
+    * `progress_pct` mənfi çıxa bilirdi (`int(-5 / 100 * 100)`) və customer app
+      tərəqqi zolağını mənfi enlə render edirdi;
+    * `int("300.5")` / `int([])` **exception** atırdı — bu funksiya customer
+      app-ın oxuma yolundadır, yəni bir zibil sətir 500 verə bilərdi.
+
+    `_norm_int` heç vaxt atmır və `_norm_customer_app_tiers`-in `threshold`
+    qaydası ilə eynidir, ona görə oxuma yazma ilə eyni dili danışır.
+    """
     sorted_tiers = sorted(
         [t for t in (tiers or []) if isinstance(t, dict) and t.get("key")],
-        key=lambda t: max(0, int(t.get("threshold") or 0)),
+        key=_tier_threshold,
     )
     if not sorted_tiers:
         sorted_tiers = DEFAULT_TIERS
+    # P1.2d — mənfi ulduz sayı 0 sayılır, `loyalty_accrual._floor_int` kimi.
+    # Orada `if value <= 0: return 0` var, burada müqayisə xam dəyərlə gedirdi:
+    # bərabər hədli nərdivanda (iki sətir 0-da) tətbiq birinci sətri, kassa isə
+    # sonuncunu seçirdi — yəni müştəri ×1 görüb ×3 qazanırdı. Mənfi balans
+    # normal axında olmamalıdır, amma idxal/legacy data ilə gəlir.
+    stars = max(0, int(_norm_int(lifetime_stars, 0, minimum=0)))
     current = sorted_tiers[0]
     next_tier: dict | None = None
     for t in sorted_tiers:
-        if lifetime_stars >= int(t.get("threshold") or 0):
+        if stars >= _tier_threshold(t):
             current = t
         elif next_tier is None:
             next_tier = t
             break
-    current_threshold = max(0, int(current.get("threshold") or 0))
+    current_threshold = _tier_threshold(current)
     progress_pct = 100
     if next_tier:
-        next_threshold = max(0, int(next_tier.get("threshold") or 0))
-        span = next_threshold - current_threshold
-        progress_pct = 0 if span <= 0 else min(100, int((lifetime_stars - current_threshold) / span * 100))
+        span = _tier_threshold(next_tier) - current_threshold
+        # `int(...)` KƏSİR (yuvarlaqlaşdırmır) — JS güzgüsü `Math.trunc` işlədir,
+        # `Math.round` 59.9-u 60 edib "növbəti pilləyə çatdım" illüziyası yaradırdı.
+        # Aşağı 0 həddi render təhlükəsizliyi üçündür: mənfi en CSS-də sıçrayır.
+        progress_pct = 0 if span <= 0 else max(0, min(100, int((stars - current_threshold) / span * 100)))
     return {
         "key": str(current.get("key") or "bronze"),
         "label": current.get("label") or DEFAULT_TIERS[0]["label"],
-        "color": str(current.get("color") or "#cd7f32"),
-        "multiplier": float(current.get("multiplier") or 1),
+        "color": str(current.get("color") or FALLBACK_TIER_COLOR),
+        # P1.2d — `float(x or 1)` YOX. `multiplier: 0` qanuni dəyərdir ("bu pillə
+        # qazanmır") və `or` onu səssizcə 1-ə çevirirdi: tətbiq "×1" göstərirdi,
+        # kassa isə 0 sayırdı, çünki `loyalty_accrual.find_tier_multiplier` xam
+        # dəyəri götürür. Hədd də accrual-ın həddi ilə eynidir, yoxsa köhnə blobdaki
+        # `25` burada 25 görünüb kassada 10 işlənərdi. Üstəlik `float("abc")`
+        # ValueError atırdı — `_norm_float` heç vaxt atmır.
+        "multiplier": _norm_float(current.get("multiplier"), 1.0, minimum=0.0, maximum=MAX_TIER_MULTIPLIER),
         "current_threshold": current_threshold,
-        "next_threshold": int(next_tier.get("threshold") or 0) if next_tier else None,
+        "next_threshold": _tier_threshold(next_tier) if next_tier else None,
         "progress_pct": progress_pct,
     }
 
@@ -4586,17 +5344,50 @@ def get_customer_app_session(
         if cashback_earned == Decimal("0.00"):
             for row in sales:
                 cashback_earned += (Decimal(str(row.total or 0)) * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
-    redeemed_reserved = Decimal(str(len(pending_claims) * next_reward_at))
+    redeemed_reserved = Decimal(str(sum(int(row.points_cost or 0) for row in pending_claims)))
     balance_value = Decimal(str(stars))
     if program_mode == "cashback":
         balance_value = max(Decimal("0.00"), cashback_earned - redeemed_reserved)
     progress_current = int(balance_value % Decimal(str(next_reward_at))) if program_mode == "cashback" else stars % next_reward_at
     progress_remaining = 0 if progress_current == 0 and balance_value > 0 else next_reward_at - progress_current
-    available_rewards = max(0, int(balance_value // Decimal(str(next_reward_at))) if program_mode == "cashback" else (stars // next_reward_at) - len(pending_claims))
+
+    # P1.3 — kataloq. `spendable` = PENDING claim-lərin dəyəri çıxılmış balans;
+    # cashback rejimində `balance_value` onsuz da xalisdir, ona görə iki dəfə
+    # çıxılmır. Köhnə düstur (`stars // threshold - pending_count`) bunun bütün
+    # sətirlərin qiyməti bərabər olan xüsusi halıdır.
+    reward_catalog = _reward_catalog(app_settings)
+    spendable = int(balance_value) if program_mode == "cashback" else int(max(Decimal("0"), balance_value - redeemed_reserved))
+    menu_names: dict[str, str] = {}
+    # Kataloq sətirləri + verilmiş claim-lər: sətir sonradan silinsə də claim öz
+    # `menu_item_id`-sini saxlayır, ona görə adı ayrıca axtarılmalıdır.
+    linked_ids = sorted(
+        {str(r.get("menu_item_id") or "") for r in reward_catalog}
+        | {str(row.menu_item_id or "") for row in recent_claims}
+        | {str(row.menu_item_id or "") for row in pending_claims}
+    )
+    linked_ids = [i for i in linked_ids if i]
+    if linked_ids:
+        menu_names = {
+            str(row.id): str(row.item_name or "")
+            for row in db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id, MenuItem.id.in_(linked_ids)).all()
+        }
+    reward_rows = _reward_catalog_payload(
+        reward_catalog,
+        spendable=spendable,
+        stock_used=_reward_stock_used(db, tenant.id, reward_catalog),
+        menu_names=menu_names,
+    )
+    # `available_rewards` köhnə mənasını saxlayır: ƏN UCUZ hədiyyədən neçə dəfə
+    # götürmək olar. Kataloqsuz halda bu, hərfi mənada köhnə düsturun nəticəsidir.
+    # Sətirlərin cəmi götürülmür — eyni xal bir dəfə xərclənir, cəm şişik rəqəm verər.
+    available_rewards = max((int(r["available_count"]) for r in reward_rows), default=0)
+    unlocked_rewards = sum(1 for r in reward_rows if int(r["available_count"]) > 0)
 
     return {
         "tenant_id": tenant.id,
-        "onesignal_app_id": app_settings.get("onesignal_app_id"),
+        # P1.4 — `bootstrap` ilə eyni həll (tenant → platforma), yoxsa müştəri
+        # sessiyası bir app-a, bootstrap başqasına abunə edərdi.
+        "onesignal_app_id": client_app_id_for_tenant(db, tenant.id),
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
@@ -4634,6 +5425,7 @@ def get_customer_app_session(
             "points_label": str(app_settings.get("points_label") or ("Cashback" if program_mode == "cashback" else "Ulduz")),
             "stars_balance": float(balance_value) if program_mode == "cashback" else stars,
             "available_rewards": available_rewards,
+            "unlocked_rewards": unlocked_rewards,
             "next_reward_at": next_reward_at,
             "progress_current": progress_current,
             "progress_remaining": progress_remaining,
@@ -4645,15 +5437,13 @@ def get_customer_app_session(
             # həqiqətən açıq olanda göstərməlidir; əvvəl bunu bilmirdi və hər
             # tenant-da vəd edirdi.
             "birthday_enabled": bool(app_settings.get("birthday_enabled")),
-            "rewards": [
-                {
-                    "id": "default-reward",
-                    "title": str(app_settings.get("reward_name") or "Reward"),
-                    "description": str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
-                    "threshold": next_reward_at,
-                    "available_count": available_rewards,
-                }
-            ],
+            # P1.3 — kataloq. Kataloq boş olanda tək köhnə hədiyyə sətri gəlir
+            # (`id: "default-reward"`), yəni köhnə tətbiq üçün forma dəyişmir.
+            "rewards": reward_rows,
+            # Kassanın avtomatik pulsuz içki həddi hələ də `reward_threshold`-dur
+            # (`pos.py`), kataloq sətirləri isə claim ilə işləyir — tətbiq bu iki
+            # mexanizmi ayırd edə bilsin deyə açıq bayraq göndərilir.
+            "catalog_enabled": bool(_norm_customer_app_rewards(app_settings.get("rewards"))),
         },
         "campaigns": [
             {
@@ -4695,6 +5485,9 @@ def get_customer_app_session(
                 "reward_name": row.reward_name,
                 "reward_description": row.reward_description or "",
                 "points_cost": row.points_cost,
+                "reward_id": row.reward_id or "",
+                "menu_item_id": row.menu_item_id or "",
+                "menu_item_name": menu_names.get(str(row.menu_item_id or ""), ""),
                 "status": row.status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
@@ -4707,6 +5500,9 @@ def get_customer_app_session(
                 "reward_name": row.reward_name,
                 "reward_description": row.reward_description or "",
                 "points_cost": row.points_cost,
+                "reward_id": row.reward_id or "",
+                "menu_item_id": row.menu_item_id or "",
+                "menu_item_name": menu_names.get(str(row.menu_item_id or ""), ""),
                 "status": row.status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "redeemed_at": row.redeemed_at.isoformat() if row.redeemed_at else None,
@@ -4843,13 +5639,47 @@ def claim_customer_reward(
         "customer_app_settings",
         {"reward_threshold": 10, "reward_name": "Reward", "reward_description": "10 ulduza 1 pulsuz içki"},
     )
-    threshold = _norm_int(app_settings.get("reward_threshold"), 10, 1, 1000)
-    pending_count = (
+    # P1.3 — hədiyyə kataloqdan gəlir. Kataloq boşdursa `_reward_catalog` köhnə tək
+    # hədiyyəni bir sətir kimi qaytarır, yəni bu kod yolu hər iki halda eynidir.
+    catalog = _reward_catalog(app_settings)
+    active_rows = [r for r in catalog if bool(r.get("active", True))]
+    if not active_rows:
+        raise HTTPException(status_code=400, detail="Aktiv hədiyyə yoxdur")
+
+    requested = _norm_reward_id(getattr(payload, "reward_id", None))
+    row = next((r for r in active_rows if r["id"] == requested), None)
+    if row is None:
+        # Köhnə tətbiq (və köhnə keş) həmişə `default-reward` göndərir. Kataloq
+        # aktivləşəndə onu 400-lə cəzalandırmaq yerinə ən ucuz aktiv sətrə düşürük —
+        # `active_rows` qiymətə görə sıralıdır. Naməlum (uydurma) id isə rədd olunur.
+        if requested and requested != LEGACY_REWARD_ID:
+            raise HTTPException(status_code=404, detail="Hədiyyə tapılmadı")
+        row = active_rows[0]
+
+    cost = max(1, int(row.get("points_cost") or 1))
+    stock_limit = int(row.get("stock_limit") or 0)
+    used = 0
+    if stock_limit > 0:
+        used = int(_reward_stock_used(db, tenant.id, [row]).get(row["id"], 0))
+        if used >= stock_limit:
+            raise HTTPException(status_code=400, detail="Bu hədiyyənin stoku bitdi")
+
+    # Gözləyən claim-lər balansı bloklayır (kassada hələ istifadə edilməmiş kod).
+    # Köhnə kod `pending_count * threshold` sayırdı; artıq hər claim öz qiyməti ilə
+    # tutulur, yəni fərqli qiymətli kataloq sətirləri düzgün rezerv edilir.
+    pending_rows = (
         db.query(RewardClaim)
         .filter(RewardClaim.tenant_id == tenant.id, RewardClaim.card_id == customer.card_id, RewardClaim.status == "PENDING")
-        .count()
+        .all()
     )
-    available_rewards = max(0, (int(customer.stars or 0) // threshold) - int(pending_count or 0))
+    reserved = sum(int(r.points_cost or 0) for r in pending_rows)
+    # ⚠️ Cashback rejimi: bu yoxlama `customer.stars`-a baxır, cashback balansına yox
+    # (oxu yolu isə cashback balansını göstərir). Köhnə davranışdır, P1.3-də
+    # dəyişdirilmədi — pul semantikası P1.6-nın işidir. Audit sənədində qeyd olunub.
+    spendable = max(0, int(customer.stars or 0) - int(reserved))
+    available_rewards = spendable // cost
+    if stock_limit > 0:
+        available_rewards = min(available_rewards, max(0, stock_limit - used))
     if available_rewards <= 0:
         raise HTTPException(status_code=400, detail="No reward available to claim")
 
@@ -4857,13 +5687,20 @@ def claim_customer_reward(
     while db.query(RewardClaim).filter(RewardClaim.claim_code == claim_code).first():
         claim_code = f"RW{secrets.token_hex(3).upper()}"
 
+    title = row.get("title") if isinstance(row.get("title"), dict) else {}
+    desc = row.get("description") if isinstance(row.get("description"), dict) else {}
+    menu_item_id = str(row.get("menu_item_id") or "")
     claim = RewardClaim(
         tenant_id=tenant.id,
         card_id=customer.card_id,
         claim_code=claim_code,
-        reward_name=str(app_settings.get("reward_name") or "Reward"),
-        reward_description=str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
-        points_cost=threshold,
+        # Kassa interfeysi Azərbaycanca-dır, ona görə claim sətrində `az` variantı
+        # saxlanılır. Sətir sonradan silinsə də verilmiş kod öz adını itirmir.
+        reward_name=str(title.get("az") or "Reward")[:120],
+        reward_description=str(desc.get("az") or "") or None,
+        points_cost=cost,
+        reward_id=row["id"],
+        menu_item_id=menu_item_id or None,
         status="PENDING",
     )
     db.add(claim)
@@ -4880,7 +5717,8 @@ def claim_customer_reward(
         tenant.id,
         customer.card_id,
         "Reward kodunuz hazırdır! 🎉",
-        f"Claim kodunuz: {claim_code} — kassada göstərin və pulsuz içkinizi alın.",
+        f"Claim kodunuz: {claim_code} — kassada göstərin və «{claim.reward_name}» hədiyyənizi alın.",
+        event="reward_claim",
     )
     db.commit()
     return {
@@ -4888,6 +5726,8 @@ def claim_customer_reward(
         "claim_code": claim_code,
         "reward_name": claim.reward_name,
         "points_cost": claim.points_cost,
+        "reward_id": claim.reward_id or "",
+        "menu_item_id": claim.menu_item_id or "",
         "available_rewards": max(0, available_rewards - 1),
     }
 
@@ -6546,16 +7386,25 @@ def list_kitchen_orders(
     ]
 
 
-def _notify_customer_push(db: Session, tenant_id: str, card_id: str | None, title: str, body: str) -> None:
+def _notify_customer_push(
+    db: Session,
+    tenant_id: str,
+    card_id: str | None,
+    title: str,
+    body: str,
+    *,
+    event: str = "manual",
+) -> None:
+    """P1.4 — tenant konfiqurasiyası ilə hadisə push-u + `push_deliveries` jurnalı.
+
+    Jurnal sətri çağıranın `db.commit()`-i ilə birlikdə yazılır (hər üç çağırış
+    yerində dərhal sonra commit var), ona görə ayrıca tranzaksiya açılmır.
+    """
     if not card_id:
         return
-    customer_row = db.query(Customer).filter(Customer.tenant_id == tenant_id, Customer.card_id == card_id).first()
-    if not customer_row or not customer_row.push_token:
-        return
     try:
-        from app.routers.pos import send_push_notification as _send_push_notification
-        _send_push_notification(customer_row.push_token, title, body)
-    except Exception as pe:
+        send_event_push(db, tenant_id, event=event, title=title, body=body, card_id=card_id)
+    except Exception as pe:  # pragma: no cover - push heç bir axını dayandırmır
         logger.warning(f"Could not send customer push: {pe}")
 
 
@@ -6590,6 +7439,7 @@ def accept_kitchen_order(
         row.card_id,
         "Sifarişiniz hazırlanır ☕",
         "Barista sifarişinizi hazırlamağa başladı. Bir neçə dəqiqə gözləyin!",
+        event="order_preparing",
     )
     db.commit()
     return {"success": True}
@@ -6642,6 +7492,7 @@ def complete_kitchen_order(
         row.card_id,
         "Sifarişiniz hazırdır! 🎉",
         "Sifarişinizi götürməyə buyurun. Nuş olsun! ☕",
+        event="order_ready",
     )
     db.commit()
     return {"success": True}

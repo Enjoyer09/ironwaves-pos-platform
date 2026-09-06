@@ -3,6 +3,7 @@ import { Gift, Sparkles, QrCode, Menu } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
 import { formatCardId, playTickSound, nativeHapticImpact, Haptic } from '../../lib/customer_utils';
+import { FALLBACK_TIER_COLOR, fallbackTierLabel } from '../../lib/loyalty';
 
 const CATEGORY_EMOJI: Record<string, string> = { coffee: '☕', tea: '🍵', sweet: '🍰', food: '🥪', cold: '🥤' };
 
@@ -112,8 +113,10 @@ type Props = {
   heroImage: string;
   cardFlipped: boolean;
   setCardFlipped: (v: boolean) => void;
-  claimReward: () => void;
+  claimReward: (rewardId?: string) => void;
   claiming: boolean;
+  // P1.3 — kataloqda bir neçə sətir var; yalnız basılan sətir "yüklənir" göstərir.
+  claimingRewardId?: string;
   rewards: any[];
   progressPercent: number;
   notifications: any[];
@@ -139,7 +142,7 @@ type Props = {
 export default function HomeTab({
   safeLang, customer, customer_card_id, branding, wallet, primaryColor,
   accentColor, programMode, cardQr, showQrCard, showWallet, balanceSuffix,
-  heroImage, cardFlipped, setCardFlipped, claimReward, claiming,
+  heroImage, cardFlipped, setCardFlipped, claimReward, claiming, claimingRewardId = '',
   rewards, progressPercent, notifications, favoriteItems, pendingClaims, claims,
   geofenceAlert, setGeofenceAlert, recentItems, searchQuery, setSearchQuery, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
@@ -166,8 +169,8 @@ export default function HomeTab({
     : (isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]');
 
   const tier: any = customer?.tier || null;
-  const tierColor = String(tier?.color || '#cd7f32');
-  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Member';
+  const tierColor = String(tier?.color || FALLBACK_TIER_COLOR);
+  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || fallbackTierLabel(safeLang);
   const lifetimeStars = Number(customer?.lifetime_stars ?? customer?.stars ?? 0);
 
   // Next-reward clarity (Starbucks-style "X stars to a free drink")
@@ -320,12 +323,56 @@ export default function HomeTab({
     return chunks.join(' ');
   };
 
-  const handleClaimWithConfetti = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClaimWithConfetti = (e: React.MouseEvent<HTMLButtonElement>, rewardId?: string) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     spawnConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    claimReward();
+    claimReward(rewardId);
   };
+
+  /* ── P1.3 — hədiyyə kataloqu nərdivanı ──────────────────────────────────
+     Sətirlər `wallet.rewards`-dandır (backend `_reward_catalog_payload`,
+     lokal rejim `buildRewardWalletRows`). Kataloq boş olsa da massiv boş
+     gəlmir: server köhnə tək hədiyyəni sintetik sətir kimi verir. Ona görə
+     burada uydurma pillə YOXDUR — P0.6-da silinən nərdivan indi real
+     kataloqun üstündə qayıdır.
+     Deaktiv sətirlər payload-a düşmür, yəni filtrə ehtiyac yoxdur. */
+  const catalogRows = (Array.isArray(rewards) ? rewards : [])
+    .map((row: any) => {
+      const i18nTitle = row?.title_i18n && typeof row.title_i18n === 'object' ? row.title_i18n : null;
+      const i18nDesc = row?.description_i18n && typeof row.description_i18n === 'object' ? row.description_i18n : null;
+      const cost = Math.max(1, Math.trunc(Number(row?.points_cost ?? row?.threshold) || 1));
+      const rawRemaining = row?.stock_remaining;
+      return {
+        id: String(row?.id || ''),
+        // Server dilə uyğun `title`-ı özü seçir; `*_i18n` varsa tətbiq öz dilini
+        // götürür (offline keş başqa dildə yazılmış ola bilər).
+        title: String((i18nTitle?.[safeLang] || i18nTitle?.az || row?.title || '') || '').trim(),
+        description: String((i18nDesc?.[safeLang] || i18nDesc?.az || row?.description || '') || '').trim(),
+        cost,
+        menuItemName: String(row?.menu_item_name || '').trim(),
+        // `null` = limitsiz; 0 = stok bitdi. `?? null` qəsdən: 0 dəyəri itməsin.
+        stockRemaining: rawRemaining === null || rawRemaining === undefined ? null : Math.max(0, Math.trunc(Number(rawRemaining) || 0)),
+        availableCount: Math.max(0, Math.trunc(Number(row?.available_count) || 0)),
+        locked: Boolean(row?.locked ?? (Number(row?.available_count) || 0) <= 0),
+      };
+    })
+    .filter((row) => row.id || row.title)
+    .sort((a, b) => a.cost - b.cost);
+  // Nərdivan uzun olanda ilk 5 sətir göstərilir, qalanı yerində açılır.
+  // ⚠️ `setActiveTab('stars')` kimi bir yer YOXDUR (`CustomerTab` = home | order |
+  // offers | feedback | barista | falci | ai | profile), ona görə "daha çox"
+  // düyməsi naviqasiya etmir, sadəcə siyahını genişləndirir.
+  const LADDER_VISIBLE = 5;
+  const [rewardsExpanded, setRewardsExpanded] = React.useState(false);
+  const ladderRows = rewardsExpanded ? catalogRows : catalogRows.slice(0, LADDER_VISIBLE);
+  const ladderHiddenCount = Math.max(0, catalogRows.length - ladderRows.length);
+  // "Tətbiq et" düyməsi ən ucuz AÇIQ sətri tələb edir — `available_rewards`
+  // rəqəmi də elə həmin məntiqin (max over rows) nəticəsidir.
+  const claimableRow = catalogRows.find((row) => !row.locked) || null;
+  // Hələ çatılmayan ən yaxın sətir (kompakt görünüş üçün): hamısı açıqsa ən ucuzu.
+  const nextCatalogRow = catalogRows.find((row) => row.locked) || catalogRows[0] || null;
+  const catalogHasMultipleRows = catalogRows.length > 1;
 
   return (
     <div className="space-y-6">
@@ -783,20 +830,92 @@ export default function HomeTab({
                         `Collected ${starsBalance} / ${nextRewardAt} stars`)}
                     </div>
                     <div className="space-y-0.5">
-                      {/* P0.6 — əvvəl burada 3 uydurma pillə vardı: "Çay / Espresso"
-                          (0.3×), "Cappuccino / Latte" (0.6×), "Böyük Qəhvə + Desert"
-                          (1.0×). Backend-də pilləli hədiyyə kataloqu yoxdur
-                          (`wallet.rewards` tək sintetik sətirdir), yəni müştəri
-                          heç vaxt ala bilmədiyi hədiyyələri görürdü. Artıq yalnız
-                          real hədiyyə göstərilir; nərdivan tier kataloqu gələndə
-                          (P1.2) qaytarılacaq. */}
-                      <div className="flex items-center gap-2 text-[10px] stagger-fade-in stagger-1">
-                        <span className={`h-2 w-2 rounded-full transition-all duration-500 ${rewardRemaining === 0 ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
-                        <span className={rewardRemaining === 0 ? `${headerText} font-black` : `${textMuted} font-semibold`}>
-                          {nextRewardAt}★ · {rewardName}
-                        </span>
-                      </div>
-                      <p className={`pl-4 text-[10px] font-semibold ${textMuted}`}>{rewardDescription}</p>
+                      {/* P1.3 — REAL hədiyyə nərdivanı.
+                          P0.6-da burada 3 uydurma pillə ("Çay / Espresso" 0.3×,
+                          "Cappuccino / Latte" 0.6×, "Böyük Qəhvə + Desert" 1.0×)
+                          silinmişdi, çünki backend-də kataloq yox idi və müştəri
+                          heç vaxt ala bilmədiyi hədiyyələri görürdü. Artıq
+                          `wallet.rewards` real kataloqdur (ən azı köhnə tək
+                          hədiyyənin sintetik sətri), ona görə nərdivan qayıdır —
+                          hər pillə həqiqətən tələb oluna bilən sətirdir. */}
+                      {ladderRows.length > 0 ? ladderRows.map((row, idx) => {
+                        const remainingStars = Math.max(0, row.cost - starsBalance);
+                        const rowClaiming = claiming && claimingRewardId === row.id;
+                        const soldOut = row.stockRemaining === 0;
+                        return (
+                          <div key={row.id || `reward-${idx}`} className={`flex items-start gap-2 text-[10px] stagger-fade-in stagger-${Math.min(4, idx + 1)}`}>
+                            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full transition-all duration-500 ${!row.locked ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                <span className={!row.locked ? `${headerText} font-black` : `${textMuted} font-semibold`}>
+                                  {row.cost}★ · {row.title || rewardName}
+                                </span>
+                                {/* Konkret məhsula bağlı sətir — müştəri nə alacağını bilir. */}
+                                {row.menuItemName ? (
+                                  <span className={`rounded-full px-1.5 py-[1px] text-[9px] font-bold ${isLight ? 'bg-black/5 text-slate-600' : 'bg-white/8 text-white/70'}`}>
+                                    {row.menuItemName}
+                                  </span>
+                                ) : null}
+                                {/* stockRemaining: null = limitsiz (heç nə göstərmirik),
+                                    0 = bitdi, ≤3 = tələsdirici azlıq siqnalı. */}
+                                {soldOut ? (
+                                  <span className="rounded-full bg-rose-500/15 px-1.5 py-[1px] text-[9px] font-bold text-rose-500">
+                                    {tx(safeLang, 'Bitdi', 'Закончилось', 'Sold out')}
+                                  </span>
+                                ) : row.stockRemaining !== null && row.stockRemaining <= 3 ? (
+                                  <span className="rounded-full bg-amber-500/15 px-1.5 py-[1px] text-[9px] font-bold text-amber-500">
+                                    {tx(safeLang, `son ${row.stockRemaining}`, `осталось ${row.stockRemaining}`, `${row.stockRemaining} left`)}
+                                  </span>
+                                ) : null}
+                                {/* Bir neçə dəfə tələb oluna bilirsə göstəririk. */}
+                                {!row.locked && row.availableCount > 1 ? (
+                                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-[1px] text-[9px] font-bold text-emerald-500">
+                                    ×{row.availableCount}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {row.description ? (
+                                <p className={`mt-0.5 text-[10px] font-semibold ${textMuted}`}>{row.description}</p>
+                              ) : null}
+                              {row.locked && !soldOut && remainingStars > 0 ? (
+                                <p className={`mt-0.5 text-[9px] font-semibold ${textMuted}`}>
+                                  {tx(safeLang, `${remainingStars} ulduz qaldı`, `ещё ${remainingStars} звёзд`, `${remainingStars} stars to go`)}
+                                </p>
+                              ) : null}
+                            </div>
+                            {!row.locked ? (
+                              <button type="button" disabled={claiming}
+                                onClick={(e) => handleClaimWithConfetti(e, row.id)}
+                                className="shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white transition active:scale-95 disabled:opacity-50"
+                                style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` }}>
+                                {rowClaiming ? '...' : tx(safeLang, 'Al', 'Забрать', 'Claim')}
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      }) : (
+                        /* Kataloq boş qayıtsa (köhnə keş, offline) köhnə tək sətir. */
+                        <div className="flex items-center gap-2 text-[10px] stagger-fade-in stagger-1">
+                          <span className={`h-2 w-2 rounded-full transition-all duration-500 ${rewardRemaining === 0 ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
+                          <span className={rewardRemaining === 0 ? `${headerText} font-black` : `${textMuted} font-semibold`}>
+                            {nextRewardAt}★ · {rewardName}
+                          </span>
+                        </div>
+                      )}
+                      {ladderHiddenCount > 0 ? (
+                        <button type="button" onClick={() => setRewardsExpanded(true)}
+                          className={`pl-4 pt-0.5 text-[9px] font-bold uppercase tracking-wider ${textMuted} transition active:scale-95`}>
+                          {tx(safeLang, `+${ladderHiddenCount} hədiyyə daha`, `+${ladderHiddenCount} награды`, `+${ladderHiddenCount} more rewards`)}
+                        </button>
+                      ) : rewardsExpanded && catalogRows.length > LADDER_VISIBLE ? (
+                        <button type="button" onClick={() => setRewardsExpanded(false)}
+                          className={`pl-4 pt-0.5 text-[9px] font-bold uppercase tracking-wider ${textMuted} transition active:scale-95`}>
+                          {tx(safeLang, 'Yığ', 'Свернуть', 'Show less')}
+                        </button>
+                      ) : null}
+                      {ladderRows.length === 0 ? (
+                        <p className={`pl-4 text-[10px] font-semibold ${textMuted}`}>{rewardDescription}</p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -807,9 +926,24 @@ export default function HomeTab({
                   <div className="h-full rounded-full progress-shimmer transition-all duration-700" style={{ width: `${progressPercent}%` }} />
                 </div>
                 <div className={`mt-2 flex items-center justify-between text-[11px] ${textMuted}`}>
-                  <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-                  <span className={`font-bold ${isLight ? 'text-slate-700' : 'text-white/80'}`}>{rewardName} ({progressPercent}%)</span>
+                  <span>{tx(safeLang, 'Növbəti hədiyyə', 'Следующая награда', 'Next reward')}</span>
+                  {/* P1.3 — kataloq varsa növbəti çatılası sətrin adı/qiyməti
+                      göstərilir; `rewardName` yalnız kataloq boş olanda qalır. */}
+                  <span className={`font-bold ${isLight ? 'text-slate-700' : 'text-white/80'}`}>
+                    {nextCatalogRow ? `${nextCatalogRow.cost}★ · ${nextCatalogRow.title || rewardName}` : rewardName} ({progressPercent}%)
+                  </span>
                 </div>
+                {/* Kataloqda açıq sətir varsa bu görünüşdə də tələb etmək mümkün olsun. */}
+                {claimableRow ? (
+                  <button type="button" disabled={claiming} onClick={(e) => handleClaimWithConfetti(e, claimableRow.id)}
+                    className="mt-2.5 w-full rounded-xl py-2 text-[11px] font-bold text-white transition active:scale-[0.97] disabled:opacity-50"
+                    style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` }}>
+                    {claiming ? '...' : tx(safeLang,
+                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — al`,
+                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — забрать`,
+                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — claim`)}
+                  </button>
+                ) : null}
               </div>
             )}
 
@@ -873,12 +1007,23 @@ export default function HomeTab({
             <div className={`mt-3 text-4xl font-bold tracking-tight ${headerText}`}>{wallet.available_rewards ?? 0}</div>
             <p className={`mt-1 text-xs font-semibold uppercase tracking-wider ${textMuted}`}>{wallet.reward_label || 'Hədiyyə'}</p>
           </div>
-          {rewards[0] && Number(wallet.available_rewards || 0) > 0 ? (
-            <button type="button" disabled={claiming} onClick={handleClaimWithConfetti}
+          {claimableRow ? (
+            <button type="button" disabled={claiming} onClick={(e) => handleClaimWithConfetti(e, claimableRow.id)}
               className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50 shimmer-btn"
               style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`, boxShadow: `0 4px 16px ${primaryColor}30` }}>
               {claiming ? '...' : tx(safeLang, 'Tətbiq et', 'Забрать', 'Claim')} 🎉
             </button>
+          ) : null}
+          {/* P1.3 — kataloqda birdən çox sətir varsa bu düymə ƏN UCUZ açıq sətri
+              alır; hansı olduğunu yazmasaq müştəri "bəs digəri?" deyə çaşır.
+              Konkret sətir seçimi yuxarıdaki nərdivandadır. */}
+          {claimableRow && catalogHasMultipleRows ? (
+            <p className={`mt-1.5 text-center text-[9px] font-semibold leading-snug ${textMuted}`}>
+              {tx(safeLang,
+                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — digərləri kartda`,
+                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — остальные на карте`,
+                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — others on the card`)}
+            </p>
           ) : null}
         </section>
 
@@ -989,7 +1134,13 @@ export default function HomeTab({
 
         {claimList.length === 0 ? (
           <div className={`mt-4 w-full rounded-2xl py-6 text-center text-xs border border-dashed ${isLight ? 'border-black/10 bg-black/3' : 'border-white/10 bg-white/4'} ${textMuted}`}>
-            {tx(safeLang, 'Hələ mükafat claim etməmisiniz — Ulduzlar bölməsindən claim edin', 'Вы еще не активировали награды — активируйте в разделе Звезды', 'No rewards claimed yet — claim one from the Stars section')}
+            {/* P1.3 — köhnə mətn "Ulduzlar bölməsindən claim edin" deyirdi, amma
+                belə bir tab yoxdur (`CustomerTab`-da `stars` yoxdur). Tələb
+                düymələri möhür kartındaki hədiyyə nərdivanındadır. */}
+            {tx(safeLang,
+              'Hələ hədiyyə almamısınız — möhür kartındaki hədiyyə siyahısından seçin',
+              'Вы ещё не забрали награды — выберите из списка на штамп-карте',
+              'No rewards claimed yet — pick one from the reward list on your stamp card')}
           </div>
         ) : (
           <>

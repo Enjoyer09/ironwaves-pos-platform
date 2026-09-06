@@ -1,10 +1,10 @@
 import React from 'react';
 import { tx } from '../../../i18n';
-import type { PrintSettingsState, ZReportReceiptSettingsState, BeverageServiceSettingsState, TableServiceSettingsState } from './types';
+import type { PrintSettingsState, ZReportReceiptSettingsState, BeverageServiceSettingsState, TableServiceSettingsState, BaseSectionProps } from './types';
 import type { LocalPrintAgentPrinter } from '../../../lib/local_print_agent';
 import { isAgentVersionOutdated } from '../../../lib/local_print_agent';
 
-export interface OperationSettingsSectionProps {
+export interface OperationSettingsSectionProps extends BaseSectionProps {
   lang: string;
   saveButtonClass: string;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
@@ -54,6 +54,7 @@ export function OperationSettingsSection({
   saveButtonClass,
   renderPanelSuccess,
   notify: _notify,
+  PanelSaveButton,
   printSettings,
   setPrintSettings,
   savePrintSettings,
@@ -509,7 +510,7 @@ export function OperationSettingsSection({
         )}
         {renderPanelSuccess('print')}
         <div className="flex justify-end">
-          <button onClick={() => { void savePrintSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="print" onSave={() => { void savePrintSettings(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 
@@ -552,7 +553,7 @@ export function OperationSettingsSection({
         </div>
         {renderPanelSuccess('zreport_receipt')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveZReportReceiptSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="zreport_receipt" onSave={() => { void saveZReportReceiptSettings(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 
@@ -612,7 +613,7 @@ export function OperationSettingsSection({
         </div>
         {renderPanelSuccess('table_service')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveTableServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="table_service" onSave={() => { void saveTableServiceSettings(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 
@@ -727,7 +728,7 @@ export function OperationSettingsSection({
         </div>
         {renderPanelSuccess('beverage')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveBeverageServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="beverage" onSave={() => { void saveBeverageServiceSettings(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 

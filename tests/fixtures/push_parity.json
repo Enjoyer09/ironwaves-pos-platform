@@ -1,0 +1,258 @@
+{
+  "_comment": [
+    "P1.4 — push nüvəsinin PARİTET cədvəli. Bir mənbə, iki icraçı:",
+    "  Python: backend/tests/test_push_parity.py  (app/services/push_service.py + push_audience.py)",
+    "  JS:     tests/push_parity.test.mjs         (src/lib/push.ts)",
+    "JS normalizerlər əl ilə yazılmış GÜZGÜdür; server avtoritetdir. Bu fayl olmasa",
+    "iki tərəf səssizcə ayrıla bilər: panel lokal rejimdə bir say, backend rejimində",
+    "başqa say göstərər və heç bir test sınmaz.",
+    "Yeni hal əlavə edəndə YALNIZ bu faylı redaktə et — hər iki test onu oxuyur."
+  ],
+  "tokens": {
+    "sub_a": "11111111-1111-4111-8111-111111111111",
+    "sub_b": "22222222-2222-4222-8222-222222222222",
+    "sub_c": "33333333-3333-4333-8333-333333333333",
+    "native": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "reasons": {
+    "app_without_key": "OneSignal App ID yazılıb, amma bu tenant üçün REST API açarı boşdur. Platforma açarı ilə cütləşdirilmir — abunəliklər sizin app-da olduğu üçün belə göndərmə OneSignal tərəfindən rədd edilir.",
+    "key_without_app": "REST API açarı yazılıb, amma OneSignal App ID boşdur — açar nəzərə alınmır. Platforma konfiqurasiyası işlədilir. Öz app-ınızı işlətmək üçün App ID-ni də doldurun.",
+    "nothing": "Push konfiqurasiya edilməyib: nə tenant, nə platforma səviyyəsində OneSignal App ID + REST API açarı cütü tamamlanmır."
+  },
+  "tiers": [
+    { "key": "bronze", "threshold": 0, "label": { "az": "Bürünc" } },
+    { "key": "silver", "threshold": 50, "label": { "az": "Gümüş" } },
+    { "key": "gold", "threshold": 200, "label": { "az": "Qızıl" } }
+  ],
+  "now": "2026-09-05T12:00:00",
+  "settings": [
+    {
+      "name": "boş blob defaultlara düşür",
+      "input": {},
+      "expect": {
+        "enabled": true,
+        "event_push_enabled": true,
+        "broadcast_enabled": false,
+        "broadcast_daily_limit": 3,
+        "onesignal_rest_api_key": ""
+      }
+    },
+    {
+      "name": "0 gündəlik hədd = BAĞLI (default-a qayıtmır)",
+      "input": { "broadcast_daily_limit": 0 },
+      "expect": { "broadcast_daily_limit": 0 }
+    },
+    {
+      "name": "hədd yuxarıdan kəsilir",
+      "input": { "broadcast_daily_limit": 999 },
+      "expect": { "broadcast_daily_limit": 50 }
+    },
+    {
+      "name": "mənfi hədd 0 olur",
+      "input": { "broadcast_daily_limit": -5 },
+      "expect": { "broadcast_daily_limit": 0 }
+    },
+    {
+      "name": "sətir rəqəm kimi oxunur",
+      "input": { "broadcast_daily_limit": "7.9" },
+      "expect": { "broadcast_daily_limit": 7 }
+    },
+    {
+      "name": "bool hədd default-a düşür",
+      "input": { "broadcast_daily_limit": true },
+      "expect": { "broadcast_daily_limit": 3 }
+    },
+    {
+      "name": "bayraqlar bool-a çevrilir",
+      "input": { "enabled": "yes", "event_push_enabled": 0, "broadcast_enabled": [] },
+      "expect": { "enabled": true, "event_push_enabled": false, "broadcast_enabled": false }
+    },
+    {
+      "name": "açar kəsilir və trim olunur",
+      "input": { "onesignal_rest_api_key": "  abc  " },
+      "expect": { "onesignal_rest_api_key": "abc" }
+    }
+  ],
+  "settings_sentinel": {
+    "current": { "onesignal_rest_api_key": "köhnə-açar" },
+    "expect_with_current": "köhnə-açar",
+    "expect_without_current": ""
+  },
+  "config": [
+    {
+      "name": "tenant cütü qazanır",
+      "input": { "tenant_app_id": "app-t", "tenant_rest_key": "key-t", "platform_app_id": "app-p", "platform_rest_key": "key-p" },
+      "expect": { "source": "tenant", "app_id": "app-t", "ok": true, "reason": "" }
+    },
+    {
+      "name": "qarışıq cüt QURULMUR",
+      "input": { "tenant_app_id": "app-t", "tenant_rest_key": "", "platform_app_id": "app-p", "platform_rest_key": "key-p" },
+      "expect": { "source": "none", "app_id": "", "ok": false, "reason_key": "app_without_key" }
+    },
+    {
+      "name": "açar var, App ID yox → platforma + xəbərdarlıq",
+      "input": { "tenant_app_id": "", "tenant_rest_key": "key-t", "platform_app_id": "app-p", "platform_rest_key": "key-p" },
+      "expect": { "source": "platform", "app_id": "app-p", "ok": true, "reason_key": "key_without_app" }
+    },
+    {
+      "name": "yalnız platforma → səssiz",
+      "input": { "tenant_app_id": null, "tenant_rest_key": null, "platform_app_id": "app-p", "platform_rest_key": "key-p" },
+      "expect": { "source": "platform", "app_id": "app-p", "ok": true, "reason": "" }
+    },
+    {
+      "name": "heç nə yoxdur → izah edir",
+      "input": { "tenant_app_id": "", "tenant_rest_key": "" },
+      "expect": { "source": "none", "app_id": "", "ok": false, "reason_key": "nothing" }
+    },
+    {
+      "name": "yalnız boşluq = boş",
+      "input": { "tenant_app_id": "   ", "tenant_rest_key": "\t\n" },
+      "expect": { "source": "none", "app_id": "", "ok": false, "reason_key": "nothing" }
+    }
+  ],
+  "client_app_id": [
+    { "tenant": "app-t", "platform": "app-p", "expect": "app-t" },
+    { "tenant": "", "platform": "app-p", "expect": "app-p" },
+    { "tenant": "  ", "platform": "app-p", "expect": "app-p" },
+    { "tenant": null, "platform": null, "expect": "" }
+  ],
+  "text": [
+    { "title": "  Salam\n\n dostlar  ", "body": "  bir   iki  ", "expect_title": "Salam dostlar", "expect_body": "bir iki" },
+    { "title": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt", "body": "x", "expect_title_len": 80, "expect_body": "x" }
+  ],
+  "mask": [
+    { "input": "", "expect": "" },
+    { "input": "qısa", "expect": "***" },
+    { "input": "12345678", "expect": "***" },
+    { "input": "11111111-1111-4111-8111-111111111111", "expect": "1111…1111" }
+  ],
+  "subscription_id": [
+    { "input": "11111111-1111-4111-8111-111111111111", "expect": true },
+    { "input": "11111111-1111-4111-8111-111111111111", "upper": true, "expect": true },
+    { "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expect": false },
+    { "input": "1111111111114111811111111111111", "expect": false },
+    { "input": "1111111-11111-4111-8111-111111111111", "expect": false },
+    { "input": "", "expect": false }
+  ],
+  "audience_spec": [
+    { "input": {}, "expect": { "segment": "all", "value": "", "days": 60, "min_stars": 1 } },
+    { "input": { "segment": "new" }, "expect": { "segment": "new", "value": "", "days": 30, "min_stars": 1 } },
+    { "input": { "segment": "  DORMANT " }, "expect": { "segment": "dormant", "days": 60 } },
+    { "input": { "segment": "yoxdur" }, "expect": { "segment": "all" } },
+    { "input": { "segment": "new", "days": 0 }, "expect": { "days": 1 } },
+    { "input": { "segment": "new", "days": -7 }, "expect": { "days": 1 } },
+    { "input": { "days": 99999 }, "expect": { "days": 3650 } },
+    { "input": { "days": "7.9" }, "expect": { "days": 7 } },
+    { "input": { "min_stars": 0 }, "expect": { "min_stars": 1 } },
+    { "input": { "min_stars": "12" }, "expect": { "min_stars": 12 } },
+    { "input": { "value": "  gold  " }, "expect": { "value": "gold" } }
+  ],
+  "tier_key": [
+    { "lifetime_stars": 0, "expect": "bronze" },
+    { "lifetime_stars": 49, "expect": "bronze" },
+    { "lifetime_stars": 50, "expect": "silver" },
+    { "lifetime_stars": 199, "expect": "silver" },
+    { "lifetime_stars": 200, "expect": "gold" },
+    { "lifetime_stars": -10, "expect": "bronze" },
+    { "lifetime_stars": "zibil", "expect": "bronze" },
+    { "lifetime_stars": 500, "tiers": [], "expect": "" }
+  ],
+  "labels": [
+    { "spec": { "segment": "all" }, "expect": "Bütün abunəçilər" },
+    { "spec": { "segment": "new", "days": 14 }, "expect": "Yeni müştərilər (son 14 gün)" },
+    { "spec": { "segment": "dormant", "days": 45 }, "expect": "Yatmış müştərilər (45 gündən çox aktivlik yoxdur)" },
+    { "spec": { "segment": "has_balance", "min_stars": 12 }, "expect": "Balansı olanlar (≥ 12)" },
+    { "spec": { "segment": "tier", "value": "GOLD" }, "expect": "Səviyyə: Qızıl" },
+    { "spec": { "segment": "tier", "value": "platinum" }, "expect": "Səviyyə: platinum" },
+    { "spec": { "segment": "tier" }, "expect": "Səviyyə: —" }
+  ],
+  "audience": [
+    {
+      "name": "hər pillə ayrı sayılır",
+      "spec": { "segment": "all" },
+      "rows": [
+        { "card_id": "1", "push_token": "11111111-1111-4111-8111-111111111111" },
+        { "card_id": "2", "push_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        { "card_id": "3", "push_token": "" },
+        { "card_id": "4", "push_token": "11111111-1111-4111-8111-111111111111" },
+        { "card_id": "5", "push_token": "22222222-2222-4222-8222-222222222222" }
+      ],
+      "expect": { "total": 5, "matched": 5, "with_token": 3, "undeliverable": 1, "recipients": 2, "capped": false }
+    },
+    {
+      "name": "new: qeydiyyat pəncərəsi, sərhəd daxildir",
+      "spec": { "segment": "new", "days": 30 },
+      "rows": [
+        { "card_id": "tazə", "push_token": "11111111-1111-4111-8111-111111111111", "created_at": "2026-08-31T12:00:00" },
+        { "card_id": "sərhəd", "push_token": "22222222-2222-4222-8222-222222222222", "created_at": "2026-08-06T12:00:00" },
+        { "card_id": "köhnə", "push_token": "33333333-3333-4333-8333-333333333333", "created_at": "2026-08-05T12:00:00" },
+        { "card_id": "tarixsiz", "push_token": "33333333-3333-4333-8333-333333333333", "created_at": null }
+      ],
+      "expect": { "total": 4, "matched": 2, "recipients": 2 }
+    },
+    {
+      "name": "dormant: son satışa görə",
+      "spec": { "segment": "dormant", "days": 60 },
+      "rows": [
+        { "card_id": "aktiv", "push_token": "11111111-1111-4111-8111-111111111111", "last_sale_at": "2026-08-26T12:00:00" },
+        { "card_id": "yatmış", "push_token": "22222222-2222-4222-8222-222222222222", "last_sale_at": "2026-06-07T12:00:00" }
+      ],
+      "expect": { "matched": 1, "recipients": 1 }
+    },
+    {
+      "name": "dormant: heç vaxt alış etməyən üçün qeydiyyat tarixi",
+      "spec": { "segment": "dormant", "days": 60 },
+      "rows": [
+        { "card_id": "dünən", "push_token": "11111111-1111-4111-8111-111111111111", "last_sale_at": null, "created_at": "2026-09-04T12:00:00" },
+        { "card_id": "çoxdan", "push_token": "22222222-2222-4222-8222-222222222222", "last_sale_at": null, "created_at": "2026-05-08T12:00:00" },
+        { "card_id": "tarixsiz", "push_token": "33333333-3333-4333-8333-333333333333", "last_sale_at": null, "created_at": null }
+      ],
+      "expect": { "matched": 1, "recipients": 1 }
+    },
+    {
+      "name": "tier: hesablanmış pillə (saxlanmış sahə deyil)",
+      "spec": { "segment": "tier", "value": "silver" },
+      "rows": [
+        { "card_id": "a", "push_token": "11111111-1111-4111-8111-111111111111", "lifetime_stars": 0 },
+        { "card_id": "b", "push_token": "22222222-2222-4222-8222-222222222222", "lifetime_stars": 60 },
+        { "card_id": "c", "push_token": "33333333-3333-4333-8333-333333333333", "lifetime_stars": 500 }
+      ],
+      "expect": { "matched": 1, "recipients": 1 }
+    },
+    {
+      "name": "tier: boş dəyər heç kimi seçmir",
+      "spec": { "segment": "tier", "value": "" },
+      "rows": [
+        { "card_id": "a", "push_token": "11111111-1111-4111-8111-111111111111", "lifetime_stars": 0 },
+        { "card_id": "b", "push_token": "22222222-2222-4222-8222-222222222222", "lifetime_stars": 500 }
+      ],
+      "expect": { "matched": 0, "recipients": 0 }
+    },
+    {
+      "name": "has_balance: cari balans, lifetime deyil",
+      "spec": { "segment": "has_balance", "min_stars": 3 },
+      "rows": [
+        { "card_id": "a", "push_token": "11111111-1111-4111-8111-111111111111", "stars": 0, "lifetime_stars": 900 },
+        { "card_id": "b", "push_token": "22222222-2222-4222-8222-222222222222", "stars": 5, "lifetime_stars": 5 }
+      ],
+      "expect": { "matched": 1, "recipients": 1 }
+    },
+    {
+      "name": "hədd: kəsilir, amma uyğun say gizlənmir",
+      "spec": { "segment": "all" },
+      "limit": 2,
+      "rows": [
+        { "card_id": "1", "push_token": "11111111-1111-4111-8111-111111111111" },
+        { "card_id": "2", "push_token": "22222222-2222-4222-8222-222222222222" },
+        { "card_id": "3", "push_token": "33333333-3333-4333-8333-333333333333" }
+      ],
+      "expect": { "matched": 3, "with_token": 3, "recipients": 2, "capped": true }
+    },
+    {
+      "name": "xarab sətirlər atmır",
+      "spec": { "segment": "new", "days": 30 },
+      "rows": [null, "zibil", 5, {}, { "push_token": null }],
+      "expect": { "total": 5, "matched": 0, "recipients": 0 }
+    }
+  ]
+}

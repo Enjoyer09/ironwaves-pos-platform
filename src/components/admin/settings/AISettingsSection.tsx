@@ -1,8 +1,9 @@
 import React from 'react';
 import { tx } from '../../../i18n';
 import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../../lib/ai_config';
+import type { BaseSectionProps } from './types';
 
-export interface AISettingsSectionProps {
+export interface AISettingsSectionProps extends BaseSectionProps {
   lang: string;
   saveButtonClass: string;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
@@ -17,6 +18,7 @@ export function AISettingsSection({
   lang,
   saveButtonClass,
   renderPanelSuccess,
+  PanelSaveButton,
   aiApiKey,
   setAiApiKey,
   saveAiApiKey,
@@ -52,9 +54,11 @@ export function AISettingsSection({
       </div>
       {renderPanelSuccess('ai')}
       <div className="flex justify-end">
-        <button onClick={() => { void saveAiApiKey(); }} className={saveButtonClass}>
-          {tx(lang, 'Saxla', 'Сохранить', 'Save')}
-        </button>
+        <PanelSaveButton
+          panelKey="ai"
+          onSave={() => { void saveAiApiKey(); }}
+          label={tx(lang, 'Saxla', 'Сохранить', 'Save')}
+        />
       </div>
     </div>
   );

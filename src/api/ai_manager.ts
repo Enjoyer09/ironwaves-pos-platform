@@ -10,6 +10,8 @@ import { readScopedStorage } from '../lib/storage_keys';
 import { get_kitchen_orders } from './kds';
 import { get_tables } from './tables';
 import { DEFAULT_MODEL_BY_PROVIDER, detectAiConfigFromApiKey, type AiProvider } from '../lib/ai_config';
+// P1.4d — `Settings.push_settings` məcburi sahədir (default `lib/push.ts`-də).
+import { DEFAULT_PUSH_SETTINGS } from '../lib/push';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -673,6 +675,7 @@ export function update_api_key(api_key: string) {
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       email_settings: { resend_api_key: '', sender_email: '', recipient_emails: [] },
+      push_settings: { ...DEFAULT_PUSH_SETTINGS },
       bank_commission: { min_amount: 0.10, percent: 1.5 },
       ai_config: { provider: 'unknown', model: 'auto', autodetected: true, ollama_freeapi_enabled: false },
     } as Settings;

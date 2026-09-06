@@ -160,6 +160,30 @@ export interface CustomerAppTier {
   discount_percent?: number;
 }
 
+/**
+ * P1.3 — hədiyyə kataloqunun bir sətri (`customer_app_settings.rewards`).
+ *
+ * Backend güzgüsü: `operations.py::_norm_customer_app_rewards`. Nərdivandan fərqli
+ * olaraq `id` defis qəbul edir (köhnə sintetik sətir `default-reward`-dur) və boş
+ * kataloq qanuni haldır — o zaman köhnə tək hədiyyə (`reward_name` +
+ * `reward_threshold`) bir sətir kimi işləyir.
+ *
+ * `stock_limit` **verilmiş** hədiyyə saylayıcısı DEYİL, yalnız yuxarı hədddir:
+ * istifadə olunmuş say `RewardClaim` sətirlərindən hesablanır (dəyişən vəziyyət
+ * blobda saxlanılmır).
+ */
+export interface CustomerAppReward {
+  id: string;
+  title: { az: string; ru: string; en: string };
+  description: { az: string; ru: string; en: string };
+  points_cost: number;
+  /** Boş sətir = "istənilən məhsul" (köhnə davranış); doludursa kassa endirimi məhz o məhsula düşür. */
+  menu_item_id: string;
+  active: boolean;
+  /** 0 = limitsiz. */
+  stock_limit: number;
+}
+
 // --- MODUL 15: SETTINGS ---
 export interface Settings {
   tenant_id: string;
@@ -232,6 +256,26 @@ export interface Settings {
     recipient_emails: string[];
     webhook_url?: string;
     timeout_sec?: number;
+  };
+  /**
+   * P1.4 — push bildiriş ayarları (`Setting` açarı: `push_settings`).
+   *
+   * `onesignal_rest_api_key` **maskalanır**: `GET /settings` onu yalnız
+   * `admin`/`super_admin`-ə açır, digər rollarda boş sətir gəlir və mövcudluq
+   * `onesignal_rest_api_key_set` bayrağı ilə bildirilir. Ona görə boş sətir
+   * "sil" demək DEYİL — silmək üçün PATCH-ə `clear_onesignal_rest_api_key`
+   * göndərilir, saxlamaq üçün `__keep__` sentineli.
+   *
+   * `onesignal_app_id` isə qəsdən `customer_app_settings`-dədir: o, brauzer
+   * SDK-sının init parametridir, yəni onsuz da publikdir.
+   */
+  push_settings: {
+    enabled: boolean;
+    event_push_enabled: boolean;
+    broadcast_enabled: boolean;
+    onesignal_rest_api_key: string;
+    broadcast_daily_limit: number;
+    onesignal_rest_api_key_set?: boolean;
   };
   bank_commission: {
     min_amount?: number;
@@ -376,11 +420,26 @@ export interface Settings {
     min_purchase_for_earn?: number;
     first_purchase_bonus?: number;
     double_points_days?: number[];
+    /**
+     * P1.1 — qazanma bazası. `per_drink` köhnə davranışdır (1 içki = 1 ulduz),
+     * `per_azn` isə `earn_rate_per_azn`-i işə salır. Default qəsdən `per_drink`-dir.
+     */
+    earn_basis?: 'per_drink' | 'per_azn';
+    /** P1.1 — `first_purchase_bonus` yalnız bu açıq olanda verilir (default false). */
+    first_purchase_bonus_enabled?: boolean;
+    /** P1.1 — tier `multiplier` yalnız bu açıq olanda tətbiq olunur (default false). */
+    tier_multiplier_enabled?: boolean;
     birthday_enabled?: boolean;
     birthday_bonus_points?: number;
     birthday_bonus_stars?: number;
     onesignal_app_id?: string;
     tiers?: CustomerAppTier[];
+    /**
+     * P1.3 — hədiyyə kataloqu. Boş massiv / açar yoxdur = kataloq yoxdur, köhnə
+     * tək hədiyyə (`reward_name` + `reward_threshold`) işləyir. `tiers`-dən fərqli:
+     * orada boş massiv "defaulta sıfırla" mənasındadır, burada "kataloq yoxdur".
+     */
+    rewards?: CustomerAppReward[];
   };
   pos_layout?: PosLayoutConfig;
   pos_layout_draft?: PosLayoutConfig;

@@ -11,6 +11,7 @@
     "open:ios": "npx cap open ios",
     "run:ios": "npm run sync:ios:customer && npx cap open ios",
     "test:smoke": "esbuild tests/crm_local_smoke.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/crm_local_smoke.test.mjs --log-level=warning && node --test tests/.build/crm_local_smoke.test.mjs",
+    "test:parity": "esbuild tests/push_parity.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/push_parity.test.mjs --log-level=warning && node --test tests/.build/push_parity.test.mjs",
     "preview": "vite preview",
     "start": "node server.js",
     "print-agent": "node tools/print-agent/ironwaves-print-agent.js",

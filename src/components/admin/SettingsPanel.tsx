@@ -310,6 +310,36 @@ export default function SettingsPanel() {
     }
     window.setTimeout(() => setSuccessMsg(''), 2500);
   };
+
+  const [savingPanels, setSavingPanels] = useState<Record<string, boolean>>({});
+
+  // Standard panel save wrapper: success flash on resolve, error toast on reject, per-panel busy state.
+  const runPanelSave = async (panelKey: string, action: () => Promise<void>) => {
+    setSavingPanels((prev) => ({ ...prev, [panelKey]: true }));
+    try {
+      await action();
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Yadda saxlanmadı', 'Не сохранено', 'Save failed'));
+    } finally {
+      setSavingPanels((prev) => {
+        const next = { ...prev };
+        delete next[panelKey];
+        return next;
+      });
+    }
+  };
+
+  // Save button that disables itself while its panel request is in flight.
+  const PanelSaveButton = ({ panelKey, onSave, label }: { panelKey: string; onSave: () => void; label: string }) => (
+    <button
+      type="button"
+      onClick={onSave}
+      disabled={Boolean(savingPanels[panelKey])}
+      className={saveButtonClass + (savingPanels[panelKey] ? ' opacity-60' : '')}
+    >
+      {label}
+    </button>
+  );
   const renderPanelSuccess = (panelKey: string) =>
     panelSuccess[panelKey] ? (
       <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
@@ -332,19 +362,22 @@ export default function SettingsPanel() {
       .catch(() => setDeliveryMenuMappings([]))
       .finally(() => setDeliveryMenuMappingsLoading(false));
 
+    const settingsLoaded = settingsRes.status === 'fulfilled';
     if (profileRes.status === 'fulfilled') {
       const nextProfile = {
         ...profileRes.value,
-        qr_base_url: settingsRes.status === 'fulfilled' ? String(settingsRes.value.qr_settings?.base_url || '') : '',
+        qr_base_url: settingsLoaded ? String(settingsRes.value.qr_settings?.base_url || '') : '',
       };
       setProfile(nextProfile);
+    } else {
+      notify('error', profileRes.reason?.message || tx(lang, 'Biznes profili yüklənmədi', 'Не удалось загрузить профиль бизнеса', 'Failed to load business profile'));
     }
     if (usersRes.status === 'fulfilled') {
       setUsers(usersRes.value);
     } else {
       notify('error', usersRes.reason?.message || tx(lang, 'İstifadəçiləri yükləmək alınmadı', 'Не удалось загрузить пользователей', 'Failed to load users'));
     }
-    if (settingsRes.status === 'fulfilled') {
+    if (settingsLoaded) {
       const profileWebsite =
         profileRes.status === 'fulfilled' ? String(profileRes.value?.website || '').trim() : '';
       const feedbackBase =
@@ -523,6 +556,8 @@ export default function SettingsPanel() {
         other_unit_cap_azn: String(settingsRes.value.staff_benefits?.other_unit_cap_azn ?? 2),
       });
       void checkPrintAgentStatus();
+    } else {
+      notify('error', settingsRes.reason?.message || tx(lang, 'Ayarlar yüklənmədi. Saxlamazdan əvvəl səhifəni yeniləyin — əks halda standart dəyərlər yaza bilər.', 'Не удалось загрузить настройки. Обновите страницу перед сохранением — иначе могут записаться значения по умолчанию.', 'Failed to load settings. Reload the page before saving — otherwise default values may be written.'));
     }
   };
 
@@ -580,7 +615,7 @@ export default function SettingsPanel() {
     }
   };
 
-  const saveBusinessProfile = async () => {
+  const saveBusinessProfile = () => runPanelSave('business_profile', async () => {
     if (!profile) return;
     await update_business_profile_live(tenantId, {
       company_name: profile.company_name,
@@ -597,7 +632,7 @@ export default function SettingsPanel() {
     }, user?.username || 'admin');
     await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'), 'business_profile');
-  };
+  });
 
   const saveSessionSettings = async () => {
     try {
@@ -867,12 +902,12 @@ export default function SettingsPanel() {
     }
   };
 
-  const saveRoleModules = async () => {
+  const saveRoleModules = () => runPanelSave('role_modules', async () => {
     await update_role_modules_live(roleModules);
     flashSuccess(tx(lang, 'Rol icazələri yadda saxlanıldı', 'Права ролей сохранены', 'Role permissions saved'), 'role_modules');
-  };
+  });
 
-  const saveEmailSettings = async () => {
+  const saveEmailSettings = () => runPanelSave('email', async () => {
     await update_email_settings_live({
       enabled: emailSettings.enabled,
       provider: emailSettings.provider as any,
@@ -883,7 +918,7 @@ export default function SettingsPanel() {
       timeout_sec: Number(emailSettings.timeout_sec || 15),
     });
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
-  };
+  });
 
   const saveDeliveryIntegrations = async () => {
     try {
@@ -980,7 +1015,7 @@ export default function SettingsPanel() {
         );
       }
     } catch (e: any) {
-      notify('error', e?.message || 'Test çapı xətası');
+      notify('error', e?.message || tx(lang, 'Test çapı xətası', 'Ошибка тестовой печати', 'Test print error'));
     } finally {
       setTestingPrint(null);
     }
@@ -1165,10 +1200,10 @@ export default function SettingsPanel() {
     }
   };
 
-  const saveZReportReceiptSettings = async () => {
+  const saveZReportReceiptSettings = () => runPanelSave('zreport_receipt', async () => {
     await update_z_report_receipt_settings_live(zReportReceiptSettings);
     flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
-  };
+  });
 
   const handleAddDeliveryMenuMapping = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1230,7 +1265,7 @@ export default function SettingsPanel() {
     });
   };
 
-  const saveQrMenuSettings = async () => {
+  const saveQrMenuSettings = () => runPanelSave('qr_menu', async () => {
     await update_qr_menu_settings_live({
       enabled: qrMenuSettings.enabled,
       hero_title: qrMenuSettings.hero_title,
@@ -1260,9 +1295,9 @@ export default function SettingsPanel() {
       splash_bg_color: qrMenuSettings.splash_bg_color,
     } as any);
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'), 'qr_menu');
-  };
+  });
 
-  const saveFeedbackSettings = async () => {
+  const saveFeedbackSettings = () => runPanelSave('feedback', async () => {
     const resolvedPortalUrl = String(feedbackSettings.portal_url || '').trim() || autoFeedbackPortalUrl;
     await update_feedback_settings_live({
       enabled: feedbackSettings.enabled,
@@ -1296,17 +1331,17 @@ export default function SettingsPanel() {
     setFeedbackSettings((prev) => ({ ...prev, portal_url: resolvedPortalUrl }));
     window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
     flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'), 'feedback');
-  };
+  });
 
-  const saveBankCommission = async () => {
+  const saveBankCommission = () => runPanelSave('bank', async () => {
     await update_bank_commission_live({
       card_sale_percent: Number(bankCommission.card_sale_percent || 0),
       card_transfer_percent: Number(bankCommission.card_transfer_percent || 0),
     });
     flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'), 'bank');
-  };
+  });
 
-  const saveFinancePolicy = async () => {
+  const saveFinancePolicy = () => runPanelSave('finance_policy', async () => {
     await update_finance_policy_live({
       large_transfer_threshold_azn: Number(financePolicy.large_transfer_threshold_azn || 0),
       investor_repayment_requires_approval: financePolicy.investor_repayment_requires_approval,
@@ -1318,11 +1353,11 @@ export default function SettingsPanel() {
       approver_roles: financePolicy.approver_roles.split(',').map((role) => role.trim().toLowerCase()).filter(Boolean),
     });
     flashSuccess(tx(lang, 'Maliyyə policy ayarları yadda saxlanıldı', 'Настройки финансовой policy сохранены', 'Finance policy settings saved'), 'finance_policy');
-  };
+  });
 
 
 
-  const saveTableServiceSettings = async () => {
+  const saveTableServiceSettings = () => runPanelSave('table_service', async () => {
     await update_service_fee_live({
       service_fee_percent: Number(tableServiceSettings.service_fee_percent || 0),
     });
@@ -1331,9 +1366,9 @@ export default function SettingsPanel() {
       reservation_lock_hours: Number(tableServiceSettings.reservation_lock_hours || 0),
     });
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'), 'table_service');
-  };
+  });
 
-  const saveBeverageServiceSettings = async () => {
+  const saveBeverageServiceSettings = () => runPanelSave('beverage', async () => {
     await update_beverage_service_settings_live({
       coffee_selection_mode: beverageServiceSettings.coffee_selection_mode,
       remove_paper_packaging_for_table: beverageServiceSettings.remove_paper_packaging_for_table,
@@ -1341,9 +1376,9 @@ export default function SettingsPanel() {
       summer_promo_enabled: beverageServiceSettings.summer_promo_enabled,
     });
     flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'), 'beverage');
-  };
+  });
 
-  const saveYieldManagement = async () => {
+  const saveYieldManagement = () => runPanelSave('yield', async () => {
     await update_yield_management_settings_live({
       enabled: yieldManagement.enabled,
       variance_tolerance_percent: Number(yieldManagement.variance_tolerance_percent || 5),
@@ -1367,7 +1402,7 @@ export default function SettingsPanel() {
       })),
     });
     flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'), 'yield');
-  };
+  });
 
 
 
@@ -1398,11 +1433,11 @@ export default function SettingsPanel() {
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
     } catch (e: any) {
       setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode === 'modern' ? 'classic' : 'modern' } as any));
-      notify('error', e?.message || 'Failed');
+      notify('error', e?.message || tx(lang, 'UI rejimi saxlanmadı', 'Не удалось сохранить режим UI', 'Failed to save UI mode'));
     }
   };
 
-  const saveStaffBenefits = async () => {
+  const saveStaffBenefits = () => runPanelSave('staff_benefits', async () => {
     await update_staff_benefits_live({
       daily_limit_azn: Number(staffBenefits.daily_limit_azn || 0),
       allowed_scope: staffBenefits.allowed_scope,
@@ -1413,7 +1448,7 @@ export default function SettingsPanel() {
       other_unit_cap_azn: Number(staffBenefits.other_unit_cap_azn || 0),
     });
     flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'), 'staff_benefits');
-  };
+  });
 
   const settingsSections = [
     { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), cat: 'general' },
@@ -1504,21 +1539,25 @@ export default function SettingsPanel() {
 
       <BusinessProfileSection
         lang={lang}
+        notify={notify}
         profile={profile}
         setProfile={setProfile}
         handleLogoUpload={handleLogoUpload}
         saveBusinessProfile={saveBusinessProfile}
         renderPanelSuccess={renderPanelSuccess}
         saveButtonClass={saveButtonClass}
+        PanelSaveButton={PanelSaveButton}
       />
 
       <EmailSettingsSection
         lang={lang}
+        notify={notify}
         emailSettings={emailSettings}
         setEmailSettings={setEmailSettings}
         saveEmailSettings={saveEmailSettings}
         renderPanelSuccess={renderPanelSuccess}
         saveButtonClass={saveButtonClass}
+        PanelSaveButton={PanelSaveButton}
       />
 
       <OperationSettingsSection
@@ -1526,6 +1565,7 @@ export default function SettingsPanel() {
         saveButtonClass={saveButtonClass}
         renderPanelSuccess={renderPanelSuccess}
         notify={notify}
+        PanelSaveButton={PanelSaveButton}
         printSettings={printSettings}
         setPrintSettings={setPrintSettings}
         savePrintSettings={savePrintSettings}
@@ -1561,6 +1601,7 @@ export default function SettingsPanel() {
         saveButtonClass={saveButtonClass}
         renderPanelSuccess={renderPanelSuccess}
         notify={notify}
+        PanelSaveButton={PanelSaveButton}
         tenantId={tenantId}
         profile={profile}
         deliveryIntegrations={deliveryIntegrations}
@@ -1591,6 +1632,8 @@ export default function SettingsPanel() {
         lang={lang}
         saveButtonClass={saveButtonClass}
         renderPanelSuccess={renderPanelSuccess}
+        notify={notify}
+        PanelSaveButton={PanelSaveButton}
         bankCommission={bankCommission}
         setBankCommission={setBankCommission}
         saveBankCommission={saveBankCommission}
@@ -1607,6 +1650,7 @@ export default function SettingsPanel() {
         lang={lang}
         saveButtonClass={saveButtonClass}
         renderPanelSuccess={renderPanelSuccess}
+        PanelSaveButton={PanelSaveButton}
         sessionSettings={sessionSettings}
         setSessionSettings={setSessionSettings}
         saveSessionSettings={saveSessionSettings}
@@ -1623,6 +1667,7 @@ export default function SettingsPanel() {
           saveButtonClass={saveButtonClass}
           renderPanelSuccess={renderPanelSuccess}
           notify={notify}
+          PanelSaveButton={PanelSaveButton}
           currentRole={currentRole}
           tenantId={tenantId}
           sessionSettings={sessionSettings}
@@ -1692,8 +1737,10 @@ export default function SettingsPanel() {
         lang={lang}
         saveButtonClass={saveButtonClass}
         renderPanelSuccess={renderPanelSuccess}
+        notify={notify}
+        PanelSaveButton={PanelSaveButton}
         aiApiKey={aiApiKey}
-        setAiApiKey={(value: string) => { setAiApiKey(value); writeScopedStorage('gemini_api_key', value); void update_api_key_live(value, {}); }}
+        setAiApiKey={setAiApiKey}
         saveAiApiKey={saveAiApiKey}
         menuCatalog={menuCatalog}
         inventoryCatalog={inventoryCatalog}

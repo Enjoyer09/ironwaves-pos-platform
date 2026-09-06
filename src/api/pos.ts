@@ -7,8 +7,8 @@ import { get_finance_entries, saveFinanceLocal } from './finance';
 import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
-import { getActiveTenantId } from '../lib/tenant';
-import { normalizeRewardThreshold } from '../lib/loyalty';
+import { getActiveTenantId, filterTenantRecords } from '../lib/tenant';
+import { normalizeRewardThreshold, computePointsEarned, describeAccrual, findTierMultiplier, weekdayIso } from '../lib/loyalty';
 
 const getCardSaleCommissionPercent = (tenant_id: string) => {
   const settings = get_settings(tenant_id);
@@ -54,6 +54,18 @@ const getBeverageServiceSettings = (tenant_id: string) => {
 export const getRewardThreshold = (tenant_id: string): number =>
   normalizeRewardThreshold((get_settings(tenant_id).customer_app_settings as any)?.reward_threshold);
 
+/**
+ * P1.1 — lokal rejimdə qazanma qaydalarının mənbəyi.
+ *
+ * Backend `pos.py`-də bu blob `_setting_value(db, tenant.id, "customer_app_settings", ...)`
+ * ilə gəlir; burada `get_settings` (db_sim) verir. Blob yoxdursa boş obyekt
+ * qaytarılır — mühərrik onda köhnə davranışa (1 içki = 1 ulduz) düşür.
+ */
+const getCustomerAppSettings = (tenant_id: string): Record<string, unknown> => {
+  const raw = (get_settings(tenant_id) as any)?.customer_app_settings;
+  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+};
+
 // FUNKSIYA: calculate_total
 export const isPromoEligibleCategory = (categoryName: string) => {
   const cat = String(categoryName || '')
@@ -98,6 +110,7 @@ export const calculate_total = (
   customer_stars: number | null = null,
   _beverageSettingsOverride?: { discount_scope?: string; coffee_selection_mode?: string; summer_promo_enabled?: boolean },
   _rewardThresholdOverride?: number,
+  _customerAppSettingsOverride?: Record<string, unknown>,
 ) => {
   const beverageSettings = _beverageSettingsOverride || getBeverageServiceSettings(tenant_id);
   const discountScope = beverageSettings.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items';
@@ -134,7 +147,6 @@ export const calculate_total = (
   const coffee_qty = cart_items.reduce((acc, item) => acc + (isCoffeeLike(item as any) ? item.qty : 0), 0);
   const loyaltyEnabled = customer_stars !== null && customer_stars !== undefined;
   const safeStars = loyaltyEnabled ? Math.max(0, Number(customer_stars) || 0) : 0;
-  const free_coffees = loyaltyEnabled ? Math.floor((safeStars + coffee_qty) / rewardThreshold) : 0;
 
   // Buy-1-Get-2nd-50%-Off Promo
   const eligibleUnits: {
@@ -199,6 +211,26 @@ export const calculate_total = (
   });
 
   discounted_coffee_units.sort((a, b) => a.comparedTo(b));
+
+  // P1.1 — qazanma mühərriki (backend güzgüsü: `pos.py::create_sale`).
+  // Bura qəsdən endirim döngəsindən **sonradır**: `eligibleTotal` pulsuz içki
+  // güzəştindən əvvəlki məbləğdir, güzəşt isə qazanılan ulduzdan asılıdır.
+  // Keçidlər sönülü olanda `earned_points === coffee_qty` (köhnə davranış).
+  //
+  // Lokal rejim məhdudiyyəti: `Customer` tipində `lifetime_stars` yoxdur, ona
+  // görə tier pilləsi və "ilk alış" cari balansdan təxmin edilir. Canlı rejimdə
+  // backend əsl `lifetime_stars`-ı işlədir.
+  const accrualSettings = _customerAppSettingsOverride ?? getCustomerAppSettings(tenant_id);
+  const accrual = computePointsEarned(accrualSettings, {
+    drinkQty: coffee_qty,
+    eligibleTotal: discounted_subtotal.toNumber(),
+    weekday: weekdayIso(),
+    isFirstPurchase: loyaltyEnabled && safeStars <= 0,
+    tierMultiplier: findTierMultiplier(accrualSettings, safeStars),
+  });
+  const earned_points = loyaltyEnabled ? accrual.earned : 0;
+  const free_coffees = loyaltyEnabled ? Math.floor((safeStars + earned_points) / rewardThreshold) : 0;
+
   const free_discount = discounted_coffee_units
     .slice(0, free_coffees)
     .reduce((acc, price) => acc.plus(price), new Decimal(0));
@@ -206,7 +238,7 @@ export const calculate_total = (
   const final_total = Decimal.max(new Decimal(0), discounted_subtotal.minus(free_discount)).toDecimalPlaces(2);
   const discount_amount = raw_total.minus(final_total).toDecimalPlaces(2);
   const customer_stars_after = loyaltyEnabled
-    ? (coffee_qty > 0 ? (safeStars + coffee_qty) % rewardThreshold : safeStars)
+    ? (earned_points > 0 ? (safeStars + earned_points) % rewardThreshold : safeStars)
     : 0;
 
   return {
@@ -216,6 +248,10 @@ export const calculate_total = (
     cogs_total,
     free_coffees,
     customer_stars_after,
+    /** P1.1 — bu satışda qazanılan ulduz (köhnə davranışda `coffee_qty`-ə bərabər). */
+    earned_points,
+    /** P1.1 — niyə bu qədər: ledger təsviri və UI izahı üçün. */
+    accrual,
     is_ikram: normalizedType === 'ikram',
     item_promo_discounts: itemPromoDiscounts
   };
@@ -374,7 +410,7 @@ export const create_sale = (payload: SalePayload) => {
       }
     }
 
-    let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after, item_promo_discounts } = calculate_total(
+    let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after, earned_points, accrual, item_promo_discounts } = calculate_total(
       payload.cart_items,
       payload.tenant_id,
       apply_customer_type,
@@ -419,12 +455,35 @@ export const create_sale = (payload: SalePayload) => {
       if (!claim) {
         throw new Error('Reward code etibarlı deyil');
       }
+      /*
+       * P1.3 — kataloq sətri konkret məhsula bağlıdırsa endirim səbətin ən ucuz
+       * sətrinə deyil, məhz o məhsula düşür (`pos.py` güzgüsü).
+       *
+       * Uyğunluq **ada görə**dir, çünki backend `SaleItemIn`-də menyu id-si yoxdur.
+       * Bağlı məhsul menyudan silinibsə `requiredName` boş qalır və köhnə davranışa
+       * (ən ucuz sətir) düşürük — gözləyən kod heç vaxt "yanmır".
+       */
+      let requiredName = '';
+      let requiredLabel = '';
+      if (claim.menu_item_id) {
+        const linked = filterTenantRecords(getDB<any>('menu_items'), payload.tenant_id).find(
+          (row: any) => String(row.id || '') === String(claim.menu_item_id),
+        );
+        if (linked) {
+          requiredLabel = String(linked.item_name || '').trim();
+          requiredName = requiredLabel.toLowerCase();
+        }
+      }
       const unitPrices: Decimal[] = [];
       payload.cart_items.forEach((item) => {
+        if (requiredName && String(item.item_name || '').trim().toLowerCase() !== requiredName) return;
         for (let i = 0; i < item.qty; i += 1) {
           unitPrices.push(new Decimal(item.price));
         }
       });
+      if (requiredName && unitPrices.length === 0) {
+        throw new Error(`Bu hədiyyə «${requiredLabel}» üçündür — səbətdə o məhsul yoxdur`);
+      }
       unitPrices.sort((a, b) => a.comparedTo(b));
       const rewardDiscount = unitPrices[0] || new Decimal(0);
       final_total = Decimal.max(new Decimal(0), final_total.minus(rewardDiscount)).toDecimalPlaces(2);
@@ -449,12 +508,60 @@ export const create_sale = (payload: SalePayload) => {
         setDB('loyalty_ledger', ledger);
       } else {
         customer_stars_after = Math.max(0, Number(customer_stars_after || customer.stars || 0) - Number(claim.points_cost || 0));
+        // P1.1 — points tərəfində də ledger izi (backend güzgüsü).
+        if (Number(claim.points_cost || 0) > 0) {
+          const ledger = getDB<any>('loyalty_ledger');
+          ledger.push({
+            id: uuidv4(),
+            tenant_id: payload.tenant_id,
+            card_id: customer.card_id,
+            unit: 'points',
+            entry_type: 'redeem',
+            amount: new Decimal(0).minus(new Decimal(claim.points_cost || 0)).toFixed(2),
+            source_sale_id: sale_id,
+            description: `Reward redeem ${claim.claim_code}`,
+            created_at: now,
+          });
+          setDB('loyalty_ledger', ledger);
+        }
       }
     }
 
     if (customer) {
       if (programMode !== 'cashback') {
         customer.stars = customer_stars_after;
+        // P1.1 — ulduz hərəkətinin lokal ledger izi. Backend `pos.py` ilə eyni
+        // sətirlər yazılır ki, lokal rejimdə tarixçə/hesabat boş qalmasın.
+        const rows: any[] = [];
+        if (Number(earned_points || 0) > 0) {
+          rows.push({
+            unit: 'points',
+            entry_type: 'earn',
+            amount: new Decimal(earned_points || 0).toFixed(2),
+            description: accrual ? describeAccrual(accrual) : 'Points earn',
+          });
+        }
+        if (Number(free_coffees || 0) > 0) {
+          const spent = Number(free_coffees) * getRewardThreshold(payload.tenant_id);
+          rows.push({
+            unit: 'points',
+            entry_type: 'redeem',
+            amount: new Decimal(0).minus(new Decimal(spent)).toFixed(2),
+            description: `Free drink redeem x${free_coffees} (${spent} points)`,
+          });
+        }
+        if (rows.length) {
+          const ledger = getDB<any>('loyalty_ledger');
+          rows.forEach((row) => ledger.push({
+            id: uuidv4(),
+            tenant_id: payload.tenant_id,
+            card_id: customer.card_id,
+            source_sale_id: sale_id,
+            created_at: now,
+            ...row,
+          }));
+          setDB('loyalty_ledger', ledger);
+        }
       }
       setDB(`${payload.tenant_id}_customers`, customers);
     }
