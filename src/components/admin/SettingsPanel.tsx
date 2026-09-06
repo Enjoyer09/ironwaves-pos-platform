@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, Settings as SettingsIcon, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -55,6 +55,31 @@ import { InterfaceSettingsSection } from './settings/InterfaceSettingsSection';
 import { SecuritySettingsSection } from './settings/SecuritySettingsSection';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
+
+// Extra search keywords per panel id (multi-language) so the settings search box
+// can match panels beyond their visible titles.
+const settingsSectionKeywords: Record<string, string> = {
+  'sec-profile': 'profil business company şirkət voen vergi fiskal logo receipt qəbz компания профиль налог fiscal vat',
+  'sec-email': 'email resend poçt webhook мэйл письмо',
+  'sec-delivery': 'bolt wolt çatdırılma delivery интеграция mapping xəritə webhook menyu',
+  'sec-print': 'çap printer yazıcı kassa mətbəx escpos qz tray agent check тест',
+  'sec-zreport': 'z hesabat zreport çek receipt operator maaş wage',
+  'sec-interface': 'interfeys tema theme klaviatura keyboard dark light ui rejim интерфейс тема',
+  'sec-tables': 'masa table servis haqqı service fee depozit deposit rezerv reservation стол',
+  'sec-beverage': 'içki beverage kofe coffee stəkan cup endirim discount promo yay summer напитки',
+  'sec-bankfee': 'bank faiz komissiya card kart commission fee',
+  'sec-finance': 'maliyyə finance policy təsdiq approval köçürmə transfer alert финансы',
+  'sec-yield': 'yield itki loss ət meat mal əti dönər doner toyuq chicken beef потери',
+  'sec-security': 'təhlükəsizlik security sessiya session pin çıxış logout cihaz device terminal fon background staff безо',
+  'sec-staff': 'staff limit güzəşt benefit personal əmək лимит персонал',
+  'sec-qr': 'qr menyu menu skan poster',
+  'sec-feedback': 'feedback rəy review google kupon coupon ulduz star отзыв',
+  'sec-roles': 'rol role icazə permission modul module роль',
+  'sec-password': 'şifrə password 2fa totp authenticator пароль',
+  'sec-users': 'istifadəçi users user yarat create sil delete пользователь',
+  'sec-danger': 'təhlükəli danger sıfırla reset silmə сброс',
+  'sec-ai': 'ai api key gemini openrouter anthropic resept recipe рецепт',
+};
 
 const defaultRoleModules: RoleModules = {
   staff: ['pos', 'tables', 'kds', 'zreport'],
@@ -1463,7 +1488,7 @@ export default function SettingsPanel() {
     { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance'), cat: 'finance' },
     { id: 'sec-yield', label: tx(lang, 'Yield', 'Yield', 'Yield'), cat: 'finance' },
     { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security'), cat: 'security' },
-    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff'), cat: 'security' },
+    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff'), cat: 'operations' },
     { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback'), cat: 'integrations' },
     { id: 'sec-feedback', label: tx(lang, 'Feedback Portal', 'Портал отзывов', 'Feedback Portal'), cat: 'integrations' },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles'), cat: 'security' },
@@ -1485,24 +1510,76 @@ export default function SettingsPanel() {
   ];
 
   const [activeSettingsCategory, setActiveSettingsCategory] = useState('general');
+  const [settingsSearch, setSettingsSearch] = useState('');
 
-  // Toggle section visibility via DOM when category changes
+  // Non-empty search overrides the category filter and matches across ALL panels
+  // (localized title + extra multi-language keywords per panel).
+  const searchMatchIds = useMemo(() => {
+    const terms = settingsSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return null;
+    return settingsSections
+      .filter((sec) => {
+        const haystack = `${sec.label} ${settingsSectionKeywords[sec.id] || ''}`.toLowerCase();
+        return terms.every((term) => haystack.includes(term));
+      })
+      .map((s) => s.id);
+  }, [settingsSearch, lang]);
+
+  // Toggle section visibility via DOM when category or search changes
   useEffect(() => {
-    const visibleIds = activeSettingsCategory === 'all'
-      ? settingsSections.map((s) => s.id)
-      : settingsSections.filter((s) => s.cat === activeSettingsCategory).map((s) => s.id);
+    const visibleIds = searchMatchIds
+      ? searchMatchIds
+      : activeSettingsCategory === 'all'
+        ? settingsSections.map((s) => s.id)
+        : settingsSections.filter((s) => s.cat === activeSettingsCategory).map((s) => s.id);
     const visibleSet = new Set(visibleIds);
     settingsSections.forEach((sec) => {
       const el = document.getElementById(sec.id);
       if (el) el.style.display = visibleSet.has(sec.id) ? '' : 'none';
     });
-  }, [activeSettingsCategory]);
+  }, [activeSettingsCategory, searchMatchIds]);
+
+  // Jump to the first matching panel as the search query changes.
+  const lastScrolledQueryRef = useRef('');
+  useEffect(() => {
+    if (!searchMatchIds) {
+      lastScrolledQueryRef.current = '';
+      return;
+    }
+    if (searchMatchIds.length === 0 || lastScrolledQueryRef.current === settingsSearch) return;
+    lastScrolledQueryRef.current = settingsSearch;
+    const first = document.getElementById(searchMatchIds[0]);
+    if (first) {
+      first.style.scrollMarginTop = '96px'; // keep the sticky header from covering the panel
+      first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [settingsSearch, searchMatchIds]);
 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Category Tab Strip — mobile + desktop friendly */}
+      {/* Category Tab Strip + Search — mobile + desktop friendly */}
       <div className="sticky top-0 z-20 rounded-2xl border border-slate-700/60 bg-slate-950/80 backdrop-blur-xl p-2">
+        <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-950/60 px-3">
+          <Search className="shrink-0 text-slate-500" size={16} />
+          <input
+            type="text"
+            value={settingsSearch}
+            onChange={(e) => setSettingsSearch(e.target.value)}
+            placeholder={tx(lang, 'Ayarlar arasında axtar...', 'Поиск по настройкам...', 'Search settings...')}
+            className="w-full bg-transparent py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
+          />
+          {settingsSearch ? (
+            <button
+              type="button"
+              onClick={() => setSettingsSearch('')}
+              className="shrink-0 rounded-lg p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+              aria-label={tx(lang, 'Axtarışı təmizlə', 'Очистить поиск', 'Clear search')}
+            >
+              <X size={16} />
+            </button>
+          ) : null}
+        </div>
         <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label={tx(lang, 'Ayarlar kateqoriyaları', 'Категории настроек', 'Settings categories')} style={{ scrollbarWidth: 'none' }}>
           {settingsCategories.map((cat) => (
             <button
@@ -1526,6 +1603,11 @@ export default function SettingsPanel() {
 
       {/* Content */}
       <div className="min-w-0 flex-1 space-y-6">
+      {searchMatchIds && searchMatchIds.length === 0 ? (
+        <div className="metal-panel p-6 text-sm text-slate-400">
+          {tx(lang, 'Bu sorğuya uyğun ayar tapılmadı.', 'По этому запросу ничего не найдено.', 'No settings match this query.')}
+        </div>
+      ) : null}
       <div className="metal-panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-700/70 p-6">
           <SettingsIcon className="text-cyan-300" size={22} />
@@ -1648,16 +1730,9 @@ export default function SettingsPanel() {
 
       <InterfaceSettingsSection
         lang={lang}
-        saveButtonClass={saveButtonClass}
-        renderPanelSuccess={renderPanelSuccess}
-        PanelSaveButton={PanelSaveButton}
         sessionSettings={sessionSettings}
-        setSessionSettings={setSessionSettings}
-        saveSessionSettings={saveSessionSettings}
         changeThemeMode={changeThemeMode}
         toggleVirtualKeyboard={toggleVirtualKeyboard}
-        notify={notify}
-        tenantId={tenantId}
         saveTablesUiMode={saveTablesUiMode}
       />
 
