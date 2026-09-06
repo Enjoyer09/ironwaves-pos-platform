@@ -34,6 +34,13 @@ from app.models import (
 )
 from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
 from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
+# P1.1 — qazanma hesabı buradan gəlir. Router-də inline düstur saxlamırıq ki,
+# frontend güzgüsü (`src/lib/loyalty.ts`) və testlər eyni qaydanı işlədə bilsin.
+from app.services.loyalty_accrual import compute_points_earned, find_tier_multiplier, resolve_first_purchase_bonus
+# P1.4 — push konfiqurasiyası per-tenant həll olunur; göndərmə saf modulda,
+# DB/jurnal tərəfi `push_dispatch`-də. Bax: `app/services/push_service.py`.
+from app.services.push_dispatch import send_event_push
+from app.services.push_service import PushConfig, mask_token, resolve_push_config, send_onesignal
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
@@ -54,72 +61,39 @@ class CampaignValidateOut(BaseModel):
     activation_id: str | None = None
 
 
-def send_push_notification(push_token: str, title: str, body: str):
-    logger.info(f"[PUSH NOTIFICATION] Token: {push_token} | Title: {title} | Body: {body}")
-    try:
-        import firebase_admin
-        from firebase_admin import credentials, messaging
-        
-        try:
-            firebase_admin.get_app()
-        except ValueError:
-            import os
-            cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-            if cred_path and os.path.exists(cred_path):
-                cred = credentials.Certificate(cred_path)
-                firebase_admin.initialize_app(cred)
-            else:
-                firebase_admin.initialize_app()
-        
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            token=push_token,
-        )
-        response = messaging.send(message)
-        logger.info(f"[PUSH NOTIFICATION SUCCESS] Sent message: {response}")
-    except Exception as e:
-        logger.warning(f"[PUSH NOTIFICATION FAIL] Could not send via Firebase SDK: {e}")
+def send_push_notification(push_token: str, title: str, body: str, *, config: "PushConfig | None" = None):
+    """Bir abunəliyə push göndərir və `PushResult` qaytarır.
 
-    # OneSignal push notification fallback
-    try:
+    P1.4 dəyişikliyi: `config` verilmirsə **platforma** cütü işlədilir (köhnə
+    davranış), verilirsə tenant cütü. Qarışıq cüt (tenant app id + platforma
+    açarı) `resolve_push_config`-da qurulmur, ona görə bura da düşə bilmir.
+
+    Bu funksiya **qəsdən** aşağı səviyyəli tikiş kimi qalır: mövcud testlər onu
+    `monkeypatch` ilə əvəz edir, `app/services/push_dispatch.py` isə imzasına
+    uyğunlaşaraq çağırır.
+
+    FCM (`firebase_admin`) budağı silindi: paket nə `requirements.txt`-dədir, nə
+    quraşdırılıb — hər çağırışda `ImportError` udulurdu, yəni ölü kod idi. Native
+    cihazlar da OneSignal abunəliyi ilə işləyir (`CustomerApp.tsx`).
+    """
+    if config is None:
         from app.core.config import settings as app_settings
-        app_id = app_settings.onesignal_app_id
-        api_key = app_settings.onesignal_rest_api_key
-        
-        if app_id and api_key:
-            logger.info(f"[ONESIGNAL] Attempting push to token: {push_token}")
-            import urllib.request
-            import json
-            
-            payload = {
-                "app_id": app_id,
-                "contents": {"en": body, "az": body},
-                "headings": {"en": title, "az": title},
-                "include_subscription_ids": [push_token]
-            }
-            
-            headers = {
-                "Authorization": f"Basic {api_key}",
-                "Content-Type": "application/json; charset=utf-8"
-            }
-            
-            url = "https://onesignal.com/api/v1/notifications"
-            req = urllib.request.Request(
-                url, 
-                data=json.dumps(payload).encode("utf-8"), 
-                headers=headers, 
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                res_body = response.read().decode("utf-8")
-                logger.info(f"[ONESIGNAL SUCCESS] Sent message: {res_body}")
-        else:
-            logger.info("[ONESIGNAL] App ID or REST API Key not configured. Skipping OneSignal push.")
-    except Exception as e:
-        logger.warning(f"[ONESIGNAL FAIL] Could not send via OneSignal API: {e}")
+
+        config = resolve_push_config(
+            tenant_app_id=None,
+            tenant_rest_key=None,
+            platform_app_id=app_settings.onesignal_app_id,
+            platform_rest_key=app_settings.onesignal_rest_api_key,
+        )
+    result = send_onesignal(config, [push_token], title, body)
+    if result.ok:
+        logger.info(
+            "[PUSH] göndərildi (source=%s, token=%s, provider=%s)",
+            config.source,
+            mask_token(push_token),
+            (result.provider_ids or [""])[0],
+        )
+    return result
 
 
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
@@ -745,11 +719,44 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         if is_coffee_item:
             coffee_qty += int(item.qty or 0)
 
+    # P1.1 — qazanılan ulduz artıq "içki sayı" ilə eyni deyil: ayarların dörd
+    # sahəsi (baza/dərəcə, minimum, 2x gün, ilk alış bonusu) və tier çarpanı
+    # mühərrikdən keçir. Bütün yeni davranışlar sönülü default ilə gəlir
+    # (`loyalty_accrual.py`), ona görə keçid açmayan tenant-da nəticə eynidir:
+    # `earned_points == coffee_qty`.
+    #
+    # `eligible_total` qəsdən `total`-un **pulsuz içki güzəştindən əvvəlki**
+    # halıdır — güzəşt qazanılan ulduzdan asılıdır, tərsi olsa dairə yaranır.
+    # Gün nömrəsi kampaniya yoxlanışı (yuxarıda) ilə eyni mənbədən (UTC,
+    # B.E=1…Bazar=7) gəlir; iki fərqli gün qaydası daha pis olardı.
+    accrual = None
+    earned_points = coffee_qty
+    if current_stars is not None:
+        is_first_purchase = False
+        if customer is not None and resolve_first_purchase_bonus(customer_program) > 0:
+            # Ucuz yoxlama (əlavə sorğu yoxdur — bu satış axınıdır): heç vaxt
+            # ulduz görməmiş kart ilk alış sayılır. Cashback-dən points-ə keçən
+            # tenant-da köhnə kartlar bir dəfə bonus ala bilər; bonus keçidi
+            # onsuz da əl ilə açılır və `MAX_FIRST_PURCHASE_BONUS` ilə məhduddur.
+            is_first_purchase = int(customer.lifetime_stars or 0) <= 0 and int(customer.stars or 0) <= 0
+        accrual = compute_points_earned(
+            customer_program,
+            drink_qty=coffee_qty,
+            eligible_total=total,
+            weekday=datetime.utcnow().weekday() + 1,
+            is_first_purchase=is_first_purchase,
+            tier_multiplier=find_tier_multiplier(
+                customer_program,
+                int(customer.lifetime_stars or 0) if customer is not None else 0,
+            ),
+        )
+        earned_points = accrual.earned
+
     free_coffees = 0
     customer_stars_after = 0
     if current_stars is not None:
-        free_coffees = int((current_stars + coffee_qty) // reward_threshold)
-        customer_stars_after = (current_stars + coffee_qty) % reward_threshold if coffee_qty > 0 else current_stars
+        free_coffees = int((current_stars + earned_points) // reward_threshold)
+        customer_stars_after = (current_stars + earned_points) % reward_threshold if earned_points > 0 else current_stars
         if free_coffees > 0 and coffee_unit_prices:
             coffee_unit_prices.sort()
             free_discount = sum(coffee_unit_prices[:free_coffees], Decimal("0"))
@@ -777,13 +784,40 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         )
         if not reward_claim:
             raise HTTPException(status_code=400, detail="Reward code etibarlı deyil")
+        # P1.3 — hədiyyə kataloq sətrində konkret məhsula bağlana bilər. Belə olanda
+        # endirim səbətin ən ucuz sətrinə deyil, məhz o məhsula tətbiq olunur.
+        #
+        # Uyğunluq **ada görə** yoxlanılır, çünki `SaleItemIn`-də menyu id-si yoxdur
+        # (offline replay-lər də köhnə payload ilə gəlir). Fayldaki digər axtarışlar
+        # (`Recipe`, `InventoryItem`) da eyni konvensiyanı işlədir.
+        #
+        # Bağlı məhsul menyudan silinibsə `required_name` boş qalır və köhnə davranışa
+        # (ən ucuz sətir) düşürük — kassir gözləyən kodu heç vaxt "yandırmamalıdır".
+        required_name = ""
+        required_label = ""
+        if reward_claim.menu_item_id:
+            linked_item = (
+                db.query(MenuItem)
+                .filter(MenuItem.tenant_id == tenant.id, MenuItem.id == reward_claim.menu_item_id)
+                .first()
+            )
+            if linked_item:
+                required_label = str(linked_item.item_name or "").strip()
+                required_name = required_label.lower()
         reward_candidates = []
         for item in payload.cart_items:
+            if required_name and str(item.item_name or "").strip().lower() != required_name:
+                continue
             apply_manual = discount_scope == "all_items" or _is_coffee_like(item.item_name, item.category, item.is_coffee)
             unit_discount_rate = discount_rate if apply_manual else Decimal("0")
             unit_price = (Decimal(str(item.price)) * (Decimal("1") - unit_discount_rate)).quantize(Decimal("0.01"))
             for _ in range(int(item.qty or 0)):
                 reward_candidates.append(unit_price)
+        if required_name and not reward_candidates:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Bu hədiyyə «{required_label}» üçündür — səbətdə o məhsul yoxdur",
+            )
         if reward_candidates:
             reward_candidates.sort()
             reward_discount = reward_candidates[0]
@@ -1036,7 +1070,37 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         if program_mode != "cashback":
             customer.stars = customer_stars_after
             # Lifetime stars drive tier progression and are never reduced by redemption.
-            customer.lifetime_stars = int(customer.lifetime_stars or 0) + int(coffee_qty or 0)
+            customer.lifetime_stars = int(customer.lifetime_stars or 0) + int(earned_points or 0)
+            # P1.1 — ulduz qazanmasının ledger izi. Əvvəl yalnız cashback ledger-ə
+            # düşürdü; points rejimində qazanma/xərclənmə heç yerdə görünmürdü,
+            # ona görə "balans niyə belədir" sualının cavabı yox idi (audit §3.11).
+            if earned_points > 0:
+                db.add(
+                    LoyaltyLedgerEntry(
+                        tenant_id=tenant.id,
+                        card_id=customer.card_id,
+                        unit="points",
+                        entry_type="earn",
+                        amount=Decimal(str(earned_points)).quantize(Decimal("0.01")),
+                        source_sale_id=sale.id,
+                        description=accrual.describe() if accrual is not None else "Points earn",
+                    )
+                )
+            # Pulsuz içki `//` və `%` ilə tutulur — ledger-də görünməsə balans
+            # cəmi ilə uyğunlaşmazdı.
+            if free_coffees > 0:
+                spent = int(free_coffees) * int(reward_threshold)
+                db.add(
+                    LoyaltyLedgerEntry(
+                        tenant_id=tenant.id,
+                        card_id=customer.card_id,
+                        unit="points",
+                        entry_type="redeem",
+                        amount=Decimal("0.00") - Decimal(str(spent)).quantize(Decimal("0.01")),
+                        source_sale_id=sale.id,
+                        description=f"Free drink redeem x{free_coffees} ({spent} points)",
+                    )
+                )
         if reward_claim:
             if program_mode != "cashback":
                 customer.stars = max(0, int(customer.stars or 0) - int(reward_claim.points_cost or 0))
@@ -1055,6 +1119,21 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                         description=f"Reward redeem {reward_claim.claim_code}",
                     )
                 )
+            else:
+                # P1.1 — points tərəfində də ledger izi (yuxarıdaki `customer.stars`
+                # azalmasının qarşılığı).
+                if int(reward_claim.points_cost or 0) > 0:
+                    db.add(
+                        LoyaltyLedgerEntry(
+                            tenant_id=tenant.id,
+                            card_id=customer.card_id,
+                            unit="points",
+                            entry_type="redeem",
+                            amount=Decimal("0.00") - Decimal(str(reward_claim.points_cost or 0)).quantize(Decimal("0.01")),
+                            source_sale_id=sale.id,
+                            description=f"Reward redeem {reward_claim.claim_code}",
+                        )
+                    )
         if program_mode == "cashback":
             cashback_amount = (total * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
             if cashback_amount > 0:
@@ -1082,14 +1161,27 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                     title = "Cashback qazandınız! 💰"
                     body = f"Hesabınıza {cashback_amount} ₼ cashback əlavə edildi."
             else:
-                if coffee_qty > 0:
-                    title = "Ulduzlarınız yeniləndi! 🌟"
-                    body = f"Siz bu alış-verişdən {coffee_qty} ulduz qazandınız. Yeni balansınız: {customer.stars} ulduz."
+                # P1.1 — `points_label` ayarı burada da oxunur: tətbiqdə "Xal"
+                # yazıb push-da "ulduz" demək tutarsızlıq idi.
+                unit_label = str(customer_program.get("points_label") or "").strip() or "ulduz"
+                if earned_points > 0:
+                    title = f"{unit_label} balansınız yeniləndi! 🌟"
+                    body = f"Siz bu alış-verişdən {earned_points} {unit_label} qazandınız. Yeni balansınız: {customer.stars} {unit_label}."
                 elif reward_claim:
                     title = "Hədiyyə qəbul edildi! 🎁"
-                    body = f"Reward kodunuz istifadə olundu. Yeni balansınız: {customer.stars} ulduz."
+                    body = f"Reward kodunuz istifadə olundu. Yeni balansınız: {customer.stars} {unit_label}."
             try:
-                send_push_notification(customer.push_token, title, body)
+                # P1.4 — tenant konfiqurasiyası + jurnal `push_dispatch`-dədir.
+                # Sətir aşağıdaki `db.commit()` ilə birlikdə yazılır.
+                send_event_push(
+                    db,
+                    tenant.id,
+                    event="checkout",
+                    title=title,
+                    body=body,
+                    card_id=customer.card_id,
+                    customer=customer,
+                )
             except Exception as pe:
                 logger.warning(f"Could not send push notification at checkout: {pe}")
 

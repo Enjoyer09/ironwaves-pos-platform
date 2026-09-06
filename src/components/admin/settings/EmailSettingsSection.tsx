@@ -1,13 +1,13 @@
 import React from 'react';
 import { tx } from '../../../i18n';
+import type { BaseSectionProps } from './types';
 
-interface EmailSettingsSectionProps {
+interface EmailSettingsSectionProps extends BaseSectionProps {
   lang: string;
   emailSettings: any;
   setEmailSettings: React.Dispatch<React.SetStateAction<any>>;
   saveEmailSettings: () => Promise<void>;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
-  saveButtonClass: string;
 }
 
 export function EmailSettingsSection({
@@ -16,7 +16,7 @@ export function EmailSettingsSection({
   setEmailSettings,
   saveEmailSettings,
   renderPanelSuccess,
-  saveButtonClass,
+  PanelSaveButton,
 }: EmailSettingsSectionProps) {
   return (
     <div id="sec-email" className="metal-panel p-6 space-y-4">
@@ -102,9 +102,11 @@ export function EmailSettingsSection({
       </div>
       {renderPanelSuccess('email')}
       <div className="flex justify-end">
-        <button onClick={() => { void saveEmailSettings(); }} className={saveButtonClass}>
-          {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-        </button>
+        <PanelSaveButton
+          panelKey="email"
+          onSave={() => { void saveEmailSettings(); }}
+          label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+        />
       </div>
     </div>
   );

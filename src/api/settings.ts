@@ -1,13 +1,39 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
-import { CustomerAppTier, PosLayoutConfig, Settings, User } from '../types/pos';
+import { CustomerAppReward, CustomerAppTier, PosLayoutConfig, Settings, User } from '../types/pos';
 import { getActiveTenantId, filterTenantRecords } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
 import { readScopedStorage, removeScopedStorage } from '../lib/storage_keys';
 import { clearOfflineSalesStore } from '../lib/offline';
 import type { AiProvider } from '../lib/ai_config';
+// P1.1 — 2x günlərin normalizasiyası və `earn_basis` seçimləri accrual
+// mühərriki ilə tək mənbədən gəlir (backend güzgüsü).
+// P1.3 — hədiyyə kataloqu da eyni səbəbdən orada saxlanılır (`crm.ts` bu faylı
+// import edə bilmir), burada yalnız re-export edilir.
+import {
+  DEFAULT_EARN_BASIS,
+  EARN_BASIS_CHOICES,
+  FALLBACK_TIER_COLOR,
+  MAX_LOYALTY_REWARDS,
+  MAX_LOYALTY_TIERS,
+  MAX_REWARD_POINTS_COST,
+  MAX_REWARD_STOCK_LIMIT,
+  MAX_TIER_MULTIPLIER,
+  cloneDefaultLoyaltyTiers,
+  normCustomerAppRewards,
+  normalizeDoublePointsDays,
+} from '../lib/loyalty';
+// P1.4d — push normalizeri `lib/push.ts`-dədir (asılılıqsız modul, backend
+// `push_service.py` güzgüsü). Buradan yalnız ayar normalizasiyası çağırılır;
+// göndərmə (`send_onesignal`) qəsdən brauzerə gətirilmir.
+import { PUSH_SECRET_SENTINEL, normalizePushSettings, pushSettingsResponse } from '../lib/push';
+
+export { MAX_LOYALTY_REWARDS, MAX_REWARD_POINTS_COST, MAX_REWARD_STOCK_LIMIT, normCustomerAppRewards };
+// P1.4d — panel sentineli buradan da götürə bilsin (backend `status` cavabında
+// `secret_sentinel` sahəsi ilə eyni sətir).
+export { PUSH_SECRET_SENTINEL };
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -382,11 +408,12 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
  * onu hər save-də sıfırdan qururdu, yəni panelin göndərmədiyi açar (tiers,
  * birthday_enabled, onesignal_app_id) itirdi. Artıq merge + normalize edilir.
  */
-export const DEFAULT_CUSTOMER_APP_TIERS: CustomerAppTier[] = [
-  { key: 'bronze', label: { az: 'Bürünc', ru: 'Бронза', en: 'Bronze' }, threshold: 0, color: '#cd7f32', multiplier: 1, discount_percent: 0 },
-  { key: 'silver', label: { az: 'Gümüş', ru: 'Серебро', en: 'Silver' }, threshold: 100, color: '#c0c0c0', multiplier: 1, discount_percent: 0 },
-  { key: 'gold', label: { az: 'Qızıl', ru: 'Золото', en: 'Gold' }, threshold: 300, color: '#d8b156', multiplier: 1.5, discount_percent: 0 },
-];
+/**
+ * P1.2 — nərdivan artıq burada yazılmır. Kanonik mənbə `src/lib/loyalty.ts`-dir,
+ * çünki `crm.ts` (customer app-ın tək API modulu) bu faylı import edə bilməz.
+ * Backend güzgüsü: `operations.py::DEFAULT_TIERS`.
+ */
+export const DEFAULT_CUSTOMER_APP_TIERS: CustomerAppTier[] = cloneDefaultLoyaltyTiers();
 
 export const DEFAULT_CUSTOMER_APP_SETTINGS: NonNullable<Settings['customer_app_settings']> = {
   enabled: true,
@@ -427,8 +454,19 @@ export const DEFAULT_CUSTOMER_APP_SETTINGS: NonNullable<Settings['customer_app_s
   min_purchase_for_earn: 0,
   first_purchase_bonus: 5,
   double_points_days: [],
+  // P1.1 — qazanma keçidləri; hamısı köhnə davranışla (sönülü) başlayır, çünki
+  // yuxarıdaki `earn_rate_per_azn: 2` / `first_purchase_bonus: 5` və tier
+  // `multiplier: 1.5` mövcud tenant-ların blobunda artıq saxlanılıb.
+  earn_basis: DEFAULT_EARN_BASIS,
+  first_purchase_bonus_enabled: false,
+  tier_multiplier_enabled: false,
   onesignal_app_id: '',
   tiers: DEFAULT_CUSTOMER_APP_TIERS,
+  // P1.3 — default kataloq **boşdur**: yeni tenant köhnə tək hədiyyə ilə başlayır
+  // (`reward_name` + `reward_threshold` → `resolveRewardCatalog` sintetik sətri).
+  // Açar burada olmalıdır ki, `CUSTOMER_APP_SETTING_KEYS` (aşağıda `Object.keys`)
+  // PATCH-də `rewards`-ı qəbul etsin — backend allow-list-inə də əl ilə əlavə edilib.
+  rewards: [] as CustomerAppReward[],
 };
 
 export const CUSTOMER_APP_SETTING_KEYS = Object.keys(DEFAULT_CUSTOMER_APP_SETTINGS) as Array<
@@ -437,13 +475,22 @@ export const CUSTOMER_APP_SETTING_KEYS = Object.keys(DEFAULT_CUSTOMER_APP_SETTIN
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
+/*
+ * P1.2d — `?? ''` YOX, `|| ''`.
+ *
+ * Python tərəf `str(value or "")` yazır, yəni `0` və `false` **boş** sayılır və
+ * fallback-a düşür. `?? ''` isə yalnız null/undefined-ı tutur: `normText(0, 'ad')`
+ * JS-də `'0'`, Python-da `'ad'` qaytarırdı. Nərdivanın `label` sahəsi ixtiyari
+ * JSON-dan gəlir (köhnə blob, import, əl ilə yazılmış PATCH), ona görə rəqəm
+ * label real haldır — və iki rejim eyni tenant üçün fərqli ad göstərirdi.
+ */
 function normHex(value: unknown, fallback: string): string {
-  const candidate = String(value ?? '').trim();
+  const candidate = String(value || '').trim();
   return HEX_COLOR_RE.test(candidate) ? candidate : fallback;
 }
 
 function normText(value: unknown, fallback: string, limit = 500): string {
-  const candidate = String(value ?? '').trim();
+  const candidate = String(value || '').trim();
   return candidate ? candidate.slice(0, limit) : fallback;
 }
 
@@ -465,25 +512,81 @@ function normImageUrl(value: unknown): string {
   return candidate.length > MAX_IMAGE_URL_LENGTH ? '' : candidate;
 }
 
-/** 0 qanuni dəyərdir (bonusu söndürmək üçün) — ona görə `x || default` işlədilmir. */
+/*
+ * P1.2d — Python `round(x, 4)`-ün birə-bir güzgüsü.
+ *
+ * Əvvəl `Math.round(next * 10000) / 10000` yazılırdı və 0..10 aralığındaki
+ * 5 onluqlu dəyərlərin **~9.6%-i** iki rejimdə fərqli saxlanılırdı (200 001
+ * dəyər yoxlandı, 19 236-sı fərqləndi). Səbəb banker's rounding deyil,
+ * `next * 10000` vurmasıdır: `0.00035` double-ı əslində midpoint-dən **aşağıdır**
+ * (Python 0.0003 verir), amma `0.00035 * 10000` yuvarlaqlaşıb tam `3.5` olur və
+ * `Math.round` 0.0004-ə qaldırır — vurma məlumatı itirir.
+ *
+ * Burada qərar dəyərin **onluq açılışı** üzərində verilir, bərabər hal isə Python
+ * kimi **cüt tərəfə** yuvarlaqlaşır (`round(0.03125, 4) == 0.0312`).
+ *
+ * `toFixed(40)` — 20 deyil: `toFixed` özü yuvarlaqlaşdırır, ona görə 20 onluqda
+ * `0.00035` (əslində midpoint-dən aşağı) tam midpoint kimi görünür və 4 dəyər
+ * yenə fərqlənirdi. 40 onluq ~1e-24-ə qədər fərqi görür; ondan kiçik dəyərlər
+ * onsuz da 4 onluqda 0-dır.
+ *
+ * Niyə vacibdir: serverin saxladığı dəyər həqiqətdir, panel isə lokal
+ * normalizerin nəticəsini göstərir — ikisi fərqlənsə admin 1.0313 görür, blobda
+ * 1.0312 durur və lokal rejim canlı rejimdən fərqli qazanma sayar.
+ */
+function round4HalfEven(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  const sign = value < 0 ? -1 : 1;
+  const digits = Math.abs(value).toFixed(40);
+  const dot = digits.indexOf('.');
+  let scaled = Number(digits.slice(0, dot) + digits.slice(dot + 1, dot + 5));
+  const tail = digits.slice(dot + 5);
+  const first = tail.charCodeAt(0) - 48;
+  // >5 → yuxarı; tam 5 → yalnız arxada sıfırdan başqa rəqəm varsa, ya da tək ədəddirsə.
+  if (first > 5 || (first === 5 && (/[1-9]/.test(tail.slice(1)) || scaled % 2 === 1))) scaled += 1;
+  return (sign * scaled) / 10000;
+}
+
+/**
+ * 0 qanuni dəyərdir (bonusu söndürmək üçün) — ona görə `x || default` işlədilmir.
+ *
+ * P1.2d — `integer` halında **kəsilir, yuvarlaqlaşdırılmır**: Python güzgüsü
+ * `_norm_int` `int(float(value))` yazır, yəni `150.7 → 150`. `Math.round` isə
+ * 151 verirdi, yəni eyni PATCH lokal rejimdə bir pillə həddi, canlı rejimdə
+ * başqasını saxlayırdı. `Math.trunc` da sıfıra doğru kəsir — `int()` ilə eynidir.
+ */
 function normNum(value: unknown, fallback: number, min: number, max: number, integer = false): number {
   const parsed = value === '' || value === null || value === undefined || typeof value === 'boolean' ? NaN : Number(value);
   let next = Number.isFinite(parsed) ? parsed : fallback;
   if (next < min) next = min > 0 ? Math.max(min, fallback) : min;
   next = Math.min(next, max);
-  return integer ? Math.round(next) : Math.round(next * 10000) / 10000;
+  return integer ? Math.trunc(next) : round4HalfEven(next);
 }
 
-/** Dərin kopya — `label` obyekti paylaşılsa, çağıran tərəf modul defaultunu dəyişə bilər. */
-function cloneDefaultCustomerAppTiers(): CustomerAppTier[] {
-  return DEFAULT_CUSTOMER_APP_TIERS.map((t) => ({ ...t, label: { ...t.label } }));
+/**
+ * Dərin kopya — `label` obyekti paylaşılsa, çağıran tərəf modul defaultunu dəyişə bilər.
+ * `DEFAULT_CUSTOMER_APP_TIERS`-in özü də bir kopyadır, ona görə mənbədən yenidən klonlayır.
+ */
+export function cloneDefaultCustomerAppTiers(): CustomerAppTier[] {
+  return cloneDefaultLoyaltyTiers();
 }
 
-function normCustomerAppTiers(value: unknown): CustomerAppTier[] {
+/**
+ * Nərdivanı normalizə edir — `operations.py::_norm_customer_app_tiers` güzgüsü.
+ *
+ * P1.2-də export edildi: `CustomerAppPanel` redaktoru save-dən əvvəl **eyni**
+ * normalizeri işlədir. Panel öz yoxlamasını yazsa nərdivanın beşinci nüsxəsi
+ * yaranar və panel serverin qaytardığından fərqli sətir göstərər.
+ *
+ * Qaydalar (backend ilə eyni sıra): 12 sətir kəsimi → açarsız sətir atılır →
+ * açar slug (`[^a-z0-9_]` silinir, 32 simvol) → label az → ru/en fallback →
+ * hədd/rəng/çarpan/endirim hədləri → hədd üzrə sıralama → **ən aşağı pillə 0**.
+ */
+export function normCustomerAppTiers(value: unknown): CustomerAppTier[] {
   const rows = Array.isArray(value) ? value : null;
   if (!rows || rows.length === 0) return cloneDefaultCustomerAppTiers();
   const cleaned: CustomerAppTier[] = [];
-  for (const row of rows.slice(0, 12)) {
+  for (const row of rows.slice(0, MAX_LOYALTY_TIERS)) {
     if (!row || typeof row !== 'object') continue;
     const source = row as Record<string, any>;
     const key = String(source.key || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32);
@@ -499,8 +602,8 @@ function normCustomerAppTiers(value: unknown): CustomerAppTier[] {
         en: normText(labelObj ? labelObj.en : rawLabel, az, 60),
       },
       threshold: normNum(source.threshold, 0, 0, 1000000, true),
-      color: normHex(source.color, '#cd7f32'),
-      multiplier: normNum(source.multiplier, 1, 0, 10),
+      color: normHex(source.color, FALLBACK_TIER_COLOR),
+      multiplier: normNum(source.multiplier, 1, 0, MAX_TIER_MULTIPLIER),
       discount_percent: normNum(source.discount_percent, 0, 0, 100),
     });
   }
@@ -545,10 +648,9 @@ export function normalizeCustomerAppSettings(source?: unknown): NonNullable<Sett
   const raw = (source && typeof source === 'object' ? source : {}) as Record<string, any>;
   const d = DEFAULT_CUSTOMER_APP_SETTINGS;
   const birthdayBonus = canonicalBirthdayBonus(raw);
+  // P1.1 — accrual mühərriki ilə eyni funksiya (köhnə `0` = Bazar itmir).
   const days = Array.isArray(raw.double_points_days)
-    ? Array.from(new Set(raw.double_points_days.map((x: unknown) => Number(x)).filter((n: number) => Number.isInteger(n) && n >= 1 && n <= 7))).sort(
-        (a, b) => a - b,
-      )
+    ? normalizeDoublePointsDays(raw.double_points_days)
     : [...(d.double_points_days || [])];
   return {
     enabled: normBool(raw.enabled, d.enabled),
@@ -589,8 +691,15 @@ export function normalizeCustomerAppSettings(source?: unknown): NonNullable<Sett
     min_purchase_for_earn: normNum(raw.min_purchase_for_earn, d.min_purchase_for_earn ?? 0, 0, 100000),
     first_purchase_bonus: normNum(raw.first_purchase_bonus, d.first_purchase_bonus ?? 5, 0, 1000, true),
     double_points_days: days,
+    // P1.1 — keçidlər (bax: `src/lib/loyalty.ts` + `app/services/loyalty_accrual.py`).
+    earn_basis: normChoice(raw.earn_basis, EARN_BASIS_CHOICES, d.earn_basis ?? DEFAULT_EARN_BASIS),
+    first_purchase_bonus_enabled: normBool(raw.first_purchase_bonus_enabled, d.first_purchase_bonus_enabled ?? false),
+    tier_multiplier_enabled: normBool(raw.tier_multiplier_enabled, d.tier_multiplier_enabled ?? false),
     onesignal_app_id: normText(raw.onesignal_app_id, '', 64),
     tiers: normCustomerAppTiers(raw.tiers),
+    // P1.3 — boş massiv qanunidir ("kataloq yoxdur"), `tiers`-dən fərqli olaraq
+    // defaulta sıfırlanmır. Backend güzgüsü: `_norm_customer_app_rewards`.
+    rewards: normCustomerAppRewards(raw.rewards),
   };
 }
 
@@ -663,6 +772,9 @@ function getSettings(tenant_id?: string): Settings {
       webhook_url: '',
       timeout_sec: 15,
     },
+    // P1.4d — default `push_service.normalize_push_settings({})` ilə eyni olur.
+    // Sabitlər `lib/push.ts`-dən gəlir ki, defaultun iki nüsxəsi olmasın.
+    push_settings: normalizePushSettings({}),
     bank_commission: { min_amount: 0.10, percent: 1.5, card_sale_percent: 2, card_transfer_percent: 0.5 },
     finance_policy: DEFAULT_FINANCE_POLICY,
     inventory_settings: {
@@ -1171,6 +1283,14 @@ export function get_settings(tenant_id?: string) {
       timeout_sec: Number((s.email_settings as any).timeout_sec || 15),
     };
   }
+  // P1.4d — push ayarları hər oxunuşda yenidən normalizasiya olunur (köhnə
+  // baza, əldən redaktə olunmuş blob, yaxud yarımçıq açar dəsti üçün).
+  //
+  // `reveal: true` qəsdəndir: maskalama **server** qərarıdır (rol yoxlanışı ilə),
+  // lokal rejimdə isə server yoxdur — açarı gizlətmək onu ilk yazıdan sonra
+  // əbədi oxunmaz edərdi. `onesignal_rest_api_key_set` bayrağı hər iki rejimdə
+  // qurulur, beləliklə panel eyni kodla işləyir.
+  s.push_settings = pushSettingsResponse(s.push_settings, { reveal: true });
   if (!s.inventory_settings) {
     s.inventory_settings = {
       default_critical_threshold: 5,
@@ -1429,6 +1549,82 @@ export function update_customer_app_settings(payload: CustomerAppSettingsPatch) 
   return { success: true, changed, rejected, customer_app_settings: merged };
 }
 
+/**
+ * P1.4d — push ayarlarının PATCH-i. `undefined` = "göndərilməyib" → mövcud
+ * dəyər qalır (`operations.update_push_settings` ilə eyni semantika).
+ *
+ * İki tələ qəsdən burada da təkrarlanmır:
+ *   1. **Boş açar silmir.** `GET` sirri maskalayır, yəni panelin sadə round-trip
+ *      PATCH-i açarı udardı (`update_email_settings`-dəki səhv). Silmək üçün
+ *      `clear_onesignal_rest_api_key` bayrağı var.
+ *   2. `PUSH_SECRET_SENTINEL` ("__keep__") = "olduğu kimi saxla" — normalizer
+ *      onu `current`-dən doldurur.
+ *
+ * `onesignal_app_id` **`customer_app_settings`-ə** yazılır, push blobuna deyil:
+ * o, brauzer SDK-sının init parametridir və müştəri sessiyası onu oradan oxuyur.
+ * İki yerdə saxlamaq göndərici ilə SDK-nın ayrı app-a baxması riskini yaradar.
+ */
+export interface PushSettingsPatch {
+  enabled?: boolean;
+  event_push_enabled?: boolean;
+  broadcast_enabled?: boolean;
+  onesignal_rest_api_key?: string;
+  clear_onesignal_rest_api_key?: boolean;
+  broadcast_daily_limit?: number;
+  onesignal_app_id?: string;
+}
+
+export function update_push_settings(payload: PushSettingsPatch) {
+  const settings = getSettings();
+  const current = normalizePushSettings(settings.push_settings);
+  const incoming: Record<string, unknown> = {};
+  const pairs: Array<[string, unknown]> = [
+    ['enabled', payload?.enabled],
+    ['event_push_enabled', payload?.event_push_enabled],
+    ['broadcast_enabled', payload?.broadcast_enabled],
+    ['onesignal_rest_api_key', payload?.onesignal_rest_api_key],
+    ['broadcast_daily_limit', payload?.broadcast_daily_limit],
+  ];
+  for (const [key, value] of pairs) {
+    if (value !== undefined && value !== null) incoming[key] = value;
+  }
+  if ('onesignal_rest_api_key' in incoming && !String(incoming.onesignal_rest_api_key || '').trim()) {
+    delete incoming.onesignal_rest_api_key;
+  }
+  if (payload?.clear_onesignal_rest_api_key) incoming.onesignal_rest_api_key = '';
+
+  const merged = normalizePushSettings({ ...current, ...incoming }, { current });
+  const changed = Object.keys(merged)
+    .filter((key) => JSON.stringify((current as any)[key]) !== JSON.stringify((merged as any)[key]))
+    .sort();
+
+  let app_id_changed = false;
+  if (payload?.onesignal_app_id !== undefined && payload.onesignal_app_id !== null) {
+    const appBlob = (settings.customer_app_settings || {}) as Record<string, any>;
+    // Yalnız bu açar yazılır — bütün blobu normalizerdən keçirmək başqa sahənin
+    // səhvi ucbatından push ayarını uçurardı (backend-də də belədir).
+    const appId = String(payload.onesignal_app_id || '').trim().slice(0, 64);
+    app_id_changed = String(appBlob.onesignal_app_id || '').trim() !== appId;
+    if (app_id_changed) {
+      settings.customer_app_settings = { ...appBlob, onesignal_app_id: appId } as any;
+    }
+  }
+
+  settings.push_settings = pushSettingsResponse(merged, { reveal: true });
+  saveSettings(settings);
+  // Jurnala **açar adları** yazılır, dəyər yox.
+  if (changed.length || app_id_changed) {
+    logEvent('admin', 'PUSH_SETTINGS_UPDATED', { changed, app_id_changed });
+  }
+  return {
+    success: true,
+    changed,
+    app_id_changed,
+    push_settings: settings.push_settings,
+    onesignal_app_id: String((settings.customer_app_settings as any)?.onesignal_app_id || '').trim(),
+  };
+}
+
 export function update_pos_layout_settings(payload: NonNullable<Settings['pos_layout']>) {
   const settings = getSettings();
   settings.pos_layout = normalizePosLayoutConfig(payload, DEFAULT_POS_LAYOUT);
@@ -1675,6 +1871,47 @@ export async function update_customer_app_settings_live(payload: CustomerAppSett
   const authoritative = res && typeof res.customer_app_settings === 'object' ? res.customer_app_settings : payload;
   update_customer_app_settings(authoritative || payload);
   return { success: true, changed: res?.changed || [], rejected: res?.rejected || [] };
+}
+
+/**
+ * P1.4d — serverin qaytardığı **normalizasiya olunmuş** blob lokal kopyaya yazılır.
+ *
+ * `push_settings` cavabda `reveal=True` ilə gəlir (endpoint `_ensure_admin`
+ * tələb edir, yəni çağıran onsuz da açarı görə bilən roldadır), ona görə lokal
+ * güzgü açarı itirmir. `onesignal_app_id` ayrı sahədir — o, `customer_app_settings`
+ * blobundan gəlir və eyni PATCH ilə yenilənə bilər.
+ */
+export async function update_push_settings_live(payload: PushSettingsPatch) {
+  if (!isBackendEnabled()) return update_push_settings(payload);
+  const res = await apiRequest<{
+    success?: boolean;
+    changed?: string[];
+    app_id_changed?: boolean;
+    push_settings?: Settings['push_settings'];
+    onesignal_app_id?: string;
+    config?: Record<string, unknown>;
+  }>('/api/v1/ops/settings/push-settings', { method: 'PATCH', tenantId: null, body: payload });
+  // Serverin blobu authoritative-dir; sentinel/clear qaydası orada tətbiq olunub,
+  // ona görə `payload` yenidən mərkəzdən keçirilmir (ikinci dəfə "sil" oxunardı).
+  if (res && typeof res.push_settings === 'object' && res.push_settings) {
+    const settings = getSettings();
+    settings.push_settings = pushSettingsResponse(res.push_settings, { reveal: true });
+    if (typeof res.onesignal_app_id === 'string') {
+      settings.customer_app_settings = {
+        ...((settings.customer_app_settings || {}) as any),
+        onesignal_app_id: res.onesignal_app_id,
+      } as any;
+    }
+    saveSettings(settings);
+  }
+  return {
+    success: res?.success !== false,
+    changed: res?.changed || [],
+    app_id_changed: !!res?.app_id_changed,
+    push_settings: res?.push_settings,
+    onesignal_app_id: res?.onesignal_app_id || '',
+    config: res?.config,
+  };
 }
 
 export interface TenantBranchPayload {

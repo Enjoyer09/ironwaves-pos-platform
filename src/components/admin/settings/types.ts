@@ -10,7 +10,7 @@ export interface PrintSettingsState {
   auto_print_receipt: boolean;
   paper_width: '58mm' | '80mm';
   print_engine: 'pixel_html' | 'raw_escpos';
-  kitchen_mode?: 'paper_only' | 'screen_only' | 'hybrid';
+  kitchen_mode: 'paper_only' | 'screen_only' | 'hybrid';
 }
 
 export interface ZReportReceiptSettingsState {
@@ -36,7 +36,7 @@ export interface SessionSettingsState {
   theme_mode: 'dark' | 'light';
   ui_mode: 'old';
   login_background_url: string;
-  device_authorization_enabled?: boolean;
+  device_authorization_enabled: boolean;
 }
 
 export interface BeverageServiceSettingsState {
@@ -210,4 +210,6 @@ export interface BaseSectionProps {
   saveButtonClass: string;
   renderPanelSuccess: (panelKey: string) => ReactNode;
   notify: (type: 'success' | 'error' | 'info', message: string) => void;
+  /** Busy save button: disabled while its panel request is in flight. */
+  PanelSaveButton: (props: { panelKey: string; onSave: () => void; label: string }) => ReactNode;
 }

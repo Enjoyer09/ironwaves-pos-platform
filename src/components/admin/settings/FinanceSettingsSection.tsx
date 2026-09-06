@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { tx } from '../../../i18n';
 import { YIELD_PRESETS } from './types';
-import type { BankCommissionState, FinancePolicyState, YieldManagementState } from './types';
+import type { BankCommissionState, FinancePolicyState, YieldManagementState, BaseSectionProps } from './types';
 
-export interface FinanceSettingsSectionProps {
+export interface FinanceSettingsSectionProps extends BaseSectionProps {
   lang: string;
   saveButtonClass: string;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
@@ -31,6 +31,7 @@ export function FinanceSettingsSection({
   lang,
   saveButtonClass,
   renderPanelSuccess,
+  PanelSaveButton,
   bankCommission,
   setBankCommission,
   saveBankCommission,
@@ -228,7 +229,7 @@ export function FinanceSettingsSection({
         </div>
         {renderPanelSuccess('bank')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveBankCommission(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="bank" onSave={() => { void saveBankCommission(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 
@@ -306,7 +307,7 @@ export function FinanceSettingsSection({
         </div>
         {renderPanelSuccess('finance_policy')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveFinancePolicy(); }} className={saveButtonClass}>{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
+          <PanelSaveButton panelKey="finance_policy" onSave={() => { void saveFinancePolicy(); }} label={tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')} />
         </div>
       </div>
 
@@ -525,7 +526,7 @@ export function FinanceSettingsSection({
         </div>
         {renderPanelSuccess('yield')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveYieldManagement(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="yield" onSave={() => { void saveYieldManagement(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
     </>

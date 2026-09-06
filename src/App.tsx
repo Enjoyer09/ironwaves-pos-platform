@@ -29,6 +29,9 @@ import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
 import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
 import type { Settings } from './types/pos';
+// P1.4d — `Settings.push_settings` məcburi sahədir; default `lib/push.ts`-dən
+// gəlir ki, defaultun ikinci nüsxəsi yaranmasın.
+import { DEFAULT_PUSH_SETTINGS } from './lib/push';
 import { getModuleFromPathname, syncUrlWithModule, isPublicMenuRoute, isPublicAppRoute, type ModuleKey } from './lib/navigation';
 import { updateDynamicPwaManifest } from './lib/pwa_manifest';
 import { initScreenWakeLock } from './lib/wakeLock';
@@ -678,6 +681,7 @@ export default function App() {
       card_sale_percent: 0,
       card_transfer_percent: 0,
     },
+    push_settings: { ...DEFAULT_PUSH_SETTINGS },
   };
 
   const appConfig = useMemo<{ profile: AppBusinessProfile; settings: Settings }>(() => {

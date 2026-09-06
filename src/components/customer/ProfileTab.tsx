@@ -2,6 +2,7 @@ import React from 'react';
 import { Bell, Check, Gift, Languages, Pencil, TrendingUp, X } from 'lucide-react';
 import { tx } from '../../i18n';
 import { Haptic } from '../../lib/customer_utils';
+import { FALLBACK_TIER_COLOR, fallbackTierLabel } from '../../lib/loyalty';
 import SimpleAreaChart from './SimpleAreaChart';
 
 type Props = {
@@ -73,8 +74,8 @@ export default function ProfileTab({
   const langBarCls   = isLight ? 'border-black/8 bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm' : 'border-white/10 bg-white/6 text-slate-200 backdrop-blur-md';
 
   const tier: any = customer?.tier || null;
-  const tierColor = String(tier?.color || '#F48C24');
-  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Golden Member';
+  const tierColor = String(tier?.color || FALLBACK_TIER_COLOR);
+  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || fallbackTierLabel(safeLang);
 
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
 

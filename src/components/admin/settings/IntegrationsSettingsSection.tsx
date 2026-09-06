@@ -55,6 +55,7 @@ export function IntegrationsSettingsSection({
   saveButtonClass,
   renderPanelSuccess,
   notify,
+  PanelSaveButton,
   tenantId,
   profile,
   deliveryIntegrations,
@@ -390,7 +391,7 @@ export function IntegrationsSettingsSection({
           </div>
         )}
         <div className="flex justify-end border-t border-slate-700/40 pt-4">
-          <button onClick={() => { void saveDeliveryIntegrations(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="delivery_integrations" onSave={() => { void saveDeliveryIntegrations(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 
@@ -666,9 +667,11 @@ export function IntegrationsSettingsSection({
           <button onClick={downloadQrPoster} className="neon-btn rounded-xl px-5 py-2 font-semibold">
             {tx(lang, 'Poster yüklə', 'Скачать постер', 'Download poster')}
           </button>
-          <button onClick={() => { void saveQrMenuSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
-          </button>
+          <PanelSaveButton
+            panelKey="qr_menu"
+            onSave={() => { void saveQrMenuSettings(); }}
+            label={tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
+          />
         </div>
       </div>
 
@@ -1026,9 +1029,11 @@ export function IntegrationsSettingsSection({
         </div>
         {renderPanelSuccess('feedback')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveFeedbackSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'Feedback ayarlarını saxla', 'Сохранить feedback настройки', 'Save feedback settings')}
-          </button>
+          <PanelSaveButton
+            panelKey="feedback"
+            onSave={() => { void saveFeedbackSettings(); }}
+            label={tx(lang, 'Feedback ayarlarını saxla', 'Сохранить feedback настройки', 'Save feedback settings')}
+          />
         </div>
       </div>
     </>

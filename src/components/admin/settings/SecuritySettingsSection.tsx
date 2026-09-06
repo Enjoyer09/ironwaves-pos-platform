@@ -4,12 +4,13 @@ import { tx } from '../../../i18n';
 import type { Lang } from '../../../i18n';
 import { prepareImageDataUrl } from '../../../lib/image_upload';
 import ConfirmModal from '../../ConfirmModal';
-import type { StaffBenefitsState, RoleModules, SessionSettingsState } from './types';
+import type { StaffBenefitsState, RoleModules, SessionSettingsState, BaseSectionProps } from './types';
 import { roleLabelMap, moduleLabelMap, moduleCatalog, defaultRoleModules } from './types';
-import { listAuthorizedTerminals, revokeAuthorizedTerminal, type AuthorizedTerminal } from '../../../lib/terminals';
+import { listAuthorizedTerminals, revokeAuthorizedTerminal } from '../../../lib/terminals';
+import type { AuthorizedTerminal } from '../../../types/pos';
 import { update_session_settings_live } from '../../../api/settings';
 
-export interface SecuritySettingsSectionProps {
+export interface SecuritySettingsSectionProps extends BaseSectionProps {
   lang: string;
   saveButtonClass: string;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
@@ -101,6 +102,7 @@ export function SecuritySettingsSection({
   saveButtonClass,
   renderPanelSuccess,
   notify,
+  PanelSaveButton,
   currentRole,
   tenantId,
 
@@ -481,9 +483,11 @@ export function SecuritySettingsSection({
         </div>
 
         <div className="flex justify-end pt-2">
-          <button onClick={() => { void saveSessionSettings(); }} className={saveButtonClass}>
-            {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
-          </button>
+          <PanelSaveButton
+            panelKey="session"
+            onSave={() => { void saveSessionSettings(); }}
+            label={tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
+          />
         </div>
         {renderPanelSuccess('session')}
       </div>
@@ -587,7 +591,7 @@ export function SecuritySettingsSection({
         ) : null}
         {renderPanelSuccess('staff_benefits')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveStaffBenefits(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <PanelSaveButton panelKey="staff_benefits" onSave={() => { void saveStaffBenefits(); }} label={tx(lang, 'Yadda saxla', 'Сохранить', 'Save')} />
         </div>
       </div>
 

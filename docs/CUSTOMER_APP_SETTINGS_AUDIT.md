@@ -21,6 +21,36 @@ amma etmir, nə itir.
 > "Panel istifadəçiyə yalan deyir" cümləsi artıq **doğru deyil**: hər saxlanan sahə ya real
 > işləyir, ya da "tətbiqdə hələ işləmir" nişanı daşıyır.
 
+> **P1.1 bitdi (2026-09-04) — yenidən qiymət: 8 / 10.** Sonuncu 4 ölü qazanma sahəsi
+> (`earn_rate_per_azn`, `min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days`)
+> və tier `multiplier`-i artıq kassada işləyir → real təsir 7 → **9**; ön baxış POS-un öz
+> mühərriki ilə hesablanır (panel öz düsturunu saxlamır) → doğruluq 8 → **9**; `points`
+> rejimində ledger yazılmağa başladı, yəni hesabat üçün data **var**, ekran hələ yox →
+> müşahidə olunabilirlik 1 → **3** (P3). Qalan boşluqlar: tier redaktoru (P1.2), hədiyyə
+> kataloqu (P1.3), push idarəsi (P1.4), kampaniya modeli (P1.5).
+
+> **P1.2 bitdi (2026-09-04) — ümumi qiymət 8 / 10 olaraq qalır.** Nərdivan artıq paneldən
+> redaktə olunur (§3.5 bağlandı) və hardcoded nüsxələr dilə görə tək mənbəyə yığıldı (§4.2),
+> amma bal qalxmır: qalan üç P1 boşluğu (hədiyyə kataloqu, push idarəsi, kampaniya modeli)
+> hələ açıqdır. Ölçülər daxilində dəyişən: vahid idarə mərkəzi 3 → **4** (tier bir yerdən
+> yazılır; kampaniya hələ 2 paneldə, rəng hələ 3 sistemdə), panelin öz UX-i 4 → **5**
+> (nərdivan blokunda "server nə saxlayacaq" ön baxışı, təkrar/boş açar xəbərdarlığı və sətir
+> sayğacı var — panelin real validasiyası olan ilk bloku). Dəyişməyən: real təsir **9** —
+> nərdivanın `discount_percent` sahəsi saxlanılır, amma kassa onu oxumur (P1.6), ona görə
+> P0.4 nişanı **məhz o sahədə** qaldı.
+
+> **P1.3 bitdi (2026-09-05) — yenidən qiymət: 9 / 10.** Hədiyyə artıq tək "ad + hədd" cütü deyil,
+> 20 sətirə qədər kataloqdur (qiymət, məhsul bağlantısı, stok limiti, aktiv/deaktiv, 3 dil) və
+> zəncirin **hər beş həlqəsi** onu oxuyur: panel yazır, `wallet.rewards` göstərir, claim `reward_id`
+> ilə sətrə bağlanır, kassa endirimi bağlı məhsula tətbiq edir, stok verilmiş kodlardan sayılır.
+> Dəyişən ballar: əhatə genişliyi 6 → **8** (stok və məhsul bağlantısı yeni ox açır), vahid idarə
+> mərkəzi 4 → **5** (hədiyyə bir yerdən idarə olunur; kampaniya hələ 2 paneldə, rəng 3 sistemdə),
+> panelin UX-i 5 → **6** (kataloq blokunun üç real xəbərdarlığı var: aktiv sətir yoxdur,
+> `reward_threshold` ən ucuz sətirdən fərqlidir, 20 sətir həddi aşılıb). Dəyişməyən: real təsir
+> **9** — `reward_threshold` hələ də kassanın avtomatik pulsuz içki sayğacıdır (birləşdirmə P2),
+> müşahidə olunabilirlik **3** (hansı hədiyyə nə qədər alınıb — ekran yox, P3). Qalan P1
+> boşluqları: push idarəsi (P1.4), kampaniya modeli (P1.5), endirim yığımı (P1.6).
+
 Panel kağız üzərində zəngindir — 34 sahə, 3 dizayn preseti, canlı telefon ön baxışı, kampaniya
 və filial CRUD. Problem odur ki, **bu sahələrin təxminən yarısı heç bir şeyə təsir etmir**, bir
 qismi isə saxlanarkən başqa parametrləri silir.
@@ -62,10 +92,12 @@ yaşıl bildiriş görür — və kassa heç vaxt o qaydaya görə xal vermir.
 
 > **Status (2026-09-04).** Bu bölmə **auditin ilk anını** qeyd edir və tarixi sənəd kimi
 > olduğu kimi saxlanılır — sətir nömrələri o vaxtkı koda aiddir və artıq sürüşüb. Hansı
-> tapıntının bağlandığı §5-dəki P0 bloklarındadır: **3.1** → P0.1 ✅, **3.2** → P0.2 ✅,
-> **3.4** → P0.3 ✅, **3.7** → P0.3 + P0.4 ✅ (yalnız 4 qazanma sahəsi qalır → P1.1),
-> **3.8** → P0.5 ✅, **3.9** → P0.6 ✅. Açıq qalanlar: **3.3** və `tiers` multiplier (P1.1),
-> **3.5** (P1.2), **3.6** (P1.3), **3.10**, **3.11**.
+> tapıntının bağlandığı §5-dəki P0/P1 bloklarındadır: **3.1** → P0.1 ✅, **3.2** → P0.2 ✅,
+> **3.3** → P1.1 ✅, **3.4** → P0.3 ✅, **3.7** → P0.3 + P0.4 ✅, **3.8** → P0.5 ✅,
+> **3.9** → P0.6 ✅, `tiers` multiplier → P1.1 ✅, **3.11** → P1.1 ✅ (ledger `points`
+> rejimində də yazılır; hesabat ekranı hələ yox → P3). Açıq qalanlar: **3.6** (push idarəsi —
+> P1.4), **3.10**. **3.5** → P1.2 ✅ (nərdivan paneldən yazılır, hardcoded nüsxələr dilə
+> görə tək mənbəyə yığıldı).
 
 ### 3.1 Kök səbəb: `PATCH` bütün obyekti əvəz edir
 
@@ -120,6 +152,12 @@ Problem "loyallıq heç işləmir" deyil — **`points` rejimi konfiqurasiya olu
 Nəticə: həddi 10-dan başqa bir rəqəm qoysan, müştəri tətbiqi ilə kassa **hədiyyənin nə vaxt
 qazanıldığı barədə fərqli cavab verir.** Bu, birbaşa müştəri şikayəti doğuran bir uyğunsuzluqdur.
 
+> ✅ **Bağlandı: P0.3 (hədd) + P1.3 (kataloq).** `pos.py` literal `// 10` yerinə ayarın həddini,
+> `HomeTab.tsx` isə ştamp şəbəkəsini `reward_threshold`-dan oxuyur — yəni **eyni rəqəm**. P1.3-də
+> hədiyyə çoxsətirli kataloqa çevrildi, amma `reward_threshold` **qəsdən** saxlanıldı: kassanın
+> avtomatik pulsuz içki sayğacı hələ ona baxır. İki mənbənin ayrılmaması üçün panel ən ucuz aktiv
+> kataloq sətri həddən fərqlənəndə xəbərdarlıq göstərir; tam birləşdirmə **P2**-dədir.
+
 ### 3.5 `tiers` oxunur, amma yazıla bilmir
 
 `operations.py:4429` müştərinin tier-ini `app_settings.get("tiers") or DEFAULT_TIERS`-dən hesablayır,
@@ -130,6 +168,13 @@ tətbiq isə onu göstərir (`HomeTab.tsx:168-170`, `ProfileTab.tsx:75-77`). Amm
 üçün hardcoded qalır. Üstəlik tier-in `multiplier` sahəsi (gold 1.5x) müştəriyə göndərilir amma
 **heç bir accrual yerində tətbiq olunmur.**
 
+> ✅ **Bağlandı: P0.1 (merge) + P1.1 (multiplier) + P1.2 (redaktor).** `tiers` artıq PATCH
+> dict-indədir və paneldə redaktə olunur (`CustomerAppPanel.tsx` → "Səviyyə nərdivanı"),
+> `multiplier` `tier_multiplier_enabled` keçidi ilə kassada işləyir. `DEFAULT_TIERS` hələ
+> hardcoded-dır, amma artıq **hər dildə bir dəfə** (`operations.py::DEFAULT_TIERS` və
+> `src/lib/loyalty.ts::DEFAULT_LOYALTY_TIERS`) və paritet testi ilə bağlıdır — detal P1.2
+> blokunda.
+
 ### 3.6 Push per-tenant ölüdür
 
 `onesignal_app_id` `operations.py:3800` və `:4400`-də müştəriyə göndərilir,
@@ -137,6 +182,25 @@ tətbiq isə onu göstərir (`HomeTab.tsx:168-170`, `ProfileTab.tsx:75-77`). Amm
 həmişə `None` → **brauzer push abunəliyi hər tenant üçün ölüdür.** Server tərəfi qlobal env
 açarlarına düşür (`core/config.py:105-106`), yəni push platforma səviyyəsində bir parametrdir və
 tenant-ın heç bir nəzarəti yoxdur.
+
+> ✅ **Bağlandı: P0.1 (merge) + P1.4 (idarə).** `onesignal_app_id` PATCH dict-indədir, panelin
+> "Bildirişlər" bloku onu yazır, REST açarı isə **ayrı** `push_settings` açarındadır (o blob
+> müştəriyə qaytarılmır). Göndərici `app_id` + açarı **bir mənbədən** götürür — qarışıq cüt
+> (tenant app + platforma açarı) heç vaxt qurulmur, çünki OneSignal onu `invalid_player_ids`
+> ilə rədd edir. Detal P1.4 blokunda.
+>
+> ⚠️ **Açıq qalan (P1.4-ün həll etmədiyi) iki defekt:**
+>
+> 1. **`Customer.push_token` tək sütundur** (`models.py:538`), yəni bir müştəri **bir cihaz**
+>    saxlayır: telefonda qeydiyyatdan keçib sonra brauzerdən girsə köhnə token üzərinə yazılır
+>    və birinci cihaz susur. Düzəlişi ayrı `customer_push_tokens` cədvəli tələb edir → **P2**.
+> 2. **Native cihaz tokenləri çatdırıla bilmir.** Həmin sütun iki fərqli şey saxlayır: brauzer
+>    SDK-sı OneSignal **abunəlik id-si** (36 simvol UUID), `@capacitor/push-notifications` isə
+>    APNs/FCM **cihaz tokeni** (məs. 64 hex simvol) yazır. `include_subscription_ids` ikincisini
+>    qəbul etmir. P1.4 bunu **gizlətmir**: `split_deliverable_tokens` təsnifat verir və panel
+>    "N token OneSignal abunəliyi deyil — onlara çatdırılma mümkün deyil" yazır. Əsl düzəliş
+>    native tərəfdə OneSignal SDK-sının işlədilməsidir (`App.tsx` push qeydiyyatı) → **P2**.
+
 
 ### 3.7 Dizayn sahələrinin böyük hissəsini tətbiq oxumur
 
@@ -234,17 +298,29 @@ yaşıl bildiriş alır, **heç nə saxlanmır.**
 `"campaign"` sözü sistemdə 4 fərqli şeyi bildirir: `happy_hours` sətri, `CampaignActivation`
 per-müştəri kuponu, push bildiriş mətni, və `FeedbackCoupon` rail-i.
 
-### 4.2 Tier nərdivanı 4 yerdə, hər biri fərqli
+### 4.2 Tier nərdivanı 5 yerdə, hər biri fərqli
 
-| Yer | Nə saxlayır | İdarə oluna bilir? |
-|---|---|---|
-| `CustomerAppPanel.tsx:9-16` `CRM_MEMBER_TYPES` | golden/platinum/elite/thermos/ikram/telebe + endirim % | Yox — hardcoded |
-| `src/api/crm.ts:10` `DEFAULT_TIERS` | frontend fallback nərdivanı | Yox — hardcoded |
-| `operations.py:4206-4210` `DEFAULT_TIERS` | bronze 0 / silver 100 / gold 300 + multiplier | Yox — hardcoded |
-| `HomeTab.tsx:168` / `ProfileTab.tsx:75` | rəng + ad fallback-ları (bir-biri ilə ziddiyyətli) | Yox — hardcoded |
+> Audit ilk yazılanda **4 yer** sayılmışdı. P1.2-də beşincisi tapıldı: `main.py`-dakı boot
+> təmiri. O, ən təhlükəlisidir, çünki panel deyil — **hər başlanğıcda müştəri datasına yazır.**
 
-Beləliklə "müştəri hansı səviyyədədir, nə qazanır" sualının **dörd ayrı cavab mənbəyi** var və
-`app_settings["tiers"]` — nəzərdə tutulan tək mənbə — §3.5-ə görə yazıla bilmir.
+| Yer | Nə saxlayır | İdarə oluna bilir? | P1.2-dən sonra |
+|---|---|---|---|
+| `CustomerAppPanel.tsx:15` `CRM_MEMBER_TYPES` | golden/platinum/elite/thermos/ikram/telebe + endirim % | Yox — hardcoded | **Qəsdən qalır** — bu, avtomatik nərdivan deyil, işçinin qeydiyyatda verdiyi endirim oxu (aşağıda səbəb) |
+| `src/api/crm.ts:16` `DEFAULT_TIERS` | frontend fallback nərdivanı | Yox — hardcoded | ✅ `lib/loyalty.ts::DEFAULT_LOYALTY_TIERS`-in alias-ı |
+| `operations.py:4432` `DEFAULT_TIERS` | bronze 0 / silver 100 / gold 300 + multiplier | Yox — hardcoded | ✅ Python tərəfin tək mənbəyi; JS güzgüsü ilə paritet testində bağlı |
+| `HomeTab.tsx:170` / `ProfileTab.tsx:77` | rəng + ad fallback-ları (bir-biri ilə ziddiyyətli) | Yox — hardcoded | ✅ `FALLBACK_TIER_COLOR` + `fallbackTierLabel()` — ziddiyyət bitdi |
+| `main.py:723-751` `_repair_customer_discounts` | golden/platinum/telebe/tələbə/elite/thermos/ikram **+ vip + silver** | Yox — hardcoded, boot-da işləyir | ❌ **Açıq** — P1.6-ya (endirim yığımı) qalır |
+
+Beləliklə "müştəri hansı səviyyədədir, nə qazanır" sualının əvvəl **beş ayrı cavab mənbəyi** var
+idi. `app_settings["tiers"]` — nəzərdə tutulan tək mənbə — §3.5-ə görə yazıla bilmirdi; artıq
+yazılır (P1.2) və avtomatik nərdivanın hər üç oxu yeri ondan qidalanır.
+
+**`_repair_customer_discounts` niyə ayrıca problemdir.** `main.py` startup-da endirimi 0 olan
+**bütün** müştəriləri gəzir və `customer.type`-a görə `discount_percent` yazır. İki nəticə: (a)
+xəritədə `vip` (15%) və `silver` (5%) var, `CRM_MEMBER_TYPES`-də isə yox — yəni panelin heç vaxt
+göstərmədiyi iki dərəcə mövcuddur; (b) admin bir müştərinin endirimini **qəsdən** 0-a salsa,
+növbəti restart onu geri qaytarır. Bu, tier deyil, endirim mövzusudur — ona görə P1.2-də
+toxunulmadı, P1.6-da (§4.6 endirim yığımı) həll olunmalıdır.
 
 ### 4.3 Üç ayrı rəng sistemi
 
@@ -327,13 +403,13 @@ istisna olmaqla (P1.1-ə keçirildi, aşağıda səbəb var).
 
 | Sahə | Tövsiyə | Nə oldu |
 |---|---|---|
-| `earn_rate_per_azn`, `min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` | **İşlət** — `pos.py` accrual-ını bu ayarlardan oxutmaq (P1.1) | P1.1-də qalır |
+| `earn_rate_per_azn`, `min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` | **İşlət** — `pos.py` accrual-ını bu ayarlardan oxutmaq (P1.1) | ✅ P1.1-də qoşuldu (keçidlər arxasında) |
 | `reward_threshold` | **İşlət** — `pos.py:718-720` və `HomeTab.tsx:515` hardcoded 10-u ayardan al | ✅ 4 oxuyucu bir açarda birləşdi |
 | `reward_card_style` | ~~Çıxar~~ → **İşlət** | ✅ kartın radius/blur-una bağlandı |
 | `layout_preset` | ~~Çıxar~~ → **Saxla, adını dürüstləşdir** | ✅ "Sürətli başlanğıc dəstləri" |
 | `background_color`, `background_image_url` | **İşlət** (asan) | ✅ tətbiq gövdəsinin fonu |
 | `hero_title`, `hero_subtitle` | **İşlət** — `HomeTab.tsx:322-347` hardcoded hero mətnini əvəz et | ✅ ayardan, köhnə mətn fallback |
-| `tiers` multiplier | **İşlət və ya sil** — göndərilir, tətbiq olunmur | P1.1-ə keçirildi |
+| `tiers` multiplier | **İşlət və ya sil** — göndərilir, tətbiq olunmur | ✅ P1.1-də işlədi (`tier_multiplier_enabled`) |
 
 **`reward_threshold` — dörd oxuyucu, bir düstur.** Ən ciddi tapıntı burada idi: hədd oxu
 yolunda (`operations.py` sessiya `next_reward_at` və reward claim) hörmət olunurdu, **yazı
@@ -528,30 +604,394 @@ backend-in `created_at desc` sıralamasını təkrarlayır (`operations.py:4503`
 
 ### P1 — Çatışmayan tək-mənbə nəzarətləri
 
-**P1.1 — Konfiqurasiya edilə bilən accrual mühərriki.** `pos.py:705-730`-dakı hardcoded məntiqi
-ayarlardan oxuyan tək funksiyaya çıxar (`loyalty_service.compute_accrual(settings, cart, customer)`).
-Dəstəklənməli rejimlər:
+**P1.1 — Konfiqurasiya edilə bilən accrual mühərriki.** ✅ **KODLANDI (2026-09-04).**
+`pos.py`-dakı hardcoded "1 qəhvəyəbənzər içki = 1 ulduz" məntiqi ayarlardan oxuyan tək
+funksiyaya çıxdı: `backend/app/services/loyalty_accrual.py::compute_points_earned` və onun
+frontend güzgüsü `src/lib/loyalty.ts::computePointsEarned`. Router-dən ayrı modul olması
+qəsdəndir — testlər FastAPI/DB qaldırmadan onu import edə bilir.
 
-- `stamp` — hazırkı davranış: n ədəd "qəhvə tipli" məhsul = 1 hədiyyə (hədd ayardan)
-- `points_per_azn` — `earn_rate_per_azn` × məbləğ, `min_purchase_for_earn` filtri ilə
-- `cashback` — faizlə balans (**hazırda işləyən tək rejim** — `pos.py:1030-1042`)
+**Hesablama sırası (iki tərəfdə eyni olmalıdır — sıra dəyişsə nəticə dəyişir):**
 
-Tier `multiplier`, `double_points_days`, `first_purchase_bonus` bu tək funksiyada tətbiq olunur —
-başqa heç yerdə. Nəticə **hər rejimdə** `LoyaltyLedgerEntry`-yə yazılmalıdır (`unit="points"`
-daxil olmaqla — §3.11), yoxsa hesabat üçün data yaranmır.
+1. minimum məbləğ yoxlanışı → keçmirsə qazanma 0 (ilk alış bonusu da verilmir)
+2. baza: `per_drink` → içki sayı; `per_azn` → `floor(məbləğ × dərəcə)`
+3. baza 0-dırsa dayan — 2x və multiplier sıfırı çoxalda bilmir
+4. 2x gün → baza ×2
+5. tier multiplier → `floor(× multiplier)`
+6. ilk alış bonusu → düz üstünə gəlir (çoxaldılmır)
+7. `MAX_EARN_PER_SALE = 10000` ilə kəsilir
 
-**P1.2 — Tier redaktoru.** Panelə cədvəl: ad, hədd, rəng, endirim %, multiplier, faydalar mətni.
-Yazma yeri tək olsun — `app_settings["tiers"]`. `CRM_MEMBER_TYPES`, `crm.ts:DEFAULT_TIERS`,
-`operations.py:DEFAULT_TIERS` bu mənbədən oxusun (hardcoded siyahılar silinsin).
+Hər addımda **aşağıya yuvarlaqlaşdırma** var (kəsr ulduz yoxdur) və funksiya heç bir halda
+exception atmır — satış axını bir ayar sətrindəki yazı səhvinə görə 500 verməməlidir.
 
-**P1.3 — Hədiyyə kataloqu.** Hazırda "hədiyyə" tək bir ad + hədd sahəsidir. Real ehtiyac:
-bir neçə hədiyyə (ad, lazım olan xal, məhsul bağlantısı, aktiv/deaktiv, stok limiti) —
-`HomeTab.tsx:704-707`-dəki hardcoded milestone nərdivanı elə bunun əl ilə yazılmış versiyasıdır.
+**Üç yeni keçid — hamısı sönülü başlayır.** Buraxılışın ən vacib qərarı budur: mövcud
+tenant-ların blobunda oturan defaultlar zərərsiz **deyil** (`earn_rate_per_azn=2.0`,
+`first_purchase_bonus=5`, `gold.multiplier=1.5`). Sahələri qapısız qoşmaq hər tenant-ı
+səssizcə "1 içki = 1 ulduz"-dan "1 AZN = 2 ulduz"-a keçirərdi — 5 AZN latte = 10 ulduz =
+default 10 həddində dərhal pulsuz qəhvə.
 
-**P1.4 — Push bildiriş idarəsi.** `onesignal_app_id` per-tenant yazıla bilsin (P0.1 ilə həll
-olunur), üstəgəl panelə: bildiriş göndər (seqment seçimi ilə), planlaşdırılmış kampaniya
-bildirişi, göndərilmə tarixçəsi. Hazırda push tamamilə platforma env-inə bağlıdır və tenant
-heç nə edə bilmir.
+| Keçid | Default | Nəyi açır |
+|---|---|---|
+| `earn_basis` | `per_drink` (köhnə davranış) | `per_azn` seçilsə `earn_rate_per_azn` işə düşür |
+| `first_purchase_bonus_enabled` | `false` | `first_purchase_bonus` (maks 1000) |
+| `tier_multiplier_enabled` | `false` | tier sətrinin `multiplier`-i (maks ×10) |
+
+`min_purchase_for_earn` (default 0) və `double_points_days` (default boş) öz defaultlarında
+onsuz da təsirsizdir — onlara ayrı keçid lazım deyil. Precedent: P0.2-nin `birthday_enabled`.
+Üç açar hər iki normalizerdə var (`operations.py:3169-3171`, `src/api/settings.ts:601-603`).
+
+**Float tələsi — niyə JS tərəf tam ədəd miqyasında işləyir.** Python `Decimal` işlədir, JS-də
+isə `0.3 * 10` → `2.9999999999999996` və `floor` 3 yerinə **2** qaytarır. Ona görə `loyalty.ts`
+bütün vurmaları tam ədəd miqyasında aparır (məbləğ → qəpik, dərəcə/çarpan → ×10⁴; normalizer
+onsuz da 4 onluğa yuvarlaqlaşdırır). Eyni tələ **panel ipucu mətnində də** var idi: dərəcə
+sahəsinin altındaki "12 AZN → N ulduz" hinti ilk yazılışda `Math.floor(12 * rate)` idi —
+artıq o da mühərriki çağırır.
+
+**Tier axtarışı bir qayda oldu.** `find_tier_multiplier` (`loyalty_accrual.py`) və
+`findTierMultiplier` (`loyalty.ts`) `operations.py::_compute_tier` ilə **eynidir**: `key`-i
+olmayan sətirlər atılır, `threshold`-a görə artan sıralanır, `lifetime_stars`-dan böyük olmayan
+sonuncu sətir götürülür, heç biri uyğun gəlməsə ən aşağı pillə. Qaydalar ayrılsaydı tətbiq
+"Gold ×1.5" göstərib kassa ×1 sayardı. Keçid yoxlanışı (`tier_multiplier_enabled`) bu
+funksiyada deyil — xam dəyər buradan çıxır, `resolve_tier_multiplier`-dən keçir.
+Üç nüsxənin tam birləşməsi P2-də qalır.
+
+**Gün nömrələnməsi.** Hər yerdə **B.E=1 … Bazar=7**; köhnə saxlanmış `0` **7-yə çevrilir**,
+atılmır (P0.7 tapıntısı — lokal `HappyHour` tipindəki "0=Sunday" şərhi yanlışdır).
+
+**Ledger artıq `points` rejimində də yazılır — §3.11 bağlandı.** `pos.py::create_sale` üç
+`unit="points"` sətri yazır (`:1084`, `:1099`, `:1132`): qazanma (təsviri
+`accrual.describe()` verir, məsələn `Points earn (per drink, base 2, 2x day, tier +2, first
+purchase +5)`), pulsuz içki güzəşti (`Free drink redeem x{n} ({spent} points)`) və xal
+xərcləyən hədiyyə claim-i (`points_cost > 0` şərti ilə). Təsvir mətni qəsdən İngiliscədir və
+iki rejimdə **eynidir** — fərqlənsə hesabat qruplaşdırması pozular. Push mətni də hardcoded
+`★` yerinə tenant-ın `points_label`-ını işlədir.
+
+**Panel artıq yalan demir.** P0.4-də dörd sahəyə qoyulmuş "tətbiqdə hələ işləmir" nişanı
+(`NotAppliedBadge`) silindi — dördü də canlıdır. Yerinə **"Effektiv qayda"** xülasəsi gəldi və o,
+POS-un işlətdiyi **həmin mühərriklə** hesablanır: `3 içki / 12.00 AZN → N ulduz`, minimum
+bloklayırsa və ya bugün 2x günüdürsə əlavə qeyd, ilk alış və ən yüksək tier üçün ayrı sətirlər.
+Panelin öz düsturu olsaydı P0.4-də təmizlədiyimiz "saxta vəd" problemi başqa formada geri
+qayıdardı. Tier nərdivanı orada hələlik **yalnız oxunur** (redaktə P1.2); `save()` `tiers`
+göndərmir — endpoint merge işlədiyi üçün nərdivan olduğu kimi qalır.
+
+**P1.1 yoxlaması (2026-09-04).**
+
+- `backend/tests/test_loyalty_accrual.py` — **24/24 keçir**. Ən vacibi
+  `test_shipped_defaults_change_nothing_without_gates`: real defaultlarla + `weekday=6` +
+  `is_first_purchase=True` + `tier_multiplier=1.5` nəticə hələ də **3 ulduz**, yəni köhnə davranış.
+- **Python ↔ JS pariteti: 4000 hal, 0 fərq.** Seed sabit, dəyərlər qəsdən düşmən: `"abc"` /
+  `True` / `-5` / `5000` dərəcələr, `"false"` / `"0"` / `"off"` / `None` keçidləri, `[0]` /
+  `[8,-1]` / `"1,2"` gün massivləri, `None` / `""` / `"abc"` / `"123.456"` məbləğlər, açarsız və
+  zibil tier sətirləri. Hər halda `earned`, `base`, `doubleDayApplied`, `tierBonus`,
+  `firstPurchaseBonus`, `blockedByMinimum`, `capped`, `basis`, `describe()` mətni və
+  `findTierMultiplier` tutuşdurulub. Bu paritet olmasa lokal rejim ilə canlı rejim fərqli sayardı.
+- `npx tsc --noEmit -p tsconfig.json` → **33 xəta** = dəyişməyən baseline; toxunulan fayllarda
+  (`CustomerAppPanel.tsx`, `src/api/pos.ts`, `src/lib/loyalty.ts`, `src/api/settings.ts`,
+  `src/types/pos.ts`) sıfır xəta.
+- `python3 -m compileall -q app tests` → OK.
+- `lifetime_stars` `pos.py`-da **tək yerdə** mənimsənilir (`:1075`) — ikiqat sayma yoxdur; ona görə
+  `test_customer_tier_system.py:228` (`42 = 40 + 2`) qapılar sönülü olduğu üçün qüvvədə qalır.
+  `customer_program` həmişə dict-dir (`:727-728`-dəki mövcud `.get()` çağırışları bunu sübut edir),
+  ona görə yeni `resolve_first_purchase_bonus(...)` / `.get("points_label")` çağırışları yeni
+  `AttributeError` yolu açmır.
+- **Bu mühitdə icra OLUNMAYAN:** `fastapi` və `pytest` quraşdırılmayıb, `npm run build` /
+  `npm run test:smoke` isə `node_modules` darwin-arm64 olduğu üçün işləmir. Router səviyyəli
+  testlər (`test_customer_tier_system.py`, `test_customer_birthday_reward.py`) CI-də yoxlanmalıdır.
+
+**Toxunulan fayllar:** `backend/app/services/loyalty_accrual.py` (yeni),
+`backend/tests/test_loyalty_accrual.py` (yeni), `backend/app/routers/pos.py`,
+`backend/app/routers/operations.py`, `src/lib/loyalty.ts`, `src/api/pos.ts`,
+`src/api/settings.ts`, `src/types/pos.ts`, `src/components/admin/CustomerAppPanel.tsx`.
+
+**P1.2 — Tier redaktoru.** ✅ **KODLANDI (2026-09-04).** Panelə cədvəl: ad (3 dil), hədd, rəng,
+endirim %, multiplier. Yazma yeri tək oldu — `app_settings["tiers"]`. `crm.ts:DEFAULT_TIERS`,
+`HomeTab`/`ProfileTab` fallback-ları bu mənbədən oxuyur; `CRM_MEMBER_TYPES` **qəsdən** qaldı
+(səbəb aşağıda). "Faydalar mətni" (`benefits`) də qəsdən əlavə edilmədi.
+
+**P1.2a — defaultlar dilə görə tək mənbəyə yığıldı.** Əvvəl nərdivanın defaultu dörd yerdə
+yaşayırdı (§4.2). Artıq JS tərəfdə **bir** yer var: `src/lib/loyalty.ts` →
+`DEFAULT_LOYALTY_TIERS`, `MAX_LOYALTY_TIERS = 12`, `FALLBACK_TIER_COLOR` (= ən aşağı pillənin
+rəngi), `fallbackTierLabel(lang)`, `cloneDefaultLoyaltyTiers()`. `crm.ts:16` indi sadəcə alias-dır,
+`HomeTab.tsx:170` və `ProfileTab.tsx:77` isə eyni sabitləri import edir — əvvəl iki ekran
+bir-biri ilə ziddiyyətli fallback rəng/ad işlədirdi. Python tərəfdə tək mənbə
+`operations.py::DEFAULT_TIERS`-dir; `FALLBACK_TIER_COLOR` və `MAX_CUSTOMER_APP_TIERS` ondan
+törəyir. `lib/loyalty.ts` bilərəkdən **asılılıqsızdır** (`decimal.js` yox) — yoxsa
+`npm run build:customer` tək-fayl bundle-ına maliyyə modulları düşərdi.
+
+**P1.2b — panel redaktoru.** Nərdivan bloku: sətir başına açar, 3 dil adı, hədd, rəng seçici,
+multiplier, endirim %; sətir əlavə/sil/yuxarı-aşağı; "defaultlara qaytar"; sətir sayğacı
+(`n / 12`). Üç şey bu bloku panelin qalanından fərqləndirir:
+
+- **"Server nə saxlayacaq" ön baxışı.** Blokun altında `normCustomerAppTiers(tiers)`-in nəticəsi
+  göstərilir — yəni admin save-dən **əvvəl** görür ki, sətirlər hədd üzrə sıralanacaq, ən aşağı
+  pillə 0-a düşəcək, açarı boş sətir atılacaq.
+- **Xəbərdarlıqlar, gizlətmə yox.** Təkrar açar (backend dedup **etmir**), boş açar, ən aşağı
+  həddin 0 olmaması — hər biri ayrı bildiriş. Panel səhvi düzəltmir, göstərir.
+- **Boş massiv heç vaxt göndərilmir.** `_norm_customer_app_tiers([])` defaultlara **qaytarır**,
+  yəni GET uğursuz olub state boş qalsa və panel save etsə tenant-ın nərdivanı bir klikdə
+  silinərdi. `save()` `tiers`-i yalnız `tiers.length > 0` olanda payload-a qoyur; PATCH merge
+  üst-səviyyə açar granulyarlığında olduğu üçün göndərilməyən açar toxunulmamış qalır.
+
+**P1.2c — `discount_percent` dürüst nişanlandı.** Sahə saxlanılır və normalizə olunur, amma
+**heç bir kassa yolu onu oxumur** (endirim yığımı P1.6-dır). P0.4 disiplinini pozmamaq üçün
+`NotAppliedBadge` yalnız **bu bir sahəyə** qaytarıldı — P1.1-də dörd qazanma sahəsindən silinmiş
+nişanın yenidən görünən tək yeri. Sahəni tamamilə çıxarmaq alternativi rədd edildi: dəyər blobda
+onsuz da mövcuddur (`DEFAULT_TIERS`-də `0.0`), gizlətsək admin onu redaktə edə bilməzdi, amma
+P1.6-da səssizcə qüvvəyə minərdi.
+
+**P1.2d — testlər və güzgü auditi.** Nərdivan **tək blobda** saxlanılır və beş yerdən oxunur:
+`_norm_customer_app_tiers` (yazma), `_compute_tier` (tətbiqin gördüyü),
+`loyalty_accrual.find_tier_multiplier` (kassanın işlətdiyi), və bunların JS güzgüləri
+`settings.ts::normCustomerAppTiers` + `crm.ts::computeTier`. Hər güzgü **əl ilə yazılmış**
+nüsxədir, ona görə drift avtomatik aşkarlanmır: lokal rejim ilə canlı rejim eyni tenant üçün
+fərqli dəyər saxlaya/göstərə bilər. `backend/tests/test_customer_app_tiers.py` (yeni) normalizerin
+hər qaydasını — nə atılır, nə kəsilir, nə çevrilir — və "göstərilən çarpan == işlənən çarpan"
+invariantını yazıya alır.
+
+**Ölçülmüş 8 real fərq — hamısı bağlandı.** Bunlar nəzəri deyil, paritet qoşqusunun tapdığı
+fərqlərdir:
+
+| # | Fərq | Nəticə (istifadəçi gözü ilə) | Düzəliş |
+|---|---|---|---|
+| 1 | `normText`/`normHex` truthiness: JS `0` / `false` dəyərini mətn sayırdı | Adı `0` olan pillə iki rejimdə fərqli adlanırdı | JS Python-a uyğunlaşdı (açara düşür) |
+| 2 | Hədd: JS `Math.round`, Python `int(float(x))` | `150.7` → JS 151, Python 150 → sıra dəyişə bilirdi | JS `Math.trunc` |
+| 3 | Float yuvarlaqlaşdırma: Python `round()` bank qaydası, JS `toFixed` yox | 200 001 dəyərdən **19 236-sı** fərqlənirdi | JS-ə `round4HalfEven()` |
+| 4 | `multiplier: 0` → `float(x or 1)` 1 verirdi, accrual 0 sayırdı | Tətbiq ×1 göstərir, kassa qazanma vermir | İki tərəfdə `0` qanuni dəyər |
+| 5 | `_norm_customer_app_tiers`-də sərt `maximum=10.0` | Hədd accrual-dan ayrıla bilərdi (üçüncü nüsxə) | `MAX_TIER_MULTIPLIER` import olundu |
+| 6 | `_compute_tier` həddi **üç fərqli qayda** ilə oxuyurdu (sıralamada clamp-lı, müqayisədə xam, `next_threshold`-da xam) | Legacy/normalizasiyasız blobda tətbiq və panel fərqli pillə seçirdi; `int("300.5")` / `int([])` isə **exception atırdı** — oxu yolunda 500 | Yeni `_tier_threshold()` — oxuma **yazma qaydasının eynisi** |
+| 7 | `progress_pct` mənfi ola bilirdi | Faiz birbaşa CSS eninə gedir — zolaq sıçrayırdı | İki tərəfdə 0..100 clamp |
+| 8 | Mənfi ulduz balansı: accrual `_floor_int` ilə 0 sayır, oxucular xam işlədirdi | Bərabər hədli nərdivanda tətbiq birinci sətri (×1), kassa sonuncunu (×3) seçirdi | İki oxucuda da `max(0, …)` |
+
+Əlavə olaraq `crm.ts::computeTier`-in `threshold()` köməkçisi `_norm_int`-in **bool rədd etməsini**
+də təkrarladı (`Number(true)` 1 verir, Python bool-u "yoxdur" sayır) və 1e6 həddini aldı.
+
+**Qəsdən edilməyənlər — səbəbi ilə:**
+
+| Nə | Səbəb |
+|---|---|
+| `benefits` (faydalar mətni) sahəsi | Müştəri tətbiqində onu göstərən **heç bir yer yoxdur**. Göstərilməyən sahəni saxlamaq P0.4 disiplininin (nişansız ölü sahə olmasın) pozulmasıdır. Hədiyyə kataloqu (P1.3) gələndə faydaların təbii yeri orada olacaq |
+| `CRM_MEMBER_TYPES`-in `tiers`-ə birləşdirilməsi | Bunlar **iki fərqli ox**dur: `tiers` ulduz sayına görə **avtomatik** qalxır, `CRM_MEMBER_TYPES` isə işçinin qeydiyyatda **əl ilə** verdiyi endirim kartıdır (`ikram` = 100%!). Birləşdirmə pul qərarıdır — P1.6/P2 |
+| `main.py::_repair_customer_discounts` xəritəsi | Tier deyil, endirim mövzusu; üstəlik boot-da müştəri datasına yazır (§4.2) → P1.6 |
+| `tier_multiplier_enabled` sönülü olanda panelin çarpanı göstərməsi | **Qəsdən asimmetriya** (P1.1b geriyə uyğunluq qapısı): kassa 1 işlədir, panel nərdivanın dəyərini göstərir. Ona görə panel keçidin vəziyyətini də göstərir, test isə bunu yazıya alır (`test_gate_off_means_no_tier_bonus`) |
+
+**P1.2 yoxlaması (2026-09-04).**
+
+- `backend/tests/test_customer_app_tiers.py` — **204 assertion, 0 uğursuz.** `pytest` bu mühitdə
+  yoxdur, ona görə fayl mini-qoşqu ilə işlədildi: `loyalty_accrual` birbaşa `importlib`-lə yüklənir,
+  `operations.py` isə `ast` ilə dilimlənib exec olunur (fastapi qaldırmadan **real** kod işləyir),
+  `pytest.mark.parametrize` təqlid olunur. Fayl özü **CI-da** normal pytest ilə də keçməlidir.
+- **Normalizer pariteti: 45 struktur halı + 200 001 dəyərlik süpürgə + 10 000 təsadüfi dəyər →
+  0 fərq.** Süpürgə 0..10 aralığını 5 onluqlu addımla gəzir (çarpan sahəsinin aralığı), təsadüfi
+  dəst isə bütün float ayarlarının aralıqlarını (endirim 0..100, dərəcə 0..1000, məbləğ 0..100000)
+  sabit seed ilə vurur.
+- **Oxu pariteti: 529 hal (nərdivan × ulduz kombinasiyası), üç qapı, 0 fərq.** Qapılar: (a)
+  `_compute_tier` ↔ `crm.ts::computeTier` — `key`, `multiplier`, `current_threshold`,
+  `next_threshold`, `progress_pct`; (b) xam tapıcı `find_tier_multiplier` ↔ `findTierMultiplier`;
+  (c) **göstərilən == işlənən** — `_compute_tier(...)["multiplier"]` ↔
+  `resolve_tier_multiplier(keçid açıq, find_tier_multiplier(...))`. Nərdivanlar qəsdən düşmən:
+  normalizasiyasız, mənfi/onluq/bool/zibil hədlər, sıralanmamış, ən aşağısı 0 olmayan, bərabər
+  hədli, təkrar açarlı. Ulduz dəstinə `-5` daxildir.
+- `npx tsc --noEmit -p tsconfig.json` → **33 xəta** = dəyişməyən baseline. Toxunulan fayllarda
+  yalnız `settings.ts(2148,7)` / `(2151,7)` `TS18048` — hər ikisi P1.2-dən **əvvəl də var idi**.
+- `python3 -m compileall -q app tests` → OK.
+- **Bu mühitdə icra OLUNMAYAN:** `npm run build` / `npm run test:smoke` (node_modules
+  darwin-arm64 → esbuild "Exec format error"), `pytest`, `fastapi`. Router səviyyəli tier testi
+  (`test_customer_tier_system.py`) CI-də yoxlanmalıdır.
+
+**Toxunulan fayllar:** `backend/app/routers/operations.py`,
+`backend/tests/test_customer_app_tiers.py` (yeni), `src/lib/loyalty.ts`, `src/api/crm.ts`,
+`src/api/settings.ts`, `src/types/pos.ts`, `src/components/admin/CustomerAppPanel.tsx`,
+`src/components/customer/HomeTab.tsx`, `src/components/customer/ProfileTab.tsx`.
+
+**P1.3 — Hədiyyə kataloqu.** ✅ **KODLANDI (2026-09-05).** Tək "ad + hədd" cütü yerinə çoxsətirli
+kataloq: hər sətirdə id, üç dildə ad və açıqlama, qiymət (xal), menyu məhsuluna bağlantı,
+aktiv/deaktiv keçidi və stok limiti. Kataloq `customer_app_settings.rewards` blobunda yaşayır;
+maksimum **20 sətir**, qiymət və stok həddi 1..1 000 000.
+
+**Auditin ilkin fərziyyəsi düzəldildi.** Bu bənd əvvəl `HomeTab.tsx:704-707`-dəki "hardcoded
+milestone nərdivanı"na istinad edirdi. O nərdivan P1.3-ə qədər **artıq yox idi**: **P0.6** üç
+uydurma pilləni ("Çay / Espresso" 0.3×, "Cappuccino / Latte" 0.6×, "Böyük Qəhvə + Desert" 1.0×)
+silmiş və yerində "kataloq gələndə nərdivan qayıdacaq" şərhini qoymuşdu. Yəni P1.3g mövcud
+hardcoded nərdivanı **əvəz etmək** deyil, silinmiş nərdivanı **real kataloq datası üzərində geri
+qaytarmaq** oldu.
+
+**P1.3a — backend normalizer və defaultlar** (`operations.py:3107+`). `_norm_reward_id` (slug,
+defis qalır, 32 simvol), `_norm_i18n_text` (üç dil, `ru`/`en` boş qalanda `az`-dan düşür),
+`_norm_customer_app_rewards` (sətir təmizləmə, dedup, sıralama, limit). Yeni sabitlər:
+`MAX_CUSTOMER_APP_REWARDS = 20`, `MAX_REWARD_POINTS_COST = MAX_REWARD_STOCK_LIMIT = 1 000 000`,
+`LEGACY_REWARD_ID = "default-reward"`. **Default kataloq boşdur** — yeni tenant köhnə tək hədiyyə
+ilə başlayır, ona görə heç bir tenant üçün miqrasiya lazım deyil.
+
+İki qayda qəsdən `tiers`-dən **fərqlidir** və testlərdə kilidlənib:
+
+| Qayda | `tiers` | `rewards` | Səbəb |
+|---|---|---|---|
+| Boş massiv | "defaultlara qaytar" | **"kataloq yoxdur"** (köhnə tək hədiyyə işləyir) | Əks semantika olmasa panel kataloqu heç vaxt boşalda bilməzdi |
+| Təkrar açar/id | sadəcə xəbərdarlıq | **sətir atılır** (İLK qalır, ucuz olan deyil) | Verilmiş claim kodları `reward_id` ilə bağlanır; iki eyni id qalsa kod hansı sətrə aiddir bilinməz |
+
+**P1.3b — JS güzgüsü.** `normCustomerAppRewards`, `resolveRewardCatalog`, `buildRewardWalletRows`
+`src/lib/loyalty.ts`-də (`settings.ts`-də DEYİL) — `crm.ts` bu faylı `decimal.js`/`db_sim`/`client`
+qaldırmadan import etməlidir, yoxsa `npm run build:customer` tək-fayl paketi finansı da içinə çəkir.
+
+**P1.3c — sxem** (`models.py:597`, `alembic/versions/20260905_0001`, `main.py:1101`).
+`reward_claims`-ə iki nullable sütun: `reward_id` (VARCHAR 32, indeksli) və `menu_item_id`
+(VARCHAR 36). **FK yoxdur** — kataloq JSON blobundadır. `NULL` = kataloqdan əvvəl verilmiş köhnə
+claim. `menu_item_id` claim sətrinə **köçürülür**: kataloq sətri sonradan silinsə də verilmiş kod
+öz məhsulunu saxlayır.
+
+**P1.3d — oxu yolu və claim.** `_reward_catalog` effektiv kataloqu qaytarır (boşdursa köhnə üç
+ayarı **sintetik** `default-reward` sətrinə çevirir), `_reward_stock_used` stoku `RewardClaim`
+sətirlərindən sayır (status PENDING və REDEEMED, yalnız `stock_limit > 0` olan sətirlər üçün),
+`_reward_catalog_payload` isə `wallet.rewards`-u qurur. **Stok blobda saxlanılmır, hər dəfə
+hesablanır** — limiti aşağı endirmək artıq verilmiş kodları ləğv etmir, sadəcə yenisini bağlayır.
+`claim_customer_reward` artıq `reward_id` qəbul edir; boş gəlirsə ən ucuz açıq sətir seçilir.
+
+**P1.3e — kassa (`pos.py:816`).** Claim sətri məhsula bağlıdırsa endirim səbətin ən ucuz sətrinə
+deyil, **məhz o məhsula** düşür. Uyğunluq **ada görə** yoxlanılır, çünki `SaleItemIn`-də menyu
+id-si yoxdur (offline replay-lər köhnə payload ilə gəlir) — fayldaki `Recipe`/`InventoryItem`
+axtarışları da eyni konvensiyanı işlədir. Bağlı məhsul menyudan silinibsə köhnə davranışa (ən ucuz
+sətir) düşülür: **kassir gözləyən kodu heç vaxt "yandırmamalıdır"**. Səbətdə tələb olunan məhsul
+yoxdursa 400 və konkret mətn: «Bu hədiyyə «X» üçündür — səbətdə o məhsul yoxdur».
+
+**P1.3f — panel redaktoru** (`CustomerAppPanel.tsx:1512`). Sətir başına: id (avtomatik `reward-N`),
+3 dil adı, açıqlama, qiymət, menyu seçicisi, aktiv keçidi, stok limiti, sil/əlavə et. Kataloqun
+"server nə saxlayacaq" ön baxışı (P0.4 disiplini) və üç xəbərdarlıq: aktiv sətir yoxdur,
+`reward_threshold` ən ucuz aktiv sətirdən fərqlidir, 20 sətir həddi aşılıb. **Boş massiv də
+göndərilir** (`tiers`-dən fərqli) — ona görə mühafizə `rewards.length` deyil, boolean
+`rewardsLoaded`: GET uğursuz olanda PATCH kataloqu silməsin.
+
+**P1.3g — müştəri nərdivanı** (`HomeTab.tsx:333, 833`). Sətirlər yalnız `wallet.rewards`-dandır;
+uydurma pillə yoxdur. Sətir başına: qiymət + ad, bağlı məhsulun adı, «Bitdi» (stok 0), «son N»
+(≤3), `×N` (bir dəfədən çox açıqdır), «N ulduz qaldı» və **öz "Al" düyməsi**. 5 sətirdən sonra
+yerində açılır — `setActiveTab('stars')` **yoxdur**, çünki `CustomerTab`-da belə tab yoxdur
+(`(tab: any) => void` tipi bunu tsc-dən gizlədirdi). Böyük "Tətbiq et" düyməsi **ən ucuz açıq**
+sətri alır və birdən çox sətir olanda hansını aldığını yazır.
+
+**P1.3h — testlər və paritet.** `backend/tests/test_customer_app_rewards.py` (yeni) normalizerin,
+effektiv kataloqun və payload düsturunun hər qaydasını yazıya alır. `_reward_stock_used` DB tələb
+etdiyi üçün onun nəticəsi `stock_used` dict-i kimi əl ilə verilir — payload düsturu elə bu dict-in
+üstündə işləyir.
+
+**Paritet: 0 real fərq.** P1.2-dən fərqli olaraq burada güzgü Python ilə **eyni sessiyada** eyni
+spesifikasiyaya yazıldı, ona görə qoşqu drift tapmadı (P1.2-də 8 fərq çıxmışdı). Qoşqu bundan sonra
+**reqressiya qapısıdır**. Paritet **çatmayan** üç hal sənədləşdirilib və fuzz hovuzundan çıxarılıb,
+çünki düzəltmək bir dilin digərinin stringify qaydasını təqlid etməsini tələb edərdi:
+
+| Zibil giriş | Python | JS | Nəticə |
+|---|---|---|---|
+| skalyar sahəyə dict/massiv (`id`, `menu_item_id`) | `str({'az':'A'})` → `"aza"` | `String({…})` → `"objectobject"` | sətir birində atılır, digərində qalır |
+| `title`/`description` yerinə massiv | `"[1, 2]"` | `"1,2"` | fərqli ad |
+| `active: []` / `{}` | `bool([])` → **False** | `Boolean([])` → **true** | sətir birində deaktiv |
+
+Bunlar yalnız **korlanmış blob** ilə mümkündür (panel id-ni sətir, `active`-i checkbox, qiyməti
+rəqəm yazır). **Boş massiv** isə hər iki dildə falsy/NaN verir — bu uyğunluq təsadüfi olmasın deyə
+ayrıca adlı case-lərlə kilidlənib (`qiymət [] -> 10`, `stok [] -> 0`, `menu_item_id [] -> boş`).
+
+**Qəsdən edilməyənlər — səbəbi ilə:**
+
+| Nə | Səbəb |
+|---|---|
+| `wallet.next_reward_at` kataloqun ən ucuz sətrinə bağlanması | `pos.py` **hələ də** `stars // reward_threshold` ilə avtomatik pulsuz içki verir. `next_reward_at`-i kataloqa bağlasaq tətbiq bir rəqəm göstərər, kassa başqasını işlədər. Ona görə dəyər `reward_threshold` qalır, panel isə ən ucuz aktiv sətir fərqlənəndə **xəbərdarlıq** göstərir. Birləşdirmə P2-dir |
+| `available_rewards`-ın mənasının dəyişməsi | Köhnə tətbiq versiyaları bu rəqəmi oxuyur: **ən ucuz sətirdən neçə dəfə** (max over rows). Yeni sayğac ayrı açardır — `unlocked_rewards` = açıq **fərqli** sətir sayı |
+| Stokun bloba yazılması | Sayğac blobda olsa iki paralel claim onu üst-üstə yazar (`PATCH` bütün açarı əvəz edir, §3.1). Ona görə stok hər oxunuşda `RewardClaim`-lərdən sayılır |
+| Kataloq sətrinə `benefits` mətni (P1.2d-dən köçən) | Kataloq sətrinin açıqlaması onsuz da üç dildədir və müştəri tətbiqində **görünür**; ayrıca "faydalar" sahəsi yenə göstərilməyən ölü sahə olardı |
+| `cashback` rejimində claim yoxlamasının xal kifayətliliyini yoxlamaması | Mövcud (P1.3-dən əvvəlki) davranışdır: `cashback` rejimində balans manat kimi saxlanılır, claim isə ulduz həddi ilə müqayisə edir. Bu **ayrı** defektdir və endirim/valyuta qərarı tələb edir → **P1.6** |
+
+**P1.3 yoxlaması (2026-09-05).**
+
+- `backend/tests/test_customer_app_rewards.py` — **79 test halı, 0 uğursuz.** `pytest` bu mühitdə
+  yoxdur, ona görə fayl mini-qoşqu ilə işlədildi: `operations.py` `ast` ilə dilimlənib exec olunur
+  (fastapi qaldırmadan **real** kod işləyir), `loyalty_accrual` `importlib`-lə yüklənir,
+  `pytest.mark.parametrize` təqlid edilir. Fayl özü **CI-da** normal pytest ilə də keçməlidir.
+- **Paritet: 512 hal, 0 fərq.** Üç qapı: `_norm_customer_app_rewards` ↔ `normCustomerAppRewards`
+  (57 adlı hal + 140 fuzz), `_reward_catalog` ↔ `resolveRewardCatalog` (14 + 140),
+  `_reward_catalog_payload` ↔ `buildRewardWalletRows` (22 + 140). JS tərəf `src/lib/loyalty.ts`-dən
+  kəsilib `npx tsc` ilə kompilyasiya olunur və `node` ilə eyni case-lərdə işlədilir. Fuzz hovuzu
+  **sahə üzrə tipləşdirilmişdir** (yuxarıdaki cədvəl), seed sabitdir.
+- `npx tsc --noEmit -p tsconfig.json` → **33 xəta** = dəyişməyən baseline. Toxunulan fayllarda
+  yalnız `settings.ts(2164,7)` / `(2167,7)` `TS18048` (device authorization bloku) — hər ikisi
+  P1.3-dən **əvvəl də var idi**.
+- `python3 -m compileall -q app tests` → OK.
+- **Bu mühitdə icra OLUNMAYAN:** `npm run build` / `npm run test:smoke` (node_modules
+  darwin-arm64 → esbuild "Exec format error"), `pytest`, `fastapi`. Router səviyyəli claim testi
+  (`test_customer_reward_claim_flow.py`) və `alembic upgrade head` CI-də yoxlanmalıdır.
+
+**Toxunulan fayllar:** `backend/app/routers/operations.py`, `backend/app/routers/pos.py`,
+`backend/app/models.py`, `backend/app/main.py`,
+`backend/alembic/versions/20260905_0001_add_reward_claim_catalog_link.py` (yeni),
+`backend/tests/test_customer_app_rewards.py` (yeni), `src/lib/loyalty.ts`, `src/api/crm.ts`,
+`src/api/settings.ts`, `src/api/pos.ts`, `src/types/pos.ts`,
+`src/components/admin/CustomerAppPanel.tsx`, `src/components/CustomerApp.tsx`,
+`src/components/customer/HomeTab.tsx`.
+
+**P1.4 — Push bildiriş idarəsi.** ✅ **KODLANDI (2026-09-05).** Əvvəl push tamamilə platforma
+env-inə bağlı idi: tenant `onesignal_app_id` yaza bilmirdi (§3.6), göndərici `pos.py`-nin içində
+qlobal açarlarla işləyirdi və **bütün exception-ları udurdu**. Ən pis hal səssiz idi — tenant öz
+OneSignal app-ını yazsa SDK abunəliyi **onun** app-ında yaranır, server isə **platforma** app-ına
+göndərirdi: OneSignal `invalid_player_ids` qaytarır, göndərici susur, ad günü schedulerindəki
+`notified` sayğacı isə "cəhd"i uğur kimi sayırdı.
+
+**P1.4a — saf nüvə** (`app/services/push_service.py`, yeni). `resolve_push_config` `app_id` və
+REST açarını **bir mənbədən** götürür (ya tenant, ya platforma) — qarışıq cüt heç vaxt qurulmur;
+tenant App ID var, açar boşdursa `source="none"` və `app_id=""` qaytarılır ki, panel "yarım
+konfiqurasiya var" deyə aldanmasın. `resolve_client_app_id` SDK-nın init edəcəyi id-ni **eyni
+prioritetlə** verir (fərqli olsa abunəlik bir app-da yaranıb göndərmə başqasına gedər).
+`send_onesignal` `PushResult` qaytarır (`attempted` / `accepted` / `failed` ayrı) və **heç vaxt
+atmır, heç vaxt yalan demir**: `skipped` uğur deyil, `transport` inyeksiya olunandır.
+⚠️ REST açarı `customer_app_settings`-ə **yazılmır** — o blob hər müştəriyə qaytarılır; açar
+ayrı `push_settings` açarındadır və `_can_view_sensitive_settings` maskası ilə qorunur
+(`email_settings.resend_api_key` ilə eyni naxış). `PushDelivery` cədvəli (`models.py`,
+`alembic/versions/20260905_0002`) hər göndərməni jurnala yazır — `as_log_dict` **token yazmır**,
+yalnız maskalanmış say.
+
+**P1.4b — seqment mühərriki** (`app/services/push_audience.py`, yeni). Beş seqment
+(`all`, `new`, `dormant`, `tier`, `has_balance`) **tək** funksiyadadır, çünki ön baxış
+(`/push/preview`) ilə real göndərmə (`/push/broadcast`) eyni süzgəci işlətməlidir — iki yerdə ayrı
+yazılsa panel "412 alıcı" deyib 30 nəfərə göndərə bilər. Sayılar **pillə-pillə** qaytarılır
+(`matched` → `with_token` → `undeliverable` → `recipients`), yəni tenant itkini görür. `days` heç
+vaxt 0 olmur (boş sahə `new` → 30, qalanı → 60), çünki "0 gün" heç bir seqment üçün mənalı deyil.
+DB sorğusu qəsdən router-dədir: `Customer`-də `last_visit` sütunu yoxdur, "yatmış" üçün son satış
+`sales` üzərində qruplanır — modul ona görə `sqlalchemy` import etmir və test onu birbaşa çağırır.
+
+**P1.4c — endpointlər** (`app/routers/operations.py`, `push_dispatch.py`). Altı yol:
+`GET /customer-app/push/status` (konfiqurasiya + seqment kataloqu + limitlər + gündəlik sayğac),
+`PATCH /customer-app/push/settings`, `POST /customer-app/push/preview`,
+`POST /customer-app/push/test` (öz kartına), `POST /customer-app/push/broadcast`,
+`GET /customer-app/push/history`. Açar dövriyyəsinin üç qaydası: cavab **rol-dan asılı olmayan
+şəkildədir** (`..._set` bayrağı həmişə var), boş sətir açarı **silmir**
+(silmək üçün `clear_onesignal_rest_api_key: true`), `__keep__` sentineli "dəyişmə" deməkdir.
+`onesignal_app_id` `customer_app_settings`-də qalır — PATCH yalnız o bir açarı yazır.
+
+**P1.4d — frontend cütləri** (`src/api/push_admin.ts`, `src/lib/push.ts`, `src/api/settings.ts`).
+`_live` funksiyalar tenant almır (host header həll edir), lokal funksiyalar `tenant_id`-ni **sonda**
+alır. `src/lib/push.ts` heç nə import etmir (tək-fayl müştəri bundle-ına girə bilsin) və Python
+normalizerlərinin güzgüsüdür. Göndəricinin özü **qəsdən güzgülənmir**: REST açarı brauzerdən
+OneSignal-a getməməlidir. Lokal rejim `status:'skipped'` sətri + açıq səbəb yazır və
+`success:false` qaytarır (P0.7 dərsi: saxta uğur yoxdur) — `skipped` sətirlər gündəlik kvotanı
+**yemir**.
+
+**P1.4e — panel bloku** (`CustomerAppPanel.tsx`, 2183 → 2804 sətir). Bütün rəqəmlər, limitlər və
+seqment kataloqu **tək** `/push/status` cavabındandır; `needs_days` / `needs_value` /
+`needs_min_stars` bayraqları hansı sahənin göstərildiyini qərar verir, yəni serverə yeni seqment
+əlavə etmək panel dəyişikliyi tələb etmir. Açar heç vaxt serverin cavabından doldurulmur, yalnız
+yazılanda göndərilir. P0.4 boşluğu UI-da `pushSpecKey` **imzası** ilə bağlanır: köhnə seqmentin
+sayı göndər düyməsinin yanında qala bilmir — imza köhnədirsə təsdiq dialoqu əvvəl yenidən ön baxış
+alır. `broadcast_daily_limit === 0` **bağlıdır** (limitsiz deyil) və göndər düyməsi səbəbi
+göstərir: master keçid → broadcast keçidi → konfiqurasiya → limit → boş mətn → boş seqment.
+
+**P1.4f — testlər və paritet.** `backend/tests/test_push_service.py` (yeni, 161 assert) nüvəni
+qıfıllayır: qarışıq cüt qurulmur, cavabın şəkli roldan asılı deyil, `send_onesignal` transport
+partlayanda da atmır, `skipped` uğur sayılmır, `as_log_dict` token sızmır.
+`backend/tests/test_push_audience.py` (yeni) seqment qaydalarını: sərhəd günü daxildir, heç vaxt
+alış etməyən müştəri dərhal "yatmış" olmur, boş `tier` **heç kimi** seçmir (yoxsa "Gold-a göndər"
+bütün bazaya gedər), `has_balance` `lifetime_stars` deyil `stars` oxuyur.
+**Paritet artıq kodda təkrarlanmır:** `tests/fixtures/push_parity.json` tək mənbədir, iki icraçı
+onu oxuyur — `backend/tests/test_push_parity.py` (68 hal) və `tests/push_parity.test.mjs`
+(`npm run test:parity`, 14 test). Səbəb mətnləri də daxil olmaqla nəticələr hərfi müqayisə olunur,
+yəni güzgünün sürüşməsi səssiz qala bilmir. Yeni hal əlavə edəndə yalnız JSON redaktə olunur.
+
+<!-- __P14_CHUNK_3__ -->
+
+
 
 **P1.5 — Kampaniya modelini gücləndir.** Mövcud forma yalnız saat + gün + faiz verir. Çatışmayan:
 tarix aralığı (kampaniya bitmir!), istifadə limiti (ümumi və müştəri başına), hədəf seqment
@@ -599,7 +1039,7 @@ Minimum dəst:
 | `layout_preset` seçimi | branding bloku | Heç bir komponent oxumur |
 | `reward_card_style` dropdown | branding bloku | Heç bir komponent oxumur |
 | Filial CRUD | `:817-903` | Bu panelin mövzusu deyil — əməliyyat ayarıdır |
-| `CRM_MEMBER_TYPES` lokal siyahısı | `:9-16` | Tier mənbəyinin 4 nüsxəsindən biri |
+| `CRM_MEMBER_TYPES` lokal siyahısı | `:15` | Tier mənbəyinin 5 nüsxəsindən biri — amma **fərqli ox** (P1.2-də səbəbi ilə saxlanıldı) |
 | 4 ayrı "Yadda saxla" düyməsi | `:642,683,805,893,953` | Üçü eyni `save()`-i çağırır — yalnız qarışıqlıq yaradır |
 | Referral mətni | `HomeTab.tsx:191-204` | Arxasında sistem yoxdur |
 | 2 saxta `surpriseMessages` vədi | `HomeTab.tsx` | Arxasında qayda yoxdur |
@@ -607,8 +1047,9 @@ Minimum dəst:
 
 **Bu siyahıdan nə oldu (2026-09-04).** `layout_preset`, `reward_card_style` və 3 preset
 **silinmədi, real işlədildi** (P0.3-də səbəb yazılıb — preset 12 real sahə doldurur). Referral
-mətni və 2 saxta vəd **silindi** (P0.6). Qalanı (filial CRUD-un yeri, `CRM_MEMBER_TYPES`
-nüsxəsi, 4 Save düyməsi, `window.confirm`) P1.4/P2-dədir.
+mətni və 2 saxta vəd **silindi** (P0.6). `CRM_MEMBER_TYPES` **qalır** — P1.2-də aydın oldu ki, o,
+nərdivanın nüsxəsi deyil, əl ilə verilən endirim oxudur (§4.2). Qalanı (filial CRUD-un yeri,
+4 Save düyməsi, `window.confirm`) P1.4/P2-dədir.
 
 **Qəsdən toxunulmayanlar — səbəbi ilə:**
 
@@ -648,18 +1089,21 @@ Panel geniş görünür, amma **34 sahədən ~10-u tam ölü, ~6-sı yarımçıq
 ölü sahələri işləyirmiş kimi göstərir. İşləyən tək tam zəncir `cashback` rejimidir.
 
 Loyallıq bonusları, kampaniyalar və dizayn **bir yerdən idarə olunmur** — kampaniya 2 UI-da,
-tier 4 yerdə, rəng 3 sistemdə yaşayır, real loyallıq qaydası isə `pos.py`-də hardcoded-dır.
+tier 5 yerdə, rəng 3 sistemdə yaşayır, real loyallıq qaydası isə `pos.py`-də hardcoded-dır.
 
 İş sırası: **P0 (yalanları dayandır) → P1 (əsl nəzarətlər) → P2 (birləşdir) → P3 (hesabat).**
 P0.1 (PATCH merge) tək başına 4 kritik tapıntını həll edir və digər hər şeyin ön şərtidir;
 P1.1 (accrual mühərriki + points ledger) isə P3-ün ön şərtidir.
 
-**2026-09-04 vəziyyəti: P0.1–P0.7 hamısı bitdi.** Panel artıq yalan demir — hər saxlanan sahə
-ya real işləyir, ya "tətbiqdə hələ işləmir" nişanı daşıyır; hər save mövcud açarları qoruyur;
-müştəri tətbiqində başqa tenantın loqosu/adı və arxası olmayan vəd qalmadı; lokal rejim
-backend rejimi ilə paritetdədir. **Növbəti addım P1.1** — `earn_rate_per_azn`,
-`min_purchase_for_earn`, `first_purchase_bonus`, `double_points_days` və `tiers` multiplier-ini
-tək accrual mühərrikinə bağlamaq + `unit="points"` ledger yazısı (§3.11).
+**2026-09-05 vəziyyəti: P0.1–P0.7 + P1.1 + P1.2 + P1.3 bitdi.** Panel artıq yalan demir — hər
+saxlanan sahə ya real işləyir, ya "tətbiqdə hələ işləmir" nişanı daşıyır (indi belə tək sahə var:
+tier `discount_percent` → P1.6); hər save mövcud açarları qoruyur; qazanma qaydaları ayarlardan
+oxunur və `points` rejimində ledger yazılır; səviyyə nərdivanı paneldən redaktə olunur və
+nərdivanın defaultu hər dildə **bir** yerdə yaşayır; hədiyyə isə tək "ad + hədd" cütü deyil,
+**20 sətirə qədər kataloqdur** (qiymət, məhsul bağlantısı, stok limiti, aktiv/deaktiv, 3 dil) və
+zəncirin beş həlqəsi — panel, `wallet.rewards`, claim, kassa endirimi, stok sayımı — onu oxuyur.
+**Növbəti addım P1.4** — push idarəsi (§3.9): `onesignal_app_id` saxlanılır, amma paneldən
+bildiriş göndərmək, planlaşdırmaq və tarixçəsinə baxmaq yolu yoxdur.
 
 ---
 
@@ -671,7 +1115,9 @@ tək accrual mühərrikinə bağlamaq + `unit="points"` ledger yazısı (§3.11)
 > hero mətni — bunlar artıq ayarlardan gəlir. Yeni tək-mənbə nöqtələri: gün nömrələnməsi
 > (`operations.py::create_happy_hour` → `now.weekday() + 1`), hədd normalizasiyası
 > (`pos.py::_reward_threshold`, `src/lib/loyalty.ts::normalizeRewardThreshold`), ad günü
-> bonusu (`operations.py::_canonical_birthday_bonus`, `settings.ts::canonicalBirthdayBonus`).
+> bonusu (`operations.py::_canonical_birthday_bonus`, `settings.ts::canonicalBirthdayBonus`),
+> tier nərdivanı (`operations.py::DEFAULT_TIERS` / `_tier_threshold`,
+> `src/lib/loyalty.ts::DEFAULT_LOYALTY_TIERS`).
 
 | Mövzu | Fayl:sətir |
 |---|---|
@@ -683,6 +1129,11 @@ tək accrual mühərrikinə bağlamaq + `unit="points"` ledger yazısı (§3.11)
 | Loyalty ledger yazıları (yalnız cashback + birthday) | `pos.py:1020`, `:1034`, `birthday_scheduler.py:176` |
 | `DEFAULT_TIERS` (backend) | `operations.py:4206-4210` |
 | Tier hesablanması | `operations.py:4429` |
+| Tier tək mənbəyi (P1.2-dən sonra) | `operations.py::DEFAULT_TIERS` + `_tier_threshold`, `src/lib/loyalty.ts::DEFAULT_LOYALTY_TIERS` |
+| Tier normalizer güzgüsü | `operations.py::_norm_customer_app_tiers` ↔ `settings.ts::normCustomerAppTiers` |
+| Tier oxu güzgüsü | `operations.py::_compute_tier` ↔ `src/api/crm.ts::computeTier` |
+| Tier testləri | `backend/tests/test_customer_app_tiers.py` |
+| Boot-da müştəri endirimi təmiri (§4.2, P1.6) | `backend/app/main.py:723-751` |
 | Reward threshold oxunuşu | `operations.py:4376`, `:4643` |
 | Push app id ötürülməsi | `operations.py:3800`, `:4400` |
 | Ad günü scheduler | `backend/app/services/birthday_scheduler.py:232` |

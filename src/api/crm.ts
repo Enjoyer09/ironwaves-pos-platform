@@ -4,43 +4,84 @@ import { logEvent } from '../lib/logger';
 import { Customer, CustomerType, Notification } from '../types/pos';
 import { filterTenantRecords, getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled, getApiBaseUrl } from './client';
-import { normalizeRewardThreshold } from '../lib/loyalty';
+import {
+  DEFAULT_LOYALTY_TIERS,
+  FALLBACK_TIER_COLOR,
+  LEGACY_REWARD_ID,
+  MAX_TIER_MULTIPLIER,
+  buildRewardWalletRows,
+  normCustomerAppRewards,
+  normRewardId,
+  normalizeRewardThreshold,
+  resolveRewardCatalog,
+} from '../lib/loyalty';
 
 const defaultTenant = () => getActiveTenantId();
 
-const DEFAULT_TIERS = [
-  { key: 'bronze', label: { az: 'Bürünc', ru: 'Бронза', en: 'Bronze' }, threshold: 0, color: '#cd7f32', multiplier: 1 },
-  { key: 'silver', label: { az: 'Gümüş', ru: 'Серебро', en: 'Silver' }, threshold: 100, color: '#c0c0c0', multiplier: 1 },
-  { key: 'gold', label: { az: 'Qızıl', ru: 'Золото', en: 'Gold' }, threshold: 300, color: '#d8b156', multiplier: 1.5 },
-];
+/**
+ * P1.2 — nərdivan artıq burada hardcoded deyil, `src/lib/loyalty.ts`-dən gəlir.
+ * Əvvəl bu fayl öz nüsxəsini saxlayırdı və `discount_percent` sahəsi yox idi,
+ * yəni lokal rejimdə tenant-ın qurduğu nərdivan ilə fərqlənə bilirdi.
+ */
+const DEFAULT_TIERS: any[] = DEFAULT_LOYALTY_TIERS as any[];
 
 // Mirrors backend _compute_tier: derive tier + progress from lifetime stars.
 function computeTier(lifetimeStars: number, tiers?: any[]) {
+  // P1.2d — hədd backend `_tier_threshold` (= `_norm_int(x, 0, 0, 1e6)`) ilə eyni
+  // oxunur: mənfi 0-a, onluq KƏSİLİR, bool və zibil 0 sayılır, yuxarı hədd 1e6.
+  // `typeof === 'boolean'` yoxlaması vacibdir — `Number(true)` 1 verir, Python isə
+  // bool-u "yoxdur" sayır (`_norm_int`), yəni `threshold: true` olan sətir iki
+  // rejimdə fərqli sıralanardı. Boş sətir də `Number('')` = 0 ilə üst-üstə düşür.
+  const threshold = (row: any): number => {
+    const raw = row?.threshold;
+    if (raw === null || raw === undefined || typeof raw === 'boolean') return 0;
+    if (typeof raw === 'string' && !raw.trim()) return 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? Math.min(Math.max(0, Math.trunc(parsed)), 1_000_000) : 0;
+  };
   const sorted = (Array.isArray(tiers) ? tiers : DEFAULT_TIERS)
     .filter((t) => t && t.key)
     .slice()
-    .sort((a, b) => (Number(a.threshold) || 0) - (Number(b.threshold) || 0));
+    .sort((a, b) => threshold(a) - threshold(b));
   const list = sorted.length > 0 ? sorted : DEFAULT_TIERS;
+  // P1.2d — mənfi ulduz sayı 0 sayılır: backend `_compute_tier` və
+  // `loyalty_accrual._floor_int` də belə edir. Xam mənfi dəyərlə bərabər hədli
+  // nərdivanda tətbiq birinci sətri, kassa sonuncunu seçirdi.
+  const stars = Math.max(0, Math.trunc(Number(lifetimeStars) || 0));
   let current = list[0];
   let nextTier: any = null;
   for (const t of list) {
-    if (lifetimeStars >= (Number(t.threshold) || 0)) current = t;
+    if (stars >= threshold(t)) current = t;
     else if (!nextTier) { nextTier = t; break; }
   }
-  const currentThreshold = Math.max(0, Number(current.threshold) || 0);
+  const currentThreshold = threshold(current);
   let progressPct = 100;
   if (nextTier) {
-    const nextThreshold = Math.max(0, Number(nextTier.threshold) || 0);
-    const span = nextThreshold - currentThreshold;
-    progressPct = span <= 0 ? 0 : Math.min(100, Math.round(((lifetimeStars - currentThreshold) / span) * 100));
+    const span = threshold(nextTier) - currentThreshold;
+    // `int(...)` kimi kəsilir — `Math.round` 59.9-u 60 edirdi, Python 59 verirdi.
+    // Aşağı 0 həddi: mənfi ulduz sayı olan blobda zolağın eni mənfi çıxmasın.
+    progressPct = span <= 0 ? 0 : Math.max(0, Math.min(100, Math.trunc(((stars - currentThreshold) / span) * 100)));
   }
+  /*
+   * P1.2d — çarpan `Number(x) || 1` DEYİL.
+   *
+   * `multiplier: 0` qanuni dəyərdir ("bu pillə qazanmır"), `||` isə onu səssizcə
+   * 1-ə çevirirdi: tətbiq "×1" göstərir, kassa 0 sayır. Backend güzgüsü indi
+   * `_norm_float(x, 1.0, minimum=0.0, maximum=MAX_TIER_MULTIPLIER)`-dir — bool,
+   * boş sətir və zibil 1-ə, mənfi 0-a düşür, yuxarı hədd 10-dur.
+   */
+  const rawMultiplier = current?.multiplier;
+  const parsedMultiplier =
+    rawMultiplier === '' || rawMultiplier === null || rawMultiplier === undefined || typeof rawMultiplier === 'boolean'
+      ? NaN
+      : Number(rawMultiplier);
   return {
     key: String(current.key || 'bronze'),
     label: current.label || DEFAULT_TIERS[0].label,
-    color: String(current.color || '#cd7f32'),
-    multiplier: Number(current.multiplier) || 1,
+    color: String(current.color || FALLBACK_TIER_COLOR),
+    multiplier: Number.isFinite(parsedMultiplier) ? Math.min(Math.max(parsedMultiplier, 0), MAX_TIER_MULTIPLIER) : 1,
     current_threshold: currentThreshold,
-    next_threshold: nextTier ? Math.max(0, Number(nextTier.threshold) || 0) : null,
+    next_threshold: nextTier ? threshold(nextTier) : null,
     progress_pct: progressPct,
   };
 }
@@ -429,13 +470,56 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     const cashbackEarned = ledgerRows.length > 0
       ? ledgerRows.reduce((acc: number, row: any) => acc + Number(row.amount || 0), 0)
       : sales.reduce((acc: number, row: any) => acc + (Number(row.total || 0) * cashbackPercent) / 100, 0);
+    /*
+     * P1.3 — rezerv artıq `pendingClaims.length * nextRewardAt` deyil, gözləyən
+     * claim-lərin **saxlanılmış** `points_cost` cəmidir.
+     *
+     * Səbəb: kassa (`pos.py:1108`) claim-in öz `points_cost`-unu çıxır. Hədd
+     * claim verildikdən sonra dəyişsə köhnə düstur yanlış rezerv sayardı, kataloqda
+     * isə sətirlərin qiyməti onsuz da fərqlidir. Köhnə blob-da `points_cost`
+     * yoxdursa həddə düşür — yəni köhnə davranış qorunur.
+     */
+    const claimCost = (row: any): number => {
+      const raw = Number(row?.points_cost);
+      return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : nextRewardAt;
+    };
+    const reservedPoints = pendingClaims.reduce((acc: number, row: any) => acc + claimCost(row), 0);
     const balanceValue = programMode === 'cashback'
-      ? Math.max(0, cashbackEarned - pendingClaims.length * nextRewardAt)
+      ? Math.max(0, cashbackEarned - reservedPoints)
       : stars;
     const progressCurrent = programMode === 'cashback'
       ? Math.floor(balanceValue % nextRewardAt)
       : stars % nextRewardAt;
-    const availableRewards = Math.max(0, Math.floor(balanceValue / nextRewardAt) - (programMode === 'cashback' ? 0 : pendingClaims.length));
+    /*
+     * P1.3 — hədiyyə sətirləri kataloqdan gəlir (`resolveRewardCatalog` boş
+     * kataloqda köhnə tək hədiyyəni sintez edir), stok isə claim sətirlərindən
+     * sayılır — backend `_reward_stock_used` ilə eyni qayda (PENDING + REDEEMED).
+     *
+     * `spendable`: points rejimində rezerv çıxılır, cashback rejimində `balanceValue`
+     * artıq rezervi çıxıb (yuxarıda) — ikinci dəfə çıxmaq balansı iki dəfə azaldardı.
+     */
+    const rewardCatalog = resolveRewardCatalog(settings);
+    const spendable = programMode === 'cashback'
+      ? Math.floor(balanceValue)
+      : Math.max(0, stars - reservedPoints);
+    const claimRowsAll = (getDB<any>('reward_claims') || []).filter(
+      (row: any) => String(row.tenant_id || '') === tenantId,
+    );
+    const stockUsed: Record<string, number> = {};
+    for (const row of claimRowsAll) {
+      const rid = String(row.reward_id || '');
+      if (!rid || (row.status !== 'PENDING' && row.status !== 'REDEEMED')) continue;
+      stockUsed[rid] = (stockUsed[rid] || 0) + 1;
+    }
+    const menuNames: Record<string, string> = {};
+    for (const item of filterTenantRecords(getDB<any>('menu_items'), tenantId)) {
+      if (item?.id) menuNames[String(item.id)] = String(item.item_name || '');
+    }
+    const rewardRows = buildRewardWalletRows(rewardCatalog, { spendable, stockUsed, menuNames });
+    // Köhnə tək rəqəm: sətirlərin **maksimumu**, cəmi DEYİL — cəm eyni xalı iki
+    // dəfə sayardı. Backend `get_customer_app_session` ilə eyni.
+    const availableRewards = rewardRows.reduce((acc, row) => Math.max(acc, row.available_count), 0);
+    const unlockedRewards = rewardRows.filter((row) => row.available_count > 0).length;
     return {
       tenant_id: tenantId,
       branding: {
@@ -483,6 +567,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         points_label: settings.points_label || (programMode === 'cashback' ? 'Cashback' : 'Ulduz'),
         stars_balance: balanceValue,
         available_rewards: availableRewards,
+        // P1.3 — nə qədər FƏRQLİ hədiyyə açıqdır (kataloq nərdivanı üçün).
+        unlocked_rewards: unlockedRewards,
         next_reward_at: nextRewardAt,
         progress_current: progressCurrent,
         progress_remaining: progressCurrent === 0 && balanceValue > 0 ? 0 : nextRewardAt - progressCurrent,
@@ -492,15 +578,11 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         cashback_percent: cashbackPercent,
         // P0.6 — backend güzgüsü: doğum günü vədi yalnız ayar açıq olanda görünür.
         birthday_enabled: Boolean(settings.birthday_enabled),
-        rewards: [
-          {
-            id: 'default-reward',
-            title: settings.reward_name || 'Reward',
-            description: settings.reward_description || '10 ulduza 1 pulsuz içki',
-            threshold: nextRewardAt,
-            available_count: Math.floor(stars / nextRewardAt),
-          },
-        ],
+        // P1.3 — kataloqdan gələn sətirlər. `catalog_enabled=false` olanda buradaki
+        // tək sətir köhnə hədiyyədir (`default-reward`) — tətbiq "kataloq" başlığını
+        // göstərməməlidir, çünki tenant hələ kataloq qurmayıb.
+        rewards: rewardRows,
+        catalog_enabled: normCustomerAppRewards(settings.rewards).length > 0,
       },
       campaigns: settings.show_campaigns === false ? [] : happyHours.map((row) => ({
         id: row.id,
@@ -512,7 +594,14 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       })),
       notifications: settings.show_notifications === false ? [] : notifications,
       history: settings.show_history === false ? [] : sales,
-      pending_claims: pendingClaims,
+      // P1.3 — backend güzgüsü: claim sətri hansı kataloq sətrindən və hansı
+      // məhsuldan gəldiyini daşıyır ki, kassada göstərilən mətn ilə üst-üstə düşsün.
+      pending_claims: pendingClaims.map((row: any) => ({
+        ...row,
+        reward_id: String(row.reward_id || ''),
+        menu_item_id: String(row.menu_item_id || ''),
+        menu_item_name: row.menu_item_id ? String(menuNames[String(row.menu_item_id)] || '') : '',
+      })),
       campaign_activations: (getDB<any>('campaign_activations') || [])
         .filter(
           (row: any) =>
@@ -661,7 +750,7 @@ export async function mark_customer_notification_read_live(notification_id: stri
   });
 }
 
-export async function claim_customer_reward_live(card_id: string, token: string, reward_id: string = 'default-reward', tenant_id?: string) {
+export async function claim_customer_reward_live(card_id: string, token: string, reward_id: string = LEGACY_REWARD_ID, tenant_id?: string) {
   const tenantId = tenant_id || defaultTenant();
   const safeCard = String(card_id || '').trim();
   const safeToken = String(token || '').trim();
@@ -675,12 +764,42 @@ export async function claim_customer_reward_live(card_id: string, token: string,
     );
     if (!customer) throw new Error('Customer session is invalid');
     const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
-    const threshold = normalizeRewardThreshold(settings.reward_threshold);
     const allClaims = getDB<any>('reward_claims') || [];
     const tenantClaims = allClaims.filter((row) => String(row.tenant_id || '') === tenantId);
     const foreignClaims = allClaims.filter((row) => String(row.tenant_id || '') !== tenantId);
-    const pendingCount = tenantClaims.filter((row) => row.card_id === customer.card_id && row.status === 'PENDING').length;
-    const availableRewards = Math.max(0, Math.floor(Number(customer.stars || 0) / threshold) - pendingCount);
+    /*
+     * P1.3 — `operations.py::claim_customer_reward` güzgüsü. Sıra vacibdir: aktiv
+     * sətir → istənilən id → stok → rezerv → mövcudluq. Fərqli sıra fərqli xəta
+     * mətni verər və lokal rejimdə test edilən axın canlıda başqa cür davranar.
+     */
+    const activeRows = resolveRewardCatalog(settings).filter((row) => row.active !== false);
+    if (!activeRows.length) throw new Error('Aktiv hədiyyə yoxdur');
+    const requested = normRewardId(reward_id);
+    let row = activeRows.find((r) => r.id === requested);
+    if (!row) {
+      // Köhnə tətbiq həmişə `default-reward` göndərir → ən ucuz aktiv sətrə düşürük
+      // (`activeRows` qiymətə görə sıralıdır). Uydurma id isə rədd olunur.
+      if (requested && requested !== LEGACY_REWARD_ID) throw new Error('Hədiyyə tapılmadı');
+      row = activeRows[0];
+    }
+    const cost = Math.max(1, Math.trunc(Number(row.points_cost) || 1));
+    const stockLimit = Math.max(0, Math.trunc(Number(row.stock_limit) || 0));
+    let used = 0;
+    if (stockLimit > 0) {
+      // Backend `_reward_stock_used` ilə eyni: PENDING + REDEEMED, bütün tenant üzrə
+      // (stok müştəri başına deyil, tenant başınadır).
+      used = tenantClaims.filter(
+        (r: any) => String(r.reward_id || '') === row!.id && (r.status === 'PENDING' || r.status === 'REDEEMED'),
+      ).length;
+      if (used >= stockLimit) throw new Error('Bu hədiyyənin stoku bitdi');
+    }
+    const pendingRows = tenantClaims.filter((r: any) => r.card_id === customer.card_id && r.status === 'PENDING');
+    const reserved = pendingRows.reduce((acc: number, r: any) => acc + (Math.trunc(Number(r.points_cost)) || 0), 0);
+    // ⚠️ Backend kimi burada da `stars` yoxlanılır, cashback balansı yox — köhnə
+    // davranış qəsdən saxlanılıb (P1.6). İki rejim eyni cür "yanlış" olmalıdır.
+    const spendable = Math.max(0, Math.trunc(Number(customer.stars || 0)) - reserved);
+    let availableRewards = Math.floor(spendable / cost);
+    if (stockLimit > 0) availableRewards = Math.min(availableRewards, Math.max(0, stockLimit - used));
     if (availableRewards <= 0) throw new Error('No reward available to claim');
     const claimCode = `RW${uuidv4().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
     const claim = {
@@ -688,25 +807,43 @@ export async function claim_customer_reward_live(card_id: string, token: string,
       tenant_id: tenantId,
       card_id: customer.card_id,
       claim_code: claimCode,
-      reward_name: settings.reward_name || 'Reward',
-      reward_description: settings.reward_description || '10 ulduza 1 pulsuz içki',
-      points_cost: threshold,
+      // Kassa interfeysi Azərbaycanca-dır → `az` variantı saxlanılır (backend eynidir).
+      reward_name: String(row.title?.az || 'Reward').slice(0, 120),
+      reward_description: String(row.description?.az || '') || null,
+      points_cost: cost,
       status: 'PENDING',
       created_at: new Date().toISOString(),
-      reward_id,
+      reward_id: row.id,
+      menu_item_id: row.menu_item_id || null,
     };
     setDB('reward_claims', [...foreignClaims, ...tenantClaims, claim]);
     send_notification({ card_ids: [customer.card_id], message: `Reward claim code hazırdır: ${claimCode}` });
-    return { success: true, claim_code: claimCode, reward_name: claim.reward_name, points_cost: threshold, available_rewards: Math.max(0, availableRewards - 1) };
+    return {
+      success: true,
+      claim_code: claimCode,
+      reward_name: claim.reward_name,
+      points_cost: cost,
+      reward_id: claim.reward_id,
+      menu_item_id: claim.menu_item_id || '',
+      available_rewards: Math.max(0, availableRewards - 1),
+    };
   }
 
-  return apiRequest<{ success: boolean; claim_code: string; reward_name: string; points_cost: number; available_rewards: number }>(
+  return apiRequest<{
+    success: boolean;
+    claim_code: string;
+    reward_name: string;
+    points_cost: number;
+    reward_id?: string;
+    menu_item_id?: string;
+    available_rewards: number;
+  }>(
     `/api/v1/ops/customer-app/rewards/claim?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
     {
       method: 'POST',
       tenantId: null,
       auth: false,
-      body: { reward_id: reward_id || 'default-reward' },
+      body: { reward_id: reward_id || LEGACY_REWARD_ID },
     },
   );
 }

@@ -1,14 +1,14 @@
 import React from 'react';
 import { tx } from '../../../i18n';
+import type { BaseSectionProps } from './types';
 
-interface BusinessProfileSectionProps {
+interface BusinessProfileSectionProps extends BaseSectionProps {
   lang: string;
   profile: any;
   setProfile: React.Dispatch<React.SetStateAction<any>>;
   handleLogoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   saveBusinessProfile: () => Promise<void>;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
-  saveButtonClass: string;
 }
 
 export function BusinessProfileSection({
@@ -18,7 +18,7 @@ export function BusinessProfileSection({
   handleLogoUpload,
   saveBusinessProfile,
   renderPanelSuccess,
-  saveButtonClass,
+  PanelSaveButton,
 }: BusinessProfileSectionProps) {
   return (
     <div id="sec-profile" className="metal-panel p-6 space-y-4">
@@ -195,9 +195,11 @@ export function BusinessProfileSection({
       </div>
       {renderPanelSuccess('business_profile')}
       <div className="flex justify-end">
-        <button onClick={() => { void saveBusinessProfile(); }} className={saveButtonClass}>
-          {tx(lang, 'Saxla', 'Сохранить', 'Save')}
-        </button>
+        <PanelSaveButton
+          panelKey="business_profile"
+          onSave={() => { void saveBusinessProfile(); }}
+          label={tx(lang, 'Saxla', 'Сохранить', 'Save')}
+        />
       </div>
     </div>
   );

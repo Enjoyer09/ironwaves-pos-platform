@@ -1097,6 +1097,12 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"))
+        # P1.3 — hədiyyə kataloqu. NULL = kataloqdan əvvəlki köhnə claim.
+        conn.execute(text("ALTER TABLE reward_claims ADD COLUMN IF NOT EXISTS reward_id VARCHAR(32)"))
+        conn.execute(text("ALTER TABLE reward_claims ADD COLUMN IF NOT EXISTS menu_item_id VARCHAR(36)"))
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_reward_claims_reward_id ON reward_claims (reward_id)")
+        )
         conn.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_tenant_offline_request_id "
@@ -1206,6 +1212,40 @@ def _run_startup_migrations():
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_central_backup_logs_tenant_id ON central_backup_logs (tenant_id)"))
+        # P1.4 — push göndərmə jurnalı (alembic: 20260905_0002).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS push_deliveries (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                kind VARCHAR(16) NOT NULL DEFAULT 'event',
+                event VARCHAR(40),
+                title VARCHAR(160),
+                body TEXT,
+                segment VARCHAR(40),
+                segment_value VARCHAR(80),
+                card_id VARCHAR(80),
+                status VARCHAR(16) NOT NULL DEFAULT 'skipped',
+                config_source VARCHAR(16) NOT NULL DEFAULT 'none',
+                recipients INTEGER DEFAULT 0,
+                accepted INTEGER DEFAULT 0,
+                failed INTEGER DEFAULT 0,
+                provider_id VARCHAR(64),
+                error TEXT,
+                details TEXT,
+                created_by VARCHAR(80),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_push_deliveries_tenant_id ON push_deliveries (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_push_deliveries_card_id ON push_deliveries (card_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_push_deliveries_created_at ON push_deliveries (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_push_deliveries_tenant_created ON push_deliveries (tenant_id, created_at)"))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_push_deliveries_tenant_kind_created "
+                "ON push_deliveries (tenant_id, kind, created_at)"
+            )
+        )
         _mark_schema_version(conn)
 
 

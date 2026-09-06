@@ -130,14 +130,29 @@ def _set_guard_date(db: Session, tenant_id: str, value: str) -> None:
 # Push + bildiriş
 # ──────────────────────────────────────────
 
-def _send_customer_push(customer: Customer, title: str, body: str) -> bool:
-    """Müştəriyə FCM push göndərir. Push token yoxdursa səssiz keçilir."""
+def _send_customer_push(db: Session, tenant_id: str, customer: Customer, title: str, body: str) -> bool:
+    """Müştəriyə push göndərir. Abunəlik id-si yoxdursa səssiz keçilir.
+
+    P1.4: konfiqurasiya tenant-a görə həll olunur və nəticə `push_deliveries`-ə
+    yazılır. `True` **provayderin qəbul etdiyini** bildirir (`sent`/`partial`) —
+    əvvəl sadəcə "exception atmadı" mənası verirdi, yəni `notified` sayğacı
+    cəhdləri sayırdı. Jurnal sətri skanın `db.commit()`-i ilə yazılır.
+    """
     if not customer or not customer.push_token:
         return False
     try:
-        from app.routers.pos import send_push_notification
-        send_push_notification(customer.push_token, title, body)
-        return True
+        from app.services.push_dispatch import send_event_push
+
+        result = send_event_push(
+            db,
+            tenant_id,
+            event="birthday",
+            title=title,
+            body=body,
+            card_id=customer.card_id,
+            customer=customer,
+        )
+        return bool(result.ok)
     except Exception as pe:
         logger.warning("Birthday push xətası (müştəri %s): %s", customer.card_id, str(pe)[:150])
         return False
@@ -288,6 +303,8 @@ def run_birthday_scan(db: Session, today: date | None = None) -> dict[str, Any]:
                     ):
                         granted += 1
                         if _send_customer_push(
+                            db,
+                            tenant.id,
                             customer,
                             "Doğum gününüz mübarək! 🎂",
                             f"+{bonus} {points_label} hesabınıza əlavə edildi",

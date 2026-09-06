@@ -584,6 +584,52 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class PushDelivery(Base):
+    """P1.4 — push göndərmə jurnalı.
+
+    Niyə ayrı cədvəl: `Notification` tətbiq içindəki poçt qutusudur (oxunub/oxunmayıb),
+    kanal/status/provayder haqqında heç nə bilmir. Push-un **niyə çatmadığını** göstərmək
+    üçün cəhd sayı, provayderin cavabı və konfiqurasiya mənbəyi lazımdır.
+
+    Həcm: hadisə push-ları yalnız müştəridə abunəlik id-si olanda yazılır
+    (`attempted > 0`), yəni sətir sayı real cəhdlərə bərabərdir — abunə olmayan
+    müştərinin hər çeki üçün boş sətir yaranmır.
+    """
+
+    __tablename__ = "push_deliveries"
+    __table_args__ = (
+        Index("ix_push_deliveries_tenant_created", "tenant_id", "created_at"),
+        Index("ix_push_deliveries_tenant_kind_created", "tenant_id", "kind", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    #: "event" | "test" | "broadcast"
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="event")
+    #: hadisə adı: checkout / reward_claim / order_preparing / order_ready / birthday / manual
+    event: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: broadcast seqmenti (P1.4b) və onun parametri, məs. ("tier", "gold")
+    segment: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    segment_value: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    #: hadisə push-unda hədəf müştəri; broadcast-da NULL
+    card_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    #: "sent" | "partial" | "failed" | "skipped"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="skipped")
+    #: konfiqurasiya mənbəyi: "tenant" | "platform" | "none"
+    config_source: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    recipients: Mapped[int] = mapped_column(Integer, default=0)
+    accepted: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    provider_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: paneldən göndərilibsə istifadəçi adı; avtomatik hadisədə NULL
+    created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class RewardClaim(Base):
     __tablename__ = "reward_claims"
 
@@ -594,6 +640,12 @@ class RewardClaim(Base):
     reward_name: Mapped[str] = mapped_column(String(120), nullable=False)
     reward_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     points_cost: Mapped[int] = mapped_column(Integer, default=10)
+    # P1.3 — hədiyyə kataloqu. `reward_id` ayar blobundaki sətrin id-sidir (FK yox,
+    # çünki kataloq `customer_app_settings` JSON-undadır); NULL = kataloqdan əvvəlki
+    # köhnə claim. `menu_item_id` doldurulubsa kassa endirimi məhz o məhsula tətbiq
+    # edir (`pos.py`) — sətir sonradan silinsə də claim öz məhsulunu saxlayır.
+    reward_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    menu_item_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     redeemed_sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

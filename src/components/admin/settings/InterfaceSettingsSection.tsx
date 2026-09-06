@@ -2,9 +2,9 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { tx } from '../../../i18n';
 import { prepareImageDataUrl } from '../../../lib/image_upload';
-import type { SessionSettingsState } from './types';
+import type { SessionSettingsState, BaseSectionProps } from './types';
 
-export interface InterfaceSettingsSectionProps {
+export interface InterfaceSettingsSectionProps extends BaseSectionProps {
   lang: string;
   saveButtonClass: string;
   renderPanelSuccess: (panelId: string) => React.ReactNode;
@@ -22,6 +22,7 @@ export function InterfaceSettingsSection({
   lang,
   saveButtonClass,
   renderPanelSuccess,
+  PanelSaveButton,
   sessionSettings,
   setSessionSettings,
   saveSessionSettings,
@@ -271,9 +272,11 @@ export function InterfaceSettingsSection({
       </div>
 
       <div className="flex justify-end pt-2">
-        <button onClick={() => { void saveSessionSettings(); }} className={saveButtonClass}>
-          {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
-        </button>
+        <PanelSaveButton
+          panelKey="session"
+          onSave={() => { void saveSessionSettings(); }}
+          label={tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
+        />
       </div>
       {renderPanelSuccess('session')}
     </div>

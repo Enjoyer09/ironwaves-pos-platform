@@ -125,6 +125,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   // P1-3: true when the card opened from the offline session cache (network down)
   const [offlineMode, setOfflineMode] = React.useState(false);
   const [claiming, setClaiming] = React.useState(false);
+  // P1.3 — kataloqda bir neçə hədiyyə olduğu üçün "hansı sətir yüklənir" lazımdır:
+  // `claiming` tək başına bütün düymələri bloklayır, hansının basıldığı bilinmir.
+  const [claimingRewardId, setClaimingRewardId] = React.useState('');
   const [cardQr, setCardQr] = React.useState('');
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
   const [acceptingConsent, setAcceptingConsent] = React.useState(false);
@@ -1013,10 +1016,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     } catch {}
   };
 
-  const claimReward = async () => {
+  const claimReward = async (rewardId?: string) => {
     try {
       setClaiming(true);
-      await claim_customer_reward_live(sessionCreds.cardId, sessionCreds.token);
+      // P1.3 — hansı sətir tələb olunur: id boş qalsa `claim_customer_reward_live`
+      // öz defaultuna (`default-reward`) düşür və server ən ucuz AKTİV sətri seçir,
+      // yəni köhnə tək hədiyyəli tenant-larda davranış dəyişmir.
+      setClaimingRewardId(String(rewardId || ''));
+      await claim_customer_reward_live(sessionCreds.cardId, sessionCreds.token, rewardId || undefined);
       await load();
       if (Capacitor.isNativePlatform()) {
         try {
@@ -1029,6 +1036,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setError(String(e?.message || 'Reward claim failed'));
     } finally {
       setClaiming(false);
+      setClaimingRewardId('');
     }
   };
 
@@ -1970,6 +1978,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setCardFlipped={setCardFlipped}
             claimReward={claimReward}
             claiming={claiming}
+            claimingRewardId={claimingRewardId}
             rewards={rewards}
             progressPercent={progressPercent}
             notifications={notifications}
