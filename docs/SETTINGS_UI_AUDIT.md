@@ -109,7 +109,12 @@ Three patterns for destructive actions: native `confirm()` (delivery-mapping del
 
 ## 5. Recommended fix order
 
-> **Status (2026-09-06):** Items 1 (full P0 batch: per-keystroke AI-key save removed, all 12 bare save handlers wrapped with error toast + busy state, settings/profile load-failure warnings, save-button disabling) and 5-partial (`.bak` deleted, two hardcoded non-i18n error strings fixed) are **implemented**. Items 2–4 remain open.
+> **Status (2026-09-06):**
+> - **Item 1 — done:** P0 batch (per-keystroke AI-key save removed, all 12 bare save handlers wrapped with error toast + busy state, settings/profile load-failure warnings, save-button disabling) plus `.bak` cleanup and two i18n fixes.
+> - **Item 2 — done:** duplicated session-security block removed from `InterfaceSettingsSection` (Interface keeps only the three instant-persist toggles + a pointer note; idle logout, staff PIN length, login background, device auth live only in the admin-only Security copy).
+> - **Item 3 (partial) — done:** `sec-staff` moved to the `operations` category; **search box added** to the settings header (matches localized panel titles + per-panel multi-language keywords, overrides the category filter while active, auto-scrolls to the first hit, empty-state message). Conditional rendering is still deferred.
+> - **Item 4 (partial):** the client/server permission mismatch on session settings remains open (backend/product decision).
+> - **Item 5 — partial:** remaining polish (button styles, label systems, modal unification, secret-field indicators) is open.
 
 1. **P0 batch (small, surgical):** remove the per-keystroke AI-key API call (save only on button / debounce); wrap the 12 bare save handlers in the existing try/catch+toast pattern; notify on `settingsRes` load failure; disable save buttons while saving.
 2. **De-duplicate session UI:** keep idle-logout/PIN-length/login-background in **one** place (Interface), keep device-auth/terminals in Security; delete the copy and its second save button.
