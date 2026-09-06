@@ -54,6 +54,9 @@ export interface IntegrationsSettingsSectionProps extends BaseSectionProps {
   // Delete-mapping confirmation (ConfirmModal instead of native confirm())
   pendingDeleteMappingId: string | null;
   setPendingDeleteMappingId: (id: string | null) => void;
+
+  // Whether each delivery secret exists server-side (for "stored ✓" hints).
+  secretsStored: { bolt: boolean; wolt: boolean };
 }
 
 export function IntegrationsSettingsSection({
@@ -88,6 +91,7 @@ export function IntegrationsSettingsSection({
   setNewFeedbackTag,
   pendingDeleteMappingId,
   setPendingDeleteMappingId,
+  secretsStored,
 }: IntegrationsSettingsSectionProps) {
   // QR poster generation
   const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
@@ -178,14 +182,21 @@ export function IntegrationsSettingsSection({
               placeholder="Provider ID" 
               aria-label={tx(lang, 'Bolt Food Provider ID', 'Bolt Food Provider ID', 'Bolt Food Provider ID')}
             />
-            <input 
-              className="neon-input md:col-span-2" 
-              type="password"
-              value={deliveryIntegrations.bolt_food_secret_key} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
-              placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
-              aria-label={tx(lang, 'Bolt Food Secret Key', 'Bolt Food Secret Key', 'Bolt Food Secret Key')}
-            />
+            <div className="md:col-span-2">
+              <input 
+                className="neon-input w-full" 
+                type="password"
+                value={deliveryIntegrations.bolt_food_secret_key} 
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
+                placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
+                aria-label={tx(lang, 'Bolt Food Secret Key', 'Bolt Food Secret Key', 'Bolt Food Secret Key')}
+              />
+              <p className={`mt-1 text-[11px] ${secretsStored.bolt ? 'text-emerald-400' : 'text-slate-500'}`}>
+                {secretsStored.bolt
+                  ? tx(lang, '✓ Saxlanılıb — dəyişmək istəmirsinizsə toxunmayın', '✓ Сохранён — не меняйте, если не требуется', '✓ Stored — leave untouched unless changing')
+                  : tx(lang, 'Təyin edilməyib', 'Не задан', 'Not set')}
+              </p>
+            </div>
             {deliveryIntegrations.bolt_food_enabled && (
               <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
                 <span className="text-xs font-semibold text-slate-400 block">Bolt Food Webhook URL:</span>
@@ -229,14 +240,21 @@ export function IntegrationsSettingsSection({
               placeholder="Venue ID" 
               aria-label={tx(lang, 'Wolt Venue ID', 'Wolt Venue ID', 'Wolt Venue ID')}
             />
-            <input 
-              className="neon-input md:col-span-2" 
-              type="password"
-              value={deliveryIntegrations.wolt_client_secret} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
-              placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
-              aria-label={tx(lang, 'Wolt Client Secret', 'Wolt Client Secret', 'Wolt Client Secret')}
-            />
+            <div className="md:col-span-2">
+              <input 
+                className="neon-input w-full" 
+                type="password"
+                value={deliveryIntegrations.wolt_client_secret} 
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
+                placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
+                aria-label={tx(lang, 'Wolt Client Secret', 'Wolt Client Secret', 'Wolt Client Secret')}
+              />
+              <p className={`mt-1 text-[11px] ${secretsStored.wolt ? 'text-emerald-400' : 'text-slate-500'}`}>
+                {secretsStored.wolt
+                  ? tx(lang, '✓ Saxlanılıb — dəyişmək istəmirsinizsə toxunmayın', '✓ Сохранён — не меняйте, если не требуется', '✓ Stored — leave untouched unless changing')
+                  : tx(lang, 'Təyin edilməyib', 'Не задан', 'Not set')}
+              </p>
+            </div>
             {deliveryIntegrations.wolt_enabled && (
               <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
                 <span className="text-xs font-semibold text-slate-400 block">Wolt Webhook URL:</span>

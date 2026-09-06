@@ -416,20 +416,24 @@ export function OperationSettingsSection({
         </div>
 
         {qzHealth === 'offline' && printSettings.use_qz && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-            💡 <b>QZ Tray açıqdırsa, amma Offline görünürsə:</b>
+          <details className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <summary className="cursor-pointer list-none">💡 <b>{tx(lang, 'QZ Tray açıqdırsa, amma Offline görünürsə:', 'QZ Tray запущен, но показывает Offline:', 'QZ Tray is running but shows Offline:')}</b></summary>
             <ul className="mt-1 list-disc list-inside space-y-0.5 text-slate-300">
               <li>QZ Tray ikonunun sistem zolağında (System Tray) <b>yaşıl</b> rəngdə olduğundan əmin olun.</li>
               <li>Əgər brauzer QZ Tray sertifikatına blok qoyubsa, brauzerdə <a href="https://localhost:8181" target="_blank" rel="noreferrer" className="text-cyan-300 underline font-bold">https://localhost:8181</a> linkini açıb <i>&quot;Davam et (təhlükəli deyil / Advanced ➔ Proceed)&quot;</i> klikləyin.</li>
               <li>Sonra yuxarıdakı <b>&quot;Printer və Agentləri Yoxla&quot;</b> düyməsinə klikləyin.</li>
             </ul>
-          </div>
+          </details>
         )}
         {printSettings.use_qz && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-3">
-            <span className="font-semibold text-emerald-400 block text-sm">
-              🔒 {tx(lang, 'QZ Tray — Sessiz Çap Quraşdırması', 'QZ Tray — Настройка тихой печати', 'QZ Tray — Silent Print Setup')}
-            </span>
+          <details className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300">
+            <summary className="cursor-pointer list-none">
+              <span className="font-semibold text-emerald-400 text-sm">
+                🔒 {tx(lang, 'QZ Tray — Sessiz Çap Quraşdırması', 'QZ Tray — Настройка тихой печати', 'QZ Tray — Silent Print Setup')}
+              </span>
+              <span className="ml-2 text-[11px] text-slate-500">{tx(lang, '(genişləndir)', '(развернуть)', '(expand)')}</span>
+            </summary>
+            <div className="mt-3 space-y-3">
 
             {/* One-click download buttons */}
             <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 space-y-3">
@@ -506,7 +510,8 @@ export function OperationSettingsSection({
                 </li>
               </ol>
             </details>
-          </div>
+            </div>
+          </details>
         )}
         {renderPanelSuccess('print')}
         <div className="flex justify-end">
