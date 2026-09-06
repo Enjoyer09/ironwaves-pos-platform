@@ -495,21 +495,26 @@ async function printHtmlInternal(payload) {
           });
         });
 
+        // FIX-PERF: qlmanage timeout 10s → 3s. qlmanage macOS sandbox
+        // environment-da 20s-ə qədər asıla bilər (comment yazılıb).
+        // 3s kifayət edir — normalda 0.5-1s bitir. Timeout olarsa
+        // dərhal text fallback-a keçirik (lp -o raw) ki, çap az qalsın.
         await runCommand('qlmanage', [
           '-t',
           '-s', '3000',
           '-o', dir,
           pdfFile
-        ], 10000);
+        ], 3000);
 
         const pngFile = path.join(dir, 'receipt.pdf.png');
         const pageWidthMatch = html.match(/@page\s*\{[^}]*size:\s*([0-9.]+)\s*mm/i);
         const pageWidthMm = pageWidthMatch ? parseFloat(pageWidthMatch[1]) : 80;
         const targetWidthPx = Math.round(pageWidthMm >= 70 ? 576 : 384);
+        // FIX-PERF: sips timeout 10s → 3s (normal 0.1-0.3s)
         await runCommand('sips', [
           '--resampleWidth', String(targetWidthPx),
           pngFile
-        ], 10000);
+        ], 3000);
 
         const lpArgs = [];
         if (targetPrinter) lpArgs.push('-d', targetPrinter);
