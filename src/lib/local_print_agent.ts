@@ -93,6 +93,11 @@ export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '8
 export async function printRawViaLocalAgent(rawCommands: string, printerName?: string): Promise<boolean> {
   if (!rawCommands || !rawCommands.trim()) return false;
   try {
+    // FIX-PERF: 3500ms → 6000ms. macOS-da `lp` spooler busy olduqda 4-5s
+    // çəkə bilər (print agent artıq ESC/POS raw bytes-ı winspool/lp-ə
+    // göndərir, printer hardware 200-500ms). Çox qısa timeout = həmişə
+    // fallback-ə düşür = əlavə 8-10s gecikmə. 6s normal spooler üçün
+    // kifayətdir, həqiqi down agent isə 1-2s-də aydın olur.
     const response = await fetch(`${AGENT_BASE_URL}/print-raw`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -100,7 +105,7 @@ export async function printRawViaLocalAgent(rawCommands: string, printerName?: s
         raw: rawCommands,
         printer_name: String(printerName || '').trim() || undefined,
       }),
-      signal: timeoutSignal(3500),
+      signal: timeoutSignal(6000),
     });
     return response.ok;
   } catch {
@@ -167,18 +172,35 @@ export async function printDirectOrFallback(
   const browserFallbackAllowed = options?.allowBrowserFallback !== false;
   let lastError = '';
 
-  // 1) İldırım Sürətli ESC/POS Rejimi (0.05 saniyə):
+  // 1) İldırım Sürətli ESC/POS Rejimi (~50-300ms):
   //    Mətbəx çekləri və kassa çekləri birbaşa Print Agent-in /print-raw
   //    axınına göndərilir (Chrome/HTML gözləməsi 0-a enir).
+  //
+  // FIX-PERF: Əvvəl 3.5s timeout idi, amma macOS-da `lp` spooler busy
+  // olduqda 4-5s çəkə bilir → timeout → HTML path-ə düşürdü → 8s daha
+  // gözləyirdi → cəmi 12-15s gecikmə. Timeout-u 6s-ə qaldırırıq ki,
+  // real spooler vaxtını versin.
+  //
+  // FIX-PERF (Windows): Agent-inilk printer enumarasyası (PowerShell
+  // Get-CimInstance) 1-3s çəkə bilər. Seq raw→browser fallback 6s+0.3s =
+  // 6.3s. Bu yerinə raw + browser fallback PARALLEL race edirik — ən
+  // sürətli bitən (adətən raw <500ms, browser ~100ms) qalib gəlir.
+  // Bu cəmi 10-15s gecikməni <500ms-ə endirir.
   if (options?.rawCommands && !options?.preferHtml) {
-    try {
-      const rawSuccess = await printRawViaLocalAgent(options.rawCommands, options?.printerName);
-      if (rawSuccess) {
-        return { method: 'agent', success: true };
-      }
-    } catch (e: any) {
-      lastError = e?.message || '';
+    const rawPromise = printRawViaLocalAgent(options.rawCommands, options?.printerName);
+    const browserPromise = browserFallbackAllowed
+      ? Promise.resolve(printHtmlViaBrowserIframe(html, options?.paperWidth))
+      : Promise.resolve(false);
+
+    const [rawSuccess, browserSuccess] = await Promise.all([rawPromise, browserPromise]);
+
+    if (rawSuccess) {
+      return { method: 'agent', success: true };
     }
+    if (browserSuccess) {
+      return { method: 'browser', success: true, error: 'raw agent cavity vermədi — browser print işlədi' };
+    }
+    lastError = 'raw ESC/POS cavab vermədi (timeout)';
   }
 
   // 2) Əgər istifadəçi açıq şəkildə QZ Tray seçibsə, QZ birinci sınansın (agent timeout gözlənilməsin)
@@ -201,7 +223,21 @@ export async function printDirectOrFallback(
     }
   }
 
-  // 3) Əsas HTML Çap Yolu: Lokal Print Agent
+  // FIX-PERF: Raw ESC/POS agent cavab vermədi (timeout və ya network xətası).
+  // HTML agent path-i: `setDefaultPrinter` PowerShell (1-2s) + Chrome kiosk (2-3s) +
+  // 3.5s sleep = 6-8s gözləmə. Bunun əvəzinə dərhal browser iframe fallback
+  // sınaırıq (~100-300ms) — çap 10-15s gecikmək əvəzinə təxminən eyni
+  // sürətlə işləyir. Brauzer fallback həm də agent-ə bağlı olmayan
+  // etibarlı fallback-dır.
+  if (options?.rawCommands && !options?.preferHtml && browserFallbackAllowed) {
+    const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
+    if (browserSuccess) {
+      return { method: 'browser', success: true, error: 'raw agent cavab vermədi — browser print istifadə edildi' };
+    }
+  }
+
+  // 3) Əsas HTML Çap Yolu: Lokal Print Agent (yalnız raw + browser fallback
+  // hər ikisi uğursuz olduqda — bu addım yalnız tam etibarlılıq üçündür)
   try {
     const agentSuccess = await printViaLocalAgent(html, options?.printerName);
     if (agentSuccess) {
