@@ -276,6 +276,8 @@ export default function SettingsPanel() {
   const [deliveryMenuMappings, setDeliveryMenuMappings] = useState<DeliveryMenuMapping[]>([]);
   const [deliveryMenuMappingsLoading, setDeliveryMenuMappingsLoading] = useState(false);
   const [pendingDeleteMappingId, setPendingDeleteMappingId] = useState<string | null>(null);
+  // Whether a delivery secret exists server-side (backend masks it as '***').
+  const [deliverySecretsStored, setDeliverySecretsStored] = useState({ bolt: false, wolt: false });
   const [newDeliveryMenuMapping, setNewDeliveryMenuMapping] = useState({
     provider: 'bolt' as 'bolt' | 'wolt',
     external_item_id: '',
@@ -428,6 +430,10 @@ export default function SettingsPanel() {
         wolt_enabled: Boolean(settingsRes.value.delivery_integrations?.wolt_enabled),
         wolt_venue_id: String(settingsRes.value.delivery_integrations?.wolt_venue_id || ''),
         wolt_client_secret: settingsRes.value.delivery_integrations?.wolt_client_secret ? '***' : '',
+      });
+      setDeliverySecretsStored({
+        bolt: Boolean(settingsRes.value.delivery_integrations?.bolt_food_secret_key),
+        wolt: Boolean(settingsRes.value.delivery_integrations?.wolt_client_secret),
       });
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
@@ -955,6 +961,10 @@ export default function SettingsPanel() {
         wolt_enabled: deliveryIntegrations.wolt_enabled,
         wolt_venue_id: deliveryIntegrations.wolt_venue_id,
         wolt_client_secret: deliveryIntegrations.wolt_client_secret,
+      });
+      setDeliverySecretsStored({
+        bolt: Boolean(deliveryIntegrations.bolt_food_secret_key.trim()),
+        wolt: Boolean(deliveryIntegrations.wolt_client_secret.trim()),
       });
       flashSuccess(tx(lang, 'Çatdırılma inteqrasiyaları yadda saxlanıldı', 'Настройки доставки сохранены', 'Delivery integrations saved'), 'delivery_integrations');
     } catch (e: any) {
@@ -1695,6 +1705,7 @@ export default function SettingsPanel() {
         handleDeleteDeliveryMenuMapping={handleDeleteDeliveryMenuMapping}
         pendingDeleteMappingId={pendingDeleteMappingId}
         setPendingDeleteMappingId={setPendingDeleteMappingId}
+        secretsStored={deliverySecretsStored}
         menuCatalog={menuCatalog}
         qrMenuSettings={qrMenuSettings}
         setQrMenuSettings={setQrMenuSettings}
