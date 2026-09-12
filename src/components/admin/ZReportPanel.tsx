@@ -76,6 +76,10 @@ export default function ZReportPanel() {
   const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
   const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
   const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+  // lastZResult: stores the authoritative backend response from the most recent Z-report close.
+  // When set, metric cards display these values instead of the analytics summary, ensuring
+  // the on-screen totals match the printed receipt exactly (single source of truth).
+  const [lastZResult, setLastZResult] = useState<any | null>(null);
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
@@ -653,6 +657,8 @@ export default function ZReportPanel() {
       setXActualCash(nextCash);
       setZActualCash(nextCash);
       setHandoverActualCash(nextCash);
+      // Clear stale Z-report result so metric cards show live analytics for the new shift.
+      setLastZResult(null);
       setReportRefreshKey((prev) => prev + 1);
 
       const joinedExistingShift = Boolean((res as any)?.already_open || wasOpenBefore);
@@ -673,6 +679,8 @@ export default function ZReportPanel() {
   const showAndPersistZReceipt = async (result: any) => {
     const receiptHtml = buildZReceiptHtml(result, printSettings.paper_width);
     setZReceiptHtml(receiptHtml);
+    // Store the backend result so UI metric cards show the same figures as the receipt.
+    setLastZResult(result);
     const shiftId = String(result?.shift_id || '').trim();
     if (shiftId) {
       await save_z_report_receipt_html(tenant_id, shiftId, receiptHtml, {
@@ -898,6 +906,20 @@ export default function ZReportPanel() {
     }
     return summaryCashSales.plus(summaryCardSales);
   }, [summary.ledger_sales_total, summaryCashSales, summaryCardSales]);
+
+  // When a Z-report was just closed, use the backend's authoritative figures so that
+  // the on-screen metric cards match the printed receipt (single source of truth).
+  // While the shift is still open, show live analytics summary instead.
+  const displayCash  = lastZResult ? String(lastZResult.cash_sales  ?? '0') : summary.cash_sales;
+  const displayCard  = lastZResult ? String(lastZResult.card_sales  ?? '0') : summary.card_sales;
+  const displayCogs  = lastZResult ? String(lastZResult.total_cogs  ?? '0') : summary.total_cogs;
+  const displayProfit = lastZResult ? String(lastZResult.gross_profit ?? '0') : summary.gross_profit;
+  const displayTotal = lastZResult
+    ? new Decimal(lastZResult.total_sales ?? lastZResult.cash_sales ?? 0)
+        .plus(new Decimal(lastZResult.card_sales ?? 0))
+        .plus(new Decimal(lastZResult.deposit_applied_sales ?? 0))
+        .toFixed(2)
+    : summaryNetSales.toFixed(2);
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -1432,11 +1454,11 @@ export default function ZReportPanel() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={summaryNetSales.toFixed(2)} />
-        <Metric title={tx(lang, 'Nağd', 'Наличные', 'Cash')} value={summary.cash_sales} />
-        <Metric title={tx(lang, 'Kart', 'Карта', 'Card')} value={summary.card_sales} />
-        <Metric title={tx(lang, 'Maya (COGS)', 'Себестоимость (COGS)', 'COGS')} value={summary.total_cogs} />
-        <Metric title={tx(lang, 'Brutto Mənfəət', 'Валовая прибыль', 'Gross Profit')} value={summary.gross_profit} />
+        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={displayTotal} />
+        <Metric title={tx(lang, 'Nağd', 'Наличные', 'Cash')} value={displayCash} />
+        <Metric title={tx(lang, 'Kart', 'Карта', 'Card')} value={displayCard} />
+        <Metric title={tx(lang, 'Maya (COGS)', 'Себестоимость (COGS)', 'COGS')} value={displayCogs} />
+        <Metric title={tx(lang, 'Brutto Mənfəət', 'Валовая прибыль', 'Gross Profit')} value={displayProfit} />
       </div>
 
       <div className="metal-panel overflow-x-auto">

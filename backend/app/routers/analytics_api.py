@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +23,34 @@ from app.services.finance_service import (
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+
+
+def _parse_query_dt(value: str) -> datetime:
+    """Parse an ISO 8601 datetime string from a query parameter into a UTC-naive datetime.
+
+    The frontend sends UTC ISO strings (e.g. "2026-09-11T20:00:00.000Z") that represent
+    local Baku midnight (UTC+4).  We convert them to UTC-naive datetimes so they match the
+    timezone-naive UTC timestamps stored in the DB.
+
+    Legacy callers may still send bare local strings like "2026-09-12T00:00:00"; those are
+    accepted as-is (treated as UTC-naive) for backward compatibility, but new frontend code
+    always sends the Z-suffix form.
+    """
+    normalised = value.strip().replace(" ", "T")
+    # fromisoformat does not handle trailing 'Z' in Python < 3.11 — normalise it first.
+    if normalised.endswith("Z"):
+        normalised = normalised[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(normalised)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid datetime parameter: {value!r}")
+    if dt.tzinfo is not None:
+        # Shift to UTC, then strip tzinfo to produce a UTC-naive datetime.
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    # Already timezone-naive — assume UTC (legacy path).
+    return dt
+
+
 VOID_SALE_STATUSES = [
     "VOIDED",
     "VOID",
@@ -303,8 +331,8 @@ def get_sales_summary(
     if str(user.role or "").lower() == "staff":
         effective_cashier = user.username
 
-    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
-    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    start = _parse_query_dt(date_from)
+    end = _parse_query_dt(date_to)
     sales_filters = [
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
@@ -503,8 +531,8 @@ def get_sales_list(
     if str(user.role or "").lower() == "staff":
         effective_cashier = user.username
 
-    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
-    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    start = _parse_query_dt(date_from)
+    end = _parse_query_dt(date_to)
     sales_query = db.query(Sale).filter(
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
@@ -972,8 +1000,8 @@ def get_top_customers(
     Returns the highest-revenue customers for the active range. No new schema
     required: Sale.customer_card_id joins Customer (name, type, stars).
     """
-    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
-    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    start = _parse_query_dt(date_from)
+    end = _parse_query_dt(date_to)
     sale_is_net = ~_sale_is_void_expr(tenant.id)
 
     rows = (
@@ -1042,8 +1070,8 @@ def get_labor_summary(
     finance_entries ledger, which is the canonical source the dashboard already uses
     for the expenses summary. No new schema required.
     """
-    start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
-    end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
+    start = _parse_query_dt(date_from)
+    end = _parse_query_dt(date_to)
     total_raw = (
         db.query(func.coalesce(func.sum(FinanceEntry.amount), 0))
         .filter(
