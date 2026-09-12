@@ -74,8 +74,13 @@ export const localDateInputValue = (date = new Date()) => {
 };
 
 export const localDateTimeStart = (dateValue?: string | null) => {
+  // Construct a Date at local midnight (Baku, UTC+4) and return as UTC ISO.
+  // Example: "2026-09-12" → new Date(2026,8,12,0,0,0) in Baku = "2026-09-11T20:00:00.000Z"
+  // This prevents the backend from misinterpreting the local midnight as UTC midnight.
   const date = String(dateValue || localDateInputValue()).slice(0, 10);
-  return `${date}T00:00:00`;
+  const [year, month, day] = date.split('-').map(Number);
+  if (!year || !month || !day) return `${date}T00:00:00Z`;
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
 };
 
 export const localDateTimeNextStart = (dateValue?: string | null) => {
