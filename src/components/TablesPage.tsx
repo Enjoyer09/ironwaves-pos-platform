@@ -1187,6 +1187,25 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setViewTableId(activeTable.id);
       return;
     }
+    if (isBahaYLab) {
+      // Modern fast-open: open immediately and go straight to menu without redundant modal
+      const initialGuestCount = Math.max(1, Number(table.guest_count || 2));
+      open_table_live(table.id, {
+        guest_count: initialGuestCount,
+        deposit_guest_count: 0,
+        opened_by: user?.username || 'staff',
+      })
+        .then(async () => {
+          notify('success', tx(lang, 'Masa açıldı', 'Стол открыт', 'Table opened'));
+          await refreshActiveTableDetail(table.id);
+          setViewTableId(table.id);
+          await loadData();
+        })
+        .catch((e: any) => {
+          notify('error', e?.message || tx(lang, 'Masa açılmadı', 'Ошибка открытия стола', 'Failed to open table'));
+        });
+      return;
+    }
     setOpenTableId(table.id);
     setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
     setDepositGuestCount('0');
@@ -2312,6 +2331,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               return (
                 <>
                   {isBahaYLab ? (
+                    <>
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5 mb-2.5 px-0.5">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <button
@@ -2351,8 +2371,36 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         )}
                       </div>
                     </div>
+                    {/* Modern Table Locked Alert for other waiters */}
+                    {tableLockHolder && tableLockHolder !== user?.username && (
+                      <div className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/15 p-2.5 px-3 text-xs shadow-sm">
+                        <div className="flex items-center gap-2 text-amber-200 font-bold min-w-0">
+                          <span>⚠️</span>
+                          <span className="truncate">
+                            {tx(lang, `Masa ${tableLockHolder} tərəfindən idarə olunur`, `Стол занят пользователем ${tableLockHolder}`, `Table is managed by ${tableLockHolder}`)}
+                          </span>
+                        </div>
+                        {isManagerUser && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await unlock_table_live(t.id, 'manager unlock');
+                                notify('success', tx(lang, 'Masa lock-u açıldı', 'Блокировка стола снята', 'Table lock released'));
+                                await refreshActiveTableDetail(t.id);
+                              } catch (e: any) {
+                                notify('error', e?.message || tx(lang, 'Lock açılmadı', 'Блокировка не снята', 'Lock was not released'));
+                              }
+                            }}
+                            className="shrink-0 rounded-xl bg-amber-400 px-3 py-1 text-[11px] font-black text-slate-950 transition active:scale-95 shadow-sm hover:bg-amber-300"
+                          >
+                            {tx(lang, 'Lock-u aç', 'Снять lock', 'Unlock')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    </>
                   ) : (
-                    <>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <button

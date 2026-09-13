@@ -5,7 +5,7 @@ import MenuGrid from './MenuGrid';
 import { playHapticSuccess, playHapticTouch, playKitchenReadyAlert } from '../../lib/haptics';
 import OrderNoteModal from './OrderNoteModal';
 import { useAppStore } from '../../store';
-import { Trash2, LayoutGrid, Tag, Users, User, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft, Printer, ArrowRightLeft } from 'lucide-react';
+import { Trash2, LayoutGrid, Tag, Users, User, FileText, Send, Receipt, Banknote, CreditCard, QrCode, AlertTriangle, ChevronUp, ChevronDown, Check, Volume2, Plus, Minus, Edit3, Clock, ArrowLeft, Printer, ArrowRightLeft, Bell } from 'lucide-react';
 import { useResizableSplitPane } from '../../hooks/useResizableSplitPane';
 import SplitterDivider from '../common/SplitterDivider';
 
@@ -388,11 +388,24 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         <div className="grid grid-cols-5 gap-1.5 border-b border-slate-800/80 bg-slate-900/50 p-2 shrink-0">
           <button
             type="button"
-            onClick={onBack}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+            onClick={() => {
+              tapFeedback();
+              onTabChange('service');
+            }}
+            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+              readyCount > 0
+                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
+            }`}
+            title={tx(lang, 'Mətbəx Servis Statusu', 'Сервис кухни', 'Kitchen Service')}
           >
-            <ArrowLeft size={14} />
-            <span className="truncate mt-0.5">{tx(lang, 'Masalar', 'Столы', 'Tables')}</span>
+            <Bell size={14} className={readyCount > 0 ? 'animate-bounce text-emerald-400' : ''} />
+            <span className="truncate mt-0.5">{tx(lang, 'Servis', 'Сервис', 'Service')}</span>
+            {readyCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-black text-slate-950 shadow-md">
+                {readyCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -676,14 +689,14 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             )}
           </div>
 
-          {/* Secondary back + destructive actions — with confirm protection */}
-          <div className="mt-2 flex items-center justify-between">
+          {/* Secondary back + single clear destructive action */}
+          <div className="mt-2.5 flex items-center justify-between pt-1 border-t border-slate-800/40">
             <button
               type="button"
               onClick={onBack}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition flex items-center gap-1"
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 py-1 px-1.5 rounded-lg active:scale-95"
             >
-              <ArrowLeft size={12} />
+              <ArrowLeft size={13} />
               <span>{tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}</span>
             </button>
             {tableOccupied && (
@@ -691,34 +704,16 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => {
-                  if (window.confirm(tx(lang, 'Masanı ləğv etmək istədiyinizdən əminsiniz? Bu əməliyyat geri qaytarıla bilməz.', 'Вы уверены? Это действие необратимо.', 'Are you sure? This cannot be undone.'))) {
+                  if (window.confirm(tx(lang, '⚠️ Masanı boşaltmaq istədiyinizdən əminsiniz?\n\nBu əməliyyat bütün sifarişləri ləğv edir və geri qaytarıla bilməz!', '⚠️ Уверены, что хотите освободить стол?\n\nЭто действие отменит все заказы и необратимо!', '⚠️ Void and clear table?\n\nThis cancels all items and cannot be undone!'))) {
                     onCancelTable?.();
                   }
                 }}
-                className="text-[10px] font-semibold text-rose-400/60 hover:text-rose-400 transition"
+                className="text-[11px] font-bold text-rose-400/80 hover:text-rose-300 transition py-1 px-2 rounded-lg bg-rose-500/10 border border-rose-500/20 active:scale-95"
               >
-                {tx(lang, 'Masayanı ləğv et', 'Отменить', 'Cancel table')}
+                🗑️ {tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel Table')}
               </button>
             )}
           </div>
-
-          {/* Cancel/Void table check — with mandatory confirm dialog */}
-          {tableOccupied && (
-            <div className="mt-4 flex justify-center border-t border-slate-800/50 pt-3">
-              <button
-                type="button"
-                disabled={!userCanEdit}
-                onClick={() => {
-                  if (window.confirm(tx(lang, '⚠️ Masanı boşaltmaq istədiyinizdən əminsiniz?\n\nBu əməliyyat bütün sifarişləri silir və geri qaytarıla bilməz!', '⚠️ Уверены, что хотите освободить стол?\n\nЭто действие необратимо!', '⚠️ Clear this table?\n\nThis will void all items and cannot be undone!'))) {
-                    onCancelTable?.();
-                  }
-                }}
-                className="text-[10px] font-semibold text-rose-400/70 transition active:text-rose-300 disabled:opacity-30 taktil-target"
-              >
-                {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ─── Slide-up Sent Items Panel ─── */}
