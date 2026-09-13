@@ -393,12 +393,27 @@ function MenuGrid({
     >
       {/* Search & Fast Mode Toggle Bar */}
       <div className="flex gap-2 items-center">
-        <input
-          className="neon-input flex-1 min-w-0"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
-        />
+        <div className="relative flex-1 min-w-0">
+          <input
+            className="neon-input w-full pr-8"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
+          />
+          {search.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                tapFeedback();
+                onSearchChange('');
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition active:scale-90"
+              title={tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
         {/* ⚡ Fast mode toggle */}
         <button
