@@ -110,7 +110,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   });
 
 
-  // 30-Second Inactivity Auto-Lock timer for Waiter Mode safety
+  // 90-Second Inactivity Auto-Lock timer for Waiter Mode safety (relaxed from 30s to prevent interrupting orders)
   useEffect(() => {
     if (!isMobileView || !isActive) return;
     let timer: number;
@@ -118,7 +118,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent('trigger-fast-switch'));
-      }, 30000); // 30s timeout
+      }, 90000); // 90s timeout
     };
 
     resetTimer();
@@ -132,6 +132,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   const [newTableName, setNewTableName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showOperationsModal, setShowOperationsModal] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<'floor' | 'reservations'>('floor');
   const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
   const [pendingCancelTable, setPendingCancelTable] = useState<{ id: string; label: string } | null>(null);
@@ -977,6 +978,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         setDraftSendError(null);
         setRoundDraft([]);
         await refreshActiveTableDetail(table.id);
+        if (isMobileView || isBahaYLab) {
+          closeTableDetail();
+        }
         return;
       } catch (e: any) {
         const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
@@ -1044,6 +1048,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setDraftSendError(null);
       clearRoundComposer();
       await refreshActiveTableDetail(table.id);
+      if (isMobileView || isBahaYLab) {
+        closeTableDetail();
+      }
     } catch (e: any) {
       const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi', 'Не отправлено на кухню', 'Kitchen send failed');
       setDraftSendError(message);
@@ -1194,6 +1201,59 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
     }
   }, [activeFloorId, notify, lang]);
+
+  const handlePrintPreCheck = async (table: any) => {
+    if (!table) return;
+    try {
+      const { dueNow, finalTotal, itemsTotal, discountPercent, discountAmount, serviceFee, deposit } = getTableBillBreakdown(table);
+      const payItems = getTablePaymentItems(table);
+      if (payItems.length === 0) {
+        notify('error', tx(lang, 'Sifariş tapılmadı, pre-check çıxarmaq mümkün deyil', 'Заказ пуст, невозможно напечатать предчек', 'No items in order, cannot print pre-check'));
+        return;
+      }
+      const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
+      const activeCheck = activeDetail?.check;
+      const checkId = String(activeCheck?.id || activeCheck?.check_no || table.label || '').trim();
+
+      const receiptMarkup = await buildTableReceiptHtml({
+        tableLabel: table.label,
+        operator: user?.username || 'staff',
+        checkId: checkId || undefined,
+        checkNo: activeCheck?.check_no || undefined,
+        isPreCheck: true,
+        items: payItems.map((row: any) => ({
+          item_name: row.item_name,
+          qty: row.qty,
+          price: row.price,
+        })),
+        breakdown: {
+          itemsTotal: itemsTotal.toNumber(),
+          discountPercent: discountPercent.toNumber(),
+          discountAmount: discountAmount.toNumber(),
+          serviceFee: serviceFee.toNumber(),
+          deposit: deposit.toNumber(),
+          finalTotal: finalTotal.toNumber(),
+          dueNow: dueNow.toNumber(),
+        },
+        profile: businessProfile,
+        lang,
+        paperWidth: printSettings.paper_width || '80mm',
+      });
+
+      await printDirectOrFallback({
+        html: receiptMarkup,
+        paperWidth: printSettings.paper_width || '80mm',
+        useQz: Boolean(printSettings.use_qz),
+        printerName: printSettings.printer_name,
+        previewRef: zReceiptRef as any,
+      });
+
+      notify('success', tx(lang, 'Pre-check çap edildi', 'Предчек напечатан', 'Pre-check printed'));
+    } catch (e: any) {
+      console.error('Pre-check print error:', e);
+      notify('error', e?.message || tx(lang, 'Pre-check çap edilmədi', 'Ошибка печати предчека', 'Failed to print pre-check'));
+    }
+  };
 
   const handleSettleTableCheck = async () => {
     const table = tables.find((x) => x.id === payTableId);
@@ -2475,9 +2535,27 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onSend={() => { void sendRoundDirectly(t); }}
 	                        tableOccupied={Boolean(t?.is_occupied)}
 	                        userCanEdit={userCanEditTable}
-	                        onSettle={() => {
+	                        onPrintPreCheck={() => { void handlePrintPreCheck(t); }}
+	                        onOpenOperations={() => setShowOperationsModal(true)}
+	                        onUpdateGuestCount={async (num) => {
+	                          try {
+	                            await update_table_layout_live(t.id, { guest_count: num });
+	                            await refreshActiveTableDetail(t.id);
+	                            await loadData();
+	                            notify('success', tx(lang, 'Qonaq sayı yeniləndi', 'Кол-во гостей обновлено', 'Guest count updated'));
+	                          } catch (e: any) {
+	                            notify('error', e?.message || tx(lang, 'Xəta baş verdi', 'Произошла ошибка', 'Error occurred'));
+	                          }
+	                        }}
+	                        onSettle={(chosenMethod, chosenDiscount) => {
 	                          if (hasEmptyActiveCheckTotalMismatch(t)) { notify('error', tx(lang, 'Sifariş boşdur', 'Заказ пуст', 'Order empty')); return; }
-	                          setPayTableId(t.id); setViewTableId(null); setPaymentMethod('Nəğd'); setSplitCount('2'); setSplitParts([]); setSplitCash('0'); setTableDiscountPercent('0');
+	                          setPayTableId(t.id);
+	                          setViewTableId(null);
+	                          setPaymentMethod(chosenMethod || 'Nəğd');
+	                          setSplitCount('2');
+	                          setSplitParts([]);
+	                          setSplitCash('0');
+	                          setTableDiscountPercent(String(chosenDiscount || 0));
 	                        }}
 	                        sentItems={sentDisplayItems}
 	                        onShowFullList={() => setShowFullOrderList(true)}
@@ -2789,6 +2867,90 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         </div>
       )}
 
+      {/* Operations Modal for Modern Waiter View (Transfer, Combine, Split, Cancel) */}
+      {showOperationsModal && viewTableId && (() => {
+        const t = tables.find((x) => x.id === viewTableId);
+        if (!t) return null;
+        const otherTables = tables.filter((x) => x.id !== t.id);
+        return (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-modalFadeIn"
+            onClick={() => setShowOperationsModal(false)}
+          >
+            <div
+              className="metal-panel w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🔄</span>
+                  <h3 className="text-lg font-bold text-white">
+                    {t.label} — {tx(lang, 'Masa Əməliyyatları', 'Операции со столом', 'Table Operations')}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOperationsModal(false)}
+                  className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-slate-400 font-bold hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <OperationsPanel
+                table={t}
+                otherTables={otherTables}
+                isManagerUser={isManagerUser}
+                userCanEditTable={userCanEditTable}
+                lang={lang}
+                onTransfer={async (tableId, targetId) => {
+                  const targetTable = otherTables.find((row) => row.id === targetId);
+                  const targetLabel = targetTable?.label || 'Masa';
+                  const ok = window.confirm(
+                    tx(
+                      lang,
+                      `${t.label} masasını ${targetLabel} masasına köçürmək istəyirsiniz?`,
+                      `Перенести стол ${t.label} на ${targetLabel}?`,
+                      `Transfer table ${t.label} to ${targetLabel}?`,
+                    ),
+                  );
+                  if (!ok) return;
+                  try {
+                    await transfer_table_live(tableId, targetId, user?.username || 'staff');
+                    logEvent(user?.username || 'staff', 'TABLE_TRANSFER', {
+                      tenant_id,
+                      source_table_id: tableId,
+                      source_label: t.label,
+                      target_table_id: targetId,
+                      target_label: targetLabel,
+                    });
+                    notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
+                    setShowOperationsModal(false);
+                    setViewTableId(null);
+                    setTableDetailRecord(null);
+                    await Promise.all([loadData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve()]);
+                  } catch (e: any) {
+                    notify('error', e.message);
+                  }
+                }}
+                onCombine={async (tableId, targetId) => {
+                  setShowOperationsModal(false);
+                  void handleCombineTables(tableId, targetId);
+                }}
+                onSplit={async (tableId, mergedGroupId) => {
+                  setShowOperationsModal(false);
+                  void handleSplitTables(tableId, mergedGroupId);
+                }}
+                onCancel={(tableId, label) => {
+                  setShowOperationsModal(false);
+                  void handleCancelTableCheck(tableId, label);
+                }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       <ReceiptPreview
         html={safeTableReceiptHtml}
         lang={lang}
@@ -2901,6 +3063,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 kitchenOrders={kitchenOrders}
                 onOpenTable={async (tableId, guestCount) => {
                   await open_table_live(tableId, { guest_count: Number(guestCount || 1), deposit_guest_count: 0, opened_by: user?.username || 'waiter' });
+                  setViewTableId(tableId);
                   await loadData();
                 }}
                 onSelectTable={handleSelectWaiterTable}

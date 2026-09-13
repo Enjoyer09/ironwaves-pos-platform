@@ -313,6 +313,7 @@ export async function buildTableReceiptHtml({
   paperWidth = '80mm',
   checkId = '',
   checkNo = '',
+  isPreCheck = false,
 }: {
   tableLabel: string;
   operator: string;
@@ -332,6 +333,7 @@ export async function buildTableReceiptHtml({
   paperWidth?: '58mm' | '80mm';
   checkId?: string;
   checkNo?: string | number;
+  isPreCheck?: boolean;
 }): Promise<string> {
   const companyName = profile?.company_name || 'IRONWAVES POS';
   const now = new Date();
@@ -387,8 +389,8 @@ export async function buildTableReceiptHtml({
         ${profile?.phone ? `<div class="muted" style="text-align:center">Tel: ${esc(profile.phone)}</div>` : ''}
         ${profile?.address ? `<div class="muted" style="text-align:center">${esc(profile.address)}</div>` : ''}
         <hr />
-        <div class="section-title" style="text-align:center">${tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')}</div>
-        <div class="muted" style="text-align:center">(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})</div>
+        <div class="section-title" style="text-align:center">${isPreCheck ? tx(lang, 'QABAQCADDAN HESAB', 'ПРЕДЧЕК (СЧЕТ)', 'INTERIM BILL (PRE-CHECK)') : tx(lang, 'MASA HESABI', 'СЧЕТ СТОЛА', 'TABLE CHECK')}</div>
+        <div class="muted" style="text-align:center">${isPreCheck ? tx(lang, '*** ÖDƏNİŞ QƏBZİ DEYİL ***', '*** НЕ ЯВЛЯЕТСЯ ФИСКАЛЬНЫМ ЧЕКОМ ***', '*** NOT A FISCAL RECEIPT ***') : `(${tx(lang, 'DAXİLİ', 'ВНУТРЕННИЙ', 'INTERNAL')})`}</div>
         <hr />
         ${displayCheckId ? `<div class="line"><span>${tx(lang, 'Çek №', 'Чек №', 'Check #')}</span><span class="bold">#${esc(displayCheckId)}</span></div>` : ''}
         <div class="line"><span>${tx(lang, 'Masa', 'Стол', 'Table')}</span><span class="bold">${esc(tableLabel)}</span></div>
