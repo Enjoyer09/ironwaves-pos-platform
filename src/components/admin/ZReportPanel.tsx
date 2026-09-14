@@ -13,6 +13,7 @@ import {
   refresh_expected_cash,
   refresh_shift_status,
   get_z_report_receipts_live,
+  get_active_shift_summary_live,
   get_yield_waste_logs_live,
   get_shift_handover_history_live,
   get_shift_status,
@@ -76,6 +77,7 @@ export default function ZReportPanel() {
   const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
   const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
   const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+  const [activeShiftInfo, setActiveShiftInfo] = useState<{ opened_at: string | null; effective_opened_at: string | null } | null>(null);
   // lastZResult: stores the authoritative backend response from the most recent Z-report close.
   // When set, metric cards display these values instead of the analytics summary, ensuring
   // the on-screen totals match the printed receipt exactly (single source of truth).
@@ -504,10 +506,43 @@ export default function ZReportPanel() {
     };
   }, [tenant_id]);
 
+  const isViewingToday = fromDate === today && toDate === today;
+  const isShiftOpen = shiftStatusState.status === 'Open';
+  const shouldUseActiveShift = isShiftOpen && isViewingToday;
+
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        if (shouldUseActiveShift) {
+          const shiftData = await get_active_shift_summary_live(
+            tenant_id,
+            user?.role === 'staff' ? user.username : undefined,
+          );
+          if (!mounted) return;
+          if (shiftData && shiftData.shift_open) {
+            setActiveShiftInfo({
+              opened_at: shiftData.opened_at || null,
+              effective_opened_at: shiftData.effective_opened_at || null,
+            });
+            setSummary(shiftData.summary || {
+              total_revenue: '0',
+              cash_sales: '0',
+              card_sales: '0',
+              deposit_applied_sales: '0',
+              ledger_sales_total: '0',
+              gross_sales: '0',
+              void_sales: '0',
+              gross_profit: '0',
+              total_cogs: '0',
+              void_count: 0,
+            });
+            setSales(shiftData.sales || []);
+            return;
+          }
+        }
+
+        setActiveShiftInfo(null);
         const [nextSummary, nextSales] = await Promise.all([
           get_sales_summary_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
           get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
@@ -517,6 +552,7 @@ export default function ZReportPanel() {
         setSales(nextSales || []);
       } catch {
         if (!mounted) return;
+        setActiveShiftInfo(null);
         setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
         setSales([]);
       }
@@ -524,7 +560,7 @@ export default function ZReportPanel() {
     return () => {
       mounted = false;
     };
-  }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey]);
+  }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey, shouldUseActiveShift]);
 
   React.useEffect(() => {
     void loadZReceiptHistory();
@@ -1452,6 +1488,31 @@ export default function ZReportPanel() {
           {tx(lang, 'Bu əməliyyat növbəni bağlamır, açıq növbəni seçilən işçiyə ötürür.', 'Эта операция не закрывает смену, а передает открытую смену выбранному сотруднику.', 'This action does not close the shift. It transfers the active shift to the selected staff member.')}
         </p>
       </div>
+
+      {activeShiftInfo && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm">
+          <div className="flex items-center gap-2 text-emerald-200">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+            </span>
+            <span className="font-semibold">
+              {tx(lang, 'Aktiv Smen Satışları', 'Продажи активной смены', 'Active Shift Sales')}:
+            </span>
+            <span className="text-xs text-emerald-300/90">
+              {formatServerUtcDateTime(activeShiftInfo.effective_opened_at || activeShiftInfo.opened_at, lang)} — {tx(lang, 'İndi', 'Сейчас', 'Now')}
+            </span>
+          </div>
+          <div className="text-xs text-slate-400">
+            {tx(
+              lang,
+              'Rəqəmlər yalnız bu smenə aiddir (gecəyarısı keçidi daxil olmaqla). Keçmiş tarixlər üçün aşağıdan tarixi dəyişin.',
+              'Цифры относятся строго к текущей смене (включая переход через полночь). Для архива выберите дату ниже.',
+              'Figures belong strictly to current shift (including post-midnight). For archive, change dates below.',
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={displayTotal} />

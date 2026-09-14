@@ -1171,3 +1171,130 @@ export const z_report = async (
     other_expense_lines,
   };
 };
+
+export type ActiveShiftSummaryResult = {
+  shift_open: boolean;
+  shift_id?: string | null;
+  opened_at?: string | null;
+  effective_opened_at?: string | null;
+  summary: {
+    total_revenue: string;
+    cash_sales: string;
+    card_sales: string;
+    deposit_applied_sales: string;
+    ledger_sales_total: string;
+    gross_sales: string;
+    void_sales: string;
+    gross_profit: string;
+    total_cogs: string;
+    void_count: number;
+    sales_count: number;
+  };
+  sales: any[];
+  cashier_breakdown: any[];
+  item_breakdown: any[];
+};
+
+export const get_active_shift_summary_live = async (
+  tenant_id: string,
+  cashier?: string,
+): Promise<ActiveShiftSummaryResult> => {
+  if (isBackendEnabled()) {
+    const params = new URLSearchParams();
+    if (cashier) params.set('cashier', cashier);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<ActiveShiftSummaryResult>(`/api/v1/reports/active-shift-summary${qs}`, {
+      method: 'GET',
+      tenantId: tenant_id,
+    });
+  }
+
+  // Fallback simulation for local/offline mode
+  const shift = getShiftState(tenant_id);
+  if (!shift || shift.status !== 'Open') {
+    return {
+      shift_open: false,
+      shift_id: null,
+      opened_at: null,
+      effective_opened_at: null,
+      summary: {
+        total_revenue: '0.00',
+        cash_sales: '0.00',
+        card_sales: '0.00',
+        deposit_applied_sales: '0.00',
+        ledger_sales_total: '0.00',
+        gross_sales: '0.00',
+        void_sales: '0.00',
+        gross_profit: '0.00',
+        total_cogs: '0.00',
+        void_count: 0,
+        sales_count: 0,
+      },
+      sales: [],
+      cashier_breakdown: [],
+      item_breakdown: [],
+    };
+  }
+
+  const openedAt = shift.timestamp || new Date().toISOString();
+  const allSales = getTenantRows<any>(tenant_id, 'sales', 'sales');
+  const shiftSales = allSales.filter((s) => {
+    if (!s.created_at || s.created_at < openedAt) return false;
+    if (cashier && s.cashier !== cashier) return false;
+    return true;
+  });
+
+  let total_revenue = new Decimal(0);
+  let cash_sales = new Decimal(0);
+  let card_sales = new Decimal(0);
+  let total_cogs = new Decimal(0);
+  let void_count = 0;
+  let void_sales = new Decimal(0);
+
+  shiftSales.forEach((s) => {
+    const isVoid = String(s.status || '').toUpperCase() === 'VOIDED';
+    const total = new Decimal(s.total || 0);
+    if (isVoid) {
+      void_count += 1;
+      void_sales = void_sales.plus(total);
+      return;
+    }
+    total_revenue = total_revenue.plus(total);
+    total_cogs = total_cogs.plus(new Decimal(s.cogs || 0));
+    const pm = String(s.payment_method || '').toLowerCase();
+    const splitCash = new Decimal(s.split_cash || 0);
+    const splitCard = new Decimal(s.split_card || 0);
+    if (splitCash.gt(0) || splitCard.gt(0)) {
+      cash_sales = cash_sales.plus(splitCash);
+      card_sales = card_sales.plus(splitCard);
+    } else if (pm.includes('kart') || pm.includes('card')) {
+      card_sales = card_sales.plus(total);
+    } else {
+      cash_sales = cash_sales.plus(total);
+    }
+  });
+
+  return {
+    shift_open: true,
+    shift_id: shift.id,
+    opened_at: openedAt,
+    effective_opened_at: openedAt,
+    summary: {
+      total_revenue: total_revenue.toFixed(2),
+      cash_sales: cash_sales.toFixed(2),
+      card_sales: card_sales.toFixed(2),
+      deposit_applied_sales: '0.00',
+      ledger_sales_total: total_revenue.toFixed(2),
+      gross_sales: total_revenue.toFixed(2),
+      void_sales: void_sales.toFixed(2),
+      gross_profit: total_revenue.minus(total_cogs).toFixed(2),
+      total_cogs: total_cogs.toFixed(2),
+      void_count,
+      sales_count: shiftSales.length - void_count,
+    },
+    sales: shiftSales,
+    cashier_breakdown: [],
+    item_breakdown: [],
+  };
+};
+

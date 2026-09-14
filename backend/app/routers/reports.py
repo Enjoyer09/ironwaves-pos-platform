@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
+from app.json_utils import safe_json_list
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -1373,6 +1374,152 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "cashier_breakdown": cashier_breakdown,
         "item_breakdown": item_breakdown,
     }
+
+
+@router.get("/active-shift-summary")
+def get_active_shift_summary(
+    cashier: str | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    active = _get_active_shift(db, tenant.id)
+    if not active:
+        return {
+            "shift_open": False,
+            "shift_id": None,
+            "opened_at": None,
+            "effective_opened_at": None,
+            "summary": {
+                "total_revenue": "0.00",
+                "cash_sales": "0.00",
+                "card_sales": "0.00",
+                "deposit_applied_sales": "0.00",
+                "ledger_sales_total": "0.00",
+                "gross_sales": "0.00",
+                "void_sales": "0.00",
+                "gross_profit": "0.00",
+                "total_cogs": "0.00",
+                "void_count": 0,
+                "sales_count": 0,
+            },
+            "sales": [],
+            "cashier_breakdown": [],
+            "item_breakdown": [],
+        }
+
+    now = _utcnow()
+    eff_start = _effective_shift_start(db, tenant.id, active.id, active.opened_at, now)
+    effective_cashier = cashier
+    if str(getattr(user, "role", "") or "").lower() == "staff":
+        effective_cashier = user.username
+
+    sales_totals = _shift_sales_totals(db, tenant.id, eff_start, now)
+    total_cogs = _shift_cogs_total(db, tenant.id, eff_start, now)
+    total_revenue = sales_totals["sales_total"]
+    cash_sales = sales_totals["cash_sales"]
+    card_sales = sales_totals["card_sales"]
+    deposit_applied = sales_totals["deposit_applied"]
+    ledger_total = sales_totals["ledger_sales_total"]
+    void_count = int(sales_totals["void_count"])
+    void_sales = sales_totals["void_sales"]
+    sales_count = int(sales_totals["sales_count"])
+
+    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, eff_start, now)
+    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, eff_start, now)
+
+    # Fetch individual sales for this active shift
+    sales_query = db.query(Sale).filter(
+        Sale.tenant_id == tenant.id,
+        Sale.created_at >= eff_start,
+        Sale.created_at <= now,
+    )
+    if effective_cashier:
+        sales_query = sales_query.filter(Sale.cashier == effective_cashier)
+    sales_rows = sales_query.order_by(Sale.created_at.desc()).limit(limit).all()
+
+    sale_ids = [str(r.id) for r in sales_rows]
+    payments_by_sale: dict[str, dict[str, Decimal]] = {}
+    if sale_ids:
+        payment_rows = (
+            db.query(
+                FinanceTransaction.related_order_id,
+                FinanceAccount.code,
+                func.coalesce(func.sum(FinanceTransaction.amount), 0),
+            )
+            .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+            .filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.related_order_id.in_(sale_ids),
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.transaction_type == "income",
+                FinanceAccount.code.in_(["cash", "card"]),
+            )
+            .group_by(FinanceTransaction.related_order_id, FinanceAccount.code)
+            .all()
+        )
+        for s_id, code, amt_raw in payment_rows:
+            bucket = payments_by_sale.setdefault(str(s_id), {"cash": Decimal("0.00"), "card": Decimal("0.00")})
+            bucket[str(code or "")] = Decimal(str(amt_raw or 0)).quantize(Decimal("0.01"))
+
+    sales_list = []
+    for row in sales_rows:
+        items = safe_json_list(row.items_json)
+        original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
+        split = payments_by_sale.get(str(row.id), {"cash": Decimal("0.00"), "card": Decimal("0.00")})
+        split_cash = split.get("cash", Decimal("0.00"))
+        split_card = split.get("card", Decimal("0.00"))
+        is_void = str(row.status or "").strip().upper() in VOID_SALE_STATUSES
+        sales_list.append({
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "cashier": row.cashier,
+            "customer_card_id": row.customer_card_id,
+            "customer_stars_after": getattr(row, "customer_stars_after", 0) or 0,
+            "free_coffees_applied": getattr(row, "free_coffees_applied", 0) or 0,
+            "customer_type": None,
+            "original_total": str(original_total.quantize(Decimal("0.01"))),
+            "discount_amount": str(Decimal(str(row.discount_amount or 0)).quantize(Decimal("0.01"))),
+            "discount_reason": row.discount_reason,
+            "total": str(Decimal(str(row.total)).quantize(Decimal("0.01"))),
+            "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
+            "payment_method": row.payment_method,
+            "split_cash": str(split_cash) if split_cash > 0 else None,
+            "split_card": str(split_card) if split_card > 0 else None,
+            "order_type": row.order_type,
+            "receipt_code": row.receipt_code,
+            "receipt_token": row.receipt_token,
+            "items": items,
+            "items_display": ", ".join([f"{item.get('item_name')} x{item.get('qty')}" for item in items]),
+            "status": "VOIDED" if is_void else row.status,
+            "is_test": False,
+        })
+
+    return {
+        "shift_open": True,
+        "shift_id": active.id,
+        "opened_at": active.opened_at.isoformat() if active.opened_at else None,
+        "effective_opened_at": eff_start.isoformat() if eff_start else None,
+        "summary": {
+            "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
+            "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
+            "card_sales": str(card_sales.quantize(Decimal("0.01"))),
+            "deposit_applied_sales": str(deposit_applied.quantize(Decimal("0.01"))),
+            "ledger_sales_total": str(ledger_total.quantize(Decimal("0.01"))),
+            "gross_sales": str(total_revenue.quantize(Decimal("0.01"))),
+            "void_sales": str(void_sales.quantize(Decimal("0.01"))),
+            "gross_profit": str((total_revenue - total_cogs).quantize(Decimal("0.01"))),
+            "total_cogs": str(total_cogs.quantize(Decimal("0.01"))),
+            "void_count": void_count,
+            "sales_count": sales_count,
+        },
+        "sales": sales_list,
+        "cashier_breakdown": cashier_breakdown,
+        "item_breakdown": item_breakdown,
+    }
+
 
 
 @router.put("/shifts/{shift_id}/z-receipt-html")
