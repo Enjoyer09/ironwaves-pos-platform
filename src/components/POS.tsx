@@ -21,6 +21,7 @@ import { printViaLocalAgent, printDirectOrFallback, localPrintAgentHealth } from
 import { buildSaleReceiptHtml } from '../lib/receipt_html';
 import { printKitchenTicket } from '../lib/print_kitchen_ticket';
 import { buildSaleReceiptEscPos, parseModifierJson } from '../lib/escpos_builder';
+import { getTenantDomains } from '../lib/tenant';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
