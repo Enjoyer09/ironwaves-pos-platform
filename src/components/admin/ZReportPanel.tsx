@@ -506,9 +506,11 @@ export default function ZReportPanel() {
     };
   }, [tenant_id]);
 
-  const isViewingToday = fromDate === today && toDate === today;
   const isShiftOpen = shiftStatusState.status === 'Open';
-  const shouldUseActiveShift = isShiftOpen && isViewingToday;
+  // Always use shift-bounded active shift summary when a shift is open.
+  // This guarantees midnight and multi-day sales within the open shift are correctly included,
+  // without erroneously falling back to calendar date-based queries.
+  const shouldUseActiveShift = isShiftOpen;
 
   React.useEffect(() => {
     let mounted = true;
