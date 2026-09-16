@@ -1770,16 +1770,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
-    { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
-    { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={18} /> },
-    { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
-    { key: 'feedback' as CustomerTab, label: tx(safeLang, 'Rəy', 'Отзыв', 'Feedback'), icon: <MessageSquare size={18} /> },
-    // C2: collapse Barista + Falçı into one "AI" hub tab so the bar never
-    // exceeds 5 tabs (Apple HIG). The hub switches between the two inside.
-    ...(aiBaristaEnabled || aiFalciEnabled
-      ? [{ key: 'ai' as CustomerTab, label: tx(safeLang, 'AI', 'AI', 'AI'), icon: <Sparkles size={18} /> }]
-      : []),
-    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
+    { key: 'home' as CustomerTab, label: tx(safeLang, 'Əsas', 'Главная', 'Home'), icon: <Home size={19} /> },
+    { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={19} /> },
+    { key: 'offers' as CustomerTab, label: tx(safeLang, 'Təkliflər', 'Акции', 'Offers'), icon: <Gift size={19} /> },
+    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={19} /> },
   ];
 
   const resolvedActiveTab: CustomerTab =
@@ -1926,35 +1920,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
         )}
 
-        {/* Language switcher + Theme/Design toggle */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label={isLight ? tx(safeLang, 'Tünd tema', 'Тёмная тема', 'Dark theme') : tx(safeLang, 'Açıq tema', 'Светлая тема', 'Light theme')}
-              onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm transition active:scale-95 ${
-                isLight
-                  ? 'bg-slate-100 border border-slate-200 text-slate-600'
-                  : 'bg-white/10 border border-white/10 text-white/70'
-              }`}
-            >
-              {isLight ? '🌙' : '☀️'}
-            </button>
-          </div>
-          <div
-            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm ${
-              isLight
-                ? 'text-slate-600 bg-white border border-slate-200'
-                : 'text-[#1A4329]/70 bg-white border border-[#1A4329]/10'
-            }`}
-          >
-            <Languages size={13} />
-            <button type="button" onClick={() => setLang('az')} className={`transition ${safeLang === 'az' ? 'font-black text-[#F48C24]' : ''}`}>AZ</button>
-            <button type="button" onClick={() => setLang('en')} className={`transition ${safeLang === 'en' ? 'font-black text-[#F48C24]' : ''}`}>EN</button>
-            <button type="button" onClick={() => setLang('ru')} className={`transition ${safeLang === 'ru' ? 'font-black text-[#F48C24]' : ''}`}>RU</button>
-          </div>
-        </div>
 
         {/* Tab content */}
         <div className="tab-content-wrapper flex-1 flex flex-col">
@@ -2158,72 +2123,88 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         className="fixed inset-x-0 bottom-0 z-30"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
       >
-        <div className="mx-auto max-w-lg px-3.5 sm:px-4 pb-2.5">
+        <div className="mx-auto max-w-md px-4 pb-2">
           <div
-            className={`flex items-center justify-around rounded-[28px] py-2 px-2 border ${
+            className={`flex items-center justify-between rounded-[32px] py-1.5 px-3 border ${
               isLight
-                ? 'border-black/8 bg-white/90 text-slate-800 shadow-[0_12px_36px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-2xl'
-                : 'glass-nav-capsule bg-white/5 text-white shadow-2xl'
+                ? 'border-black/6 bg-white/85 text-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-2xl'
+                : 'border-white/10 bg-[#121214]/85 text-white shadow-[0_16px_36px_rgba(0,0,0,0.6)] backdrop-blur-2xl'
             }`}
           >
-            {bottomTabs.map((tab, idx) => {
+            {/* Left 2 tabs: Home & Order */}
+            {bottomTabs.slice(0, 2).map((tab) => {
+              const active = tab.key === resolvedActiveTab;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={async () => {
+                    switchTabWithTransition(tab.key);
+                    if (Capacitor.isNativePlatform()) {
+                      try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
+                    }
+                  }}
+                  className="flex-1 flex flex-col items-center justify-center py-1.5 gap-1 transition-transform active:scale-95"
+                >
+                  <div className={`transition-colors duration-200 ${active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-white/40 hover:text-white/80'}`}>
+                    {tab.icon}
+                  </div>
+                  <span className={`text-[10px] font-bold tracking-tight transition-colors duration-200 ${
+                    active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400' : 'text-white/40'
+                  }`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Central Elevated Quick-Pay Button */}
+            <div className="flex-none px-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowFullQr(true);
+                  if (Capacitor.isNativePlatform()) {
+                    try { await Haptics.impact({ style: ImpactStyle.Heavy }); } catch {}
+                  }
+                }}
+                className="relative -top-3.5 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-[#FF8B26] to-orange-400 text-white shadow-[0_6px_20px_rgba(255,139,38,0.55)] active:scale-90 transition-all hover:scale-105 border-2 border-white/25"
+                aria-label="Quick Pay QR"
+              >
+                <QrCode size={22} className="drop-shadow-sm" />
+              </button>
+            </div>
+
+            {/* Right 2 tabs: Offers & Profile */}
+            {bottomTabs.slice(2, 4).map((tab) => {
               const active = tab.key === resolvedActiveTab;
               const unreadCount = tab.key === 'profile' ? notifications.filter((n: any) => !n.is_read).length : 0;
-              const showCenterQr = idx === 2; // place glowing center quick-pay right between order and offers
               return (
-                <React.Fragment key={tab.key}>
-                  {showCenterQr && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowFullQr(true);
-                        if (Capacitor.isNativePlatform()) {
-                          try {
-                            await Haptics.impact({ style: ImpactStyle.Heavy });
-                          } catch (hErr) {
-                            console.warn('Haptics failed', hErr);
-                          }
-                        }
-                      }}
-                      className="relative -top-3 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-[#FF8B26] to-orange-400 text-white shadow-[0_4px_18px_rgba(255,139,38,0.5)] active:scale-90 transition-all hover:scale-105 border-2 border-white/20"
-                      aria-label="Quick Pay QR"
-                    >
-                      <QrCode size={20} className="drop-shadow-sm" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      switchTabWithTransition(tab.key);
-                      if (Capacitor.isNativePlatform()) {
-                        try {
-                          await Haptics.impact({ style: ImpactStyle.Medium });
-                        } catch (hErr) {
-                          console.warn('Haptics failed', hErr);
-                        }
-                      }
-                    }}
-                    className={`relative flex items-center justify-center transition-all duration-200 active:scale-[0.96] ${
-                      active
-                        ? 'rounded-full bg-[#FF8B26] text-white px-4 py-2 shadow-[0_2px_12px_rgba(255,139,38,0.35)] gap-1.5'
-                        : isLight
-                          ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
-                          : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
-                    }`}
-                  >
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={async () => {
+                    switchTabWithTransition(tab.key);
+                    if (Capacitor.isNativePlatform()) {
+                      try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
+                    }
+                  }}
+                  className="relative flex-1 flex flex-col items-center justify-center py-1.5 gap-1 transition-transform active:scale-95"
+                >
+                  <div className={`transition-colors duration-200 ${active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-white/40 hover:text-white/80'}`}>
                     {tab.icon}
-                    {active && (
-                      <span className="text-[11px] font-bold tracking-wide animate-fadeIn">
-                        {tab.label}
-                      </span>
-                    )}
-                    {unreadCount > 0 && (
-                      <span className={`absolute ${active ? '-top-1 -right-1' : 'top-1.5 right-1.5'} flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500`}>
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
-                    )}
-                  </button>
-                </React.Fragment>
+                  </div>
+                  <span className={`text-[10px] font-bold tracking-tight transition-colors duration-200 ${
+                    active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400' : 'text-white/40'
+                  }`}>
+                    {tab.label}
+                  </span>
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-3 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>

@@ -725,8 +725,8 @@ export default function OrderTab({
   const cardBg      = isRetro
     ? 'retro-card'
     : (isLight
-      ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.07)] hover:shadow-[0_8px_28px_rgba(0,0,0,0.10)]'
-      : 'bg-gradient-to-br from-[#252A32] to-[#0C0F14] border-white/10 shadow-[0_10px_25px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-xl hover:border-white/20');
+      ? 'bg-white/95 border-black/8 shadow-[0_4px_18px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_26px_rgba(0,0,0,0.09)] backdrop-blur-md'
+      : 'bg-white/[0.05] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:border-white/20 backdrop-blur-xl');
   const loadingText = isLight ? 'text-slate-400'   : 'text-white/40';
   const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/4';
 
@@ -753,54 +753,44 @@ export default function OrderTab({
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <h2 className={`text-2xl font-black tracking-tight ${textPrimary}`}>
+          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${textPrimary}`}>
             {tx(safeLang, 'Sifariş Et', 'Заказать', 'Pre-Order')}
           </h2>
-          <p className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${textSecond}`}>
+          <p className={`text-xs font-medium mt-0.5 ${textSecond}`}>
             {tx(safeLang, 'Növbə gözləmədən qəhvəni al', 'Кофе без очереди', 'Skip the line, order ahead')}
           </p>
         </div>
         {customerCart.length > 0 && (
           <button onClick={() => setShowCartSheet(true)}
-            className="relative flex items-center justify-center h-11 w-11 rounded-full text-white active:scale-95 transition-all shimmer-btn"
-            style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 6px 20px rgba(244,140,36,0.45)' }}>
+            className="relative flex items-center justify-center h-10 w-10 rounded-full text-white active:scale-95 transition-all shadow-md shadow-orange-500/20 bg-gradient-to-r from-[#FF8B26] to-[#F48C24]">
             <ShoppingBag size={18} />
-            <span className="absolute -top-1 -right-1 bg-white text-[#F48C24] text-[9px] font-black h-4.5 w-4.5 rounded-full flex items-center justify-center border-2 border-[#F48C24] shadow-sm">
+            <span className="absolute -top-1 -right-1 bg-white text-[#F48C24] text-[10px] font-black h-4.5 w-4.5 rounded-full flex items-center justify-center border-2 border-[#F48C24] shadow-sm">
               {cartItemCount(customerCart)}
             </span>
           </button>
         )}
       </div>
 
-      {/* Store selection (Starbucks-style pickup branch) */}
+      {/* Store selection (Compact location bar) */}
       {stores.length > 0 && (
         <div>
           <button type="button" onClick={async () => { await Haptic.light(); setShowStorePicker(v => !v); }}
-            className={`w-full flex items-center gap-3 rounded-[18px] border p-3 text-left transition active:scale-[0.99] ${
-              isRetro
-                ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714]')
-                : (isLight ? 'bg-white/80 border-black/8 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 backdrop-blur-md')
+            className={`w-full flex items-center justify-between rounded-2xl border px-3.5 py-2.5 text-left transition active:scale-[0.99] ${
+              isLight ? 'bg-black/[0.03] border-black/8 hover:bg-black/[0.05]' : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.08]'
             }`}>
-            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-[#F48C24]"
-              style={{ background: 'rgba(244,140,36,0.12)', border: '1px solid rgba(244,140,36,0.25)' }}>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className={`block text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>
-                {tx(safeLang, 'Götürmə mağazası', 'Магазин самовывоза', 'Pickup store')}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-7 w-7 flex-none items-center justify-center rounded-xl bg-[#FF8B26]/15 text-[#FF8B26]">
+                <Store size={14} />
               </span>
-              <span className={`block truncate text-sm font-black ${textPrimary}`}>
-                {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.name || stores[0]?.name || ''}
-              </span>
-              {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.address || stores[0]?.address ? (
-                <span className={`block truncate text-[11px] ${textSecond}`}>
-                  {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.address || stores[0]?.address}
-                </span>
-              ) : null}
-            </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-bold truncate ${textPrimary}`}>
+                    {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.name || stores[0]?.name || ''}
+                  </span>
+                  <span className="text-[10px] text-emerald-500 font-semibold shrink-0">· Açıqdır</span>
+                </div>
+              </div>
+            </div>
             <svg className={`h-4 w-4 flex-none transition-transform ${showStorePicker ? 'rotate-180' : ''} ${textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
@@ -837,9 +827,9 @@ export default function OrderTab({
         </div>
       )}
 
-      {/* Search (F2) */}
+      {/* Search Bar */}
       <div className="relative">
-        <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`}>
+        <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -849,72 +839,59 @@ export default function OrderTab({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={tx(safeLang, 'Menyudan axtarın...', 'Поиск по меню...', 'Search the menu...')}
-          className={`w-full rounded-[18px] border py-3 pl-10 pr-4 text-xs transition focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${
-            isRetro
-              ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
-              : (isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/30 backdrop-blur-md')
+          className={`w-full rounded-2xl border py-2.5 pl-10 pr-4 text-xs transition focus:outline-none focus:ring-1 focus:ring-[#F48C24]/40 ${
+            isLight
+              ? 'bg-black/[0.03] border-black/8 text-slate-900 placeholder-slate-400'
+              : 'bg-white/[0.05] border-white/10 text-white placeholder-white/30'
           }`}
         />
       </div>
 
-      {/* Category Chips */}
+      {/* Category Chips — Modern Apple-grade Horizontal Pills */}
       {(cats.length > 0 || searchQuery.length > 0) && (
-        <div className="flex gap-2 overflow-x-auto pb-2 pt-1 -mx-0.5 px-0.5">
-          {/* All chip (F3) */}
-          <button key="ALL" type="button" onClick={async () => { await Haptic.light(); setSelectedCategory('ALL'); }}
-            className={`flex-none w-[70px] flex flex-col items-center gap-1.5 rounded-2xl p-2 transition-all border ${
+        <div className="flex gap-2 overflow-x-auto pb-1 pt-1 -mx-1 px-1 no-scrollbar">
+          {/* All chip */}
+          <button
+            key="ALL"
+            type="button"
+            onClick={async () => { await Haptic.light(); setSelectedCategory('ALL'); }}
+            className={`flex-none flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 whitespace-nowrap ${
               selectedCategory === 'ALL'
-                ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
-                : catInactive
+                ? 'bg-[#FF8B26] text-white shadow-[0_3px_12px_rgba(255,139,38,0.35)]'
+                : isLight
+                  ? 'bg-black/[0.04] text-slate-700 hover:bg-black/[0.08] border border-black/5'
+                  : 'bg-white/[0.07] text-white/80 hover:bg-white/[0.12] border border-white/10'
             }`}
-            style={selectedCategory === 'ALL' ? {
-              background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
-              borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
-            } : undefined}>
-            <div className={`h-10 w-10 rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center text-base ${
-              selectedCategory === 'ALL'
-                ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40'
-                : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
-            } ${isLight ? 'bg-slate-100' : 'bg-white/8'}`}>
-              ☕
-            </div>
-            <span className={`text-[10px] font-bold text-center truncate w-full leading-tight capitalize ${
-              selectedCategory === 'ALL'
-                ? isRetro ? 'text-[#1C2029] dark:text-white' : 'text-white'
-                : isLight ? 'text-slate-700' : 'text-white/70'
-            }`}>
-              {tx(safeLang, 'Hamısı', 'Все', 'All')}
-            </span>
+          >
+            <span>☕</span>
+            <span>{tx(safeLang, 'Hamısı', 'Все', 'All')}</span>
           </button>
           {cats.map(cat => {
-            const firstItem = menuItems.find((it: any) => String(it.category || '').toLowerCase() === cat.toLowerCase());
-            const catImage  = getProductImage(firstItem?.item_name || firstItem?.name || cat, firstItem?.image_url);
             const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+            const lower = cat.toLowerCase();
+            const emoji = lower.includes('qəhvə') || lower.includes('kofe') || lower.includes('coffee') ? '☕'
+              : lower.includes('desert') || lower.includes('shirniyyat') || lower.includes('cake') ? '🍰'
+              : lower.includes('ekstra') || lower.includes('sirop') ? '✨'
+              : lower.includes('cay') || lower.includes('tea') ? '🍵'
+              : lower.includes('soyuq') || lower.includes('cold') || lower.includes('ice') ? '🥤'
+              : lower.includes('yemək') || lower.includes('food') || lower.includes('sendvic') ? '🥪'
+              : '🏷️';
+
             return (
-              <button key={cat} onClick={async () => { await Haptic.light(); setSelectedCategory(cat); }}
-                className={`flex-none w-[70px] flex flex-col items-center gap-1.5 rounded-2xl p-2 transition-all border ${
+              <button
+                key={cat}
+                type="button"
+                onClick={async () => { await Haptic.light(); setSelectedCategory(cat); }}
+                className={`flex-none flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 whitespace-nowrap ${
                   isSelected
-                    ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
-                    : catInactive
+                    ? 'bg-[#FF8B26] text-white shadow-[0_3px_12px_rgba(255,139,38,0.35)]'
+                    : isLight
+                      ? 'bg-black/[0.04] text-slate-700 hover:bg-black/[0.08] border border-black/5'
+                      : 'bg-white/[0.07] text-white/80 hover:bg-white/[0.12] border border-white/10'
                 }`}
-                style={isSelected ? {
-                  background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
-                  borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
-                } : undefined}>
-                <div className={`h-10 w-10 rounded-full overflow-hidden border-2 shadow-sm ${
-                  isSelected 
-                    ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40' 
-                    : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
-                }`}>
-                  <img src={catImage} alt={cat} className="h-full w-full object-cover" />
-                </div>
-                <span className={`text-[10px] font-bold text-center truncate w-full leading-tight capitalize ${
-                  isSelected 
-                    ? isRetro ? 'text-[#1C2029] dark:text-white' : 'text-white' 
-                    : isLight ? 'text-slate-700' : 'text-white/70'
-                }`}>
-                  {cat}
-                </span>
+              >
+                <span>{emoji}</span>
+                <span>{cat}</span>
               </button>
             );
           })}
@@ -965,21 +942,11 @@ export default function OrderTab({
                     alt={item.item_name || item.name || ''}
                     className="w-full h-full object-cover group-hover:scale-106 transition-transform duration-500"
                   />
-                  {/* Gradient overlay */}
-                  {!isRetro && (
-                    <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-transparent ${isLight ? 'to-white/80' : 'to-[#0D0B0A]/80'} pointer-events-none`} />
-                  )}
-                  {/* Shimmer on hover */}
-                  {!isRetro && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/12 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
-                  )}
+                  {/* Subtle Image bottom vignette */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20 pointer-events-none" />
 
-                  {/* Badge (Bottom/Top Left) */}
-                  <span className={`absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md ${
-                    isRetro
-                      ? 'bg-[#FAF8F5] text-slate-800 border-2 border-[#2B1B1A] shadow-sm'
-                      : badgeColor
-                  }`}>
+                  {/* Badge */}
+                  <span className={`absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md ${badgeColor}`}>
                     {badgeText}
                   </span>
 
@@ -991,47 +958,35 @@ export default function OrderTab({
                     setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
                   }}
                     aria-label={isFav ? tx(safeLang, 'Sevimlilərdən çıxar', 'Убрать из избранного', 'Remove from favorites') : tx(safeLang, 'Sevimlilərə əlavə et', 'В избранное', 'Add to favorites')}
-                    className={`absolute top-2.5 right-2.5 z-10 h-8 w-8 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
-                      isRetro
-                        ? isFav
-                          ? 'bg-[#D47B5E] border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-white'
-                          : 'bg-white border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-slate-500'
-                        : isFav
-                          ? 'bg-[#F48C24]/25 border-[#F48C24]/50 text-[#F48C24] glow-orange-sm'
-                          : isLight ? 'bg-white/80 border-black/10 text-slate-500' : 'bg-black/40 border-white/10 text-white/60'
+                    className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
+                      isFav
+                        ? 'bg-[#FF8B26]/30 border-[#FF8B26]/50 text-[#FF8B26]'
+                        : isLight ? 'bg-white/80 border-black/10 text-slate-500' : 'bg-black/40 border-white/15 text-white/70'
                     }`}>
-                    <Heart size={12} fill={isFav ? (isRetro ? '#FAF8F5' : '#F48C24') : 'none'} />
+                    <Heart size={11} fill={isFav ? '#FF8B26' : 'none'} />
                   </button>
                 </div>
 
                 {/* Info Row */}
-                <div className="w-full px-3 pt-2.5 pb-3 flex flex-col gap-0.5">
+                <div className="w-full px-3.5 pt-2.5 pb-3.5 flex flex-col gap-0.5">
                   <h3 className={`text-xs font-bold leading-tight line-clamp-1 ${textPrimary}`}>
                     {item.item_name || item.name}
                   </h3>
                   
                   {/* Recipe Subtitle */}
-                  <p className={`text-[10px] font-medium leading-tight truncate ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
+                  <p className={`text-[10px] font-medium leading-tight truncate ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
                     {subTitleText}
                   </p>
 
-                  <div className="flex items-center justify-between mt-1 pt-0.5">
-                    <p className={`text-[13px] font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                      <span className="text-[#F48C24]">₼ </span>
+                  <div className="flex items-center justify-between mt-1 pt-1">
+                    <p className={`text-[13px] font-extrabold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      <span className="text-[#FF8B26]">₼ </span>
                       <span>{Number(item.price || 0).toFixed(2)}</span>
                     </p>
                     {/* + button */}
-                    {isRetro ? (
-                      <div className="h-8 w-8 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-bold text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
-                        <Plus size={14} />
-                      </div>
-                    ) : (
-                      <div className="relative glow-ring-pulse rounded-full">
-                        <div className="h-8 w-8 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-sm shadow-[0_3px_10px_rgba(244,140,36,0.35)] active:scale-90 transition">
-                          <Plus size={14} />
-                        </div>
-                      </div>
-                    )}
+                    <div className="h-7 w-7 rounded-full bg-gradient-to-r from-amber-500 to-[#FF8B26] flex items-center justify-center text-white font-bold text-sm shadow-[0_2px_8px_rgba(255,139,38,0.35)] active:scale-90 transition">
+                      <Plus size={13} />
+                    </div>
                   </div>
                 </div>
               </div>

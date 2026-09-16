@@ -417,34 +417,43 @@ export default function HomeTab({
       `}</style>
 
       {/* Top Header Row */}
-      <div className="flex items-center justify-between px-1 mb-4">
-        <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
-          className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-95 transition-all duration-150 ${headerBtn}`}>
-          <Menu size={18} />
-        </button>
-        {/* P0.5 — əvvəl hardcoded `/logo.jpg` + alt="Emalathhana" idi. */}
-        {brandLogoUrl ? (
-          <img src={brandLogoUrl} alt={brandName} width={36} height={36}
-            className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-md" />
-        ) : (
-          <div className={`h-9 w-9 rounded-xl flex items-center justify-center border text-lg shadow-md ${isLight ? 'bg-orange-50 border-orange-100' : 'bg-white/10 border-white/20'}`}>☕</div>
-        )}
-        <button type="button"
-          onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
-          aria-label={tx(safeLang, 'Wallet-ə əlavə et', 'Добавить в Wallet', 'Add to Wallet')}
-          className="relative h-10 w-10 rounded-full border border-[#FF8B26]/40 bg-[#FF8B26]/[0.08] flex items-center justify-center text-[#FF8B26] active:scale-95 transition-all duration-150">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h15a2 2 0 012 2v6a2 2 0 01-2 2H3V7zm0 0l2-3h12l2 3M16 13h2" />
-          </svg>
-        </button>
-        <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
-          className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}
-          style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(244,140,36,0.3)' }}>
-          {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
-          {notifications.filter((n: any) => !n.is_read).length > 0 && (
-            <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-[#F48C24] border-2 border-[#181412] animate-pulse" />
+      <div className="flex items-center justify-between px-1 mb-5">
+        <div className="flex items-center gap-2.5">
+          {brandLogoUrl ? (
+            <img src={brandLogoUrl} alt={brandName} width={36} height={36}
+              className="h-9 w-9 rounded-2xl object-cover border border-white/10 shadow-sm" />
+          ) : (
+            <div className={`h-9 w-9 rounded-2xl flex items-center justify-center border text-base shadow-sm ${isLight ? 'bg-orange-50 border-orange-200/60' : 'bg-white/10 border-white/10'}`}>☕</div>
           )}
-        </button>
+          <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
+              {coffeeGreeting(safeLang)}
+            </p>
+            <h2 className={`text-sm font-extrabold leading-tight ${textPrimary}`}>
+              {customer.name || brandName || 'iRonWaves'}
+            </h2>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="button"
+            onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
+            aria-label={tx(safeLang, 'Wallet-ə əlavə et', 'Добавить в Wallet', 'Add to Wallet')}
+            className={`h-9 w-9 rounded-full border flex items-center justify-center text-[#FF8B26] active:scale-95 transition-all ${
+              isLight ? 'border-orange-500/20 bg-orange-500/8' : 'border-[#FF8B26]/30 bg-[#FF8B26]/10'
+            }`}>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h15a2 2 0 012 2v6a2 2 0 01-2 2H3V7zm0 0l2-3h12l2 3M16 13h2" />
+            </svg>
+          </button>
+          <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
+            className="relative h-9 w-9 rounded-full flex items-center justify-center font-black active:scale-95 transition-all text-white shadow-md shadow-orange-500/20 bg-gradient-to-tr from-amber-500 to-[#FF8B26]">
+            {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
+            {notifications.filter((n: any) => !n.is_read).length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-900 animate-pulse" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Hero — energetic brand orange panel */}
