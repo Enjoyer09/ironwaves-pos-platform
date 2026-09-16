@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coffee, Gift, Home, Languages, MessageSquare, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
+import { Coffee, Gift, Home, Languages, MessageSquare, QrCode, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -2143,6 +2143,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setLang={setLang}
             markRead={markRead}
             isLight={isLight}
+            themeMode={themeMode}
+            onToggleTheme={(mode) => setThemeMode(mode)}
             designMode={designMode}
             onSaveProfile={handleSaveProfile}
           />
@@ -2164,43 +2166,64 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 : 'glass-nav-capsule bg-white/5 text-white shadow-2xl'
             }`}
           >
-            {bottomTabs.map((tab) => {
+            {bottomTabs.map((tab, idx) => {
               const active = tab.key === resolvedActiveTab;
               const unreadCount = tab.key === 'profile' ? notifications.filter((n: any) => !n.is_read).length : 0;
+              const showCenterQr = idx === 2; // place glowing center quick-pay right between order and offers
               return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={async () => {
-                    switchTabWithTransition(tab.key);
-                    if (Capacitor.isNativePlatform()) {
-                      try {
-                        await Haptics.impact({ style: ImpactStyle.Medium });
-                      } catch (hErr) {
-                        console.warn('Haptics failed', hErr);
+                <React.Fragment key={tab.key}>
+                  {showCenterQr && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowFullQr(true);
+                        if (Capacitor.isNativePlatform()) {
+                          try {
+                            await Haptics.impact({ style: ImpactStyle.Heavy });
+                          } catch (hErr) {
+                            console.warn('Haptics failed', hErr);
+                          }
+                        }
+                      }}
+                      className="relative -top-3 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-[#FF8B26] to-orange-400 text-white shadow-[0_4px_18px_rgba(255,139,38,0.5)] active:scale-90 transition-all hover:scale-105 border-2 border-white/20"
+                      aria-label="Quick Pay QR"
+                    >
+                      <QrCode size={20} className="drop-shadow-sm" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      switchTabWithTransition(tab.key);
+                      if (Capacitor.isNativePlatform()) {
+                        try {
+                          await Haptics.impact({ style: ImpactStyle.Medium });
+                        } catch (hErr) {
+                          console.warn('Haptics failed', hErr);
+                        }
                       }
-                    }
-                  }}
-                  className={`relative flex items-center justify-center transition-all duration-200 active:scale-[0.96] ${
-                    active
-                      ? 'rounded-full bg-[#FF8B26] text-white px-4 py-2 shadow-[0_2px_12px_rgba(255,139,38,0.35)] gap-1.5'
-                      : isLight
-                        ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
-                        : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
-                  }`}
-                >
-                  {tab.icon}
-                  {active && (
-                    <span className="text-[11px] font-bold tracking-wide animate-fadeIn">
-                      {tab.label}
-                    </span>
-                  )}
-                  {unreadCount > 0 && (
-                    <span className={`absolute ${active ? '-top-1 -right-1' : 'top-1.5 right-1.5'} flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500`}>
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </button>
+                    }}
+                    className={`relative flex items-center justify-center transition-all duration-200 active:scale-[0.96] ${
+                      active
+                        ? 'rounded-full bg-[#FF8B26] text-white px-4 py-2 shadow-[0_2px_12px_rgba(255,139,38,0.35)] gap-1.5'
+                        : isLight
+                          ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
+                          : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
+                    }`}
+                  >
+                    {tab.icon}
+                    {active && (
+                      <span className="text-[11px] font-bold tracking-wide animate-fadeIn">
+                        {tab.label}
+                      </span>
+                    )}
+                    {unreadCount > 0 && (
+                      <span className={`absolute ${active ? '-top-1 -right-1' : 'top-1.5 right-1.5'} flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500`}>
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </React.Fragment>
               );
             })}
           </div>
@@ -2234,14 +2257,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           >
             {/* Modal Header/Handle */}
             <div className="flex flex-col items-center gap-2">
-              <div className="h-1.5 w-12 rounded-full bg-white/10" />
-              <h3 className="text-md font-black text-white mt-2">
+              <div className={`h-1.5 w-12 rounded-full ${isLight ? 'bg-slate-300' : 'bg-white/20'}`} />
+              <h3 className={`text-base font-black mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {tx(safeLang, 'Skan Et və Qazan', 'Сканируй и Получай', 'Scan & Earn')}
               </h3>
             </div>
 
             {/* QR Scanner Container */}
-            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-white/10 shadow-sm">
+            <div className={`flex flex-col items-center justify-center p-6 rounded-2xl bg-white border shadow-sm ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
               {cardQr ? (
                 <div className="p-1 bg-white rounded-xl">
                   <img src={cardQr} alt="qr" className="h-56 w-56 object-contain" />
@@ -2262,9 +2285,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             </div>
 
             {/* Quick Tips */}
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-4 flex gap-3 items-center text-white">
+            <div className={`rounded-2xl border p-4 flex gap-3 items-center ${isLight ? 'bg-black/[0.03] border-black/8 text-slate-700' : 'bg-white/5 border-white/10 text-white'}`}>
               <span className="text-lg">💡</span>
-              <p className="text-[11px] text-white/60 leading-relaxed font-semibold">
+              <p className={`text-[11px] leading-relaxed font-semibold ${isLight ? 'text-slate-600' : 'text-white/60'}`}>
                 {tx(
                   safeLang,
                   'Skaner oxuya bilsin deyə ekran parlaqlığını artırmağınız tövsiyə olunur.',
@@ -2284,7 +2307,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   } catch {}
                 }
               }}
-              className="w-full py-3.5 rounded-2xl bg-[#1A4329] text-white font-black text-[13px] active:scale-95 transition-transform shadow-md"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-[#FF8B26] text-white font-black text-[13px] active:scale-95 transition-transform shadow-lg shadow-orange-500/20"
             >
               {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
             </button>
