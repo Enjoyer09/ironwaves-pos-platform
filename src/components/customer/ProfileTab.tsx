@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Check, Gift, Languages, Pencil, TrendingUp, X } from 'lucide-react';
+import { Bell, Check, Gift, Languages, Moon, Pencil, Sun, TrendingUp, X } from 'lucide-react';
 import { tx } from '../../i18n';
 import { Haptic } from '../../lib/customer_utils';
 import { FALLBACK_TIER_COLOR, fallbackTierLabel } from '../../lib/loyalty';
@@ -13,6 +13,8 @@ type Props = {
   chartData: Array<{ date: string; amount: number }>;
   primaryColor: string;
   isLight?: boolean;
+  themeMode?: 'light' | 'dark';
+  onToggleTheme?: (mode: 'light' | 'dark') => void;
   setLang: (lang: any) => void;
   markRead: (id: string) => void | Promise<void>;
   designMode?: 'classic' | 'retro';
@@ -21,7 +23,8 @@ type Props = {
 
 export default function ProfileTab({
   safeLang, customer, notifications, history, chartData, primaryColor,
-  setLang, markRead, isLight = false, designMode = 'classic', onSaveProfile
+  setLang, markRead, isLight = false, themeMode = 'dark', onToggleTheme,
+  designMode = 'classic', onSaveProfile
 }: Props) {
   const [editing, setEditing] = React.useState(false);
   const [editName, setEditName] = React.useState('');
@@ -201,6 +204,84 @@ export default function ProfileTab({
               <span className={`text-[13px] font-bold mt-2 ${highlight ? isRetro ? 'text-[#D47B5E] text-base' : 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* App Appearance & Preferences (Dark/Light Mode & Language) */}
+      <section className={`rounded-[24px] border p-5 space-y-4 ${bgCard}`}>
+        <div className={`text-[14px] font-bold flex items-center justify-between ${textPrimary}`}>
+          <span>{tx(safeLang, 'Tətbiq Görünüşü & Dil', 'Внешний вид и Язык', 'Appearance & Language')}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>iOS 18 Glass</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Theme switcher */}
+          {onToggleTheme && (
+            <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-black/3 border-black/5' : 'bg-black/20 border-white/5'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${isLight ? 'bg-amber-100 text-amber-700' : 'bg-white/10 text-amber-400'}`}>
+                  {isLight ? <Sun size={16} /> : <Moon size={16} />}
+                </div>
+                <div>
+                  <p className={`text-xs font-bold ${textPrimary}`}>
+                    {isLight ? tx(safeLang, 'İşıqlı Tema', 'Светлая тема', 'Light Mode') : tx(safeLang, 'Qaranlıq Tema', 'Тёмная тема', 'Dark Mode')}
+                  </p>
+                  <p className={`text-[9px] ${textMuted}`}>
+                    {isLight ? tx(safeLang, 'Porcelain White', 'Светлый фарфор', 'Porcelain White') : tx(safeLang, 'Obsidian Luxury', 'Обсидиановый люкс', 'Obsidian Luxury')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex rounded-xl p-0.5 border border-white/10 bg-black/20">
+                <button
+                  type="button"
+                  onClick={async () => { await Haptic.light(); onToggleTheme('light'); }}
+                  className={`p-1.5 rounded-lg transition-all ${isLight ? 'bg-white text-slate-900 shadow-sm font-bold scale-105' : 'text-white/40 hover:text-white'}`}
+                  aria-label="Light mode"
+                >
+                  <Sun size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { await Haptic.light(); onToggleTheme('dark'); }}
+                  className={`p-1.5 rounded-lg transition-all ${!isLight ? 'bg-orange-500 text-white shadow-sm font-bold scale-105' : 'text-slate-400 hover:text-slate-900'}`}
+                  aria-label="Dark mode"
+                >
+                  <Moon size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Language selector */}
+          <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-black/3 border-black/5' : 'bg-black/20 border-white/5'}`}>
+            <div className="flex items-center gap-2.5">
+              <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${isLight ? 'bg-orange-100 text-orange-700' : 'bg-white/10 text-[#F48C24]'}`}>
+                <Languages size={16} />
+              </div>
+              <div>
+                <p className={`text-xs font-bold ${textPrimary}`}>{tx(safeLang, 'Dil', 'Язык', 'Language')}</p>
+                <p className={`text-[9px] ${textMuted}`}>{safeLang.toUpperCase()} · Multi-language</p>
+              </div>
+            </div>
+
+            <div className="flex rounded-xl p-0.5 border border-white/10 bg-black/20 text-xs">
+              {(['az', 'en', 'ru'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={async () => { await Haptic.light(); setLang(l); }}
+                  className={`px-2 py-1 rounded-lg transition-all text-[11px] font-bold ${
+                    safeLang === l
+                      ? 'bg-[#F48C24] text-white shadow-sm scale-105'
+                      : isLight ? 'text-slate-400 hover:text-slate-800' : 'text-white/40 hover:text-white'
+                  }`}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
