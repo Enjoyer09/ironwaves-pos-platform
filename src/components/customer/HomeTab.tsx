@@ -154,6 +154,7 @@ export default function HomeTab({
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 shadow-[2px_2px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[2px_2px_0px_0px_#3D2F2A]')
     : (isLight ? 'bg-white/80 border-black/8 text-slate-800 shadow-sm backdrop-blur-sm' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
   const headerText  = isLight ? 'text-slate-900' : 'text-white';
+  const textPrimary = headerText; // alias used in header h2
   const subText     = isLight ? 'text-slate-500' : 'text-white/60';
   const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
   const borderSec   = isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/6' : 'border-white/8');
