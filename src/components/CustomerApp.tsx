@@ -175,13 +175,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [locCoords, setLocCoords] = React.useState<{ lat: number; lng: number } | null>(null);
   const [remoteNearest, setRemoteNearest] = React.useState<any[] | null>(null);
   React.useEffect(() => {
+    // Don't request location while onboarding is shown — avoids the iOS
+    // permission alert appearing on top of the onboarding screen every launch.
+    if (showOnboarding) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     navigator.geolocation?.getCurrentPosition(
       (pos) => setLocCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => { /* permission denied — keep original store order */ },
       { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
     );
-  }, []);
+  }, [showOnboarding]);
   const baseStores = Array.isArray((data as any)?.stores) && (data as any).stores.length > 0
     ? (data as any).stores
     : [{ id: (data as any)?.tenant_id || '', name: (data as any)?.branding?.company_name || '', address: (data as any)?.branding?.address || '', phone: (data as any)?.branding?.phone || '', is_default: true }];
