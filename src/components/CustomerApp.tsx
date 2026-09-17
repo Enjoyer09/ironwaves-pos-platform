@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Coffee, Gift, Home, Languages, MessageSquare, QrCode, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
@@ -1772,12 +1772,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
-  const bottomTabs = useMemo<Array<{ key: CustomerTab; label: string; icon: React.ReactNode }>>(() => [
+  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Əsas', 'Главная', 'Home'), icon: <Home size={19} /> },
     { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={19} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Təkliflər', 'Акции', 'Offers'), icon: <Gift size={19} /> },
     { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={19} /> },
-  ], [safeLang]);
+  ];
 
   const resolvedActiveTab: CustomerTab =
     (activeTab === 'barista' || activeTab === 'falci')
