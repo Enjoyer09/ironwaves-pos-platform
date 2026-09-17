@@ -436,8 +436,8 @@ html {
   /* ── Apple-grade Glassmorphism (Subsurface Light & Highlights) ─ */
   .cust-glass,
   .glass-card-apple {
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
     background: linear-gradient(
       170deg,
       rgba(255, 255, 255, 0.09) 0%,
@@ -450,13 +450,12 @@ html {
       inset 0 1px 1px rgba(255, 255, 255, 0.14),
       0 8px 32px rgba(0, 0, 0, 0.20),
       0 2px 8px rgba(0, 0, 0, 0.12);
-    will-change: transform;
   }
 
   .cust-glass-light,
   .glass-panel-light {
-    backdrop-filter: blur(28px) saturate(140%);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(130%);
+    -webkit-backdrop-filter: blur(12px) saturate(130%);
     background: linear-gradient(
       170deg,
       rgba(255, 255, 255, 0.90) 0%,
@@ -469,7 +468,6 @@ html {
       inset 0 1px 0 rgba(255, 255, 255, 0.65),
       0 8px 32px rgba(0, 0, 0, 0.06),
       0 1.5px 4px rgba(0, 0, 0, 0.04);
-    will-change: transform;
   }
 
   .glass-chip-apple {
@@ -482,13 +480,13 @@ html {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 2px 8px rgba(0, 0, 0, 0.08);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(130%);
+    -webkit-backdrop-filter: blur(8px) saturate(130%);
   }
 
   .glass-nav-capsule {
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
     border: 0.5px solid rgba(255, 255, 255, 0.12);
     border-top: 0.5px solid rgba(255, 255, 255, 0.20);
     box-shadow:
