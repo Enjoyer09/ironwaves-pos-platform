@@ -3118,6 +3118,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 onSelectTable={handleSelectWaiterTable}
                 onFastSwitch={() => window.dispatchEvent(new CustomEvent('trigger-fast-switch'))}
                 refreshData={() => { void loadData(); }}
+                onPrintPreCheck={handlePrintPreCheck}
               />
             ) : (
               <FloorView
