@@ -65,16 +65,16 @@ export default function ProfileTab({
     : 'w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/40';
 
   const isRetro     = designMode === 'retro';
-  const textPrimary  = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond   = isLight ? 'text-slate-500' : 'text-white/60';
-  const textMuted    = isLight ? 'text-slate-400' : 'text-white/40';
-  const bgCard       = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
-  const innerBoxBg   = isLight ? 'bg-black/3 border-black/5 text-slate-800' : 'bg-black/25 border-white/5 text-slate-200';
+  const textPrimary  = isLight ? 'text-[#1D1D1F]' : 'text-white';
+  const textSecond   = isLight ? 'text-[#6E6E73]' : 'text-white/60';
+  const textMuted    = isLight ? 'text-[#8E8E93]' : 'text-white/40';
+  const bgCard       = isRetro ? 'retro-card' : (isLight ? 'bg-white border-black/[0.05] shadow-[0_2px_12px_rgba(0,0,0,0.04)]' : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]');
+  const innerBoxBg   = isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F]' : 'bg-black/25 border-white/5 text-slate-200';
   const itemBorder   = isRetro
     ? (isLight ? 'border-[2px] border-[#1C2029] bg-white' : 'border-[2px] border-[#2F2622] bg-[#1E1714]')
-    : (isLight ? 'border-black/5 bg-white/70 shadow-sm' : 'border-white/8 bg-white/4');
-  const unreadBg     = isLight ? 'border-[#F48C24]/25 bg-[#F48C24]/5' : 'border-[#F48C24]/25 bg-[#F48C24]/8';
-  const langBarCls   = isLight ? 'border-black/8 bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm' : 'border-white/10 bg-white/6 text-slate-200 backdrop-blur-md';
+    : (isLight ? 'border-black/[0.05] bg-white shadow-sm' : 'border-white/8 bg-white/4');
+  const unreadBg     = isLight ? 'border-[#FF8B26]/25 bg-[#FF8B26]/5' : 'border-[#FF8B26]/25 bg-[#FF8B26]/8';
+  const langBarCls   = isLight ? 'border-transparent bg-[#F5F5F7] text-slate-700 shadow-none' : 'border-white/10 bg-white/6 text-slate-200 backdrop-blur-md';
 
   const tier: any = customer?.tier || null;
   const tierColor = String(tier?.color || FALLBACK_TIER_COLOR);
@@ -211,13 +211,13 @@ export default function ProfileTab({
       <section className={`rounded-[24px] border p-5 space-y-4 ${bgCard}`}>
         <div className={`text-[14px] font-bold flex items-center justify-between ${textPrimary}`}>
           <span>{tx(safeLang, 'Tətbiq Görünüşü & Dil', 'Внешний вид и Язык', 'Appearance & Language')}</span>
-          <span className={`text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>iOS 18 Glass</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>iOS Design</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Theme switcher */}
           {onToggleTheme && (
-            <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-black/3 border-black/5' : 'bg-black/20 border-white/5'}`}>
+            <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-[#F5F5F7] border-black/[0.04]' : 'bg-black/20 border-white/5'}`}>
               <div className="flex items-center gap-2.5">
                 <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${isLight ? 'bg-amber-100 text-amber-700' : 'bg-white/10 text-amber-400'}`}>
                   {isLight ? <Sun size={16} /> : <Moon size={16} />}
@@ -227,12 +227,12 @@ export default function ProfileTab({
                     {isLight ? tx(safeLang, 'İşıqlı Tema', 'Светлая тема', 'Light Mode') : tx(safeLang, 'Qaranlıq Tema', 'Тёмная тема', 'Dark Mode')}
                   </p>
                   <p className={`text-[9px] ${textMuted}`}>
-                    {isLight ? tx(safeLang, 'Porcelain White', 'Светлый фарфор', 'Porcelain White') : tx(safeLang, 'Obsidian Luxury', 'Обсидиановый люкс', 'Obsidian Luxury')}
+                    {isLight ? tx(safeLang, 'Apple White', 'Светлый фарфор', 'Apple White') : tx(safeLang, 'Obsidian Luxury', 'Обсидиановый люкс', 'Obsidian Luxury')}
                   </p>
                 </div>
               </div>
 
-              <div className="flex rounded-xl p-0.5 border border-white/10 bg-black/20">
+              <div className={`flex rounded-xl p-0.5 border ${isLight ? 'border-black/5 bg-[#EBEBF0]' : 'border-white/10 bg-black/20'}`}>
                 <button
                   type="button"
                   onClick={async () => { await Haptic.light(); onToggleTheme('light'); }}
@@ -244,7 +244,7 @@ export default function ProfileTab({
                 <button
                   type="button"
                   onClick={async () => { await Haptic.light(); onToggleTheme('dark'); }}
-                  className={`p-1.5 rounded-lg transition-all ${!isLight ? 'bg-orange-500 text-white shadow-sm font-bold scale-105' : 'text-slate-400 hover:text-slate-900'}`}
+                  className={`p-1.5 rounded-lg transition-all ${!isLight ? 'bg-[#FF8B26] text-white shadow-sm font-bold scale-105' : 'text-slate-400 hover:text-slate-900'}`}
                   aria-label="Dark mode"
                 >
                   <Moon size={13} />
@@ -254,9 +254,9 @@ export default function ProfileTab({
           )}
 
           {/* Language selector */}
-          <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-black/3 border-black/5' : 'bg-black/20 border-white/5'}`}>
+          <div className={`rounded-2xl p-3.5 border flex items-center justify-between ${isLight ? 'bg-[#F5F5F7] border-black/[0.04]' : 'bg-black/20 border-white/5'}`}>
             <div className="flex items-center gap-2.5">
-              <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${isLight ? 'bg-orange-100 text-orange-700' : 'bg-white/10 text-[#F48C24]'}`}>
+              <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${isLight ? 'bg-orange-100 text-orange-700' : 'bg-white/10 text-[#FF8B26]'}`}>
                 <Languages size={16} />
               </div>
               <div>
@@ -265,16 +265,16 @@ export default function ProfileTab({
               </div>
             </div>
 
-            <div className="flex rounded-xl p-0.5 border border-white/10 bg-black/20 text-xs">
+            <div className={`flex rounded-xl p-0.5 border text-xs ${isLight ? 'border-black/5 bg-[#EBEBF0]' : 'border-white/10 bg-black/20'}`}>
               {(['az', 'en', 'ru'] as const).map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={async () => { await Haptic.light(); setLang(l); }}
-                  className={`px-2 py-1 rounded-lg transition-all text-[11px] font-bold ${
+                  className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-bold ${
                     safeLang === l
-                      ? 'bg-[#F48C24] text-white shadow-sm scale-105'
-                      : isLight ? 'text-slate-400 hover:text-slate-800' : 'text-white/40 hover:text-white'
+                      ? 'bg-[#FF8B26] text-white shadow-sm scale-105'
+                      : isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/40 hover:text-white'
                   }`}
                 >
                   {l.toUpperCase()}

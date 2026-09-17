@@ -68,25 +68,47 @@ export default function OffersTab({
     }
   };
 
-  const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
-  const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
-  const bgCard      = isLight ? 'cust-glass-light' : 'cust-glass premium-shadow';
+  const textPrimary = isLight ? 'text-[#1D1D1F]' : 'text-white';
+  const textSecond  = isLight ? 'text-[#6E6E73]' : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#8E8E93]' : 'text-white/40';
+  const bgCard      = isLight ? 'bg-white border-black/[0.05] shadow-[0_2px_12px_rgba(0,0,0,0.04)]' : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]';
   const divider     = isLight ? 'border-black/5' : 'border-white/8';
-  const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/4';
-  const circleBg    = isLight ? 'bg-slate-50' : 'bg-[#0D0B0A]';
+  const emptyBorder = isLight ? 'border-black/8 bg-[#F5F5F7]' : 'border-white/10 bg-white/4';
+  const circleBg    = isLight ? 'bg-[#F5F5F7]' : 'bg-[#0D0B0A]';
 
   return (
     <div className="space-y-4">
+      {/* Featured Offer Hero Banner — Apple Style */}
+      <div
+        className="rounded-[24px] p-5 relative overflow-hidden text-white shadow-md stagger-fade-in"
+        style={{
+          background: 'linear-gradient(135deg, #FF8B26 0%, #E06D10 100%)',
+        }}
+      >
+        <div className="relative z-10 max-w-[78%]">
+          <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-white/20 text-white backdrop-blur-sm mb-2">
+            🔥 {tx(safeLang, 'Xüsusi Təklif', 'Спецпредложение', 'Featured Offer')}
+          </span>
+          <h3 className="text-[17px] font-black leading-tight text-white">
+            {tx(safeLang, 'İkinci Qəhvəyə 50% Endirim', 'Скидка 50% на второй кофе', '50% Off Second Coffee')}
+          </h3>
+          <p className="text-[11px] font-medium text-white/85 mt-1">
+            {tx(safeLang, 'Saat 14:00 - 18:00 arası bütün filiallarda', 'С 14:00 до 18:00 во всех филиалах', 'From 14:00 to 18:00 at all branches')}
+          </p>
+        </div>
+        <div className="absolute -right-2 -bottom-2 text-7xl opacity-20 pointer-events-none select-none">
+          ☕
+        </div>
+      </div>
+
       {/* Active Campaigns */}
-      <section className={`rounded-[28px] p-5 border ${bgCard}`}>
+      <section className={`rounded-[24px] p-5 border ${bgCard}`}>
         <div className="flex items-center justify-between gap-3 mb-5">
           <p className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
-            <Gift size={16} className="text-[#F48C24]" />
+            <Gift size={16} className="text-[#FF8B26]" />
             {tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}
           </p>
-          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black text-white shimmer-btn"
-            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`, boxShadow: `0 4px 12px ${primaryColor}40` }}>
+          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black text-white shadow-sm bg-[#FF8B26]">
             {campaigns.length}
           </span>
         </div>

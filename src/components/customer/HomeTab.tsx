@@ -152,22 +152,22 @@ export default function HomeTab({
   const isRetro     = designMode === 'retro';
   const headerBtn   = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 shadow-[2px_2px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[2px_2px_0px_0px_#3D2F2A]')
-    : (isLight ? 'bg-white/80 border-black/8 text-slate-800 shadow-sm backdrop-blur-sm' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
-  const headerText  = isLight ? 'text-slate-900' : 'text-white';
-  const textPrimary = headerText; // alias used in header h2
-  const subText     = isLight ? 'text-slate-500' : 'text-white/60';
-  const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
-  const borderSec   = isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/6' : 'border-white/8');
+    : (isLight ? 'bg-[#F5F5F7] border-transparent text-slate-700 shadow-none' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
+  const headerText  = isLight ? 'text-[#1D1D1F]' : 'text-white';
+  const textPrimary = headerText;
+  const subText     = isLight ? 'text-[#6E6E73]' : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#8E8E93]' : 'text-white/40';
+  const borderSec   = isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-[#E5E5EA]' : 'border-white/8');
   const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
   const inputSearch = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
-    : (isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
+    : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] placeholder-[#8E8E93]' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
   const walletBtn   = isRetro
     ? 'retro-btn font-black text-center flex items-center justify-center'
-    : (isLight ? 'bg-white border-black/8 text-slate-800 shadow-sm hover:bg-slate-50' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm');
+    : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] shadow-none hover:bg-[#EBEBF0]' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm');
   const comboCard   = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-[#FAF8F5] text-slate-800' : 'border-[2px] border-[#3D2F2A] bg-[#1A1513] text-white')
-    : (isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]');
+    : (isLight ? 'bg-[#FFF3E8] border-transparent shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30');
 
   const tier: any = customer?.tier || null;
   const tierColor = String(tier?.color || FALLBACK_TIER_COLOR);
@@ -417,21 +417,21 @@ export default function HomeTab({
         }
       `}</style>
 
-      {/* Top Header Row */}
+      {/* Top Header Row — Apple SF-style large title */}
       <div className="flex items-center justify-between px-1 mb-5">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           {brandLogoUrl ? (
-            <img src={brandLogoUrl} alt={brandName} width={36} height={36}
-              className="h-9 w-9 rounded-2xl object-cover border border-white/10 shadow-sm" />
+            <img src={brandLogoUrl} alt={brandName} width={38} height={38}
+              className="h-[38px] w-[38px] rounded-[10px] object-cover shadow-sm" />
           ) : (
-            <div className={`h-9 w-9 rounded-2xl flex items-center justify-center border text-base shadow-sm ${isLight ? 'bg-orange-50 border-orange-200/60' : 'bg-white/10 border-white/10'}`}>☕</div>
+            <div className={`h-[38px] w-[38px] rounded-[10px] flex items-center justify-center text-base shadow-sm ${isLight ? 'bg-[#FF8B26]/10' : 'bg-white/10'}`}>☕</div>
           )}
           <div>
-            <p className={`text-[10px] font-semibold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
+            <p className={`text-[11px] font-medium ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
               {coffeeGreeting(safeLang)}
             </p>
-            <h2 className={`text-sm font-extrabold leading-tight ${textPrimary}`}>
-              {customer.name || brandName || 'iRonWaves'}
+            <h2 className={`text-[15px] font-bold leading-tight tracking-[-0.3px] ${textPrimary}`}>
+              {customer.name || brandName || 'IronWaves'}
             </h2>
           </div>
         </div>
@@ -440,626 +440,412 @@ export default function HomeTab({
           <button type="button"
             onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
             aria-label={tx(safeLang, 'Wallet-ə əlavə et', 'Добавить в Wallet', 'Add to Wallet')}
-            className={`h-9 w-9 rounded-full border flex items-center justify-center text-[#FF8B26] active:scale-95 transition-all ${
-              isLight ? 'border-orange-500/20 bg-orange-500/8' : 'border-[#FF8B26]/30 bg-[#FF8B26]/10'
+            className={`h-9 w-9 rounded-full flex items-center justify-center text-[#FF8B26] active:scale-95 transition-all ${
+              isLight ? 'bg-[#FF8B26]/10' : 'bg-[#FF8B26]/10 border border-[#FF8B26]/30'
             }`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h15a2 2 0 012 2v6a2 2 0 01-2 2H3V7zm0 0l2-3h12l2 3M16 13h2" />
             </svg>
           </button>
           <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
-            className="relative h-9 w-9 rounded-full flex items-center justify-center font-black active:scale-95 transition-all text-white shadow-md shadow-orange-500/20 bg-gradient-to-tr from-amber-500 to-[#FF8B26]">
+            className="relative h-9 w-9 rounded-full flex items-center justify-center font-bold text-[13px] active:scale-95 transition-all text-white shadow-sm bg-gradient-to-tr from-amber-500 to-[#FF8B26]">
             {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
             {notifications.filter((n: any) => !n.is_read).length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-900 animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-white animate-pulse" />
             )}
           </button>
         </div>
       </div>
 
-      {/* Hero — energetic brand orange panel */}
-      <div className="px-1 mb-6 stagger-fade-in">
+      {/* ── Apple Wallet Flip Card ─────────────────────────────── */}
+      <div
+        onClick={async (e) => {
+          spawnConfetti(e.clientX, e.clientY);
+          playTickSound();
+          setCardFlipped(!cardFlipped);
+          await nativeHapticImpact(ImpactStyle.Medium);
+        }}
+        className="w-full h-[220px] select-none cursor-pointer stagger-fade-in"
+        style={{ perspective: '1200px' }}
+      >
         <div
-          className="rounded-[24px] p-5 shadow-[0_10px_30px_rgba(255,139,38,0.28)]"
-          style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}
+          className={`relative w-full h-full duration-500 preserve-3d transition-transform ${
+            cardFlipped ? 'rotate-y-180' : ''
+          }`}
         >
-          <p className="text-[12px] font-medium text-white/85">
-            {coffeeGreeting(safeLang)} {customer.name ? `, ${customer.name}` : ''}
-          </p>
-          <h1 className="mt-1 text-[22px] leading-tight font-bold text-white">
-            {heroTitle}
-          </h1>
-          <p className="mt-1.5 text-[12px] font-semibold text-white/80">
-            {heroSubtitle}
-          </p>
+          {/* CARD FRONT — Apple Wallet Espresso */}
+          <div
+            className="absolute inset-0 backface-hidden flex flex-col justify-between overflow-hidden"
+            style={{
+              borderRadius: '24px',
+              padding: '22px 24px',
+              background: isLight
+                ? 'linear-gradient(145deg, #2C1810 0%, #5C2E0A 52%, #8B4513 100%)'
+                : 'linear-gradient(145deg, #1A0E08 0%, #3D1F05 50%, #6B3310 100%)',
+              boxShadow: isLight
+                ? '0 14px 36px rgba(44,24,16,0.35), 0 2px 8px rgba(0,0,0,0.14)'
+                : '0 14px 36px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3)',
+              transform: 'rotateY(0deg)',
+              WebkitTransform: 'rotateY(0deg)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            {/* Glossy top edge & shimmer */}
+            <div
+              className="absolute inset-x-0 top-0 h-24 pointer-events-none"
+              style={{
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, transparent 100%)',
+                borderRadius: '24px 24px 0 0',
+              }}
+            />
+            <div className="absolute inset-0 pointer-events-none card-sweep" style={{ borderRadius: 24 }} />
+
+            {/* Top row: Brand + Tier Badge + EMV chip */}
+            <div className="flex items-center justify-between relative z-10">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.22em] text-white/80">
+                  {brandName}
+                </span>
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300 bg-black/30 border border-amber-400/25"
+                >
+                  ⭐ {tierLabel}
+                </span>
+              </div>
+              {/* EMV chip */}
+              <div
+                className="relative w-9 h-6 rounded-md overflow-hidden flex flex-col justify-between p-0.5 opacity-90 shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #E5C058 0%, #F8E287 40%, #B8860B 100%)' }}
+              >
+                <div className="h-px bg-[#704214]/40 mt-1" />
+                <div className="h-px bg-[#704214]/40" />
+                <div className="h-px bg-[#704214]/40 mb-1" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-[#704214]/30" />
+              </div>
+            </div>
+
+            {/* Center: Big Star / Point Balance */}
+            <div className="my-auto relative z-10">
+              <p className="text-[10px] font-medium text-white/60 uppercase tracking-widest">
+                {wallet.points_label || tx(safeLang, 'Ulduz Balansı', 'Баланс звёзд', 'Star Balance')}
+              </p>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-[34px] font-black text-white tracking-tight leading-none">
+                  <AnimatedCounter
+                    value={Number(wallet.stars_balance ?? 0)}
+                    decimals={programMode === 'cashback' ? 2 : 0}
+                    suffix={balanceSuffix}
+                  />
+                </span>
+                {programMode !== 'cashback' && (
+                  <span className="text-amber-400 text-lg font-black">★</span>
+                )}
+              </div>
+
+              {/* Progress bar to next reward */}
+              <div className="mt-2.5 h-1.5 bg-white/15 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-[#FF8B26] transition-all duration-700"
+                  style={{ width: `${Math.max(4, Math.min(100, progressPercent))}%` }}
+                />
+              </div>
+              <p className="mt-1 text-[10px] font-medium text-white/70">
+                {rewardRemaining > 0
+                  ? tx(safeLang, `${rewardRemaining} ulduz qaldı → ${rewardName}`, `${rewardRemaining} звезд до «${rewardName}»`, `${rewardRemaining} stars to ${rewardName}`)
+                  : tx(safeLang, `${rewardName} hazırdır 🎉`, `«${rewardName}» готов 🎉`, `${rewardName} ready 🎉`)}
+              </p>
+            </div>
+
+            {/* Bottom: Card ID + Tap to Flip hint */}
+            <div className="flex items-center justify-between text-white/60 relative z-10 pt-1 border-t border-white/10">
+              <span className="font-mono text-[10px] tracking-[0.16em] text-white/50">
+                {formatCardIdFn(customer.card_id)}
+              </span>
+              <div className="flex items-center gap-1 text-[9px] font-bold text-white/80 bg-white/10 rounded-full px-2.5 py-0.5">
+                <span>🔄</span>
+                <span>{tx(safeLang, 'Skan üçün toxun', 'Коснись для QR', 'Tap to scan')}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* CARD BACK — Apple QR Reveal */}
+          <div
+            className="absolute inset-0 backface-hidden flex flex-col items-center justify-center text-white"
+            style={{
+              borderRadius: '24px',
+              padding: '20px',
+              background: isLight ? '#FFFFFF' : '#1C1C1E',
+              boxShadow: isLight
+                ? '0 14px 36px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)'
+                : '0 14px 36px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.3)',
+              transform: 'rotateY(180deg)',
+              WebkitTransform: 'rotateY(180deg)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            {cardQr ? (
+              <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200">
+                <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
+              </div>
+            ) : (
+              <div className="text-slate-400 text-xs">QR Code</div>
+            )}
+            <p
+              className={`mt-3 text-[10px] font-extrabold uppercase tracking-[0.2em] ${
+                isLight ? 'text-[#FF8B26]' : 'text-amber-400'
+              }`}
+            >
+              {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПОКАЖИТЕ НА КАССЕ', 'SHOW AT CHECKOUT')}
+            </p>
+            <p
+              className={`mt-0.5 font-mono text-[10px] tracking-wider ${
+                isLight ? 'text-slate-500' : 'text-white/50'
+              }`}
+            >
+              {formatCardIdFn(customer.card_id)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2 Stat Widgets (Apple Style) ────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 stagger-fade-in stagger-1">
+        {/* Left Widget: Rewards Available / Claim */}
+        <div
+          className={`rounded-[20px] p-4 flex flex-col justify-between border ${
+            isLight
+              ? 'bg-white border-black/[0.05] shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
+              : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${subText}`}>
+                {tx(safeLang, 'Hədiyyələr', 'Награды', 'Rewards')}
+              </span>
+              <Gift size={15} className="text-[#FF8B26]" />
+            </div>
+            <div className={`mt-2 text-2xl font-black ${headerText}`}>
+              {wallet.available_rewards ?? 0}
+            </div>
+            <p className={`text-[10px] font-medium mt-0.5 ${textMuted}`}>
+              {rewardDescription}
+            </p>
+          </div>
+          {claimableRow && (
+            <button
+              type="button"
+              disabled={claiming}
+              onClick={(e) => handleClaimWithConfetti(e, claimableRow.id)}
+              className="mt-3 w-full rounded-xl py-2 text-[11px] font-bold text-white bg-[#FF8B26] active:scale-95 transition-all shadow-sm disabled:opacity-50"
+            >
+              {claiming ? '...' : tx(safeLang, 'Tətbiq et', 'Забрать', 'Claim')} 🎉
+            </button>
+          )}
+        </div>
+
+        {/* Right Widget: Level / Cashback */}
+        <div
+          className={`rounded-[20px] p-4 flex flex-col justify-between border ${
+            isLight
+              ? 'bg-white border-black/[0.05] shadow-[0_2px_10px_rgba(0,0,0,0.04)]'
+              : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${subText}`}>
+                {programMode === 'cashback'
+                  ? 'Cashback'
+                  : tx(safeLang, 'Səviyyə', 'Уровень', 'Level')}
+              </span>
+              <span className="text-sm">⭐</span>
+            </div>
+            <div className={`mt-2 text-2xl font-black ${headerText}`}>
+              {programMode === 'cashback'
+                ? `${Number(wallet.cashback_percent || 0).toFixed(0)}%`
+                : tierLabel}
+            </div>
+            <p className={`text-[10px] font-medium mt-0.5 ${textMuted}`}>
+              {tier?.next_threshold
+                ? tx(safeLang, `Hədəf: ${tier.next_threshold} ★`, `Цель: ${tier.next_threshold} ★`, `Goal: ${tier.next_threshold} ★`)
+                : tx(safeLang, 'Maksimum status', 'Максимальный статус', 'Top tier status')}
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setActiveTab('order')}
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-bold text-[#F48C24] active:scale-95 transition-all duration-150 shadow-sm"
+            className={`mt-3 w-full rounded-xl py-2 text-[11px] font-bold active:scale-95 transition-all ${
+              isLight
+                ? 'bg-[#F5F5F7] text-slate-800 hover:bg-[#EBEBF0]'
+                : 'bg-white/10 text-white hover:bg-white/15'
+            }`}
           >
-            {tx(safeLang, 'Sifariş et', 'Заказать', 'Order now')}
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
-            </svg>
+            {tx(safeLang, 'Sifariş et', 'Заказать', 'Order')} →
           </button>
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="px-1 mb-6 flex gap-3 stagger-fade-in stagger-1">
+      {/* ── 4 Quick Actions (iOS Style Grid) ────────────────────── */}
+      <div className="grid grid-cols-4 gap-2.5 stagger-fade-in stagger-2">
+        {[
+          {
+            icon: '☕',
+            label: tx(safeLang, 'Sifariş', 'Заказ', 'Order'),
+            action: () => setActiveTab('order'),
+            bg: isLight ? 'bg-orange-50/80 text-[#FF8B26]' : 'bg-[#FF8B26]/15 text-[#FF8B26]',
+          },
+          {
+            icon: '✨',
+            label: 'Barista AI',
+            action: () => setActiveTab('ai'),
+            bg: isLight ? 'bg-amber-50/80 text-amber-600' : 'bg-amber-500/15 text-amber-400',
+          },
+          {
+            icon: '🏷️',
+            label: tx(safeLang, 'Təkliflər', 'Акции', 'Offers'),
+            action: () => setActiveTab('offers'),
+            bg: isLight ? 'bg-rose-50/80 text-rose-600' : 'bg-rose-500/15 text-rose-400',
+          },
+          {
+            icon: '👤',
+            label: tx(safeLang, 'Profil', 'Профиль', 'Profile'),
+            action: () => setActiveTab('profile'),
+            bg: isLight ? 'bg-blue-50/80 text-blue-600' : 'bg-blue-500/15 text-blue-400',
+          },
+        ].map((item, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={async () => {
+              await nativeHapticImpact(ImpactStyle.Light);
+              item.action();
+            }}
+            className={`flex flex-col items-center justify-center p-3 rounded-[18px] border transition-all active:scale-95 ${
+              isLight
+                ? 'bg-white border-black/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.03)]'
+                : 'bg-[#1C1C1E] border-white/8 shadow-sm'
+            }`}
+          >
+            <div className={`h-11 w-11 rounded-[14px] flex items-center justify-center text-xl mb-1.5 ${item.bg}`}>
+              {item.icon}
+            </div>
+            <span className={`text-[11px] font-bold tracking-tight text-center leading-tight ${headerText}`}>
+              {item.label}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Search & Filter Bar (Apple Rounded Field) ───────────── */}
+      <div className="flex gap-2.5 stagger-fade-in stagger-2">
         <div className="relative flex-1">
-          <input type="text"
+          <input
+            type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setActiveTab('order'); } }}
-            placeholder={tx(safeLang, 'Qəhvə, çay və ya desert axtarın...', 'Найдите ваш любимый вкус...', 'Search your favorite coffee...')}
-            className={`w-full rounded-[18px] border px-10 py-3.5 text-xs transition duration-200 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${inputSearch}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setActiveTab('order');
+              }
+            }}
+            placeholder={tx(safeLang, 'Qəhvə, çay, desert axtarın...', 'Поиск по меню...', 'Search coffee, tea, dessert...')}
+            className={`w-full rounded-[14px] px-10 py-3 text-[13px] transition duration-200 focus:outline-none ${inputSearch}`}
             onClick={() => setActiveTab('order')}
-            aria-label={tx(safeLang, 'Menyuda axtarış', 'Поиск в меню', 'Search the menu')} />
-          <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`}>
+            aria-label={tx(safeLang, 'Menyuda axtarış', 'Поиск в меню', 'Search the menu')}
+          />
+          <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </span>
         </div>
-        <button type="button" onClick={() => setActiveTab('order')}
-          className="h-12 w-12 rounded-[18px] bg-[#F48C24] flex items-center justify-center text-white active:scale-95 transition-all duration-150 shadow-md shadow-orange-500/10 shimmer-btn">
+        <button
+          type="button"
+          onClick={() => setActiveTab('order')}
+          className="h-[46px] w-[46px] rounded-[14px] bg-[#FF8B26] flex items-center justify-center text-white active:scale-95 transition-all shadow-sm"
+        >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14m-6-6 6 6-6 6" />
           </svg>
         </button>
       </div>
 
-      {/* Loyalty — next-reward clarity pill (Starbucks-style: "X stars to a free drink") */}
-      {showWallet && (
-        <div className="px-1 mb-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab('order')}
-            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150"
-          >
-            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0">
-              <span className="text-lg">⭐</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold text-[#F48C24]">
-                {tx(safeLang, 'Sənin üçün', 'Для тебя', 'For you')}
-              </p>
-              <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 truncate">
-                {rewardText}
-              </p>
-            </div>
-            <span className="text-[13px] font-black text-[#FF8B26] shrink-0">
-              {rewardRemaining > 0 ? `${rewardRemaining}★` : '🎉'}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Birthday surprise card */}
-      {birthdaySoon && (
-        <div className="px-1 mb-4">
-          <div
-            className="w-full rounded-[20px] p-4 flex items-center gap-3 text-white shadow-[0_10px_30px_rgba(255,139,38,0.28)]"
-            style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}
-          >
-            <span className="text-2xl">🎂</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-bold text-white">{tx(safeLang, 'Doğum günün yaxınlaşır!', 'День рождения скоро!', "Your birthday is near!")}</p>
-              <p className="text-[11px] text-white/85">{tx(safeLang, 'Sürpriz: pulsuz içki hədiyyə edirik 🎉', 'Сюрприз: дарим бесплатный напиток 🎉', 'Surprise: a free drink on us 🎉')}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Barista personalization (P1) */}
-      <div className="px-1 mb-4">
-        <button type="button" onClick={() => setActiveTab('ai')}
-          className="w-full rounded-[20px] p-4 flex items-center gap-3 text-left text-white shadow-[0_10px_30px_rgba(255,139,38,0.25)] active:scale-[0.99] transition-all duration-150"
-          style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}>
-          <span className="text-2xl">☕</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-bold text-white">{tx(safeLang, 'Barista tövsiyəsi', 'Совет бариста', 'Barista tip')}</p>
-            <p className="text-[11px] text-white/85">{baristaTip}</p>
-          </div>
-          <span className="text-[11px] font-bold text-white/90 shrink-0">{tx(safeLang, 'Soruş →', 'Спросить →', 'Ask →')}</span>
-        </button>
-      </div>
-
-      {/* Gamification — daily surprise (P1) */}
-      <div className="px-1 mb-4">
-        <button type="button" onClick={() => { setSurpriseOpen((o) => !o); void nativeHapticImpact(ImpactStyle.Light); }}
-          className="w-full rounded-[20px] border border-dashed border-[#FF8B26]/40 bg-[#FF8B26]/[0.06] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150">
-          <span className="text-2xl">{surpriseOpen ? '🎉' : '🎁'}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-bold text-[#F48C24]">{tx(safeLang, 'Günün sürprizi', 'Сюрприз дня', "Today's surprise")}</p>
-            <p className="text-[11px] text-slate-700 dark:text-slate-200">{surpriseOpen ? surpriseMessage : tx(safeLang, 'Açmaq üçün toxun', 'Нажми, чтобы открыть', 'Tap to reveal')}</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Active order — energetic brand progress pill */}
+      {/* ── Active Order Alert Pill (if present) ─────────────────── */}
       {Array.isArray(activeOrders) && activeOrders.length > 0 && (
-        <div className="px-1 mb-6">
+        <div className="stagger-fade-in">
           <button
             type="button"
             onClick={() => setActiveTab('order')}
-            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150"
+            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all"
           >
-            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0">
+            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0 shadow-sm">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold text-[#F48C24]">
+              <p className="text-[12px] font-bold text-[#FF8B26]">
                 {tx(safeLang, 'Sifariş hazırlanır', 'Заказ готовится', 'Order in progress')}
               </p>
-              <p className="text-[11px] text-slate-500 truncate">
-                {activeOrders[0]?.item_names || activeOrders[0]?.title || tx(safeLang, 'Kasırada götür', 'Заберите у кассы', 'Pick up at counter')}
+              <p className={`text-[11px] truncate ${subText}`}>
+                {activeOrders[0]?.item_names || activeOrders[0]?.title || tx(safeLang, 'Kasada götürün', 'Заберите у кассы', 'Pick up at counter')}
               </p>
             </div>
-            <span className="text-[11px] font-black text-[#FF8B26] shrink-0">{activeOrders[0]?.eta || '2 dəq'}</span>
+            <span className="text-[11px] font-black text-[#FF8B26] shrink-0">
+              {activeOrders[0]?.eta || '2 dəq'}
+            </span>
           </button>
         </div>
       )}
 
-      {/* Geofence Alert */}
+      {/* ── Birthday Alert (if soon) ────────────────────────────── */}
+      {birthdaySoon && (
+        <div>
+          <div
+            className="w-full rounded-[20px] p-4 flex items-center gap-3 text-white shadow-md"
+            style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}
+          >
+            <span className="text-2xl">🎂</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-white">
+                {tx(safeLang, 'Doğum günün yaxınlaşır!', 'День рождения скоро!', "Your birthday is near!")}
+              </p>
+              <p className="text-[11px] text-white/85">
+                {tx(safeLang, 'Sürpriz: pulsuz içki hədiyyə edirik 🎉', 'Сюрприз: дарим бесплатный напиток 🎉', 'Surprise: a free drink on us 🎉')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Geofence Alert (if nearby) ──────────────────────────── */}
       {geofenceAlert && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl p-4 animate-pulse shimmer-card"
-          style={{ background: 'linear-gradient(135deg, rgba(250,204,21,0.12) 0%, rgba(34,211,238,0.12) 100%)', border: '1px solid rgba(250,204,21,0.28)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
-          <div className="flex gap-3">
-            <span className="text-2xl float-slow">☕</span>
+        <div
+          className="flex items-center justify-between gap-3 rounded-2xl p-4 animate-pulse border border-yellow-500/30 bg-yellow-500/10"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">☕</span>
             <div>
-              <h4 className="text-[13px] font-bold text-yellow-500">{tx(safeLang, 'Yaxınlıqdasan!', 'Вы рядом!', "You're nearby!")}</h4>
-              <p className={`mt-0.5 text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>{tx(safeLang, 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟', 'Заходи, преврати свои звезды в кофе! 🌟', 'Come in and turn your stars into coffee! 🌟')}</p>
+              <h4 className="text-[13px] font-bold text-yellow-600 dark:text-yellow-400">
+                {tx(safeLang, 'Yaxınlıqdasan!', 'Вы рядом!', "You're nearby!")}
+              </h4>
+              <p className={`mt-0.5 text-[11px] ${subText}`}>
+                {tx(safeLang, 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟', 'Заходи, преврати свои звезды в кофе! 🌟', 'Come in and turn your stars into coffee! 🌟')}
+              </p>
             </div>
           </div>
-          <button onClick={() => setGeofenceAlert(false)} className={`text-[14px] font-bold px-2 py-1 ${subText}`}>✕</button>
-        </div>
-      )}
-
-      {/* Premium Digital Membership Card */}
-      <div onClick={async (e) => { spawnConfetti(e.clientX, e.clientY); playTickSound(); setCardFlipped(!cardFlipped); await nativeHapticImpact(ImpactStyle.Medium); }}
-        className="w-full h-[220px] select-none cursor-pointer stagger-fade-in stagger-2"
-        style={{ perspective: '1200px' }}>
-        <div className={`relative w-full h-full duration-500 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>
-
-          {/* CARD FRONT */}
-          {isRetro ? (
-            <div className="absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden retro-card"
-              style={{
-                borderRadius: cardRadius,
-                padding: '20px',
-                transform: 'rotateY(0deg)',
-                WebkitTransform: 'rotateY(0deg)',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-              }}>
-              <div className="flex justify-between items-center relative z-10 w-full">
-                <div>
-                  <p className={`text-[9px] font-bold uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>{brandName}</p>
-                  <h1 className="mt-0.5 text-[14px] font-bold text-[#2B1B1A] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
-                </div>
-                <span className={`text-[9px] font-bold uppercase px-2.5 py-1 text-white border rounded-lg ${
-                  isRetro
-                    ? 'bg-[#D47B5E] border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
-                    : 'bg-[#F48C24] border-[#1C2029] dark:border-[#2F2622] shadow-[1.5px_1.5px_0px_0px_#1C2029]'
-                }`}>
-                  {Number(wallet.stars_balance || 0)} Stars
-                </span>
-              </div>
-
-              {/* Stamps grid — slot sayı `reward_threshold`-dan gəlir (P0.3) */}
-              <div className="grid grid-cols-5 gap-y-3 gap-x-2 my-2 justify-items-center relative z-10">
-                {Array.from({ length: stampSlots }).map((_, slotIdx) => {
-                  const isStamped = slotIdx < stampsFilled;
-                  return (
-                    <div key={slotIdx} className={`retro-stamp-slot ${isStamped ? 'retro-stamp-active' : ''}`}>
-                      {isStamped ? (
-                        <span className="text-white text-base font-bold drop-shadow-md">★</span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400 dark:text-white/30">{slotIdx + 1}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.15em] relative z-10 border-t border-dashed border-slate-900/10 dark:border-white/10 pt-2 text-slate-500 dark:text-white/40">
-                <span>ID: {formatCardIdFn(customer.card_id)}</span>
-                <span className="text-[8px] font-bold uppercase tracking-widest text-[#F48C24]">{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to scan')}</span>
-              </div>
-            </div>
-          ) : (
-            <div className={`absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden card-sweep ${isLight ? 'card-premium-glow-light' : 'card-premium-glow'}`}
-              style={{
-                borderRadius: cardRadius,
-                borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.08)',
-                background: heroImage
-                  ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(13, 11, 10, 0.95)), url(${heroImage}) center/cover`
-                  : `linear-gradient(135deg, ${tierColor}2E 0%, #1C2029 45%, #0C0F14 100%)`,
-                padding: '24px',
-                backdropFilter: cardBlur,
-                WebkitBackdropFilter: cardBlur,
-                transform: 'rotateY(0deg)',
-                WebkitTransform: 'rotateY(0deg)',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-              }}>
-              {/* Glossy highlight bar */}
-              <div className="absolute inset-x-0 top-0 h-28 pointer-events-none"
-                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%)', borderRadius: `${cardRadius} ${cardRadius} 0 0` }} />
-
-              <div className="flex items-start justify-between gap-4 relative z-10">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-ping" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{brandName}</p>
-                  </div>
-                  <h1 className="mt-2 text-xl font-bold text-white tracking-tight drop-shadow-lg font-cozy">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
-                </div>
-                {branding.logo_url ? (
-                  <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/20 ring-1 ring-white/10" />
-                ) : (
-                  <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-xl shadow-xl">☕</div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between mt-4 relative z-10">
-                {/* EMV chip */}
-                <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-90">
-                  <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
-                  <div className="flex justify-between h-px bg-slate-950/20" />
-                  <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
-                  <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
-                </div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/80 flex items-center gap-1 bg-black/30 rounded-full px-3 py-1 border border-white/5 backdrop-blur-sm animate-pulse">
-                  <span>✨</span>
-                  <span>{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
-                </div>
-                <div className="text-white/40">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-white/50 text-[10px] font-mono tracking-[0.2em] relative z-10">
-                <span>{formatCardIdFn(customer.card_id)}</span>
-                <span className="flex items-center gap-1.5 rounded-full bg-black/30 border border-white/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                  style={{ color: tierColor }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tierColor }} />
-                  {tierLabel}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* CARD BACK */}
-          <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#2B1B1A] dark:text-white' : 'text-white'}`}
-            style={{
-              borderRadius: cardRadius,
-              borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(255,255,255,0.06)',
-              background: isRetro
-                ? (isLight ? '#FFFDF9' : '#1E1714')
-                : 'linear-gradient(135deg, #1C2029 0%, #0C0F14 100%)',
-              boxShadow: isRetro ? (isLight ? '4px 4px 0px 0px #2B1B1A' : '4px 4px 0px 0px #3D2F2A') : '0 0 0 1px rgba(255,255,255,0.05), 0 16px 48px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
-              transform: 'rotateY(180deg)',
-              WebkitTransform: 'rotateY(180deg)',
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-            }}>
-            {/* Glossy highlight */}
-            <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 22%)', borderRadius: `${cardRadius} ${cardRadius} 0 0` }} />
-            {cardQr ? (
-              <div className="rounded-2xl bg-white p-3 shadow-2xl border border-white/5 ring-1 ring-black/5">
-                <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
-              </div>
-            ) : (
-              <div className="text-slate-400 text-xs">No QR Code available</div>
-            )}
-            <div className={`mt-3 text-[10px] font-bold tracking-[0.25em] uppercase ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>
-              {tx(safeLang, 'KASSAYA YAXINLAŞDIRIN', 'ПОДНЕСИТЕ К СКАНЕРУ', 'SCAN QR CODE')}
-            </div>
-            <div className="mt-1 font-mono text-[9px] text-white/50">{formatCardIdFn(customer.card_id)}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Wallet Section */}
-      {showWallet && (
-        <section className={`rounded-[24px] border p-6 space-y-5 stagger-fade-in stagger-3 ${isLight ? 'cust-glass-light' : 'cust-glass premium-shadow'}`}>
-          <div>
-            <div className="flex items-end justify-between mb-4">
-              <div>
-                <p className={`text-[9px] font-bold uppercase tracking-[0.2em] ${textMuted}`}>{wallet.points_label || 'Ulduz'}</p>
-                <p className={`mt-1 text-3xl font-bold tracking-tight wallet-balance-glow ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  <AnimatedCounter value={Number(wallet.stars_balance ?? 0)} decimals={programMode === 'cashback' ? 2 : 0} suffix={balanceSuffix} />
-                </p>
-              </div>
-              <span className={`inline-block rounded-full px-3 py-1 text-[10px] font-bold tracking-wider uppercase border ${isLight ? 'bg-black/5 border-black/8 text-slate-800' : 'bg-white/6 border-white/12 text-white'}`}>
-                {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (tier ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tierColor }} />
-                    {tierLabel}
-                  </span>
-                ) : (customer.type || 'Member'))}
-              </span>
-            </div>
-
-            {tier && tier.next_threshold != null && (
-              <div className="mb-4">
-                <div className={`flex items-center justify-between text-[9px] font-bold uppercase tracking-wider mb-1.5 ${subText}`}>
-                  <span>{lifetimeStars} {tx(safeLang, 'ulduz', 'звёзд', 'stars')} · {tierLabel}</span>
-                  <span>{tx(safeLang, 'Növbəti səviyyə', 'Следующий уровень', 'Next level')}: {tier.next_threshold}</span>
-                </div>
-                <div className={`h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-black/8' : 'bg-white/10'}`}>
-                  <div className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.max(0, Math.min(100, Number(tier.progress_pct) || 0))}%`, backgroundColor: tierColor }} />
-                </div>
-              </div>
-            )}
-
-            {programMode === 'points' ? (
-              <div className={`border-t pt-4 ${borderSec}`}>
-                <div className="flex items-center gap-5">
-                  <div className="relative select-none flex-shrink-0 flex items-center justify-center">
-                    <svg viewBox="0 0 100 110" className="w-16 h-18 overflow-visible">
-                      <defs>
-                        <linearGradient id="coffeeLiquidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor="#ffb366" />
-                          <stop offset="40%" stopColor="#F48C24" />
-                          <stop offset="100%" stopColor="#b35900" />
-                        </linearGradient>
-                        <filter id="cupGlow">
-                          <feGaussianBlur stdDeviation="1.5" result="blur" />
-                          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                        </filter>
-                        <clipPath id="cupInterior"><path d="M20 18 L80 18 L73 85 C72 93, 28 93, 27 85 Z" /></clipPath>
-                      </defs>
-                      <path d="M40 10 Q43 4, 40 -2" fill="none" stroke="rgba(244,140,36,0.40)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
-                      <path d="M50 12 Q53 6, 50 0"  fill="none" stroke="rgba(244,140,36,0.55)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
-                      <path d="M60 10 Q63 4, 60 -2" fill="none" stroke="rgba(244,140,36,0.40)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
-                      <path d="M76 35 C90 35, 90 65, 76 65" fill="none" stroke={isLight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.15)'} strokeWidth="4.5" strokeLinecap="round" />
-                      <path d="M20 18 L80 18 L73 85 C72 93, 28 93, 27 85 Z" fill={isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)'} stroke={isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.20)'} strokeWidth="2.5" />
-                      <g clipPath="url(#cupInterior)">
-                        <path d="M -100 120 L -100 45 Q -75 40, -50 45 T 0 45 T 50 45 T 100 45 T 150 45 T 200 45 L 200 120 Z"
-                          fill="url(#coffeeLiquidGrad)" className="animate-wave"
-                          style={{ transform: `translateY(${Math.max(0, 100 - progressPercent)}%)`, transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                      </g>
-                    </svg>
-                    <div className="absolute -top-1.5 -right-1 bg-[#F48C24] text-white font-black text-[9px] h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-lg animate-bounce glow-orange-sm">★</div>
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    <div className={`text-[11px] font-bold ${headerText}`}>
-                      {tx(safeLang,
-                        `${starsBalance} / ${nextRewardAt} ulduz topladınız`,
-                        `Вы собрали ${starsBalance} / ${nextRewardAt} звезд`,
-                        `Collected ${starsBalance} / ${nextRewardAt} stars`)}
-                    </div>
-                    <div className="space-y-0.5">
-                      {/* P1.3 — REAL hədiyyə nərdivanı.
-                          P0.6-da burada 3 uydurma pillə ("Çay / Espresso" 0.3×,
-                          "Cappuccino / Latte" 0.6×, "Böyük Qəhvə + Desert" 1.0×)
-                          silinmişdi, çünki backend-də kataloq yox idi və müştəri
-                          heç vaxt ala bilmədiyi hədiyyələri görürdü. Artıq
-                          `wallet.rewards` real kataloqdur (ən azı köhnə tək
-                          hədiyyənin sintetik sətri), ona görə nərdivan qayıdır —
-                          hər pillə həqiqətən tələb oluna bilən sətirdir. */}
-                      {ladderRows.length > 0 ? ladderRows.map((row, idx) => {
-                        const remainingStars = Math.max(0, row.cost - starsBalance);
-                        const rowClaiming = claiming && claimingRewardId === row.id;
-                        const soldOut = row.stockRemaining === 0;
-                        return (
-                          <div key={row.id || `reward-${idx}`} className={`flex items-start gap-2 text-[10px] stagger-fade-in stagger-${Math.min(4, idx + 1)}`}>
-                            <span className={`mt-1 h-2 w-2 shrink-0 rounded-full transition-all duration-500 ${!row.locked ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                                <span className={!row.locked ? `${headerText} font-black` : `${textMuted} font-semibold`}>
-                                  {row.cost}★ · {row.title || rewardName}
-                                </span>
-                                {/* Konkret məhsula bağlı sətir — müştəri nə alacağını bilir. */}
-                                {row.menuItemName ? (
-                                  <span className={`rounded-full px-1.5 py-[1px] text-[9px] font-bold ${isLight ? 'bg-black/5 text-slate-600' : 'bg-white/8 text-white/70'}`}>
-                                    {row.menuItemName}
-                                  </span>
-                                ) : null}
-                                {/* stockRemaining: null = limitsiz (heç nə göstərmirik),
-                                    0 = bitdi, ≤3 = tələsdirici azlıq siqnalı. */}
-                                {soldOut ? (
-                                  <span className="rounded-full bg-rose-500/15 px-1.5 py-[1px] text-[9px] font-bold text-rose-500">
-                                    {tx(safeLang, 'Bitdi', 'Закончилось', 'Sold out')}
-                                  </span>
-                                ) : row.stockRemaining !== null && row.stockRemaining <= 3 ? (
-                                  <span className="rounded-full bg-amber-500/15 px-1.5 py-[1px] text-[9px] font-bold text-amber-500">
-                                    {tx(safeLang, `son ${row.stockRemaining}`, `осталось ${row.stockRemaining}`, `${row.stockRemaining} left`)}
-                                  </span>
-                                ) : null}
-                                {/* Bir neçə dəfə tələb oluna bilirsə göstəririk. */}
-                                {!row.locked && row.availableCount > 1 ? (
-                                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-[1px] text-[9px] font-bold text-emerald-500">
-                                    ×{row.availableCount}
-                                  </span>
-                                ) : null}
-                              </div>
-                              {row.description ? (
-                                <p className={`mt-0.5 text-[10px] font-semibold ${textMuted}`}>{row.description}</p>
-                              ) : null}
-                              {row.locked && !soldOut && remainingStars > 0 ? (
-                                <p className={`mt-0.5 text-[9px] font-semibold ${textMuted}`}>
-                                  {tx(safeLang, `${remainingStars} ulduz qaldı`, `ещё ${remainingStars} звёзд`, `${remainingStars} stars to go`)}
-                                </p>
-                              ) : null}
-                            </div>
-                            {!row.locked ? (
-                              <button type="button" disabled={claiming}
-                                onClick={(e) => handleClaimWithConfetti(e, row.id)}
-                                className="shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white transition active:scale-95 disabled:opacity-50"
-                                style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` }}>
-                                {rowClaiming ? '...' : tx(safeLang, 'Al', 'Забрать', 'Claim')}
-                              </button>
-                            ) : null}
-                          </div>
-                        );
-                      }) : (
-                        /* Kataloq boş qayıtsa (köhnə keş, offline) köhnə tək sətir. */
-                        <div className="flex items-center gap-2 text-[10px] stagger-fade-in stagger-1">
-                          <span className={`h-2 w-2 rounded-full transition-all duration-500 ${rewardRemaining === 0 ? 'bg-[#F48C24] glow-orange-sm scale-110' : isLight ? 'bg-black/10' : 'bg-white/10'}`} />
-                          <span className={rewardRemaining === 0 ? `${headerText} font-black` : `${textMuted} font-semibold`}>
-                            {nextRewardAt}★ · {rewardName}
-                          </span>
-                        </div>
-                      )}
-                      {ladderHiddenCount > 0 ? (
-                        <button type="button" onClick={() => setRewardsExpanded(true)}
-                          className={`pl-4 pt-0.5 text-[9px] font-bold uppercase tracking-wider ${textMuted} transition active:scale-95`}>
-                          {tx(safeLang, `+${ladderHiddenCount} hədiyyə daha`, `+${ladderHiddenCount} награды`, `+${ladderHiddenCount} more rewards`)}
-                        </button>
-                      ) : rewardsExpanded && catalogRows.length > LADDER_VISIBLE ? (
-                        <button type="button" onClick={() => setRewardsExpanded(false)}
-                          className={`pl-4 pt-0.5 text-[9px] font-bold uppercase tracking-wider ${textMuted} transition active:scale-95`}>
-                          {tx(safeLang, 'Yığ', 'Свернуть', 'Show less')}
-                        </button>
-                      ) : null}
-                      {ladderRows.length === 0 ? (
-                        <p className={`pl-4 text-[10px] font-semibold ${textMuted}`}>{rewardDescription}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className={`border-t pt-3 ${borderSec}`}>
-                <div className={`h-2 overflow-hidden rounded-full ${isLight ? 'bg-black/8' : 'bg-white/8'}`}>
-                  <div className="h-full rounded-full progress-shimmer transition-all duration-700" style={{ width: `${progressPercent}%` }} />
-                </div>
-                <div className={`mt-2 flex items-center justify-between text-[11px] ${textMuted}`}>
-                  <span>{tx(safeLang, 'Növbəti hədiyyə', 'Следующая награда', 'Next reward')}</span>
-                  {/* P1.3 — kataloq varsa növbəti çatılası sətrin adı/qiyməti
-                      göstərilir; `rewardName` yalnız kataloq boş olanda qalır. */}
-                  <span className={`font-bold ${isLight ? 'text-slate-700' : 'text-white/80'}`}>
-                    {nextCatalogRow ? `${nextCatalogRow.cost}★ · ${nextCatalogRow.title || rewardName}` : rewardName} ({progressPercent}%)
-                  </span>
-                </div>
-                {/* Kataloqda açıq sətir varsa bu görünüşdə də tələb etmək mümkün olsun. */}
-                {claimableRow ? (
-                  <button type="button" disabled={claiming} onClick={(e) => handleClaimWithConfetti(e, claimableRow.id)}
-                    className="mt-2.5 w-full rounded-xl py-2 text-[11px] font-bold text-white transition active:scale-[0.97] disabled:opacity-50"
-                    style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` }}>
-                    {claiming ? '...' : tx(safeLang,
-                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — al`,
-                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — забрать`,
-                      `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — claim`)}
-                  </button>
-                ) : null}
-              </div>
-            )}
-
-            {/* Wallet pass buttons */}
-            <div className={`pt-3 mt-3 border-t flex flex-row gap-2 justify-center items-center ${borderSec}`}>
-              {[
-                { label: 'Apple Wallet', icon: <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.75.8-.01 1.99-.79 3.61-.63 1.68.07 2.92.74 3.69 1.95-3.41 2.03-2.87 6.99.78 8.44-.8 2.05-1.74 4.02-3.16 5.46zM15.42 4.38c.75-.92 1.25-2.2 1.11-3.49-1.11.05-2.46.75-3.26 1.69-.69.8-1.3 2.1-1.13 3.37 1.23.1 2.5-.62 3.28-1.57z" /> },
-                { label: 'Google Wallet', icon: <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.56-1.56 2.95-3.24 3.51v2.9h5.24c3.07-2.83 4.83-7 4.83-11.64c0-.52-.05-1.04-.17-1.5zM12.18 21c2.43 0 4.47-.8 5.96-2.18l-5.24-2.9c-1.46.99-3.29 1.56-5.96 1.56-4.59 0-8.48-3.11-9.86-7.3H1.66v3.01C4.46 18.77 8.08 21 12.18 21z" /> }
-              ].map(({ label, icon }) => (
-                <a key={label}
-                  href={get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang)}
-                  target="_blank" rel="noopener noreferrer"
-                  onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url_fn(sessionCreds.cardId, sessionCreds.token, safeLang))}
-                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 border transition text-[10px] font-semibold active:scale-95 ${walletBtn}`}>
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">{icon}</svg>
-                  {label}
-                </a>
-              ))}
-            </div>
-
-            <div className={`mt-4 flex items-center justify-between text-[11px] font-mono tracking-[0.2em] border-t pt-3 ${textMuted} ${borderSec}`}>
-              <span>{formatCardIdFn(customer.card_id)}</span>
-              <span className="text-[10px] opacity-75">{tx(safeLang, 'LOYALLIQ', 'ЛОЯЛЬНОСТЬ', 'LOYALTY')}</span>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Promo Banner */}
-      <section className="relative overflow-hidden rounded-[28px] p-5 text-white stagger-fade-in stagger-3 shimmer-card"
-        style={{ background: 'linear-gradient(135deg, #1A4329 0%, #2E5E3D 60%, #1f5232 100%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 12px 40px rgba(26,67,41,0.28), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
-        {/* Animated glow orbs */}
-        <div className="absolute right-0 bottom-0 top-0 w-1/3 overflow-hidden pointer-events-none select-none">
-          <div className="absolute -right-4 -bottom-4 w-32 h-32 rounded-full bg-[#F48C24] blur-2xl opacity-25 animate-pulse" />
-          <div className="absolute right-4 top-2 w-16 h-16 rounded-full bg-white blur-xl opacity-15 float-slow" />
-        </div>
-        {/* Glossy top bar */}
-        <div className="absolute inset-x-0 top-0 h-16 pointer-events-none"
-          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06), transparent)', borderRadius: '24px 24px 0 0' }} />
-        <div className="relative z-10 max-w-[70%] space-y-3.5">
-          <div>
-            <h4 className="text-sm font-black tracking-tight leading-snug drop-shadow-sm">{tx(safeLang, 'Hər gün təzə dəmlənmiş premium qəhvə', 'Свежесваренный премиум кофе каждый день', 'Freshly brewed premium coffee everyday')}</h4>
-            <p className="mt-1 text-[9px] text-white/70 font-semibold uppercase tracking-wider">{tx(safeLang, 'İndi sifariş et, növbəni keç!', 'Закажи сейчас, пропусти очередь!', 'Order now, skip the line!')}</p>
-          </div>
-          <button onClick={() => setActiveTab('order')}
-            className="rounded-full bg-white hover:bg-slate-50 text-[#1A4329] font-black text-[9px] px-4 py-1.5 uppercase tracking-wider transition active:scale-95 shadow-lg shimmer-btn">
-            {tx(safeLang, 'Sifariş Et', 'Заказать', 'Order Now')}
+          <button
+            onClick={() => setGeofenceAlert(false)}
+            className={`text-[14px] font-bold px-2 py-1 ${subText}`}
+          >
+            ✕
           </button>
         </div>
-      </section>
-
-      {/* Rewards + QR grid */}
-      <div className="grid grid-cols-2 gap-3.5 stagger-fade-in stagger-4">
-        {/* Rewards Card */}
-        <section className={`rounded-[24px] p-6 flex flex-col justify-between border shadow-sm ${isLight ? 'cust-glass-light' : 'cust-glass'} ${Number(wallet.available_rewards || 0) > 0 ? (isLight ? 'neon-border-orange' : 'neon-border-orange animate-glow-breath') : ''}`}>
-          <div>
-            <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${subText}`}>
-              <Gift size={14} className="text-[#F48C24] animate-bounce" />
-              {tx(safeLang, 'Hədiyyələr', 'Награды', 'Rewards')}
-            </div>
-            <div className={`mt-3 text-4xl font-bold tracking-tight ${headerText}`}>{wallet.available_rewards ?? 0}</div>
-            <p className={`mt-1 text-xs font-semibold uppercase tracking-wider ${textMuted}`}>{wallet.reward_label || 'Hədiyyə'}</p>
-          </div>
-          {claimableRow ? (
-            <button type="button" disabled={claiming} onClick={(e) => handleClaimWithConfetti(e, claimableRow.id)}
-              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50 shimmer-btn"
-              style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`, boxShadow: `0 4px 16px ${primaryColor}30` }}>
-              {claiming ? '...' : tx(safeLang, 'Tətbiq et', 'Забрать', 'Claim')} 🎉
-            </button>
-          ) : null}
-          {/* P1.3 — kataloqda birdən çox sətir varsa bu düymə ƏN UCUZ açıq sətri
-              alır; hansı olduğunu yazmasaq müştəri "bəs digəri?" deyə çaşır.
-              Konkret sətir seçimi yuxarıdaki nərdivandadır. */}
-          {claimableRow && catalogHasMultipleRows ? (
-            <p className={`mt-1.5 text-center text-[9px] font-semibold leading-snug ${textMuted}`}>
-              {tx(safeLang,
-                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — digərləri kartda`,
-                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — остальные на карте`,
-                `${claimableRow.cost}★ · ${claimableRow.title || rewardName} — others on the card`)}
-            </p>
-          ) : null}
-        </section>
-
-        {/* QR Card */}
-        <section onClick={async () => { setCardFlipped(!cardFlipped); playTickSound(); await nativeHapticImpact(ImpactStyle.Medium); }}
-          className={`rounded-[24px] p-6 flex flex-col justify-between border shadow-sm transition active:scale-[0.97] cursor-pointer ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
-          <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${subText}`}>
-            <QrCode size={14} className="text-[#F48C24]" />
-            {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}
-          </div>
-          {showQrCard && cardQr ? (
-            <div className="mt-3 flex flex-col items-center">
-              <div className="p-2 bg-white rounded-2xl border border-black/5 shadow-lg ring-1 ring-black/5">
-                <img src={cardQr} alt="qr" className="h-20 w-20 object-contain" />
-              </div>
-              <p className={`mt-2 text-[9px] font-mono tracking-widest ${textMuted}`}>{customer.card_id}</p>
-            </div>
-          ) : (
-            <p className={`mt-4 text-xs font-mono tracking-widest ${subText}`}>{customer.card_id}</p>
-          )}
-          {/* C10: scan-to-pay guidance — make the QR's purpose explicit */}
-          <p className={`mt-3 pt-3 border-t ${isLight ? 'border-black/5 text-slate-500' : 'border-white/8 text-white/50'} text-[10px] font-semibold leading-snug text-center`}>
-            {tx(safeLang, 'Kasada ödəmək üçün QR-kodu skan edin', 'Отсканируйте QR для оплаты на кассе', 'Scan this QR at the counter to pay')}
-          </p>
-        </section>
-      </div>
+      )}
 
       {/* For You — real, data-driven */}
       {recentItems.length > 0 && (
