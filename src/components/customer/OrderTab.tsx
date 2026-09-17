@@ -92,7 +92,7 @@ export function ModifierSheet({
 
   const sheetBg     = isRetro
     ? (isLight ? 'bg-[#FAF6F0]' : 'bg-[#15100E]')
-    : (isLight ? 'bg-white/90 backdrop-blur-2xl' : 'bg-[#0D0B0A]/92 backdrop-blur-2xl');
+    : (isLight ? 'bg-white/95 backdrop-blur-md' : 'bg-[#0D0B0A]/96 backdrop-blur-md');
   const sheetBorder = isRetro
     ? (isLight ? 'border-[2.5px] border-[#1C2029]' : 'border-[2.5px] border-[#2F2622]')
     : (isLight ? 'border-black/8' : 'border-white/12');
@@ -271,7 +271,7 @@ export function CartSheet({
   const isRetro     = designMode === 'retro';
   const sheetBg     = isRetro
     ? (isLight ? 'bg-[#FAF6F0]' : 'bg-[#15100E]')
-    : (isLight ? 'bg-white/92 backdrop-blur-2xl' : 'bg-[#0D0B0A]/92 backdrop-blur-2xl');
+    : (isLight ? 'bg-white/96 backdrop-blur-md' : 'bg-[#0D0B0A]/96 backdrop-blur-md');
   const sheetBorder = isRetro
     ? (isLight ? 'border-[2.5px] border-[#1C2029]' : 'border-[2.5px] border-[#2F2622]')
     : (isLight ? 'border-black/8' : 'border-white/12');
@@ -483,7 +483,7 @@ type PreOrderSuccessProps = {
 
 export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrderSuccess, safeLang, isLight, paymentMethod, brandLogoUrl = '', brandName = '' }: PreOrderSuccessProps) {
   if (!preOrderSuccess) return null;
-  const dlgBg = isLight ? 'bg-white/92 backdrop-blur-2xl' : 'bg-[#0D0B0A]/92 backdrop-blur-2xl';
+  const dlgBg = isLight ? 'bg-white/96 backdrop-blur-md' : 'bg-[#0D0B0A]/96 backdrop-blur-md';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
   const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
   return ReactDOM.createPortal(
@@ -547,7 +547,7 @@ function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]
 
   const cardBg = isRetro
     ? 'retro-card'
-    : (isLight ? 'bg-white/85 border-black/8 shadow-sm backdrop-blur-md' : 'bg-white/6 border-white/10 backdrop-blur-xl');
+    : (isLight ? 'bg-white/85 border-black/8 shadow-sm backdrop-blur-md' : 'bg-white/6 border-white/10 backdrop-blur-md');
   const cardBorder = isRetro ? '' : 'border';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
   const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
@@ -726,7 +726,7 @@ export default function OrderTab({
     ? 'retro-card'
     : (isLight
       ? 'bg-white/95 border-black/8 shadow-[0_4px_18px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_26px_rgba(0,0,0,0.09)] backdrop-blur-md'
-      : 'bg-white/[0.05] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:border-white/20 backdrop-blur-xl');
+      : 'bg-white/[0.05] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:border-white/20 backdrop-blur-md');
   const loadingText = isLight ? 'text-slate-400'   : 'text-white/40';
   const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/4';
 
@@ -798,7 +798,7 @@ export default function OrderTab({
 
           {/* Store picker list */}
           {showStorePicker && (
-            <div className={`mt-2 overflow-hidden rounded-[18px] border ${isLight ? 'bg-white border-black/8 shadow-sm' : 'bg-[#1A1F27]/95 border-white/10 shadow-xl backdrop-blur-xl'}`}>
+            <div className={`mt-2 overflow-hidden rounded-[18px] border ${isLight ? 'bg-white border-black/8 shadow-sm' : 'bg-[#1A1F27]/95 border-white/10 shadow-xl backdrop-blur-md'}`}>
               {stores.map((s: any) => {
                 const active = String(s.id) === String(selectedStoreId) || (!selectedStoreId && s.is_default);
                 return (

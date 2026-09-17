@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Coffee, Gift, Home, Languages, MessageSquare, QrCode, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
@@ -1772,12 +1772,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
-  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
+  const bottomTabs = useMemo<Array<{ key: CustomerTab; label: string; icon: React.ReactNode }>>(() => [
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Əsas', 'Главная', 'Home'), icon: <Home size={19} /> },
     { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={19} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Təkliflər', 'Акции', 'Offers'), icon: <Gift size={19} /> },
     { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={19} /> },
-  ];
+  ], [safeLang]);
 
   const resolvedActiveTab: CustomerTab =
     (activeTab === 'barista' || activeTab === 'falci')
@@ -2130,8 +2130,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <div
             className={`flex items-center justify-between rounded-[32px] py-1.5 px-3 border ${
               isLight
-                ? 'border-black/6 bg-white/85 text-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-2xl'
-                : 'border-white/10 bg-[#121214]/85 text-white shadow-[0_16px_36px_rgba(0,0,0,0.6)] backdrop-blur-2xl'
+                ? 'border-black/6 bg-white/90 text-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-md'
+                : 'border-white/10 bg-[#121214]/90 text-white shadow-[0_16px_36px_rgba(0,0,0,0.6)] backdrop-blur-md'
             }`}
           >
             {/* Left 2 tabs: Home & Order */}
@@ -2229,10 +2229,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         >
           {/* Card container */}
           <div
-            className={`w-full max-w-md rounded-t-[32px] border-t p-6 space-y-6 shadow-2xl animate-scaleIn backdrop-blur-2xl ${
+            className={`w-full max-w-md rounded-t-[32px] border-t p-6 space-y-6 shadow-2xl animate-scaleIn backdrop-blur-lg ${
               isLight
-                ? 'bg-white/95 border-slate-200 text-slate-900'
-                : 'bg-[#0D0B0A]/95 border-white/10 text-white'
+                ? 'bg-white/97 border-slate-200 text-slate-900'
+                : 'bg-[#0D0B0A]/97 border-white/10 text-white'
             }`}
             onClick={(e) => e.stopPropagation()}
             style={{

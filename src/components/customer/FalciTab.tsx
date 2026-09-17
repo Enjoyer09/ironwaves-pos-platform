@@ -27,7 +27,7 @@ export default function FalciTab({
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
   const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
   const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
-  const bgCard      = isLight ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.06)]' : 'bg-white/5 border-white/10 backdrop-blur-xl';
+  const bgCard      = isLight ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.06)]' : 'bg-white/5 border-white/10 backdrop-blur-md';
   const innerBoxBg  = isLight ? 'bg-slate-50 border-black/5' : 'bg-slate-950/20 border-white/5';
   const loaderBg    = isLight ? 'bg-slate-100/80 border-black/5' : 'bg-slate-950/30 border-white/5';
 
