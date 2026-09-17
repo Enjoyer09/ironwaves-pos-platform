@@ -33,3 +33,6 @@ backend/*.sqlite
 
 # frontend smoke test build output
 tests/.build/
+
+# iOS build output
+ios/build/

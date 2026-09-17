@@ -102,14 +102,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const { lang, setLang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
 
-  // Theme: system default, with manual toggle
+  // Theme: Apple white-first default, with manual toggle in Profile
   const [themeMode, setThemeMode] = React.useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem('customer_theme');
       if (saved === 'light' || saved === 'dark') return saved;
     } catch {}
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
-    return 'dark';
+    return 'light'; // Default to light mode (Apple white design)
   });
   const isLight = themeMode === 'light';
 
@@ -131,7 +130,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [cardQr, setCardQr] = React.useState('');
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
   const [acceptingConsent, setAcceptingConsent] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
+  const [activeTab, setActiveTab] = React.useState<CustomerTab>(() => {
+    try {
+      const saved = localStorage.getItem('customer_initial_tab');
+      if (saved && ['home', 'order', 'offers', 'profile', 'ai', 'feedback'].includes(saved)) {
+        return saved as CustomerTab;
+      }
+    } catch {}
+    return 'home';
+  });
   // C2: which AI experience is shown inside the combined "AI" hub tab
   const [aiSubTab, setAiSubTab] = React.useState<'barista' | 'falci'>('barista');
   // C9: explicit payment-method step before checkout
@@ -145,7 +152,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     try { localStorage.setItem('ironwaves_customer_onboarded', '1'); } catch {}
     setShowOnboarding(false);
   };
-  const [cardFlipped, setCardFlipped] = React.useState(false);
+  const [cardFlipped, setCardFlipped] = React.useState(() => {
+    try {
+      return localStorage.getItem('customer_test_flip') === '1';
+    } catch {}
+    return false;
+  });
   const [menuItems, setMenuItems] = React.useState<any[]>([]);
   const [menuLoading, setMenuLoading] = React.useState(false);
   const [selectedCategory, setSelectedCategory] = React.useState<string>('ALL');
@@ -1419,31 +1431,36 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (!sessionCreds.cardId || !sessionCreds.token) {
     const bootstrapBranding = bootstrapData?.branding || {};
-    const joinPrimary = '#F48C24';
-    const joinBg = '#0D0B0A';
     return (
-      <div className="customer-app-wrapper customer-app-shell min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden">
-        {/* Dynamic Aurora & Real-world Noise Layers */}
-        <div className="customer-app-aurora" />
-        <div className="customer-app-noise" />
+      <div
+        className={`customer-app-wrapper customer-app-shell min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 flex flex-col justify-between relative overflow-hidden transition-colors duration-200 ${
+          isLight ? 'bg-[#F2F2F7] text-[#1D1D1F]' : 'bg-[#0D0B0A] text-slate-100'
+        }`}
+      >
+        {!isLight && (
+          <>
+            <div className="customer-app-aurora" />
+            <div className="customer-app-noise" />
+          </>
+        )}
 
         {/* Top Header bar with Lang switch */}
         <div className="flex justify-between items-center relative z-10 w-full max-w-md mx-auto">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {bootstrapBranding.logo_url ? (
-              <img src={bootstrapBranding.logo_url} alt="brand" className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10" />
+              <img src={bootstrapBranding.logo_url} alt="brand" className="h-9 w-9 rounded-xl object-cover shadow-sm border border-black/5" />
             ) : (
-              <span className="text-xl">☕</span>
+              <span className="text-2xl">☕</span>
             )}
-            <span className="text-sm font-bold tracking-wider text-white/90">
+            <span className={`text-sm font-bold tracking-tight ${isLight ? 'text-[#1D1D1F]' : 'text-white/90'}`}>
               {bootstrapBranding.app_name || 'iRonWaves'}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-md">
-            <Languages size={13} />
+          <div className={`flex items-center gap-1 rounded-full p-1 text-xs font-semibold ${isLight ? 'bg-[#E5E5EA]' : 'border border-white/10 bg-white/5 text-white/80'}`}>
+            <Languages size={13} className={`ml-1 mr-0.5 ${isLight ? 'text-[#8E8E93]' : 'text-white/60'}`} />
             {(['az', 'en', 'ru'] as const).map(l => (
               <button key={l} type="button" onClick={() => setLang(l)} 
-                className={`px-1 transition-all ${safeLang === l ? 'text-[#F48C24] font-bold scale-105' : 'text-white/40 hover:text-white/70'}`}>
+                className={`px-2 py-0.5 rounded-full transition-all ${safeLang === l ? (isLight ? 'bg-white text-[#1D1D1F] shadow-sm font-bold scale-100' : 'text-[#F48C24] font-bold scale-105') : (isLight ? 'text-[#6E6E73] hover:text-[#1D1D1F]' : 'text-white/40 hover:text-white/70')}`}>
                 {l.toUpperCase()}
               </button>
             ))}
@@ -1451,34 +1468,34 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
 
         {/* Main Hero & Input container */}
-        <div className="w-full max-w-md mx-auto my-auto space-y-6 relative z-10 pt-6 pb-10">
+        <div className="w-full max-w-md mx-auto my-auto space-y-6 relative z-10 pt-6 pb-8">
           {/* Welcome Slogan */}
-          <div className="space-y-1.5">
-            <h1 className="text-2xl font-bold tracking-tight text-white leading-tight">
+          <div className="space-y-2 text-left">
+            <h1 className={`text-3xl font-bold tracking-tight leading-tight ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
               {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
             </h1>
-            <p className="text-xs text-white/60 leading-relaxed max-w-[300px]">
+            <p className={`text-sm leading-relaxed max-w-[320px] ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
               {bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyallıq klubuna qoşulun, növbə gözləmədən sifariş edin və qazanın.', 'Присоединяйтесь к клубу лояльности и заказывайте без очереди.', 'Join the loyalty club, order ahead, and earn rewards.')}
             </p>
           </div>
 
-          {/* Input Glass Card */}
-          <section className="rounded-[28px] cust-glass p-6 text-slate-100 space-y-5">
-            <div className="text-base font-bold text-white">
+          {/* Input Card */}
+          <section className={`rounded-[28px] p-6 space-y-5 transition-all ${isLight ? 'bg-white shadow-sm border border-black/[0.04]' : 'cust-glass text-slate-100'}`}>
+            <div className={`text-base font-bold ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
               {tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}
             </div>
 
             <div className="space-y-4">
               {registrationMode === 'simple' && (
-                <div className="text-sm text-white/70 mb-4">
+                <div className={`text-sm ${isLight ? 'text-[#6E6E73]' : 'text-white/70'} mb-3`}>
                   {tx(safeLang, 'Sadəcə razılaşmanı təsdiq edib başlaya bilərsiniz.', 'Просто подтвердите согласие и начните.', 'Just confirm consent and start.')}
                 </div>
               )}
 
               {registrationMode !== 'simple' && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
-                    {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')} <span className="text-red-400">*</span>
+                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
+                    {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1486,29 +1503,37 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     placeholder={tx(safeLang, 'Məs. Aysel', 'Напр. Айсель', 'e.g. Aysel')}
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                    className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
+                      isLight 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
+                    }`}
                   />
                 </div>
               )}
 
               {registrationMode === 'full' && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
-                    {tx(safeLang, 'Email adresiniz', 'Ваш email', 'Your email')} <span className="text-red-400">*</span>
+                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
+                    {tx(safeLang, 'Email adresiniz', 'Ваш email', 'Your email')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
                     placeholder="example@mail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                    className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
+                      isLight 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
+                    }`}
                   />
                 </div>
               )}
 
               {registrationMode !== 'simple' && (
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                  <label className={`block text-[10px] font-bold uppercase tracking-wider mb-1.5 ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
                     {tx(safeLang, 'Doğum tarixi (istəyə bağlı — doğum günü bonusu üçün 🎂)', 'Дата рождения (необязательно — для бонуса ко дню рождения 🎂)', 'Birth date (optional — for a birthday bonus 🎂)')}
                   </label>
                   <input
@@ -1516,21 +1541,27 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     value={birthDate}
                     max={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setBirthDate(e.target.value)}
-                    style={{ colorScheme: 'dark' }}
-                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                    style={{ colorScheme: isLight ? 'light' : 'dark' }}
+                    className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
+                      isLight 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
+                    }`}
                   />
                 </div>
               )}
 
-              <label className="flex items-start gap-2.5 cursor-pointer rounded-2xl bg-white/3 p-3 border border-white/5">
+              <label className={`flex items-start gap-2.5 cursor-pointer rounded-2xl p-3 border transition ${
+                isLight ? 'bg-[#F9F9FB] border-black/[0.04]' : 'bg-white/3 border-white/5'
+              }`}>
                 <input
                   type="checkbox"
                   checked={consentChecked}
                   onChange={(e) => setConsentChecked(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-[#F48C24] flex-shrink-0"
+                  className={`mt-0.5 h-4 w-4 rounded flex-shrink-0 ${isLight ? 'accent-[#2C1810]' : 'accent-[#F48C24]'}`}
                 />
-                <span className="text-[10px] leading-relaxed text-white/55">
-                  <span className="font-bold text-white block mb-0.5">
+                <span className={`text-[11px] leading-relaxed ${isLight ? 'text-[#6E6E73]' : 'text-white/55'}`}>
+                  <span className={`font-bold block mb-0.5 ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
                     {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
                   </span>
                   {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
@@ -1541,8 +1572,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 type="button"
                 disabled={!consentChecked || acceptingConsent}
                 onClick={handleRegistrationSubmit}
-                className="w-full rounded-2xl py-3.5 text-xs font-black text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110 shadow-lg shadow-orange-500/15 shimmer-btn"
-                style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
+                className={`w-full rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50 transition active:scale-[0.98] shadow-md`}
+                style={{
+                  background: isLight 
+                    ? 'linear-gradient(135deg, #2C1810 0%, #4A2818 100%)' 
+                    : 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)',
+                  color: isLight ? '#FFFFFF' : '#0F172A'
+                }}
               >
                 {acceptingConsent ? '...' : registrationMode === 'simple' ? tx(safeLang, 'Başla', 'Начать', 'Start') : tx(safeLang, 'Qeydiyyatdan keç', 'Зарегистрироваться', 'Sign up')}
               </button>
@@ -1655,7 +1691,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             )}
 
             {otpError && (
-              <p className="text-center text-[10px] font-bold text-red-300 bg-red-500/8 rounded-xl py-2 px-3 border border-red-500/20">
+              <p className={`text-center text-xs font-semibold rounded-2xl py-2.5 px-3 border ${
+                isLight ? 'text-red-600 bg-red-50 border-red-200' : 'text-red-300 bg-red-500/8 border-red-500/20'
+              }`}>
                 {otpError}
               </p>
             )}
@@ -1663,7 +1701,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
 
         {/* Footer info text */}
-        <div className="text-center text-[9px] font-semibold text-white/20 mt-auto relative z-10 w-full max-w-md mx-auto">
+        <div className={`text-center text-[10px] font-medium mt-auto relative z-10 w-full max-w-md mx-auto ${
+          isLight ? 'text-[#8E8E93]' : 'text-white/20'
+        }`}>
           {bootstrapBranding.app_name || 'iRonWaves'} App v1.2.0 · {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
         </div>
       </div>
@@ -1672,13 +1712,21 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (error || !data) {
     return (
-      <div className="flex min-h-dvh items-center justify-center px-6" style={{ background: '#0b1220' }}>
-        <div className="w-full max-w-sm rounded-3xl border p-6 text-center" style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.06)' }}>
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.1)' }}>
+      <div className={`flex min-h-dvh items-center justify-center px-6 ${isLight ? 'bg-[#F2F2F7]' : 'bg-[#0b1220]'}`}>
+        <div className={`w-full max-w-sm rounded-[28px] border p-6 text-center shadow-sm ${
+          isLight ? 'bg-white border-black/[0.04]' : 'border-red-500/20 bg-red-500/5'
+        }`}>
+          <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${
+            isLight ? 'bg-red-50 text-red-500' : 'bg-red-500/10'
+          }`}>
             <span className="text-2xl">⚠️</span>
           </div>
-          <h1 className="text-lg font-bold text-white">{tx(safeLang, 'Tətbiq açıla bilmədi', 'Приложение не открылось', 'App could not be opened')}</h1>
-          <p className="mt-2 text-[13px] text-red-200/70">{error || 'Invalid customer link'}</p>
+          <h1 className={`text-lg font-bold ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
+            {tx(safeLang, 'Tətbiq açıla bilmədi', 'Приложение не открылось', 'App could not be opened')}
+          </h1>
+          <p className={`mt-2 text-xs leading-relaxed ${isLight ? 'text-[#6E6E73]' : 'text-red-200/70'}`}>
+            {error || 'Invalid customer link'}
+          </p>
 
           <button
             type="button"
@@ -1687,7 +1735,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               setSessionCreds({ cardId: '', token: '' });
               setError('');
             }}
-            className="mt-6 w-full rounded-2xl bg-white/10 py-3 text-sm font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
+            className={`mt-6 w-full rounded-2xl py-3 text-sm font-semibold transition active:scale-[0.98] ${
+              isLight ? 'bg-[#2C1810] text-white hover:bg-[#4A2818]' : 'bg-white/10 text-white hover:bg-white/15'
+            }`}
           >
             {tx(safeLang, 'Sessiyanı Sıfırla & Geri Dön', 'Сбросить сессию и вернуться', 'Reset Session & Go Back')}
           </button>
@@ -1814,13 +1864,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   return (
     <div
       className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain customer-app-wrapper transition-colors duration-300 ${
-        isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'
+        isLight ? 'text-slate-900 bg-[#F2F2F7]' : 'text-white bg-[#0D0B0A]'
       }`}
       style={
-        // P0.3 — tenant fonu varsa onu istifadə et, yoxsa köhnə qradient qalır.
         tenantBgStyle || {
           background: isLight
-            ? `linear-gradient(180deg, #FCF4EA 0%, #F2E4D2 100%)`
+            ? '#F2F2F7'
             : `linear-gradient(180deg, #2A1A10 0%, #160D07 100%)`,
         }
       }
@@ -1830,12 +1879,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <>
           <div className="customer-app-aurora" />
           <div className="customer-app-noise" />
-        </>
-      )}
-      {isLight && (
-        <>
-          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-orange-200/25 blur-[130px] pointer-events-none z-0" />
-          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-emerald-100/25 blur-[100px] pointer-events-none z-0" />
         </>
       )}
       <style>{`

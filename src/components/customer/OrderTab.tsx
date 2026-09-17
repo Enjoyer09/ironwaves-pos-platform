@@ -716,19 +716,19 @@ export default function OrderTab({
   }, [menuItems, selectedCategory, searchQuery]);
 
   const isRetro = designMode === 'retro';
-  const textPrimary = isLight ? 'text-slate-900'   : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500'   : 'text-white/60';
-  const textMuted   = isLight ? 'text-slate-400'   : 'text-white/40';
+  const textPrimary = isLight ? 'text-[#1D1D1F]'   : 'text-white';
+  const textSecond  = isLight ? 'text-[#6E6E73]'   : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#8E8E93]'   : 'text-white/40';
   const catInactive = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#3D2F2A]')
-    : (isLight ? 'bg-white/80 border-black/8 text-slate-700 hover:bg-white shadow-sm backdrop-blur-sm' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12 backdrop-blur-sm');
+    : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] hover:bg-[#EBEBF0]' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12');
   const cardBg      = isRetro
     ? 'retro-card'
     : (isLight
-      ? 'bg-white/95 border-black/8 shadow-[0_4px_18px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_26px_rgba(0,0,0,0.09)] backdrop-blur-md'
-      : 'bg-white/[0.05] border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:border-white/20 backdrop-blur-md');
-  const loadingText = isLight ? 'text-slate-400'   : 'text-white/40';
-  const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/4';
+      ? 'bg-white border-black/[0.05] shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)]'
+      : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/20');
+  const loadingText = isLight ? 'text-[#8E8E93]'   : 'text-white/40';
+  const emptyBorder = isLight ? 'border-black/8 bg-[#F5F5F7]' : 'border-white/10 bg-white/4';
 
   return (
     <div className="space-y-6">
@@ -750,21 +750,21 @@ export default function OrderTab({
       {/* Live order status (KDS-synced) */}
       <LiveOrderStatus orders={activeOrders} safeLang={safeLang} isLight={isLight} isRetro={isRetro} />
 
-      {/* Header */}
+      {/* Header — Apple Large Title */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <h2 className={`text-xl sm:text-2xl font-extrabold tracking-tight ${textPrimary}`}>
-            {tx(safeLang, 'Sifariş Et', 'Заказать', 'Pre-Order')}
-          </h2>
+          <h1 className={`text-[26px] font-black tracking-[-0.5px] ${textPrimary}`}>
+            {tx(safeLang, 'Menyu', 'Меню', 'Menu')}
+          </h1>
           <p className={`text-xs font-medium mt-0.5 ${textSecond}`}>
-            {tx(safeLang, 'Növbə gözləmədən qəhvəni al', 'Кофе без очереди', 'Skip the line, order ahead')}
+            {tx(safeLang, 'Təzə dəmlənmiş qəhvə və desertlər', 'Свежий кофе и десерты', 'Freshly brewed coffee & desserts')}
           </p>
         </div>
         {customerCart.length > 0 && (
           <button onClick={() => setShowCartSheet(true)}
-            className="relative flex items-center justify-center h-10 w-10 rounded-full text-white active:scale-95 transition-all shadow-md shadow-orange-500/20 bg-gradient-to-r from-[#FF8B26] to-[#F48C24]">
+            className="relative flex items-center justify-center h-11 w-11 rounded-full text-white active:scale-95 transition-all shadow-md bg-[#FF8B26]">
             <ShoppingBag size={18} />
-            <span className="absolute -top-1 -right-1 bg-white text-[#F48C24] text-[10px] font-black h-4.5 w-4.5 rounded-full flex items-center justify-center border-2 border-[#F48C24] shadow-sm">
+            <span className="absolute -top-1 -right-1 bg-white text-[#FF8B26] text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#FF8B26] shadow-sm">
               {cartItemCount(customerCart)}
             </span>
           </button>
@@ -775,8 +775,8 @@ export default function OrderTab({
       {stores.length > 0 && (
         <div>
           <button type="button" onClick={async () => { await Haptic.light(); setShowStorePicker(v => !v); }}
-            className={`w-full flex items-center justify-between rounded-2xl border px-3.5 py-2.5 text-left transition active:scale-[0.99] ${
-              isLight ? 'bg-black/[0.03] border-black/8 hover:bg-black/[0.05]' : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.08]'
+            className={`w-full flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-left transition active:scale-[0.99] ${
+              isLight ? 'bg-[#F5F5F7] text-slate-800' : 'bg-white/[0.05] border border-white/10 text-white'
             }`}>
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="flex h-7 w-7 flex-none items-center justify-center rounded-xl bg-[#FF8B26]/15 text-[#FF8B26]">
@@ -827,11 +827,11 @@ export default function OrderTab({
         </div>
       )}
 
-      {/* Search Bar */}
+      {/* Search Bar — Apple Rounded Field */}
       <div className="relative">
         <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </span>
         <input
@@ -839,15 +839,15 @@ export default function OrderTab({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={tx(safeLang, 'Menyudan axtarın...', 'Поиск по меню...', 'Search the menu...')}
-          className={`w-full rounded-2xl border py-2.5 pl-10 pr-4 text-xs transition focus:outline-none focus:ring-1 focus:ring-[#F48C24]/40 ${
+          className={`w-full rounded-[14px] py-2.5 pl-10 pr-4 text-xs transition focus:outline-none ${
             isLight
-              ? 'bg-black/[0.03] border-black/8 text-slate-900 placeholder-slate-400'
-              : 'bg-white/[0.05] border-white/10 text-white placeholder-white/30'
+              ? 'bg-[#F5F5F7] text-slate-900 placeholder-slate-400'
+              : 'bg-white/[0.05] border border-white/10 text-white placeholder-white/30'
           }`}
         />
       </div>
 
-      {/* Category Chips — Modern Apple-grade Horizontal Pills */}
+      {/* Category Chips — Apple Horizontal Pills */}
       {(cats.length > 0 || searchQuery.length > 0) && (
         <div className="flex gap-2 overflow-x-auto pb-1 pt-1 -mx-1 px-1 no-scrollbar">
           {/* All chip */}
@@ -857,9 +857,9 @@ export default function OrderTab({
             onClick={async () => { await Haptic.light(); setSelectedCategory('ALL'); }}
             className={`flex-none flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 whitespace-nowrap ${
               selectedCategory === 'ALL'
-                ? 'bg-[#FF8B26] text-white shadow-[0_3px_12px_rgba(255,139,38,0.35)]'
+                ? 'bg-[#2C1810] text-white shadow-sm'
                 : isLight
-                  ? 'bg-black/[0.04] text-slate-700 hover:bg-black/[0.08] border border-black/5'
+                  ? 'bg-[#F5F5F7] text-[#1D1D1F] hover:bg-[#EBEBF0]'
                   : 'bg-white/[0.07] text-white/80 hover:bg-white/[0.12] border border-white/10'
             }`}
           >
@@ -884,9 +884,9 @@ export default function OrderTab({
                 onClick={async () => { await Haptic.light(); setSelectedCategory(cat); }}
                 className={`flex-none flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 whitespace-nowrap ${
                   isSelected
-                    ? 'bg-[#FF8B26] text-white shadow-[0_3px_12px_rgba(255,139,38,0.35)]'
+                    ? 'bg-[#2C1810] text-white shadow-sm'
                     : isLight
-                      ? 'bg-black/[0.04] text-slate-700 hover:bg-black/[0.08] border border-black/5'
+                      ? 'bg-[#F5F5F7] text-[#1D1D1F] hover:bg-[#EBEBF0]'
                       : 'bg-white/[0.07] text-white/80 hover:bg-white/[0.12] border border-white/10'
                 }`}
               >
