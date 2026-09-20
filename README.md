@@ -5,6 +5,8 @@
 ### Cloud-Native Multi-Tenant Point of Sale, Kitchen Display System (KDS) & Hospitality ERP
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Release: RC1.231](https://img.shields.io/badge/Release-v1.231--RC1-blueviolet.svg?style=flat-square&logo=github)](https://github.com/Enjoyer09/ironwaves-pos-platform/releases)
+[![Demo: Live Sandbox](https://img.shields.io/badge/Demo-Live%20Sandbox-success.svg?style=flat-square&logo=google-chrome)](https://demo.ironwaves.store)
 [![Commits](https://img.shields.io/badge/Commits-1%2C450%2B-blue.svg?style=flat-square)](https://github.com/Enjoyer09/ironwaves-pos-platform/commits/main)
 [![React 19](https://img.shields.io/badge/Frontend-React%2019-61dafb.svg?style=flat-square&logo=react)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -19,7 +21,7 @@
 
 **IronWaves POS Platform** is an enterprise-ready, open-source point of sale, real-time kitchen orchestration, and retail ERP platform built from the ground up for high-tempo restaurants, specialty coffee shops, retail stores, and multi-branch venues.
 
-[Live Demo](#live-production-tenants) · [Key Modules](#key-modules) · [Architecture](#system-architecture) · [Quickstart](#getting-started) · [Contributing](./CONTRIBUTING.md) · [License](./LICENSE)
+[Live Demo](https://demo.ironwaves.store) · [Visual Tour](#-visual-showcase--platform-tour) · [Key Modules](#-key-modules) · [Architecture](#-system-architecture) · [Quickstart](#-getting-started) · [Contributing](./CONTRIBUTING.md) · [License](./LICENSE)
 
 </div>
 
@@ -38,11 +40,54 @@
 
 ---
 
-## 📸 System Previews
+## 📸 Visual Showcase & Platform Tour
 
 <div align="center">
-  <img src="public/landing/pos-device.png" alt="IronWaves POS Terminal" width="820" />
+  <table border="0" style="border-collapse: collapse; border: none;">
+    <tr>
+      <td width="50%" align="center">
+        <a href="./docs/screenshots/02-pos-register.png">
+          <img src="./docs/screenshots/02-pos-register.png" alt="Touch POS Cashier Register" width="100%" />
+        </a>
+        <br/>
+        <sub><b>🛒 High-Speed Touch POS Register</b><br/>Multi-cart tabs, rapid category filters & split tender payments</sub>
+      </td>
+      <td width="50%" align="center">
+        <a href="./docs/screenshots/03-table-order.png">
+          <img src="./docs/screenshots/03-table-order.png" alt="Table Dine-in & Order Pad" width="100%" />
+        </a>
+        <br/>
+        <sub><b>🍽️ Table Dine-In & Waiter Pad</b><br/>Item variants, seat assignments, fast modifier notes & instant billing</sub>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <a href="./docs/screenshots/04-tables-floor-plan.png">
+          <img src="./docs/screenshots/04-tables-floor-plan.png" alt="Interactive Floor Plan" width="100%" />
+        </a>
+        <br/>
+        <sub><b>🗺️ Interactive Floor Plan & Tables</b><br/>Real-time table occupancy, merged tables & reservations tracking</sub>
+      </td>
+      <td width="50%" align="center">
+        <a href="./docs/screenshots/05-dashboard-command-center.png">
+          <img src="./docs/screenshots/05-dashboard-command-center.png" alt="Live Command Center & AI Analytics" width="100%" />
+        </a>
+        <br/>
+        <sub><b>📊 Live Command Center & AI Insights</b><br/>Real-time revenue, kitchen load, cash drawer gap & AI manager reports</sub>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" align="center">
+        <a href="./docs/screenshots/01-login-terminal.png">
+          <img src="./docs/screenshots/01-login-terminal.png" alt="Terminal Lock & Staff PIN Pad" width="85%" />
+        </a>
+        <br/>
+        <sub><b>🔐 Terminal Lock & Quick PIN Authentication</b><br/>Role-based access (Staff / Admin) with instant cashier switching</sub>
+      </td>
+    </tr>
+  </table>
 </div>
+
 
 ---
 
@@ -270,12 +315,17 @@ ironwaves-pos-platform/
 
 ---
 
-## 🌐 Live Production Tenants
+## 🌐 Live Demo & Production Tenants
 
-The platform powers real-world food & beverage merchants on cloud infrastructure:
+Explore the platform live in your browser:
+- 🚀 **Interactive Public Sandbox**: [**demo.ironwaves.store**](https://demo.ironwaves.store)  
+  *(Open to visitors — test high-speed POS, interactive tables, digital cart, and KDS freely without signup)*
+
+Active operational production merchants:
 - ☕ `socialbee.ironwaves.store`
 - 🍽️ `emalatxana.ironwaves.store`
 - 🏢 `super.ironwaves.store`
+
 
 ---
 
