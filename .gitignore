@@ -13,16 +13,34 @@ ENV/
 env.bak/
 venv.bak/
 
-# Environment files
+# Environment & Sensitive files
 .env
 .env.local
 backend/.env
 backend/.env.local
 Emalatkhana_Backup_*.json
+*_backup_*.json
+*backup*.json
+*.dump
 *.har
 Trace-*.json.gz
 backups/
-*.dump
+*.docx
+*.rtf
+
+# OS metadata
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# IDE & AI Assistant clutter
+.workbuddy-ai/
+.kiro/
+.vscode/
+.idea/
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Local databases
 backend/*.db
@@ -31,8 +49,14 @@ backend/*.sqlite
 # Freebuff desktop local state (SQLite db) — not part of the project
 .freebuff/
 
-# frontend smoke test build output
+# Frontend smoke test build output
 tests/.build/
 
 # iOS build output
 ios/build/
+
+# Print agent local build outputs
+tools/print-agent/build/*.exe
+tools/print-agent/*.zip
+tools/print-agent/*.exe
+
