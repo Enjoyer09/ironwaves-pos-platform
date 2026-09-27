@@ -322,7 +322,7 @@ Explore the platform live in your browser:
   *(Open to visitors — test high-speed POS, interactive tables, digital cart, and KDS freely without signup)*
 
 Active operational production merchants:
-- ☕ `socialbee.ironwaves.store`
+- 🥙 `gyrospos.ironwaves.store`
 - 🍽️ `emalatxana.ironwaves.store`
 - 🏢 `super.ironwaves.store`
 

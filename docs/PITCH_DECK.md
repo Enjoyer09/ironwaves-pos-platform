@@ -49,7 +49,7 @@ To replace outdated, slow, and expensive legacy register hardware with a unified
 
 - **What IronWaves is**: An end-to-end, multi-tenant POS, Kitchen Display System (KDS), waiter mobile terminal, customer loyalty PWA, and inventory accounting platform.
 - **Key Metric**: Sub-100ms checkout interaction latency, driving up to **35% faster customer throughput** during peak service hours.
-- **Stage**: Production live across multiple commercial venues (`socialbee.ironwaves.store`, `emalatxana.ironwaves.store`), with an open interactive sandbox at `demo.ironwaves.store`.
+- **Stage**: Production live across multiple commercial venues (`gyrospos.ironwaves.store`, `emalatxana.ironwaves.store`), with an open interactive sandbox at `demo.ironwaves.store`.
 
 ---
 
@@ -181,26 +181,29 @@ Modern restaurants, coffee shops, and retail chains face a broken operational wo
 
 ---
 
-### Slide 9: Business Model & Revenue Engine
+### Slide 9: Business Model & Transparent Pricing
 
-IronWaves employs a highly scalable B2B SaaS subscription model paired with high-margin usage-based expansions:
+IronWaves introduces an unbeatable, all-inclusive, merchant-friendly pricing model with zero hidden fees:
 
 ```
-┌────────────────────────┐  ┌────────────────────────┐  ┌────────────────────────┐
-│     Starter Tier       │  │       Pro Tier         │  │    Enterprise Tier     │
-│       $49/month        │  │       $129/month       │  │       $249+/month      │
-├────────────────────────┤  ├────────────────────────┤  ├────────────────────────┤
-│ • 1 POS Register       │  │ • Up to 3 Registers    │  │ • Unlimited Registers  │
-│ • Unlimited Products   │  │ • 2 KDS Displays       │  │ • Multi-Branch Sync    │
-│ • Real-time Reports    │  │ • Waiter Mobile Pads   │  │ • Full AI Copilot Hub  │
-│ • Thermal Print Agent  │  │ • Loyalty App Engine   │  │ • Dedicated Cloud/SLA  │
-└────────────────────────┘  └────────────────────────┘  └────────────────────────┘
+┌──────────────────────────────────────────────┐  ┌──────────────────────────────────────────────┐
+│         All-Inclusive Primary Venue          │  │          Each Additional Location            │
+│               55 AZN / month                 │  │               +39 AZN / month                │
+├──────────────────────────────────────────────┤  ├──────────────────────────────────────────────┤
+│ • Full High-Speed POS Register Access        │  │ • Multi-Branch Real-Time Synchronized Stock  │
+│ • Unlimited Kitchen Display Screens (KDS)    │  │ • Unified Centralized Management & Audits   │
+│ • Waiter Mobile Table Pads & Floor Plan      │  │ • Aggregated Multi-Branch Fiscal Reports     │
+│ • Customer Loyalty Web App (Apple V3 PWA)    │  │ • Seamless Cross-Location Staff Logins       │
+│ • Real-time X/Z Fiscal Shift Reports         │  │ • Zero Hardware Lock-in (Any Device)         │
+│ • Thermal Direct Print Agent (Win/Mac)       │  │ • Priority 24/7 Multi-Branch Support         │
+└──────────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-#### Expansion Revenue Streams:
-- **Payment Processing Margin**: 0.20%–0.40% take rate on integrated card & QR merchant processing.
-- **AI Copilot Add-On**: $29/month per branch for smart sales forecasting, predictive inventory, and automated re-ordering.
-- **White-Label Branded Apps**: $499 setup + $49/mo maintenance for native iOS App Store and Android Play Store apps.
+#### High-Margin Expansion Streams:
+- **Payment Processing Margin**: 0.20%–0.35% transaction fee on integrated QR & card merchant payments (m10 / Bank APIs).
+- **Native Mobile Store Publishing**: $199 setup for white-label native app publishing to Apple App Store & Google Play Store.
+- **Dedicated Local AI Appliance**: Turnkey local edge server running offline LLMs for zero-latency, private voice ordering.
+
 
 ---
 
@@ -222,7 +225,7 @@ IronWaves employs a highly scalable B2B SaaS subscription model paired with high
 
 - 🔨 **1,450+ Production Commits**: Continuous iterative development, stress-tested with real merchant transactions.
 - 🏪 **Active Commercial Venues**:
-  - `socialbee.ironwaves.store` — High-traffic specialty café & roastery.
+  - `gyrospos.ironwaves.store` — High-traffic fast-casual dining venue in Baku.
   - `emalatxana.ironwaves.store` — Boutique dining & artisan bakery.
   - `super.ironwaves.store` — Enterprise platform hub & multi-branch testbed.
 - 🌐 **Interactive Public Sandbox**:
@@ -236,15 +239,16 @@ IronWaves employs a highly scalable B2B SaaS subscription model paired with high
 **Target Funding: 10,000 – 15,000 AZN (Grant / Pre-Seed Support)**
 
 #### 🎯 Strategic Fund Allocation:
-- **40% (4,000 – 6,000 AZN) — Merchant Hardware Pilot Kits:** Deployment of thermal printer bridges, 2D barcode scanners, and test tablets for pilot venues across Baku.
-- **35% (3,500 – 5,000 AZN) — Cloud Infrastructure & Local Payments:** High-availability database scaling, multi-tenant container hosting, and direct API integration with local payment rails (m10, Kapital Bank / PASHA Bank).
-- **25% (2,500 – 4,000 AZN) — B2B Merchant Acquisition:** Direct onboarding, staff training, and support to scale from our current 3 venues to 25+ paying F&B merchants in Baku.
+- **45% (5,000 – 7,000 AZN) — Local LLM & AI R&D Compute Workstation (Apple Silicon Unified Memory / Mac Studio):** Dedicated on-premise hardware to build, quantize, and test offline LLMs (Llama 3, Gemma, Whisper) for POS voice ordering, multi-lingual receipt translation, and smart inventory assistance with <100ms offline latency and zero recurring per-token cloud costs.
+- **25% (2,500 – 3,500 AZN) — Cloud Infrastructure & Production Deployment:** High-availability managed PostgreSQL, Redis real-time pub/sub synchronization, automated backups, and multi-tenant sub-domain routing on Railway.
+- **15% (1,500 – 2,500 AZN) — Native Store Distribution (Apple App Store & Google Play):** Developer program enrollments, Capacitor 8 iOS and Android native packaging, automated CI/CD builds, and official store deployment for waiter mobile pads and merchant tablets.
+- **15% (1,000 – 2,000 AZN) — Local Payment Rails & Merchant Testbed:** Direct API integrations with local payment gateways (m10 QR acquiring, Kapital Bank / PASHA Bank APIs) and pilot thermal printer/scanner test kits.
 
 ```mermaid
 flowchart LR
-    M1["Month 1–2: Setup<br/>✅ Pilot Hardware Kits<br/>✅ m10 & Bank Gateway<br/>✅ Multi-tenant Hardening"] 
-    --> M2["Month 3–4: Onboarding<br/>🚀 Onboard 15+ Cafés<br/>🚀 KDS Staff Training<br/>🚀 Digital Loyalty Rollout"]
-    --> M3["Month 5–6: Scale<br/>🎯 25+ Active Venues<br/>🎯 Unit Economics Positive<br/>🎯 Series Seed Prep"]
+    M1["Month 1–2: Local AI & Cloud<br/>✅ Mac Studio R&D Setup<br/>✅ Offline LLM Testbed<br/>✅ Railway DB Hardening"] 
+    --> M2["Month 3–4: Store & Payments<br/>🚀 App Store & Google Play<br/>🚀 m10 & Bank QR Acquiring<br/>🚀 Onboard 15+ Cafés"]
+    --> M3["Month 5–6: Scale & Pilots<br/>🎯 25+ Active Venues<br/>🎯 On-Device Voice Ordering<br/>🎯 Cash Flow Positive"]
 ```
 
 
