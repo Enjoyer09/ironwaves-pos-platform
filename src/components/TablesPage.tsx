@@ -870,7 +870,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         await refreshActiveTableDetail(viewTableId);
         return;
       } catch (e: any) {
-        // quiet fallback
+        notify('error', e?.message || tx(lang, 'Mərhələ yenilənmədi', 'Подача не обновлена', 'Course was not updated'));
+        return;
       }
     }
     setRoundDraft((prev) =>
@@ -939,7 +940,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           try {
             const tableName = table.label || 'Sifaris';
             const activeCheck = activeDetail?.check;
-            const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
+            const checkDisplayId = String(activeCheck?.check_number || activeCheck?.id || tableName).trim();
             const ticketData = {
               ticket_id: checkDisplayId,
               order_id: checkDisplayId,
@@ -1009,7 +1010,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         try {
           const tableName = table.label || 'Sifaris';
           const activeCheck = activeDetail?.check;
-          const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
+          const checkDisplayId = String(activeCheck?.check_number || activeCheck?.id || tableName).trim();
           const ticketData = {
             ticket_id: checkDisplayId,
             order_id: checkDisplayId,
@@ -1232,13 +1233,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       }
       const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
       const activeCheck = activeDetail?.check;
-      const checkId = String(activeCheck?.id || activeCheck?.check_no || table.label || '').trim();
+      const checkId = String(activeCheck?.id || activeCheck?.check_number || table.label || '').trim();
 
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
         checkId: checkId || undefined,
-        checkNo: activeCheck?.check_no || undefined,
+        checkNo: activeCheck?.check_number || undefined,
         isPreCheck: true,
         items: payItems.map((row: any) => ({
           item_name: row.item_name,
@@ -1259,15 +1260,19 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         paperWidth: printSettings.paper_width || '80mm',
       });
 
-      await printDirectOrFallback({
-        html: receiptMarkup,
+      // P0-2 fix: previous call used a non-existent object signature + undefined `zReceiptRef`,
+      // which threw on every tap. Use the real (html, options) signature and report the result.
+      const printRes = await printDirectOrFallback(receiptMarkup, {
         paperWidth: printSettings.paper_width || '80mm',
         useQz: Boolean(printSettings.use_qz),
         printerName: printSettings.printer_name,
-        previewRef: zReceiptRef as any,
       });
+      if (!printRes.success) {
+        notify('error', printRes.error || tx(lang, 'Aralıq hesab çap edilmədi — printeri yoxlayın', 'Предчек не напечатан — проверьте принтер', 'Pre-check not printed — check the printer'));
+        return;
+      }
 
-      notify('success', tx(lang, 'Pre-check çap edildi', 'Предчек напечатан', 'Pre-check printed'));
+      notify('success', tx(lang, 'Aralıq hesab çap edildi', 'Предчек напечатан', 'Pre-check printed'));
     } catch (e: any) {
       console.error('Pre-check print error:', e);
       notify('error', e?.message || tx(lang, 'Pre-check çap edilmədi', 'Ошибка печати предчека', 'Failed to print pre-check'));
@@ -1351,13 +1356,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
       const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
       const activeCheck = activeDetail?.check;
-      const checkId = String(result?.sale_id || result?.id || activeCheck?.id || activeCheck?.check_no || '').trim();
+      const checkId = String(result?.sale_id || result?.id || activeCheck?.id || activeCheck?.check_number || '').trim();
 
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
         checkId: checkId || undefined,
-        checkNo: activeCheck?.check_no || undefined,
+        checkNo: activeCheck?.check_number || undefined,
         items: payItems.map((row: any) => ({
           item_name: row.item_name,
           qty: row.qty,
@@ -2921,6 +2926,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         const t = tables.find((x) => x.id === viewTableId);
         if (!t) return null;
         const otherTables = tables.filter((x) => x.id !== t.id);
+        // P0-1 fix: these were referenced here but only defined inside the detail-panel IIFE,
+        // so opening the modal crashed the whole Tables module. Same rules as the detail panel.
+        const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+        const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.locked_by : null) || t.assigned_to || '').trim() || null;
+        const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
         return (
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-modalFadeIn"

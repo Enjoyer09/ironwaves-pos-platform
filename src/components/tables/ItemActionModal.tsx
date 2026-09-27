@@ -31,7 +31,11 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
   const hasNonDraft = itemList.some((it) => normalizeOrderItemStatus(it?.status || 'DRAFT') !== 'DRAFT');
   const quickAction = !hasNonDraft;
   const actionName = String(target.action || '').toUpperCase();
-  const actionRequiresManager = !isManager && hasNonDraft && itemActionNeedsManager(actionName, 'SENT');
+  // P1-7 fix: status used to be hardcoded as 'SENT', so the manager-password field never rendered.
+  // The backend still requires approval for PREPARING/READY items, which left waiters stuck on a 403.
+  // Evaluate the real status of every selected item.
+  const actionRequiresManager = !isManager && hasNonDraft
+    && itemList.some((it) => itemActionNeedsManager(actionName, it?.status || 'SENT'));
   const needsReason = !quickAction;
   const quantityMax = Math.max(1, Number(target.item?.qty || 1));
 

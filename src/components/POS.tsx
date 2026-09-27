@@ -1519,8 +1519,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           const sentTableObj = tables.find((t) => t.id === sentTable);
           const tableName = sentTableObj?.label || 'Sifaris';
           const ticketData = {
-            ticket_id: finalSaleId ? String(finalSaleId).split('-')[0].toUpperCase() : tableName,
-            order_id: finalSaleId ? String(finalSaleId).split('-')[0].toUpperCase() : tableName,
+            // P0-3 fix: `finalSaleId` never existed in this scope (no sale is created on a kitchen send),
+            // so this threw inside the try and the kitchen ticket silently never printed.
+            ticket_id: tableName,
+            order_id: tableName,
             table_label: tableName,
             order_type_label: tableName,
             server_name: user.username,
@@ -1830,33 +1832,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       cancelled = true;
     };
   }, [tenantId, ctx.rewardClaimCode]);
-
-  const handleReprintSaleReceipt = async () => {
-    if (!lastCompletedSaleId) {
-      notify('error', tx(lang, 'Yenidən çap üçün son satış tapılmadı', 'Нет последней продажи для повторной печати', 'No last sale found to reprint'));
-      return;
-    }
-    const receiptMarkup = lastReceiptHtml || buildSaleReceiptHtml(lastCompletedSaleId);
-    const res = await printDirectOrFallback(receiptMarkup, {
-      printerName: printSettings.printer_name,
-      useQz: Boolean(printSettings.use_qz),
-      paperWidth: printSettings.paper_width || '80mm',
-      printEngine: 'raw_escpos',
-      rawCommands: receiptRawCommands || undefined,
-      allowBrowserFallback: false,
-    });
-    if (res.success) {
-      if (res.method === 'agent') {
-        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
-      } else if (res.method === 'qz') {
-        notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
-      } else if (res.method === 'browser') {
-        notify('success', tx(lang, 'Brauzer çap dialoqu açıldı 🖨️', 'Открыт диалог печати браузера 🖨️', 'Opened browser print dialog 🖨️'));
-      }
-    } else {
-      notify('error', tx(lang, res.error || 'Çap alınmadı — Print Agent-i işə salın', res.error || 'Печать не удалась — запустите Print Agent', res.error || 'Printing failed — start the Print Agent'));
-    }
-  };
 
   const printReceiptOnly = async () => {
     if (!safeReceiptHtml) return;

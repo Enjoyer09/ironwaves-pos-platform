@@ -79,7 +79,7 @@ export async function printKitchenTicket(
     printerName,
     useQz,
     paperWidth,
-    printEngine,
+    printEngine: printEngine === 'pixel_html' ? 'pixel_html' : 'raw_escpos',
     rawCommands: rawCmds,
     allowBrowserFallback,
   });

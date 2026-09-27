@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "vite build && cp public/sw.js dist/sw.js",
     "build:customer": "VITE_CUSTOMER_APP_ONLY=1 vite build && mv dist/customer.html dist/index.html && cp public/sw.js dist/sw.js",
     "sync:ios:customer": "npm run build:customer && npx cap sync ios",

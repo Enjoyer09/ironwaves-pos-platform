@@ -16,7 +16,7 @@ type MenuGridProps = {
   draftItems?: Array<{ menu_item_id?: string; id?: string; qty?: number; item_name?: string; category?: string }>;
   modernMode?: boolean;
   summerPromoEnabled?: boolean;
-  onLangChange?: (newLang: string) => void;
+  onLangChange?: (newLang: 'az' | 'ru' | 'en') => void;
 };
 
 const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
