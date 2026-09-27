@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IronWaves POS Platform — Startup Pitch Deck</title>
+  <style>
+    :root {
+      --bg: #070a11;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(56, 189, 248, 0.2);
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.35);
+      --accent: #10b981;
+      --gold: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    /* Presentation Container */
+    .deck-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 20%, #0f172a 0%, #070a11 100%);
+    }
+
+    /* Individual Slide */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 40px 60px 80px 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.96) translateY(20px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1) translateY(0);
+      z-index: 10;
+    }
+
+    /* Slide Header */
+    .slide-header {
+      margin-bottom: 24px;
+    }
+
+    .slide-category {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--primary);
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .slide-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Content Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-highlight {
+      border-color: var(--primary);
+      box-shadow: 0 0 25px var(--primary-glow);
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card p, .card li {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    ul.feature-list {
+      list-style: none;
+    }
+
+    ul.feature-list li {
+      position: relative;
+      padding-left: 24px;
+      margin-bottom: 10px;
+      color: #e2e8f0;
+    }
+
+    ul.feature-list li::before {
+      content: "⚡";
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 0.85rem;
+    }
+
+    /* Media Frames */
+    .media-frame {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      background: #000;
+      max-height: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .media-frame img {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Badges & Metrics */
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .badge-gold {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--gold);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-green {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .metric-number {
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-label {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    /* Comparison Table */
+    table.comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    table.comp-table th, table.comp-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    table.comp-table th {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    table.comp-table tr.highlight-row {
+      background: rgba(56, 189, 248, 0.1);
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* Bottom Control Bar */
+    .controls-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 0;
+      width: 100%;
+      padding: 0 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: var(--primary);
+      color: #070a11;
+      border-color: var(--primary);
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    .progress-bar-container {
+      flex: 1;
+      max-width: 400px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      margin: 0 24px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 8.33%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    .slide-counter {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        overflow: visible;
+        background: #fff !important;
+        color: #000 !important;
+      }
+      .controls-bar {
+        display: none !important;
+      }
+      .deck-container {
+        display: block;
+        background: none !important;
+      }
+      .slide {
+        position: relative !important;
+        width: 100% !important;
+        height: 100vh !important;
+        page-break-after: always;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        background: #0f172a !important;
+        color: #fff !important;
+      }
+      @page {
+        size: landscape;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="deck-container">
+
+  <!-- SLIDE 1: Vision / Cover -->
+  <div class="slide active" id="slide-1">
+    <div style="text-align: center; max-width: 860px; margin: 0 auto;">
+      <div style="margin-bottom: 16px;">
+        <span class="badge badge-gold">⚡ SERIES PRE-SEED & AI GRANT DECK</span>
+        <span class="badge badge-green">v1.231-RC1 PRODUCTION READY</span>
+      </div>
+      <h1 style="font-size: 3.6rem; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 14px;">
+        IronWaves POS Platform
+      </h1>
+      <p style="font-size: 1.4rem; color: var(--primary); font-weight: 500; margin-bottom: 24px;">
+        The Next-Generation Multi-Tenant Cloud POS & Hospitality Operating System
+      </p>
+      <p style="font-size: 1.05rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 36px;">
+        Sub-100ms register latency, real-time Kitchen Display (KDS), mobile table ordering, and Apple iOS loyalty ecosystem built for high-throughput modern dining & retail.
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 40px;">
+        <div class="card">
+          <div class="metric-number">1,450+</div>
+          <div class="metric-label">Production Commits</div>
+        </div>
+        <div class="card">
+          <div class="metric-number">&lt; 100ms</div>
+          <div class="metric-label">Touch Response Time</div>
+        </div>
+        <div class="card">
+          <div class="metric-number">3+</div>
+          <div class="metric-label">Live Commercial Venues</div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.9rem; color: var(--text-muted);">
+        Founder: <b>Abbas Aliyev</b> (@Enjoyer09) · Live Demo: <a href="https://demo.ironwaves.store" target="_blank" style="color: var(--primary);">demo.ironwaves.store</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: Problem -->
+  <div class="slide" id="slide-2">
+    <div class="slide-header">
+      <div class="slide-category">⚠️ The Problem</div>
+      <h2 class="slide-title">Hospitality Tech is Fragmented, Slow & Expensive</h2>
+      <div class="slide-subtitle">Merchants are crippled by tool sprawl, hardware lock-in, and lost revenue during peak hours.</div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">🧩 Tool Fragmentation</div>
+        <p>Restaurants juggle 4–6 disconnected vendors: POS register, kitchen tickets, loyalty club, mobile floor plan, and accounting.</p>
+        <p style="margin-top: 12px; color: #ef4444; font-weight: 600;">Cost: $400–$900/month/location with frequent data sync failures.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🐢 Crippling Checkout Lag</div>
+        <p>Legacy systems lag 2–4 seconds per item tap or screen transition. Slow checkouts create long queues and customer walk-outs.</p>
+        <p style="margin-top: 12px; color: #ef4444; font-weight: 600;">Impact: 15–25% lost revenue during peak dining rushes.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">🔒 Hardware Lock-In</div>
+        <p>Legacy vendors force merchants into proprietary $2,000–$5,000 terminals with zero cross-platform flexibility.</p>
+        <p style="margin-top: 12px; color: #ef4444; font-weight: 600;">Impact: Prohibitive capital expenses for multi-branch expansion.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Solution -->
+  <div class="slide" id="slide-3">
+    <div class="slide-header">
+      <div class="slide-category">💡 The Solution</div>
+      <h2 class="slide-title">The Unified Cloud-Native Operating System</h2>
+      <div class="slide-subtitle">One integrated platform replacing multiple legacy tools with blazing speed.</div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <ul class="feature-list">
+          <li><b>Sub-100ms Touch Register:</b> Instant cart actions, barcode scanning, multi-tender split payments (Cash, Card, Points, Staff).</li>
+          <li><b>Smart Multi-Station KDS:</b> Real-time WebSocket ticket routing to Bar, Hot Line, and Cold Prep with auditory rush alerts.</li>
+          <li><b>Waiter Mobile Pad:</b> 1-hand mobile table ordering, seat check splitting, and course firing right at the dining table.</li>
+          <li><b>Apple iOS V3 Loyalty PWA:</b> Digital member passes with fraud-proof dynamic QR tokens and Starbucks-style store selection.</li>
+          <li><b>Fiscal Shift Integrity:</b> Automated X-Reports and end-of-day Z-Reports with precise double-entry cash drawer reconciliation.</li>
+        </ul>
+      </div>
+      <div class="card card-highlight">
+        <div class="card-title" style="color: var(--primary);">🌐 Device Agnostic Architecture</div>
+        <p style="margin-bottom: 16px;">Runs seamlessly on any browser, iPad, Android tablet, touchscreen POS terminal, or smartphone without proprietary hardware fees.</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span class="badge">Web SPA</span>
+          <span class="badge">iOS Native</span>
+          <span class="badge">Android Native</span>
+          <span class="badge">Capacitor 8</span>
+          <span class="badge">ESC/POS Thermal</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Product Showcase 1 - POS -->
+  <div class="slide" id="slide-4">
+    <div class="slide-header">
+      <div class="slide-category">🛒 Product Deep-Dive · Point of Sale</div>
+      <h2 class="slide-title">High-Speed Touch POS & Multi-Cart Register</h2>
+      <div class="slide-subtitle">Engineered for intense checkout velocity during morning coffee & lunch queues.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="media-frame">
+        <img src="./screenshots/02-pos-register.png" alt="Touch POS Cashier Register">
+      </div>
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">⚡ Multi-Cart Tabs (Cart 1, 2, 3)</div>
+          <p>Cashiers can park an order when a guest hesitates and instantly serve the next customer with zero context loss.</p>
+        </div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">💳 Flexible Split Tenders</div>
+          <p>Seamlessly split bills between Cash, Credit Card, Loyalty Points, Gift Cards, and Staff accounts in a single tap.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🖨️ Direct Silent Thermal Printing</div>
+          <p>Automated ESC/POS generation via QZ Tray and native background print agent for Windows & macOS.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: Product Showcase 2 - Tables & Floor Plan -->
+  <div class="slide" id="slide-5">
+    <div class="slide-header">
+      <div class="slide-category">🍽️ Product Deep-Dive · Tables & Waiter Pad</div>
+      <h2 class="slide-title">Interactive Floor Plan & Seat-Level Dine-In</h2>
+      <div class="slide-subtitle">Turn tables 25% faster with mobile order taking and course-by-course kitchen pacing.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="media-frame">
+        <img src="./screenshots/04-tables-floor-plan.png" alt="Interactive Floor Plan">
+      </div>
+      <div class="media-frame">
+        <img src="./screenshots/03-table-order.png" alt="Table Dine-in & Waiter Pad">
+      </div>
+    </div>
+    <div style="margin-top: 16px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+      Left: Real-time table occupancy, merge groups, and reservations · Right: Waiter pad with seat-specific notes, guest picker & bill splitting.
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Product Showcase 3 - Dashboard & AI -->
+  <div class="slide" id="slide-6">
+    <div class="slide-header">
+      <div class="slide-category">📊 Product Deep-Dive · Command Center</div>
+      <h2 class="slide-title">Live Command Center & AI Manager</h2>
+      <div class="slide-subtitle">Real-time visibility into revenue, kitchen load, cash variance, and smart recommendations.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="media-frame">
+        <img src="./screenshots/05-dashboard-command-center.png" alt="Live Command Center & AI Analytics">
+      </div>
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">⏱️ Real-Time Metric Telemetry</div>
+          <p>Instant tracking of Today's Sales, Net Profit Margins, Open Checks, Kitchen Load %, and Cash Drawer Variance.</p>
+        </div>
+        <div class="card card-highlight">
+          <div class="card-title" style="color: var(--primary);">🤖 Autonomous AI Manager</div>
+          <p>Embedded AI Copilot evaluates hourly sales velocity, flags abnormal discount usage, and automates re-ordering alerts.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Product Showcase 4 - Security & Loyalty -->
+  <div class="slide" id="slide-7">
+    <div class="slide-header">
+      <div class="slide-category">🔐 Product Deep-Dive · Security & Loyalty</div>
+      <h2 class="slide-title">Swift Terminal Access & Digital Loyalty Pass</h2>
+      <div class="slide-subtitle">Role-based PIN switching and Apple iOS-inspired customer loyalty.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="media-frame">
+        <img src="./screenshots/01-login-terminal.png" alt="Terminal Lock & Quick PIN Authentication">
+      </div>
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">🔢 4-Digit Quick PIN Switching</div>
+          <p>Rapid staff switching prevents wrong order attribution and tracks individual staff performance metrics.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📱 Apple V3 Customer Loyalty PWA</div>
+          <p>Cryptographic dynamic QR member pass, tier progression (Bronze ➜ Silver ➜ Gold), and Starbucks-style store selection.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: Market Opportunity -->
+  <div class="slide" id="slide-8">
+    <div class="slide-header">
+      <div class="slide-category">📈 Market Opportunity</div>
+      <h2 class="slide-title">A $29 Billion Industry Undergoing Cloud Modernization</h2>
+      <div class="slide-subtitle">Independent restaurants and regional chains are rapidly ditching legacy hardware.</div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom: 30px;">
+      <div class="card">
+        <div class="metric-number">$29.09B</div>
+        <div class="metric-label">TAM: Global POS Software (2028)</div>
+        <p style="margin-top: 10px; font-size: 0.85rem;">12.8% CAGR driven by cloud migration and contactless ordering.</p>
+      </div>
+      <div class="card">
+        <div class="metric-number">$8.4B</div>
+        <div class="metric-label">SAM: Independent F&B & Cafés</div>
+        <p style="margin-top: 10px; font-size: 0.85rem;">Specialty coffee, bakeries, casual dining & cloud kitchens.</p>
+      </div>
+      <div class="card card-highlight">
+        <div class="metric-number">$140M</div>
+        <div class="metric-label">SOM: Target Regional Rollout</div>
+        <p style="margin-top: 10px; font-size: 0.85rem;">Fast-growing multi-branch hospitality groups in underserved regions.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 Ideal Initial Beachhead</div>
+      <p>Specialty coffee shops and boutique bakeries — venues with high daily transaction frequency, urgent queue pressure, and strong customer loyalty requirements.</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: Business Model -->
+  <div class="slide" id="slide-9">
+    <div class="slide-header">
+      <div class="slide-category">💰 Business Model</div>
+      <h2 class="slide-title">Predictable SaaS Subscription + Usage Expansion</h2>
+      <div class="slide-subtitle">Low barrier to entry with high net revenue retention (NRR).</div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom: 24px;">
+      <div class="card">
+        <div class="badge">STARTER</div>
+        <div class="metric-number" style="font-size: 2.2rem; margin: 12px 0;">$49<span style="font-size: 1rem; color: var(--text-muted);">/mo</span></div>
+        <ul class="feature-list" style="font-size: 0.85rem;">
+          <li>1 POS Register</li>
+          <li>Unlimited Menu Items</li>
+          <li>Real-Time Daily Sales</li>
+          <li>Thermal Print Agent</li>
+        </ul>
+      </div>
+
+      <div class="card card-highlight">
+        <div class="badge badge-gold">POPULAR · PRO</div>
+        <div class="metric-number" style="font-size: 2.2rem; margin: 12px 0;">$129<span style="font-size: 1rem; color: var(--text-muted);">/mo</span></div>
+        <ul class="feature-list" style="font-size: 0.85rem;">
+          <li>Up to 3 POS Registers</li>
+          <li>2 KDS Kitchen Screens</li>
+          <li>Waiter Mobile Pads</li>
+          <li>Customer Loyalty App</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="badge badge-green">ENTERPRISE</div>
+        <div class="metric-number" style="font-size: 2.2rem; margin: 12px 0;">$249+<span style="font-size: 1rem; color: var(--text-muted);">/mo</span></div>
+        <ul class="feature-list" style="font-size: 0.85rem;">
+          <li>Unlimited Registers & KDS</li>
+          <li>Multi-Branch Sync</li>
+          <li>Full AI Copilot Suite</li>
+          <li>Dedicated Cloud SLA</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 Expansion Revenue Levers</div>
+      <p><b>Payment Processing Margin:</b> 0.20%–0.40% take rate · <b>AI Copilot Add-on:</b> $29/mo/branch · <b>White-Label Native Apps:</b> $499 setup + $49/mo.</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: Competition -->
+  <div class="slide" id="slide-10">
+    <div class="slide-header">
+      <div class="slide-category">🛡️ Competitive Moat</div>
+      <h2 class="slide-title">How IronWaves Wins the Market</h2>
+      <div class="slide-subtitle">Faster, hardware-independent, and 60% lower total cost of ownership.</div>
+    </div>
+
+    <div class="card" style="padding: 12px 20px;">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Capabilities</th>
+            <th>Legacy (iiko, Micros)</th>
+            <th>Standard (Square, Clover)</th>
+            <th>Enterprise (Toast)</th>
+            <th style="color: var(--primary);">IronWaves ⚡</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight-row">
+            <td><b>Touch Latency</b></td>
+            <td>Slow (2–4s)</td>
+            <td>Medium (500ms)</td>
+            <td>Medium (400ms)</td>
+            <td><b>Ultra-Fast (&lt;100ms)</b></td>
+          </tr>
+          <tr>
+            <td><b>Hardware Agnostic</b></td>
+            <td>❌ Proprietary</td>
+            <td>❌ Locked Terminals</td>
+            <td>❌ Locked Terminals</td>
+            <td><b>✅ Any Browser / iPad / Android</b></td>
+          </tr>
+          <tr>
+            <td><b>Multi-Tenant Cloud</b></td>
+            <td>❌ On-Premise</td>
+            <td>⚠️ Single Account</td>
+            <td>⚠️ Limited Multi-Org</td>
+            <td><b>✅ Native Subdomains (*.store)</b></td>
+          </tr>
+          <tr>
+            <td><b>Integrated KDS & Tables</b></td>
+            <td>⚠️ Extra Fees</td>
+            <td>⚠️ Basic</td>
+            <td>✅ Good</td>
+            <td><b>✅ Native Live WebSockets</b></td>
+          </tr>
+          <tr>
+            <td><b>Customer Loyalty PWA</b></td>
+            <td>❌ Third-party SMS</td>
+            <td>⚠️ Basic</td>
+            <td>⚠️ Add-on Fees</td>
+            <td><b>✅ Apple iOS V3 QR Wallet</b></td>
+          </tr>
+          <tr class="highlight-row">
+            <td><b>Monthly Cost / Location</b></td>
+            <td>$250–$600+</td>
+            <td>$80–$180+</td>
+            <td>$165–$350+</td>
+            <td><b>$49–$129 (60% Lower TCO)</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: Traction -->
+  <div class="slide" id="slide-11">
+    <div class="slide-header">
+      <div class="slide-category">🚀 Traction & Validation</div>
+      <h2 class="slide-title">Battle-Tested Engineering in Production Venues</h2>
+      <div class="slide-subtitle">Not a mockup — a fully functional system powering real merchant operations.</div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">🏪 Active Commercial Merchants</div>
+          <ul class="feature-list">
+            <li><b>socialbee.ironwaves.store:</b> High-throughput specialty café & roastery.</li>
+            <li><b>emalatxana.ironwaves.store:</b> Artisan bakery & dine-in restaurant.</li>
+            <li><b>super.ironwaves.store:</b> Enterprise administrative hub & franchise manager.</li>
+          </ul>
+        </div>
+        <div class="card card-highlight">
+          <div class="card-title" style="color: var(--primary);">🌐 Interactive Public Sandbox</div>
+          <p>Live sandbox at <b><a href="https://demo.ironwaves.store" target="_blank" style="color: #fff;">demo.ironwaves.store</a></b> allows anyone to test cashier orders, tables, and KDS with pre-loaded mock menus and zero signup.</p>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="metric-number">1,450+</div>
+          <div class="metric-label">Clean Git Commits</div>
+          <p style="margin-top: 8px;">Continuous, iterative production engineering with 100% solo founder velocity.</p>
+        </div>
+        <div class="card">
+          <div class="metric-number">v1.231-RC1</div>
+          <div class="metric-label">Official Release Candidate</div>
+          <p style="margin-top: 8px;">Full release tagged on GitHub with precompiled print agent binaries for Windows and macOS.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: The Ask & Road Ahead -->
+  <div class="slide" id="slide-12">
+    <div class="slide-header">
+      <div class="slide-category">🎯 The Ask & Milestones</div>
+      <h2 class="slide-title">Fueling the Next Phase of Growth</h2>
+      <div class="slide-subtitle">Accelerating AI Copilot capabilities and expanding merchant onboarding.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-highlight">
+        <div class="card-title" style="color: var(--primary);">🤝 What We Are Seeking</div>
+        <ul class="feature-list">
+          <li><b>AI Developer Grants (Anthropic / OpenAI):</b> API credits to scale sales forecasting, autonomous inventory re-ordering, and voice-assisted POS order entry.</li>
+          <li><b>Accelerator Admission (YC / Techstars):</b> Growth mentorship, franchise distributor network access, and global GTM scaling.</li>
+          <li><b>Seed / Pre-Seed Capital ($150K–$300K):</b> To expand regional merchant acquisition and native mobile Capacitor App Store distribution.</li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-title">📅 12-Month Milestones</div>
+          <ul class="feature-list">
+            <li><b>Q3 2026:</b> v1.231-RC1 release, public sandbox, and AI Copilot launch.</li>
+            <li><b>Q4 2026:</b> Reach 50+ active merchant locations; onboard regional coffee chains.</li>
+            <li><b>Q1 2027:</b> Launch integrated payment gateway with 0.25% merchant take rate.</li>
+            <li><b>Q2 2027:</b> Regional expansion across 250+ venues; raise Series Seed round.</li>
+          </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px;">
+          <h3 style="font-size: 1.4rem; color: #fff;">Let's Build the Future of Commerce ⚡</h3>
+          <p style="color: var(--primary); font-weight: 600; margin-top: 6px;">Abbas Aliyev · Founder & Lead Engineer</p>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">demo.ironwaves.store · github.com/Enjoyer09/ironwaves-pos-platform</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLS & NAVIGATION BAR -->
+  <div class="controls-bar">
+    <div class="nav-buttons">
+      <button class="btn" id="prevBtn" onclick="prevSlide()">◀ Previous</button>
+      <button class="btn" id="nextBtn" onclick="nextSlide()">Next ▶</button>
+      <button class="btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+      <button class="btn" onclick="window.print()">🖨️ Export PDF</button>
+      <a href="https://demo.ironwaves.store" target="_blank" class="btn" style="background: rgba(56, 189, 248, 0.2); border-color: var(--primary);">🚀 Live Demo</a>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="slide-counter" id="slideCounter">
+      01 / 12
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentSlide = 1;
+  const totalSlides = 12;
+
+  function updateSlide(index) {
+    if (index < 1) index = 1;
+    if (index > totalSlides) index = totalSlides;
+    currentSlide = index;
+
+    document.querySelectorAll('.slide').forEach((slide, idx) => {
+      slide.classList.toggle('active', (idx + 1) === currentSlide);
+    });
+
+    const progress = (currentSlide / totalSlides) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+    document.getElementById('slideCounter').innerText = 
+      String(currentSlide).padStart(2, '0') + ' / ' + String(totalSlides).padStart(2, '0');
+
+    document.getElementById('prevBtn').style.opacity = currentSlide === 1 ? '0.4' : '1';
+    document.getElementById('nextBtn').style.opacity = currentSlide === totalSlides ? '0.4' : '1';
+  }
+
+  function nextSlide() {
+    if (currentSlide < totalSlides) {
+      updateSlide(currentSlide + 1);
+    }
+  }
+
+  function prevSlide() {
+    if (currentSlide > 1) {
+      updateSlide(currentSlide - 1);
+    }
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => alert(err.message));
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      nextSlide();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      prevSlide();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      updateSlide(1);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      updateSlide(totalSlides);
+    } else if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreen();
+    }
+  });
+
+  // Touch Swipe for mobile/tablets
+  let touchStartX = 0;
+  let touchEndX = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, false);
+
+  document.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    if (touchEndX < touchStartX - 50) nextSlide();
+    if (touchEndX > touchStartX + 50) prevSlide();
+  }, false);
+
+  // Initialize
+  updateSlide(1);
+</script>
+
+</body>
+</html>
