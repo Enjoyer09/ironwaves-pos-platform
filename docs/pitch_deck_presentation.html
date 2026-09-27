@@ -316,31 +316,52 @@
 
     /* Print Styles */
     @media print {
-      body {
-        overflow: visible;
-        background: #fff !important;
-        color: #000 !important;
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      html, body {
+        overflow: visible !important;
+        height: auto !important;
+        width: 100% !important;
+        background: #070a11 !important;
+        color: #f8fafc !important;
       }
       .controls-bar {
         display: none !important;
       }
       .deck-container {
-        display: block;
-        background: none !important;
+        display: block !important;
+        height: auto !important;
+        width: 100% !important;
+        background: #070a11 !important;
       }
       .slide {
         position: relative !important;
         width: 100% !important;
         height: 100vh !important;
-        page-break-after: always;
+        max-height: 100vh !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
         opacity: 1 !important;
         visibility: visible !important;
         transform: none !important;
-        background: #0f172a !important;
-        color: #fff !important;
+        background: radial-gradient(circle at 50% 20%, #0f172a 0%, #070a11 100%) !important;
+        color: #f8fafc !important;
+        padding: 40px 60px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+      }
+      .card {
+        background: rgba(15, 23, 42, 0.9) !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
       }
       @page {
-        size: landscape;
+        size: 16in 9in;
         margin: 0;
       }
     }
