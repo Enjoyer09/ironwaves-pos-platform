@@ -1,5 +1,5 @@
 # IronWaves POS Platform ⚡
-## Investor & Startup Accelerator Pitch Deck (Series Seed / Pre-Seed & AI Grant)
+## Investor & Startup Accelerator Pitch Deck (10,000 – 15,000 AZN Grant / Pre-Seed Support)
 
 > **Tagline:** The Next-Generation Multi-Tenant Cloud POS, Kitchen Display System (KDS) & Hospitality Operating System.  
 > **Founder:** Abbas Aliyev ([@Enjoyer09](https://github.com/Enjoyer09))  
@@ -22,7 +22,7 @@
 9. [Slide 9: Business Model & Revenue Engine](#slide-9-business-model--revenue-engine)
 10. [Slide 10: Competitive Advantage & Moat](#slide-10-competitive-advantage--moat)
 11. [Slide 11: Real-World Traction & Operational Validation](#slide-11-real-world-traction--operational-validation)
-12. [Slide 12: The Ask & 12-Month Milestones](#slide-12-the-ask--12-month-milestones)
+12. [Slide 12: The Ask & 6-Month Milestones](#slide-12-the-ask--6-month-milestones)
 
 ---
 
@@ -231,22 +231,22 @@ IronWaves employs a highly scalable B2B SaaS subscription model paired with high
 
 ---
 
-### Slide 12: The Ask & 12-Month Milestones
+### Slide 12: The Ask & 6-Month Milestones
 
-We are applying for **Startup Accelerator Programs (YC / Techstars)** and **Top-Tier AI Developer Grants (Anthropic / OpenAI / Cloud Startups)**:
+**Target Funding: 10,000 – 15,000 AZN (Grant / Pre-Seed Support)**
 
-#### 🎯 What We Need:
-- **Cloud & AI Compute Credits**: Scale multi-tenant deployments, expand AI sales forecasting, and integrate turn-by-turn conversational POS copilots.
-- **Strategic Mentorship**: Channel expansion into franchise networks and international hospitality markets.
-- **Initial Growth Capital ($100k–$250k Pre-Seed)**: Accelerate native mobile distributions (Capacitor iOS/Android) and payment provider integrations.
+#### 🎯 Strategic Fund Allocation:
+- **40% (4,000 – 6,000 AZN) — Merchant Hardware Pilot Kits:** Deployment of thermal printer bridges, 2D barcode scanners, and test tablets for pilot venues across Baku.
+- **35% (3,500 – 5,000 AZN) — Cloud Infrastructure & Local Payments:** High-availability database scaling, multi-tenant container hosting, and direct API integration with local payment rails (m10, Kapital Bank / PASHA Bank).
+- **25% (2,500 – 4,000 AZN) — B2B Merchant Acquisition:** Direct onboarding, staff training, and support to scale from our current 3 venues to 25+ paying F&B merchants in Baku.
 
 ```mermaid
 flowchart LR
-    M1["Q1 2026: Foundation<br/>✅ Multi-Tenant Core<br/>✅ Sub-100ms POS<br/>✅ Real-time KDS"] 
-    --> M2["Q2 2026: Expansion<br/>✅ Apple V3 Loyalty<br/>✅ Waiter Mobile Pad<br/>✅ Fiscal X/Z Ledgers"]
-    --> M3["Q3 2026: AI & Scale<br/>🚀 RC1.231 Release<br/>🚀 AI Copilot Hub<br/>🚀 Public Sandbox Demo"]
-    --> M4["Q4 2026+: Global Growth<br/>🎯 100+ Active Venues<br/>🎯 Integrated Payments<br/>🎯 Series Seed Round"]
+    M1["Month 1–2: Setup<br/>✅ Pilot Hardware Kits<br/>✅ m10 & Bank Gateway<br/>✅ Multi-tenant Hardening"] 
+    --> M2["Month 3–4: Onboarding<br/>🚀 Onboard 15+ Cafés<br/>🚀 KDS Staff Training<br/>🚀 Digital Loyalty Rollout"]
+    --> M3["Month 5–6: Scale<br/>🎯 25+ Active Venues<br/>🎯 Unit Economics Positive<br/>🎯 Series Seed Prep"]
 ```
+
 
 ---
 
