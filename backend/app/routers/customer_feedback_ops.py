@@ -454,6 +454,14 @@ def submit_feedback(
         if sale:
             canonical_receipt_id = str(sale.id)
 
+    # Security: if the sale carries a receipt_token, the caller must present the
+    # matching token. Without this check a guessed/altered receipt_id could be
+    # used to submit feedback and claim a coupon for someone else's sale.
+    if sale is not None:
+        expected_token = str(getattr(sale, "receipt_token", "") or "").strip()
+        if expected_token and receipt_token != expected_token:
+            raise HTTPException(status_code=400, detail="Yanlış receipt token")
+
     # 1. Check if coupon was already issued for this sale/receipt
     existing_coupon = None
     if sale:
@@ -484,7 +492,7 @@ def submit_feedback(
             "already_submitted": True,
             "coupon_code": existing_coupon.code,
             "coupon_percent": int(existing_coupon.percent or 5),
-            "coupon_status": existing_coupon.status,
+            "coupon_status": getattr(existing_coupon, "status", None),
         }
 
     now = _utcnow()
@@ -505,12 +513,13 @@ def submit_feedback(
     issued_coupon_code = None
     issued_coupon_percent = 5
     coupon = None
-    if _is_feedback_promo_enabled(db, tenant_id):
-        settings_percent = _get_feedback_coupon_percent(db, tenant_id)
+    if _feedback_promo_enabled(db, tenant_id):
+        settings_percent = _feedback_coupon_percent(db, tenant_id)
         issued_coupon_percent = settings_percent
         issued_coupon_code = f"FB-{secrets.token_hex(4).upper()}"
         coupon = FeedbackCoupon(
             tenant_id=tenant_id,
+            feedback_entry_id=feedback_entry.id,
             code=issued_coupon_code,
             percent=issued_coupon_percent,
             status="PENDING",
@@ -518,7 +527,6 @@ def submit_feedback(
             sale_id=sale.id if sale else None,
             receipt_id=canonical_receipt_id or receipt_id or None,
             receipt_token=receipt_token or (sale.receipt_token if sale else None),
-            feedback_created_at=now,
             issued_at=now,
         )
         db.add(coupon)
