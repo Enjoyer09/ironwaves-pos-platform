@@ -601,7 +601,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           )}
 
-          {/* AeroTable Payment Method Selector — finger-friendly 44px targets */}
+          {/* Payment Method Selector — finger-friendly 44px targets.
+              P2-2: label it as the method for "Hesabı Al" so waiters don't read it as
+              "pay now". The final confirmation still happens in the payment modal. */}
+          <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {tx(lang, 'Hesabı Al üçün ödəniş üsulu', 'Способ оплаты для счёта', 'Payment method for the bill')}
+          </div>
           <div className="mb-2 grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800/80">
             <button
               type="button"
@@ -637,7 +642,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               }`}
             >
               <QrCode size={15} />
-              <span>{tx(lang, 'QR / App', 'QR / Приложение', 'QR Pay')}</span>
+              <span>{tx(lang, 'QR ödəniş', 'QR оплата', 'QR pay')}</span>
             </button>
           </div>
 
@@ -697,7 +702,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                     title={tx(lang, 'Aralıq hesab çıxar', 'Печать предчека', 'Print interim pre-check')}
                   >
                     <Printer size={16} />
-                    <span>{tx(lang, 'Pre-Check', 'Предчек', 'Pre-Check')}</span>
+                    <span>{tx(lang, 'Aralıq hesab', 'Предчек', 'Pre-check')}</span>
                   </button>
                 )}
                 <button
@@ -727,17 +732,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             )}
           </div>
 
-          {/* Secondary back + single clear destructive action */}
-          <div className="mt-2.5 flex items-center justify-between pt-1 border-t border-slate-800/40">
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 py-1 px-1.5 rounded-lg active:scale-95"
-            >
-              <ArrowLeft size={13} />
-              <span>{tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}</span>
-            </button>
-            {tableOccupied && (
+          {/* P2-2: the duplicate "← Masalara qayıt" link was removed — the header already has a
+              large ← back button. Only the single destructive action remains here. */}
+          {tableOccupied && (
+            <div className="mt-2.5 flex items-center justify-end pt-1 border-t border-slate-800/40">
               <button
                 type="button"
                 disabled={!userCanEdit}
@@ -750,8 +748,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               >
                 🗑️ {tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel Table')}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ─── Slide-up Sent Items Panel ─── */}
@@ -764,7 +762,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
             <div>
               <div className="text-sm font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-              <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+              <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -809,7 +807,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                     status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
                     status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Preparing') :
                     status === 'VOID_REQUESTED' ? tx(lang, 'Ləğv gözləyir', 'Ожидает', 'Pending') :
-                    status === 'SERVED' ? tx(lang, 'Servis', 'Подано', 'Served') :
+                    status === 'SERVED' ? tx(lang, 'Verilib', 'Подано', 'Served') :
                     status === 'VOIDED' ? tx(lang, 'Ləğv', 'Отменено', 'Voided') :
                     status === 'COMPED' ? tx(lang, 'Silinib', 'Списано', 'Comped') :
                     status === 'WASTE' ? tx(lang, 'İsraf', 'Списано', 'Waste') :
@@ -857,7 +855,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               onClick={() => setSentPanelOpen(false)}
               className="w-full rounded-xl border border-slate-600/60 bg-slate-800/60 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700/60 active:scale-[0.98]"
             >
-              ↓ {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              ↓ {tx(lang, 'Qapat', 'Закрыть', 'Close')}
             </button>
           </div>
         </div>

@@ -194,7 +194,7 @@ function assertLocalReservationSlotAvailable(
 function getLocalFloorPlans(tenant_id: string): FloorPlanRecord[] {
   const existing = getDB<any>(localFloorKey).filter((row) => row.tenant_id === tenant_id);
   if (existing.length > 0) return existing;
-  const seed = [{ id: `floor_${tenant_id}`, tenant_id, name: 'Main Floor', width_units: 12, height_units: 8, is_active: true }];
+  const seed = [{ id: `floor_${tenant_id}`, tenant_id, name: 'Əsas Zal', width_units: 12, height_units: 8, is_active: true }];
   setDB(localFloorKey, [...getDB<any>(localFloorKey), ...seed]);
   return seed;
 }

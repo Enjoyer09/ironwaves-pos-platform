@@ -84,6 +84,8 @@ Bunlar canlı ekran görüntüləri ilə təsdiqləndi.
 
 ## P2 — Orta: Ardıcıllıq və aydınlıq problemləri
 
+> **Status (27.09.2026): P1-4, P2-1, P2-2, P2-6 düzəldildi** (tsc təmiz, build uğurlu, telefon Playwright yoxlaması keçdi). Qalan P2 maddələri (P2-3 kiçik toxunma hədəfləri/şriftlər, P2-4 qaralama/göndərilmiş vizual fərqi, P2-5 status rəngləri) və P3 açıqdır.
+
 ### P2-1. Termin qarışıqlığı (eyni söz ≠ eyni əməliyyat)
 - **"Bağla"**: PaymentModal-da = ödənişi tamamla (Settle); Göndərilmişlər / FullOrderList / StatusLog panellərində = paneli qapat. İki tam fərqli məna.
 - **"Ləğv / Ləğv et"**: PaymentModal-da modalı bağlayır; masa üçün = masanı ləğv et; məhsul üçün = void. Üç fərqli məna.

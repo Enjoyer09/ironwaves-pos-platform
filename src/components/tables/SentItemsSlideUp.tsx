@@ -62,7 +62,7 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
         <div className="flex items-center justify-between border-b border-slate-700/60 px-5 py-4">
           <div>
             <div className="text-base font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-            <div className="text-xs text-slate-400">{items.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+            <div className="text-xs text-slate-400">{items.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
           </div>
           <div className="flex items-center gap-2">
             {userCanEdit && voidableItems.length > 0 && (

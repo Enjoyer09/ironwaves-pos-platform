@@ -2320,7 +2320,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     items: row.items.map((item) => ({
                       item_name: item.item_name,
                       qty: item.qty,
-                      seat_label: item.seat_no ? `Seat ${item.seat_no}` : undefined,
+                      seat_label: item.seat_no ? `${tx(lang, 'Oturacaq', 'Место', 'Seat')} ${item.seat_no}` : undefined,
                       action: item.status === 'VOIDED' ? 'CANCEL' : null,
                       reason: item.note || '',
                     })),
@@ -2542,6 +2542,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
 	                  </div>
 	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
+                  {/* P1-4: the workspace tab bar is hidden on mobile modern, so once a waiter
+                      taps "Servis" (or lands on Servis/History/Ops) there is no way back to the
+                      order composer except closing the table. Give a persistent return button. */}
+                  {isBahaYLab && isMobileView && tableWorkspaceTab !== 'compose' && (
+                    <button
+                      type="button"
+                      onClick={() => setTableWorkspaceTab('compose')}
+                      className="mb-3 inline-flex min-h-12 shrink-0 items-center gap-2 self-start rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 px-4 py-2.5 text-sm font-bold text-cyan-100 transition active:scale-95 taktil-target"
+                    >
+                      ← {tx(lang, 'Sifarişə qayıt', 'К заказу', 'Back to order')}
+                    </button>
+                  )}
                   {tableWorkspaceTab === 'history' && (
                     <HistoryTab rounds={rounds} lang={lang} />
                   )}

@@ -58,7 +58,7 @@ export default function PaymentModal(props: PaymentModalProps) {
     <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
       <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
         <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
-        <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Open check hesabını bağla', 'Закрыть открытый чек', 'Close open check')}</h3>
+        <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Hesabı bağla', 'Закрыть счёт', 'Close the bill')}</h3>
         <div className="mt-3 text-sm text-slate-300">
           {table.label} - {finalTotal.toFixed(2)} ₼ ({tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: {dueNow.toFixed(2)} ₼)
         </div>
@@ -155,7 +155,7 @@ export default function PaymentModal(props: PaymentModalProps) {
                 <div className="mt-1 flex justify-between gap-3"><span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span><span>{serviceFee.toFixed(2)} ₼</span></div>
               </div>
               <label className="block text-sm text-slate-300">
-                {tx(lang, 'Check neçə hissəyə bölünsün?', 'На сколько частей разделить чек?', 'How many parts?')}
+                {tx(lang, 'Hesab neçə hissəyə bölünsün?', 'На сколько частей разделить счёт?', 'How many parts?')}
                 <input className="neon-input mt-2" type="number" min={2} max={getMaxSplitCount(table)} value={splitCount} onChange={(e) => { const c = normalizeSplitCount(table, e.target.value, splitCount); onSplitCountChange(String(c)); onSplitPartsChange(buildEqualSplitParts(c, splitBasis)); }} />
               </label>
               <div className="mt-3 space-y-2">
@@ -179,8 +179,10 @@ export default function PaymentModal(props: PaymentModalProps) {
 
         {/* Action buttons */}
         <div className="mt-4 flex justify-end gap-2">
-          <button className="neon-btn rounded-lg px-4 py-2" onClick={onCancel}>{tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}</button>
-          <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={onSettle}>{tx(lang, 'Bağla', 'Закрыть', 'Settle')}</button>
+          {/* P2-1: "İmtina" (not "Ləğv et", which collides with cancelling the whole table).
+              "Ödənişi tamamla" matches the POS wording instead of the ambiguous "Bağla". */}
+          <button className="neon-btn rounded-lg px-4 py-2" onClick={onCancel}>{tx(lang, 'İmtina', 'Отмена', 'Cancel')}</button>
+          <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={onSettle}>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</button>
         </div>
       </div>
     </div>
