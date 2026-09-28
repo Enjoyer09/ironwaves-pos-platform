@@ -147,10 +147,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [lockTransferTarget, setLockTransferTarget] = useState('');
   const [lockReason, setLockReason] = useState('');
   const [itemActionTarget, setItemActionTarget] = useState<any | null>(null);
-  const [itemActionReason, setItemActionReason] = useState('');
-  const [itemActionReasonCode, setItemActionReasonCode] = useState('guest_changed_mind');
-  const [itemActionQuantityDelta, setItemActionQuantityDelta] = useState('1');
-  const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
+  // P3-1: itemActionReason/ReasonCode/QuantityDelta/ManagerPassword removed —
+  // they were write-only. ItemActionModal owns its own reason/quantity/password
+  // state internally and returns the values via onConfirm(params).
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const [tableReceiptRawCommands, setTableReceiptRawCommands] = useState<string | null>(null);
   const safeTableReceiptHtml = useMemo(() => sanitizeHtmlForIframe(tableReceiptHtml), [tableReceiptHtml]);
@@ -2116,10 +2115,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           lang={lang}
           onClose={() => {
             setItemActionTarget(null);
-            setItemActionReason('');
-            setItemActionReasonCode('guest_changed_mind');
-            setItemActionQuantityDelta('1');
-            setItemActionManagerPassword('');
           }}
           onConfirm={async (params) => {
             try {
@@ -2195,10 +2190,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               }
 
               setItemActionTarget(null);
-              setItemActionReason('');
-              setItemActionReasonCode('guest_changed_mind');
-              setItemActionQuantityDelta('1');
-              setItemActionManagerPassword('');
               notify('success', tx(lang, 'Item statusu yeniləndi', 'Статус позиции обновлен', 'Item status updated'));
               if (viewTableId) {
                 await refreshActiveTableDetail(viewTableId);
@@ -2665,13 +2656,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                          setTableDiscountPercent(String(chosenDiscount || 0));
 	                        }}
 	                        sentItems={sentDisplayItems}
-	                        onShowFullList={() => setShowFullOrderList(true)}
-	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
-	                        lockHolder={tableLockHolder || ''}
-	                        userCanEditTable={userCanEditTable}
+	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); }}
 	                        readyCount={readyItems.length}
-	                        roundsCount={rounds.length}
-	                        activeTab={tableWorkspaceTab}
 	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
 	                        onBack={() => closeTableDetail()}
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
@@ -2834,8 +2820,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             } else {
                               setItemActionTarget({ item, action });
                             }
-                            setItemActionQuantityDelta('1');
-                            setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
                           }}
                         />
                       )}
@@ -2855,8 +2839,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        } else {
 	                          setItemActionTarget({ item, action: 'VOID' });
 	                        }
-	                        setItemActionReason('');
-	                        setItemActionManagerPassword('');
 	                      }}
 	                      onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                    />

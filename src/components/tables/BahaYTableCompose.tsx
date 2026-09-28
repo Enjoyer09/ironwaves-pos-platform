@@ -39,15 +39,9 @@ type BahaYTableComposeProps = {
   onCancelTable: () => void;
   // Sent items
   sentItems: any[];
-  onShowFullList: () => void;
   onVoidItem?: (item: any) => void;
-  // Lock
-  lockHolder: string;
-  userCanEditTable: boolean;
   // Tabs
   readyCount: number;
-  roundsCount: number;
-  activeTab: string;
   onTabChange: (tab: string) => void;
   // Back
   onBack: () => void;
@@ -197,9 +191,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     onSearchChange, onCategoryChange, onSelectItem, roundDraft,
     draftRows, draftTotal, draftSendError, onClearDrafts, onUpdateQty, onSend,
     tableOccupied, userCanEdit, onSettle, onCancelTable,
-    sentItems, onShowFullList, onVoidItem,
-    lockHolder, userCanEditTable,
-    readyCount, roundsCount, activeTab, onTabChange,
+    sentItems, onVoidItem,
+    readyCount, onTabChange,
     onBack, summerPromoEnabled, onUpdateNote,
     tableLabel, guestCount, waiterName,
     onPrintPreCheck, onOpenOperations, onUpdateGuestCount,
