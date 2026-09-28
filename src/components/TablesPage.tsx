@@ -2399,6 +2399,24 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         )}
                       </div>
                     </div>
+                    {/* P3-3: Offline banner inside the full-screen detail panel.
+                        The page-level banner (top of tables-page-shell) is hidden
+                        behind this fixed inset-0 panel while a waiter works an
+                        order, so we surface connectivity here — right where
+                        send/void actions happen and may fail to sync. */}
+                    {!isOnline && (
+                      <div className="mb-2.5 flex items-center gap-2 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-2.5 px-3 text-xs font-bold text-amber-100 shadow-sm">
+                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+                        <span className="min-w-0">
+                          {tx(
+                            lang,
+                            'Offline — dəyişikliklər internet qayıdana kimi sync olmaya bilər',
+                            'Офлайн — изменения могут не синхронизироваться до восстановления связи',
+                            'Offline — changes may not sync until the connection returns',
+                          )}
+                        </span>
+                      </div>
+                    )}
                     {/* Modern Table Locked Alert for other waiters */}
                     {tableLockHolder && tableLockHolder !== user?.username && (
                       <div className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/15 p-2.5 px-3 text-xs shadow-sm">
