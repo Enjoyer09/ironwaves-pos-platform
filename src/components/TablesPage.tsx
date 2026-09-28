@@ -312,6 +312,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     reservationDateRef,
     skipNextFloorStateLoadRef,
     detailFetchSeqRef,
+    // P3-2: surface a failed table-detail refresh (e.g. after a successful
+    // send/void) so the waiter isn't left staring at stale order data.
+    onDetailRefreshError: (e: any) =>
+      notify(
+        'error',
+        e?.message ||
+          tx(lang, 'Sifariş məlumatı yenilənmədi', 'Не удалось обновить данные заказа', 'Failed to refresh order data'),
+      ),
   });
 
   // ── Realtime sync hook (Task 7) ──
@@ -663,10 +671,27 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setTableDetailRecord(null);
       return;
     }
+    // P3-2: surface table-detail load failures instead of silently showing an
+    // empty/stale order. `cancelled` guards against applying a stale response
+    // when the waiter switches tables mid-fetch.
+    let cancelled = false;
     void get_table_detail_live(tenant_id, viewTableId)
-      .then((next) => setTableDetailRecord(next))
-      .catch(() => setTableDetailRecord(null));
-  }, [tenant_id, viewTableId]);
+      .then((next) => {
+        if (!cancelled) setTableDetailRecord(next);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setTableDetailRecord(null);
+        notify(
+          'error',
+          e?.message ||
+            tx(lang, 'Masa məlumatı yüklənmədi', 'Не удалось загрузить данные стола', 'Failed to load table details'),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant_id, viewTableId, notify, lang]);
 
   useEffect(() => {
     if (!viewTableId || !detailPanelRef.current) return;

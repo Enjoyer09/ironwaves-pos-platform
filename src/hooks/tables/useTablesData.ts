@@ -42,6 +42,9 @@ interface UseTablesDataParams {
   reservationDateRef: React.MutableRefObject<string>;
   skipNextFloorStateLoadRef: React.MutableRefObject<string>;
   detailFetchSeqRef: React.MutableRefObject<number>;
+  // P3-2: optional callback so a failed table-detail refresh is surfaced to the
+  // waiter instead of silently leaving stale data after a successful mutation.
+  onDetailRefreshError?: (error: unknown) => void;
 }
 
 export function useTablesData(params: UseTablesDataParams) {
@@ -61,6 +64,7 @@ export function useTablesData(params: UseTablesDataParams) {
     reservationDateRef,
     skipNextFloorStateLoadRef,
     detailFetchSeqRef,
+    onDetailRefreshError,
   } = params;
 
   const loadDataInFlightRef = useRef(false);
@@ -233,9 +237,15 @@ export function useTablesData(params: UseTablesDataParams) {
       activeFloorIdRef.current ? loadFloorState(activeFloorIdRef.current) : Promise.resolve(),
       get_table_detail_live(tenantId, tableId).then((next) => {
         if (detailFetchSeqRef.current === seq) startTransition(() => setTableDetailRecord(next));
-      }).catch(() => {}),
+      }).catch((e) => {
+        // P3-2: don't silently swallow — a failed refresh after a successful
+        // mutation would leave the waiter looking at stale order data. Only
+        // report if this is still the latest request (avoids noise on rapid
+        // table switches).
+        if (detailFetchSeqRef.current === seq) onDetailRefreshError?.(e);
+      }),
     ]);
-  }, [tenantId, loadData, loadFloorState, activeFloorIdRef, detailFetchSeqRef, setTableDetailRecord]);
+  }, [tenantId, loadData, loadFloorState, activeFloorIdRef, detailFetchSeqRef, setTableDetailRecord, onDetailRefreshError]);
 
   return {
     loadData,
