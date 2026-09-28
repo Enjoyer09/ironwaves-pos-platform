@@ -86,7 +86,9 @@ const DraftRowItem = memo(({
   const courseNo = Number(row.course_no || 1);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 p-3 shadow-sm transition-all duration-200 hover:border-slate-700/80">
+    <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/70 bg-amber-500/15 p-3 shadow-md shadow-amber-500/10 transition-all duration-200 hover:border-amber-400/80 hover:bg-amber-500/20">
+      {/* P2-4: Draft rows have amber border + warm highlight to distinguish from sent (grey, o-50).
+          Sent items in the slide-up panel render with opacity-50 and slate border. */}
       {/* Top row: Item Name, Total Price & Large Finger Stepper */}
       <div className="flex items-center justify-between gap-3">
         {/* Name and Price */}
@@ -126,7 +128,9 @@ const DraftRowItem = memo(({
         </div>
       </div>
 
-      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button */}
+      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button
+          P2-3: WCAG 44px touch targets. These buttons were h-8 (~32px); now all are
+          min-h-11 (44px) and vertically centered. */}
       <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
         {/* Course indicator/toggle */}
         {onUpdateCourse && (
@@ -144,7 +148,7 @@ const DraftRowItem = memo(({
               const next = courseNo === 1 ? 2 : courseNo === 2 ? 3 : 1;
               onUpdateCourse(String(row.id), next);
             }}
-            className={`flex h-8 px-2.5 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
+            className={`flex min-h-11 px-3 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
               courseNo === 1
                 ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                 : courseNo === 2
@@ -160,7 +164,7 @@ const DraftRowItem = memo(({
         <button
           type="button"
           onClick={() => onEditNote(row)}
-          className={`flex h-8 min-w-0 flex-1 items-center gap-1.5 px-2.5 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
+          className={`flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
             row.note
               ? 'border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-xs'
               : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:text-slate-200'
@@ -173,12 +177,12 @@ const DraftRowItem = memo(({
         {/* Dedicated Delete Button */}
         <button
           type="button"
-          aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
+          aria-label={tx(lang, 'Sil', 'Udалить', 'Remove')}
           onClick={() => onUpdateQty(String(row.id), 0)}
-          className="flex h-8 items-center gap-1 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
+          className="flex min-h-11 items-center justify-center gap-1.5 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
         >
-          <span>🗑️</span>
-          <span>{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
+          <span className="text-sm">🗑️</span>
+          <span className="hidden sm:inline">{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
         </button>
       </div>
     </div>
@@ -417,7 +421,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               onTabChange('service');
             }}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+            className={`relative flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
               readyCount > 0
                 ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-sm shadow-emerald-500/10'
                 : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
@@ -438,10 +442,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               onOpenOperations?.();
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 transition taktil-target active:scale-95"
             title={tx(lang, 'Masanı köçür və ya birləşdir', 'Перенести или объединить стол', 'Transfer or combine table')}
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={16} />
             <span className="truncate mt-0.5">{tx(lang, 'Köçür', 'Перенос', 'Transfer')}</span>
           </button>
           <button
@@ -455,7 +459,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               }
               setDiscountPercent((prev) => (prev === 0 ? 5 : prev === 5 ? 10 : prev === 10 ? 15 : prev === 15 ? 20 : 0));
             }}
-            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+            className={`flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
               !canApplyDiscount
                 ? 'bg-slate-900/50 border-slate-800/60 text-slate-600 cursor-not-allowed'
                 : discountPercent > 0
@@ -464,7 +468,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             }`}
             title={canApplyDiscount ? tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount') : tx(lang, 'Menecer icazəsi tələb olunur', 'Требуется менеджер', 'Manager approval required')}
           >
-            <Tag size={14} />
+            <Tag size={16} />
             <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
           </button>
           <button
@@ -473,10 +477,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               setShowGuestPicker((prev) => !prev);
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
             title={tx(lang, 'Qonaq sayını dəyiş', 'Изменить кол-во гостей', 'Change guest count')}
           >
-            <Users size={14} />
+            <Users size={16} />
             <span className="truncate mt-0.5">{guestCount || 2} {tx(lang, 'Nəfər', 'Гостя', 'Guests')}</span>
           </button>
           <button
@@ -487,9 +491,9 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 setCurrentNoteText(draftRows[0]?.note || '');
               }
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
           >
-            <FileText size={14} />
+            <FileText size={16} />
             <span className="truncate mt-0.5">{tx(lang, 'Qeyd', 'Заметка', 'Note')}</span>
           </button>
         </div>
