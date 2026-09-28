@@ -171,7 +171,7 @@ const DraftRowItem = memo(({
         {/* Dedicated Delete Button */}
         <button
           type="button"
-          aria-label={tx(lang, 'Sil', 'Udалить', 'Remove')}
+          aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
           onClick={() => onUpdateQty(String(row.id), 0)}
           className="flex min-h-11 items-center justify-center gap-1.5 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
         >
