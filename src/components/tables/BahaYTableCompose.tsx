@@ -202,6 +202,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   } = props;
 
   const setLang = useAppStore((s) => s.setLang);
+  const notify = useAppStore((s) => s.notify);
+  const currentRole = useAppStore((s) => String(s.user?.role || '').toLowerCase());
+  // P1-6: discounts are a manager decision. Waiters could freely cycle 0-20% with
+  // no check; now the button is disabled for staff/kitchen and explains why.
+  const canApplyDiscount = ['admin', 'manager', 'super_admin'].includes(currentRole);
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
@@ -211,6 +216,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [showGuestPicker, setShowGuestPicker] = useState(false);
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
+  // P1-2/P1-3: on an occupied table the cart/actions pane must always be reachable,
+  // even with zero drafts and zero sent items, so Pre-Check / Hesabı Al / Köçür /
+  // guest count / Masanı ləğv et are never hidden. Draft-only used to gate it.
+  const showCartPane = hasCartContent || tableOccupied;
 
   const sentTotal = useMemo(() => {
     return sentItems.reduce((sum: Decimal, it: any) => {
@@ -257,7 +266,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       ref={containerRef}
       style={{ '--cart-width': `${cartWidth}px` } as React.CSSProperties}
       className={`flex flex-col min-h-0 flex-1 gap-3 md:gap-0 overflow-hidden relative ${
-        hasCartContent ? 'md:flex md:flex-row' : ''
+        showCartPane ? 'md:flex md:flex-row' : ''
       }`}
     >
       {/* ─── LEFT: Menu Grid ─── */}
@@ -277,37 +286,53 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onLangChange={setLang}
         />
 
-        {/* Floating Mobile Cart Bar with Quick Send */}
-        {draftRows.length > 0 && mobileActiveTab !== 'cart' && (
+        {/* Floating Mobile Bar. P1-2: with drafts it's a cart+send bar; with none it
+            still opens the cart pane so Pre-Check / Hesab / Köçür / Servis stay reachable
+            on a phone (previously this bar only rendered when draftRows>0, trapping the
+            waiter with only the header back button once everything was sent). */}
+        {mobileActiveTab !== 'cart' && (draftRows.length > 0 || showCartPane) && (
           <div className="md:hidden shrink-0 mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => setMobileActiveTab('cart')}
               className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(250,204,21,0.25)] taktil-target"
             >
-              <span className="flex items-center gap-2">
-                🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
-                <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
-              </span>
-              <span className="text-base font-bold">{draftTotal} ₼</span>
+              {draftRows.length > 0 ? (
+                <>
+                  <span className="flex items-center gap-2">
+                    🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
+                    <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
+                  </span>
+                  <span className="text-base font-bold">{draftTotal} ₼</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-2">
+                    🧾 {tx(lang, 'Sifariş və Hesab', 'Заказ и счёт', 'Order & Bill')}
+                  </span>
+                  <span className="text-base font-bold">{sentTotal.toFixed(2)} ₼</span>
+                </>
+              )}
             </button>
-            <button
-              type="button"
-              onClick={async (e) => {
-                e.stopPropagation();
-                playHapticSuccess();
-                await onSend();
-              }}
-              className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
-            >
-              🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
-            </button>
+            {draftRows.length > 0 && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  playHapticSuccess();
+                  await onSend();
+                }}
+                className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
+              >
+                🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* ─── SPLITTER DIVIDER (Drag to resize) ─── */}
-      {hasCartContent && (
+      {showCartPane && (
         <SplitterDivider
           isDragging={isDragging}
           onPointerDown={onPointerDown}
@@ -327,7 +352,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
-        } ${!hasCartContent ? 'md:hidden' : ''}`}
+        } ${!showCartPane ? 'md:hidden' : ''}`}
       >
         {/* Mobile drag handle */}
         <div 
@@ -421,15 +446,23 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           </button>
           <button
             type="button"
+            disabled={!canApplyDiscount}
             onClick={() => {
               tapFeedback();
+              if (!canApplyDiscount) {
+                notify('error', tx(lang, 'Endirim yalnız menecer icazəsi ilə tətbiq olunur', 'Скидку применяет только менеджер', 'Discounts require a manager'));
+                return;
+              }
               setDiscountPercent((prev) => (prev === 0 ? 5 : prev === 5 ? 10 : prev === 10 ? 15 : prev === 15 ? 20 : 0));
             }}
             className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
-              discountPercent > 0
+              !canApplyDiscount
+                ? 'bg-slate-900/50 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                : discountPercent > 0
                 ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-sm'
                 : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
             }`}
+            title={canApplyDiscount ? tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount') : tx(lang, 'Menecer icazəsi tələb olunur', 'Требуется менеджер', 'Manager approval required')}
           >
             <Tag size={14} />
             <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
@@ -506,7 +539,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           {draftRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-700/60 p-6 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2 my-auto">
               <span className="text-2xl">🍽️</span>
-              <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
+              {sentItems.length > 0 ? (
+                // P1-1 follow-up: don't imply the order is empty when items were already sent.
+                <span>{tx(lang, 'Yeni məhsul əlavə edin — göndərilənlər aşağıdadır', 'Добавьте новые позиции — отправленные ниже', 'Add new items — sent items are below')}</span>
+              ) : (
+                <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
+              )}
             </div>
           ) : (
             <div className="space-y-1.5">

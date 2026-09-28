@@ -6,6 +6,7 @@
 import React from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
+import { useAppStore } from '../../store';
 import {
   buildEqualSplitParts,
   getMaxSplitCount,
@@ -48,6 +49,10 @@ export default function PaymentModal(props: PaymentModalProps) {
 
   const { itemsTotal, discountPercent, discountAmount, discountedItemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount, depositPerGuestShare } = breakdown;
   const participantCount = normalizeSplitCount(table, splitCount, splitCount);
+  // P1-6: discounts are manager-gated. Waiters settle the exact bill; the discount
+  // block is hidden for staff/kitchen so it can't be applied at settle time either.
+  const currentRole = useAppStore((s) => String(s.user?.role || '').toLowerCase());
+  const canApplyDiscount = ['admin', 'manager', 'super_admin'].includes(currentRole);
 
   return (
     <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
@@ -74,6 +79,7 @@ export default function PaymentModal(props: PaymentModalProps) {
         </div>
 
         {/* Discount section */}
+        {canApplyDiscount && (
         <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-400/10 p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">{tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount')}</div>
@@ -94,6 +100,7 @@ export default function PaymentModal(props: PaymentModalProps) {
           )}
           <button type="button" className="mt-2 text-xs font-semibold text-slate-300 hover:text-white" onClick={() => onDiscountChange(0)}>{tx(lang, 'Endirimi sıfırla', 'Сбросить скидку', 'Reset discount')}</button>
         </div>
+        )}
 
         {/* Payment method */}
         <div className="mt-4">

@@ -975,13 +975,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           }
         }
 
-        notify('success', tx(lang, 'Yeni sifariş mətbəxə göndərildi', 'Новый заказ отправлен на кухню', 'New order sent to kitchen'));
+        notify('success', tx(lang, 'Mətbəxə göndərildi ✓ Masa açıq qalır', 'Отправлено на кухню ✓ Стол остаётся открытым', 'Sent to kitchen ✓ Table stays open'));
         setDraftSendError(null);
         setRoundDraft([]);
+        // P1-1: stay on the table after sending so the waiter can add another
+        // round (drinks then food) and see what was sent. The refresh moves the
+        // items into the "Göndərilmişlər" panel; no auto-close.
         await refreshActiveTableDetail(table.id);
-        if (isMobileView || isBahaYLab) {
-          closeTableDetail();
-        }
         return;
       } catch (e: any) {
         const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
@@ -1045,13 +1045,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }
       }
 
-      notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
+      notify('success', tx(lang, 'Mətbəxə göndərildi ✓ Masa açıq qalır', 'Отправлено на кухню ✓ Стол остаётся открытым', 'Sent to kitchen ✓ Table stays open'));
       setDraftSendError(null);
       clearRoundComposer();
+      // P1-1: stay on the table (see note above).
       await refreshActiveTableDetail(table.id);
-      if (isMobileView || isBahaYLab) {
-        closeTableDetail();
-      }
     } catch (e: any) {
       const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi', 'Не отправлено на кухню', 'Kitchen send failed');
       setDraftSendError(message);
