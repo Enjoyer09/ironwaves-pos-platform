@@ -170,3 +170,58 @@ Bunlar canlı ekran görüntüləri ilə təsdiqləndi.
 ### Əlavə: yoxlama mühiti
 - Lokal rejim + `iw_pos_ui_mode=modern`, Playwright/Chrome, iPad 1024×768 (touch) və telefon 390×844.
 - Runtime çökmələr canlı təsdiqləndi (ekran görüntüləri ilə). Backend-tərəf davranış (məsələn void üçün server-side menecer yoxlaması, PRECHECK statusu) bu auditdə yoxlanmadı — yalnız frontend.
+
+
+---
+
+## **Son Status (27.09.2026): P0/P1/P2 TAMAMLANDI**
+
+**Branch: `fix/waiter-modern-p0-crashes` (5 commit, PR #29 açıq)**
+
+### P0 ✓ (e424674a)
+Bütün crash-lar aradan qalxdı:
+- Köçür modal crash (eski state type)
+- Pre-Check modal crash (undefined property)
+- Lokal void (offline) crash (API mock)
+- Qonaq sayı + kurs silently backend-ə çatmıyordu → fixed
+- Void menecer parolu validation
+- Backend test: +4, hamısı keçir
+- **tsc:** 33 error → 0 error; CI-yə gate əlavə
+
+### P1 ✓ (f33303a7 + bdcb3d2e)
+P1-1 (**masa açıq qalır**): sendRoundDirectly-də iki `closeTableDetail()` silindi.  
+P1-2/P1-3 (**panel həmişə əlçatan**): `showCartPane = hasCartContent || tableOccupied`.  
+P1-4 (**Servis dead-end**): mobil tab-ında "← Sifarişə qayıt" düyməsi.  
+P1-5 (**rejim + Analitika gizli**): `['admin','manager','super_admin']` role gate.  
+P1-6 (**endirim menecer qorunması**): `canApplyDiscount` check.  
+
+### P2 ✓ (bdcb3d2e + cb21641a)
+P2-1 (**termin lüğəti**):
+- PaymentModal: `Bağla` → `Ödənişi Tamamla`, `Ləğv et` → `İmtina`
+- Hamı: `item` → `məhsul`, `Pre-Check` → `Aralıq hesab`, `Check` → `Hesab`, v.s.
+
+P2-2 (**dublikat geri**: compose footer "Masalara qayıt" linki silindi (header ← qalır).
+
+P2-3 (**44px WCAG taktil hədəfləri**):
+- Draft row buttons: h-8 → min-h-11 (44px)
+- Quick-action bar: py-1.5 → min-h-12 (48px)
+- Hamı icon: 14px → 16px
+
+P2-4 (**vizual fərq**):
+- Draft: amber border (border-amber-500/70) + warm bg (bg-amber-500/15)
+- Sent: o-50 opacity (normal items), o-30 (terminal voided/comped)
+- Seçilmiş (batch): o-100 (highlighted)
+
+P2-6 (**dil qalıqları**): `Main Floor` → `Əsas Zal`, `Seat` → `Oturacaq`, ItemActionModal raw status → localize, v.s.
+
+### Qalan (açıq)
+- **P2-5**: ORDER_STATUS_THEME koordinasyon (HistoryTab lokal rəngl vs tema)
+- **P3-1**: Ölü UI (klassik Masalar, deprecated komponenlər)
+- **P3-2**: Səssiz API xətaları (offline, network)
+- **P3-3**: Offline banner modal/sheet-lərdə görsün
+- **P3-4**: Vizual sistem palette standardizasyon
+
+### Yoxlama
+- tsc: clean ✓
+- vite build: ok ✓
+- Playwright: iPad + 390px phone (P1-2/P1-4 dead-end fix, P2-6 dil) ✓, 0 page error ✓
