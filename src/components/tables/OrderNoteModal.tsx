@@ -119,7 +119,8 @@ export default function OrderNoteModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
+            aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-sm text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
           >
             ✕
           </button>

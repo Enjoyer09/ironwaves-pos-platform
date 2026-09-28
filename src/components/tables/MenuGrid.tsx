@@ -710,7 +710,8 @@ function MenuGrid({
               <button
                 type="button"
                 onClick={() => setVariantPickerGroup(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:text-white transition active:scale-90"
+                aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:text-white transition active:scale-90 taktil-target"
               >
                 <X size={16} />
               </button>

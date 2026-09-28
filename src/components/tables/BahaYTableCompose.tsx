@@ -766,14 +766,15 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 onClick={() => { playKitchenReadyAlert(); }}
                 title={tx(lang, 'Mətbəx zəngini səsləndir', 'Звуковой сигнал кухни', 'Test kitchen chime')}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
               >
                 <Volume2 size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => setSentPanelOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 taktil-target"
+                aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
               >
                 <ChevronDown size={18} />
               </button>
