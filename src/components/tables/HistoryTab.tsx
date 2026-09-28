@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, ChefHat, CheckCircle2, BellRing, UtensilsCrossed, User } from 'lucide-react';
 import { tx } from '../../i18n';
 import { formatServerUtcTime } from '../../lib/time';
+import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT, normalizeOrderItemStatus } from '../../utils/tables/tableUtils';
 
 interface RoundItem {
   item_name: string;
@@ -45,37 +46,31 @@ function getRelativeTime(dateStr: string, lang: string): string {
 }
 
 export default function HistoryTab({ rounds, lang }: HistoryTabProps) {
-  const getStatusBadge = (status: string) => {
-    const s = String(status || '').toUpperCase();
-    if (s === 'READY') {
-      return {
-        label: tx(lang, 'Servisə hazırdır', 'Готово к подаче', 'Ready to serve'),
-        color: 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300',
-        icon: <BellRing size={13} className="text-emerald-400 animate-bounce" />,
-        dot: 'bg-emerald-400 ring-emerald-400/40',
-      };
-    }
-    if (s === 'PREPARING') {
-      return {
-        label: tx(lang, 'Hazırlanır', 'Готовится', 'Preparing'),
-        color: 'border-amber-400/50 bg-amber-500/20 text-amber-300',
-        icon: <ChefHat size={13} className="text-amber-400" />,
-        dot: 'bg-amber-400 ring-amber-400/40',
-      };
-    }
-    if (s === 'SERVED' || s === 'DONE') {
-      return {
-        label: tx(lang, 'Süfrəyə verildi', 'Подано', 'Served'),
-        color: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-300',
-        icon: <CheckCircle2 size={13} className="text-cyan-400" />,
-        dot: 'bg-cyan-400 ring-cyan-400/40',
-      };
-    }
+  const getStatusBadge = (statusRaw: string) => {
+    // P2-5: Use ORDER_STATUS_THEME for coordination with sent-slide, compose, and other components.
+    const status = normalizeOrderItemStatus(statusRaw);
+    const theme = ORDER_STATUS_THEME[status as keyof typeof ORDER_STATUS_THEME] || ORDER_STATUS_THEME_DEFAULT;
+    const label = theme.label[lang as keyof typeof theme.label] || '';
+    
+    // Special icons for HistoryTab timeline
+    const iconMap: Record<string, React.ReactNode> = {
+      READY: <BellRing size={13} className={`${theme.dot} animate-bounce`} />,
+      PREPARING: <ChefHat size={13} className={theme.dot} />,
+      SERVED: <CheckCircle2 size={13} className={theme.dot} />,
+      SENT: <Clock size={13} className={theme.dot} />,
+      NEW: <Clock size={13} className={theme.dot} />,
+      VOID_REQUESTED: <BellRing size={13} className={`${theme.dot} animate-pulse`} />,
+      VOIDED: <UtensilsCrossed size={13} className={theme.dot} />,
+      COMPED: <CheckCircle2 size={13} className={theme.dot} />,
+      WASTE: <UtensilsCrossed size={13} className={theme.dot} />,
+    };
+    const icon = iconMap[status] || <Clock size={13} className={theme.dot} />;
+    
     return {
-      label: tx(lang, 'Mətbəxə çatdı', 'Отправлено на кухню', 'Sent to kitchen'),
-      color: 'border-blue-400/40 bg-blue-500/15 text-blue-300',
-      icon: <Clock size={13} className="text-blue-400" />,
-      dot: 'bg-blue-400 ring-blue-400/40',
+      label: label || tx(lang, 'Mətbəxə çatdı', 'Отправлено на кухню', 'Sent to kitchen'),
+      color: theme.badge || theme.card,
+      icon,
+      dot: theme.dot,
     };
   };
 
