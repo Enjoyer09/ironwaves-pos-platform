@@ -1222,30 +1222,42 @@ export default function FinancePanel() {
           safe_to_cash: { from: 'safe', to: 'cash' },
         } as const;
         const pair = sources[transferDirection];
-        await create_finance_ledger_transaction_async(tenant_id, {
-          transaction_type: 'internal_transfer',
-          source_account_code: pair.from,
-          destination_account_code: pair.to,
-          amount: transferAmountDec.toString(),
-          category: 'Daxili Transfer',
-          note: `Approval transfer: ${transferDirection}`,
-          requires_approval: true,
-        });
-        if (computedTransferCommission.gt(0)) {
-          await create_finance_ledger_transaction_async(tenant_id, {
-            transaction_type: 'expense',
+        const transferResult = await create_finance_ledger_transaction_async(
+          tenant_id,
+          {
+            transaction_type: 'internal_transfer',
             source_account_code: pair.from,
-            destination_account_code: 'expense',
-            amount: computedTransferCommission.toString(),
-            category: 'Bank Komissiyası',
-            note: `Approval transfer komissiyası: ${transferDirection}`,
+            destination_account_code: pair.to,
+            amount: transferAmountDec.toString(),
+            category: 'Daxili Transfer',
+            note: `Approval transfer: ${transferDirection}`,
             requires_approval: true,
-          });
+          },
+          user?.username || 'admin',
+        );
+        if (computedTransferCommission.gt(0)) {
+          await create_finance_ledger_transaction_async(
+            tenant_id,
+            {
+              transaction_type: 'expense',
+              source_account_code: pair.from,
+              destination_account_code: 'expense',
+              amount: computedTransferCommission.toString(),
+              category: 'Bank Komissiyası',
+              note: `Approval transfer komissiyası: ${transferDirection}`,
+              requires_approval: true,
+            },
+            user?.username || 'admin',
+          );
         }
         setTransferAmount('');
         setTransferCommission('0');
         await reloadFinance(true);
-        notify('success', tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на approval', 'Transfer sent for approval'));
+        if (transferResult?.status === 'pending_approval') {
+          notify('success', tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на approval', 'Transfer sent for approval'));
+        } else {
+          notify('success', tx(lang, 'Transfer tamamlandı', 'Перевод выполнен', 'Transfer completed'));
+        }
         return;
       }
       await transfer_funds_async(
@@ -1285,31 +1297,32 @@ export default function FinancePanel() {
         return;
       }
       const payable = Decimal.min(repaymentAmount, ledgerInvestorDebt);
-      const result = await create_finance_ledger_transaction_async(tenant_id, {
-        transaction_type: 'investor_repayment',
-        source_account_code: repayFrom,
-        destination_account_code: 'investor',
-        amount: payable.toString(),
-        category: 'İnvestora Geri Ödəniş',
+      const result = await create_finance_ledger_transaction_async(
+        tenant_id,
+        {
+          transaction_type: 'investor_repayment',
+          source_account_code: repayFrom,
+          destination_account_code: 'investor',
+          amount: payable.toString(),
+          category: 'İnvestora Geri Ödəniş',
           note: repayNote || 'İnvestora ödəniş approval request',
-        requires_approval: financePolicyConfig.investor_repayment_requires_approval,
-      });
+          requires_approval: financePolicyConfig.investor_repayment_requires_approval,
+        },
+        user?.username || 'admin',
+      );
       setRepayAmount('');
       setRepayNote('');
       await reloadFinance(true);
+      // Trust the server/local result, not the cached policy flag.
+      const pending = result?.status === 'pending_approval';
+      const shownAmount = new Decimal(result?.paid ?? payable).toFixed(2);
       notify(
         'success',
         tx(
           lang,
-          financePolicyConfig.investor_repayment_requires_approval
-            ? `İnvestor ödənişi təsdiqə göndərildi: ${new Decimal(payable).toFixed(2)} ₼`
-            : `İnvestor ödənişi post edildi: ${new Decimal(payable).toFixed(2)} ₼`,
-          financePolicyConfig.investor_repayment_requires_approval
-            ? `Выплата инвестору отправлена на approval: ${new Decimal(payable).toFixed(2)} ₼`
-            : `Выплата инвестору проведена: ${new Decimal(payable).toFixed(2)} ₼`,
-          financePolicyConfig.investor_repayment_requires_approval
-            ? `Investor repayment sent for approval: ${new Decimal(payable).toFixed(2)} ₼`
-            : `Investor repayment posted: ${new Decimal(payable).toFixed(2)} ₼`,
+          pending ? `İnvestor ödənişi təsdiqə göndərildi: ${shownAmount} ₼` : `İnvestor ödənişi post edildi: ${shownAmount} ₼`,
+          pending ? `Выплата инвестору отправлена на approval: ${shownAmount} ₼` : `Выплата инвестору проведена: ${shownAmount} ₼`,
+          pending ? `Investor repayment sent for approval: ${shownAmount} ₼` : `Investor repayment posted: ${shownAmount} ₼`,
         ),
       );
     } catch (e: any) {

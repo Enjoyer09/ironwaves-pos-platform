@@ -33,7 +33,7 @@ from app.models import (
     Tenant,
 )
 from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
-from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
+from app.services.finance_service import commission_percent, mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
 # P1.1 — qazanma hesabı buradan gəlir. Router-də inline düstur saxlamırıq ki,
 # frontend güzgüsü (`src/lib/loyalty.ts`) və testlər eyni qaydanı işlədə bilsin.
 from app.services.loyalty_accrual import compute_points_earned, find_tier_multiplier, resolve_first_purchase_bonus
@@ -418,8 +418,8 @@ def _record_doner_batch_consumption(
 
 def _bank_commission_config(db: Session, tenant_id: str) -> tuple[Decimal, Decimal]:
     config = _setting_value(db, tenant_id, "bank_commission", {"card_sale_percent": 2, "card_transfer_percent": 0.5})
-    card_sale_percent = Decimal(str(config.get("card_sale_percent", config.get("percent", 2)) or 2))
-    card_transfer_percent = Decimal(str(config.get("card_transfer_percent", 0.5) or 0.5))
+    card_sale_percent = commission_percent(config, "card_sale_percent", 2, "percent")
+    card_transfer_percent = commission_percent(config, "card_transfer_percent", "0.5")
     return card_sale_percent, card_transfer_percent
 
 
@@ -455,7 +455,10 @@ def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tupl
     remaining = max(Decimal("0"), daily_limit - used_today)
     overflow = max(Decimal("0"), benefit_used - remaining)
     final_due = (overflow + excess_due).quantize(Decimal("0.01"))
-    return final_due, benefit_used.quantize(Decimal("0.01")), max(Decimal("0"), remaining - min(benefit_used, remaining)).quantize(Decimal("0.01"))
+    # Only the part actually covered by today's remaining limit is a benefit;
+    # the overflow is charged to the staff member via final_due.
+    benefit_applied = min(benefit_used, remaining)
+    return final_due, benefit_applied.quantize(Decimal("0.01")), max(Decimal("0"), remaining - benefit_applied).quantize(Decimal("0.01"))
 
 
 @router.get("/menu")
@@ -924,15 +927,19 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         )
         day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Track usage from the ledger (source of truth). Legacy FinanceEntry
+        # mirrors are optional (legacy_wallet_sync_enabled) and are no longer
+        # created for staff benefits because they do not move cash.
         used_today = (
-            db.query(FinanceEntry)
+            db.query(FinanceTransaction)
             .filter(
-                FinanceEntry.tenant_id == tenant.id,
-                FinanceEntry.created_by == user.username,
-                FinanceEntry.category == "Staff Benefit",
-                FinanceEntry.type == "out",
-                FinanceEntry.created_at >= day_start,
-                FinanceEntry.created_at <= day_end,
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.created_by == user.username,
+                FinanceTransaction.category == "Staff Benefit",
+                FinanceTransaction.transaction_type == "expense",
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.created_at >= day_start,
+                FinanceTransaction.created_at <= day_end,
             )
             .all()
         )
@@ -1018,12 +1025,17 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     else:
         if payment_method == "staff":
             if staff_benefit_used > 0:
+                # No cash leaves the drawer for the covered part of a staff
+                # meal. Book it as revenue -> staff benefit expense so P&L shows
+                # the benefit cost while the cash wallet / Z-report expected
+                # cash stay untouched. (Previously cash -> expense, which made
+                # every staff meal look like a cash surplus at close.)
                 benefit_txn = post_finance_transaction(
                     db,
                     tenant_id=tenant.id,
                     transaction_type="expense",
                     amount=staff_benefit_used,
-                    source_code="cash",
+                    source_code="revenue",
                     destination_code="expense",
                     created_by=user.username,
                     category="Staff Benefit",

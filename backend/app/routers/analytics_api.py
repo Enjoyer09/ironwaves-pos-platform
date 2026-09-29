@@ -12,6 +12,7 @@ from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import Customer, FinanceAccount, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
 from app.services.finance_service import (
+    commission_percent as _commission_percent,
     finance_account_code as _finance_account_code,
     mark_original_transaction_reversed as _mark_original_transaction_reversed,
     mirror_posted_transaction_to_legacy_wallet as _mirror_posted_transaction_to_legacy_wallet,
@@ -789,7 +790,7 @@ def adjust_sale(
     row.payment_method = _display_payment_method(next_method)
     row.receipt_html = None
 
-    card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
+    card_sale_percent = _commission_percent(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}), "card_sale_percent", 2)
     if next_method == "split":
         if split_cash > 0:
             post_sale_payment(
@@ -879,7 +880,7 @@ def partial_refund_sale(
         current_paid = (current_cash + current_card).quantize(Decimal("0.01"))
         _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
         row.receipt_html = None
-        card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
+        card_sale_percent = _commission_percent(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}), "card_sale_percent", 2)
         if current_paid > 0 and current_cash > 0 and current_card > 0:
             next_cash = (next_total * (current_cash / current_paid)).quantize(Decimal("0.01"))
             next_card = (next_total - next_cash).quantize(Decimal("0.01"))
