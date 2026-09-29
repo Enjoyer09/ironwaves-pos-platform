@@ -39,15 +39,9 @@ type BahaYTableComposeProps = {
   onCancelTable: () => void;
   // Sent items
   sentItems: any[];
-  onShowFullList: () => void;
   onVoidItem?: (item: any) => void;
-  // Lock
-  lockHolder: string;
-  userCanEditTable: boolean;
   // Tabs
   readyCount: number;
-  roundsCount: number;
-  activeTab: string;
   onTabChange: (tab: string) => void;
   // Back
   onBack: () => void;
@@ -86,7 +80,9 @@ const DraftRowItem = memo(({
   const courseNo = Number(row.course_no || 1);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/90 p-3 shadow-sm transition-all duration-200 hover:border-slate-700/80">
+    <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/70 bg-amber-500/15 p-3 shadow-md shadow-amber-500/10 transition-all duration-200 hover:border-amber-400/80 hover:bg-amber-500/20">
+      {/* P2-4: Draft rows have amber border + warm highlight to distinguish from sent (grey, o-50).
+          Sent items in the slide-up panel render with opacity-50 and slate border. */}
       {/* Top row: Item Name, Total Price & Large Finger Stepper */}
       <div className="flex items-center justify-between gap-3">
         {/* Name and Price */}
@@ -126,7 +122,9 @@ const DraftRowItem = memo(({
         </div>
       </div>
 
-      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button */}
+      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button
+          P2-3: WCAG 44px touch targets. These buttons were h-8 (~32px); now all are
+          min-h-11 (44px) and vertically centered. */}
       <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
         {/* Course indicator/toggle */}
         {onUpdateCourse && (
@@ -144,7 +142,7 @@ const DraftRowItem = memo(({
               const next = courseNo === 1 ? 2 : courseNo === 2 ? 3 : 1;
               onUpdateCourse(String(row.id), next);
             }}
-            className={`flex h-8 px-2.5 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
+            className={`flex min-h-11 px-3 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
               courseNo === 1
                 ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                 : courseNo === 2
@@ -160,7 +158,7 @@ const DraftRowItem = memo(({
         <button
           type="button"
           onClick={() => onEditNote(row)}
-          className={`flex h-8 min-w-0 flex-1 items-center gap-1.5 px-2.5 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
+          className={`flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
             row.note
               ? 'border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-xs'
               : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:text-slate-200'
@@ -175,10 +173,10 @@ const DraftRowItem = memo(({
           type="button"
           aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
           onClick={() => onUpdateQty(String(row.id), 0)}
-          className="flex h-8 items-center gap-1 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
+          className="flex min-h-11 items-center justify-center gap-1.5 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
         >
-          <span>🗑️</span>
-          <span>{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
+          <span className="text-sm">🗑️</span>
+          <span className="hidden sm:inline">{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
         </button>
       </div>
     </div>
@@ -193,15 +191,19 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     onSearchChange, onCategoryChange, onSelectItem, roundDraft,
     draftRows, draftTotal, draftSendError, onClearDrafts, onUpdateQty, onSend,
     tableOccupied, userCanEdit, onSettle, onCancelTable,
-    sentItems, onShowFullList, onVoidItem,
-    lockHolder, userCanEditTable,
-    readyCount, roundsCount, activeTab, onTabChange,
+    sentItems, onVoidItem,
+    readyCount, onTabChange,
     onBack, summerPromoEnabled, onUpdateNote,
     tableLabel, guestCount, waiterName,
     onPrintPreCheck, onOpenOperations, onUpdateGuestCount,
   } = props;
 
   const setLang = useAppStore((s) => s.setLang);
+  const notify = useAppStore((s) => s.notify);
+  const currentRole = useAppStore((s) => String(s.user?.role || '').toLowerCase());
+  // P1-6: discounts are a manager decision. Waiters could freely cycle 0-20% with
+  // no check; now the button is disabled for staff/kitchen and explains why.
+  const canApplyDiscount = ['admin', 'manager', 'super_admin'].includes(currentRole);
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
@@ -211,6 +213,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [showGuestPicker, setShowGuestPicker] = useState(false);
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
+  // P1-2/P1-3: on an occupied table the cart/actions pane must always be reachable,
+  // even with zero drafts and zero sent items, so Pre-Check / Hesabı Al / Köçür /
+  // guest count / Masanı ləğv et are never hidden. Draft-only used to gate it.
+  const showCartPane = hasCartContent || tableOccupied;
 
   const sentTotal = useMemo(() => {
     return sentItems.reduce((sum: Decimal, it: any) => {
@@ -257,7 +263,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       ref={containerRef}
       style={{ '--cart-width': `${cartWidth}px` } as React.CSSProperties}
       className={`flex flex-col min-h-0 flex-1 gap-3 md:gap-0 overflow-hidden relative ${
-        hasCartContent ? 'md:flex md:flex-row' : ''
+        showCartPane ? 'md:flex md:flex-row' : ''
       }`}
     >
       {/* ─── LEFT: Menu Grid ─── */}
@@ -277,37 +283,53 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onLangChange={setLang}
         />
 
-        {/* Floating Mobile Cart Bar with Quick Send */}
-        {draftRows.length > 0 && mobileActiveTab !== 'cart' && (
+        {/* Floating Mobile Bar. P1-2: with drafts it's a cart+send bar; with none it
+            still opens the cart pane so Pre-Check / Hesab / Köçür / Servis stay reachable
+            on a phone (previously this bar only rendered when draftRows>0, trapping the
+            waiter with only the header back button once everything was sent). */}
+        {mobileActiveTab !== 'cart' && (draftRows.length > 0 || showCartPane) && (
           <div className="md:hidden shrink-0 mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => setMobileActiveTab('cart')}
               className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(250,204,21,0.25)] taktil-target"
             >
-              <span className="flex items-center gap-2">
-                🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
-                <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
-              </span>
-              <span className="text-base font-bold">{draftTotal} ₼</span>
+              {draftRows.length > 0 ? (
+                <>
+                  <span className="flex items-center gap-2">
+                    🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
+                    <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
+                  </span>
+                  <span className="text-base font-bold">{draftTotal} ₼</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-2">
+                    🧾 {tx(lang, 'Sifariş və Hesab', 'Заказ и счёт', 'Order & Bill')}
+                  </span>
+                  <span className="text-base font-bold">{sentTotal.toFixed(2)} ₼</span>
+                </>
+              )}
             </button>
-            <button
-              type="button"
-              onClick={async (e) => {
-                e.stopPropagation();
-                playHapticSuccess();
-                await onSend();
-              }}
-              className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
-            >
-              🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
-            </button>
+            {draftRows.length > 0 && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  playHapticSuccess();
+                  await onSend();
+                }}
+                className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
+              >
+                🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* ─── SPLITTER DIVIDER (Drag to resize) ─── */}
-      {hasCartContent && (
+      {showCartPane && (
         <SplitterDivider
           isDragging={isDragging}
           onPointerDown={onPointerDown}
@@ -327,7 +349,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
-        } ${!hasCartContent ? 'md:hidden' : ''}`}
+        } ${!showCartPane ? 'md:hidden' : ''}`}
       >
         {/* Mobile drag handle */}
         <div 
@@ -392,7 +414,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               onTabChange('service');
             }}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+            className={`relative flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
               readyCount > 0
                 ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-sm shadow-emerald-500/10'
                 : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
@@ -413,25 +435,33 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               onOpenOperations?.();
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 transition taktil-target active:scale-95"
             title={tx(lang, 'Masanı köçür və ya birləşdir', 'Перенести или объединить стол', 'Transfer or combine table')}
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={16} />
             <span className="truncate mt-0.5">{tx(lang, 'Köçür', 'Перенос', 'Transfer')}</span>
           </button>
           <button
             type="button"
+            disabled={!canApplyDiscount}
             onClick={() => {
               tapFeedback();
+              if (!canApplyDiscount) {
+                notify('error', tx(lang, 'Endirim yalnız menecer icazəsi ilə tətbiq olunur', 'Скидку применяет только менеджер', 'Discounts require a manager'));
+                return;
+              }
               setDiscountPercent((prev) => (prev === 0 ? 5 : prev === 5 ? 10 : prev === 10 ? 15 : prev === 15 ? 20 : 0));
             }}
-            className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
-              discountPercent > 0
+            className={`flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
+              !canApplyDiscount
+                ? 'bg-slate-900/50 border-slate-800/60 text-slate-600 cursor-not-allowed'
+                : discountPercent > 0
                 ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-sm'
                 : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
             }`}
+            title={canApplyDiscount ? tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount') : tx(lang, 'Menecer icazəsi tələb olunur', 'Требуется менеджер', 'Manager approval required')}
           >
-            <Tag size={14} />
+            <Tag size={16} />
             <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
           </button>
           <button
@@ -440,10 +470,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               tapFeedback();
               setShowGuestPicker((prev) => !prev);
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
             title={tx(lang, 'Qonaq sayını dəyiş', 'Изменить кол-во гостей', 'Change guest count')}
           >
-            <Users size={14} />
+            <Users size={16} />
             <span className="truncate mt-0.5">{guestCount || 2} {tx(lang, 'Nəfər', 'Гостя', 'Guests')}</span>
           </button>
           <button
@@ -454,9 +484,9 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 setCurrentNoteText(draftRows[0]?.note || '');
               }
             }}
-            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
+            className="flex flex-col items-center justify-center min-h-12 px-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
           >
-            <FileText size={14} />
+            <FileText size={16} />
             <span className="truncate mt-0.5">{tx(lang, 'Qeyd', 'Заметка', 'Note')}</span>
           </button>
         </div>
@@ -506,7 +536,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           {draftRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-700/60 p-6 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2 my-auto">
               <span className="text-2xl">🍽️</span>
-              <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
+              {sentItems.length > 0 ? (
+                // P1-1 follow-up: don't imply the order is empty when items were already sent.
+                <span>{tx(lang, 'Yeni məhsul əlavə edin — göndərilənlər aşağıdadır', 'Добавьте новые позиции — отправленные ниже', 'Add new items — sent items are below')}</span>
+              ) : (
+                <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
+              )}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -563,7 +598,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           )}
 
-          {/* AeroTable Payment Method Selector — finger-friendly 44px targets */}
+          {/* Payment Method Selector — finger-friendly 44px targets.
+              P2-2: label it as the method for "Hesabı Al" so waiters don't read it as
+              "pay now". The final confirmation still happens in the payment modal. */}
+          <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {tx(lang, 'Hesabı Al üçün ödəniş üsulu', 'Способ оплаты для счёта', 'Payment method for the bill')}
+          </div>
           <div className="mb-2 grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800/80">
             <button
               type="button"
@@ -599,7 +639,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               }`}
             >
               <QrCode size={15} />
-              <span>{tx(lang, 'QR / App', 'QR / Приложение', 'QR Pay')}</span>
+              <span>{tx(lang, 'QR ödəniş', 'QR оплата', 'QR pay')}</span>
             </button>
           </div>
 
@@ -659,7 +699,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                     title={tx(lang, 'Aralıq hesab çıxar', 'Печать предчека', 'Print interim pre-check')}
                   >
                     <Printer size={16} />
-                    <span>{tx(lang, 'Pre-Check', 'Предчек', 'Pre-Check')}</span>
+                    <span>{tx(lang, 'Aralıq hesab', 'Предчек', 'Pre-check')}</span>
                   </button>
                 )}
                 <button
@@ -689,17 +729,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             )}
           </div>
 
-          {/* Secondary back + single clear destructive action */}
-          <div className="mt-2.5 flex items-center justify-between pt-1 border-t border-slate-800/40">
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 py-1 px-1.5 rounded-lg active:scale-95"
-            >
-              <ArrowLeft size={13} />
-              <span>{tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to Tables')}</span>
-            </button>
-            {tableOccupied && (
+          {/* P2-2: the duplicate "← Masalara qayıt" link was removed — the header already has a
+              large ← back button. Only the single destructive action remains here. */}
+          {tableOccupied && (
+            <div className="mt-2.5 flex items-center justify-end pt-1 border-t border-slate-800/40">
               <button
                 type="button"
                 disabled={!userCanEdit}
@@ -712,8 +745,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               >
                 🗑️ {tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel Table')}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ─── Slide-up Sent Items Panel ─── */}
@@ -726,21 +759,22 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
             <div>
               <div className="text-sm font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-              <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+              <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => { playKitchenReadyAlert(); }}
                 title={tx(lang, 'Mətbəx zəngini səsləndir', 'Звуковой сигнал кухни', 'Test kitchen chime')}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
               >
                 <Volume2 size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => setSentPanelOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 taktil-target"
+                aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
               >
                 <ChevronDown size={18} />
               </button>
@@ -771,7 +805,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                     status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
                     status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Preparing') :
                     status === 'VOID_REQUESTED' ? tx(lang, 'Ləğv gözləyir', 'Ожидает', 'Pending') :
-                    status === 'SERVED' ? tx(lang, 'Servis', 'Подано', 'Served') :
+                    status === 'SERVED' ? tx(lang, 'Verilib', 'Подано', 'Served') :
                     status === 'VOIDED' ? tx(lang, 'Ləğv', 'Отменено', 'Voided') :
                     status === 'COMPED' ? tx(lang, 'Silinib', 'Списано', 'Comped') :
                     status === 'WASTE' ? tx(lang, 'İsraf', 'Списано', 'Waste') :
@@ -819,7 +853,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               onClick={() => setSentPanelOpen(false)}
               className="w-full rounded-xl border border-slate-600/60 bg-slate-800/60 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700/60 active:scale-[0.98]"
             >
-              ↓ {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              ↓ {tx(lang, 'Qapat', 'Закрыть', 'Close')}
             </button>
           </div>
         </div>

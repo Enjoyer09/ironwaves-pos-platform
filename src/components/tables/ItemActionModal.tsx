@@ -17,6 +17,24 @@ interface ItemActionModalProps {
   }) => Promise<void>;
 }
 
+// P2-6: raw backend status codes (SENT/PREPARING/READY…) used to render untranslated.
+function localizeStatus(status: string | null | undefined, lang: string): string {
+  const s = normalizeOrderItemStatus(status);
+  switch (s) {
+    case 'DRAFT': return tx(lang, 'Qaralama', 'Черновик', 'Draft');
+    case 'SENT': return tx(lang, 'Göndərilib', 'Отправлено', 'Sent');
+    case 'NEW': return tx(lang, 'Yeni', 'Новый', 'New');
+    case 'PREPARING': return tx(lang, 'Hazırlanır', 'Готовится', 'Preparing');
+    case 'READY': return tx(lang, 'Hazır', 'Готово', 'Ready');
+    case 'SERVED': return tx(lang, 'Verilib', 'Подано', 'Served');
+    case 'VOID_REQUESTED': return tx(lang, 'Ləğv gözləyir', 'Ожидает отмены', 'Void pending');
+    case 'VOIDED': return tx(lang, 'Ləğv edilib', 'Отменено', 'Voided');
+    case 'COMPED': return tx(lang, 'Hesabdan silinib', 'Списано', 'Comped');
+    case 'WASTE': return tx(lang, 'İsraf', 'Списание', 'Waste');
+    default: return s || '-';
+  }
+}
+
 export default function ItemActionModal({ target, lang, onClose, onConfirm }: ItemActionModalProps) {
   const user = useAppStore((state) => state.user);
   const isManager = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
@@ -31,7 +49,11 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
   const hasNonDraft = itemList.some((it) => normalizeOrderItemStatus(it?.status || 'DRAFT') !== 'DRAFT');
   const quickAction = !hasNonDraft;
   const actionName = String(target.action || '').toUpperCase();
-  const actionRequiresManager = !isManager && hasNonDraft && itemActionNeedsManager(actionName, 'SENT');
+  // P1-7 fix: status used to be hardcoded as 'SENT', so the manager-password field never rendered.
+  // The backend still requires approval for PREPARING/READY items, which left waiters stuck on a 403.
+  // Evaluate the real status of every selected item.
+  const actionRequiresManager = !isManager && hasNonDraft
+    && itemList.some((it) => itemActionNeedsManager(actionName, it?.status || 'SENT'));
   const needsReason = !quickAction;
   const quantityMax = Math.max(1, Number(target.item?.qty || 1));
 
@@ -49,11 +71,11 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
         <h3 className="text-lg font-bold text-slate-100">
           {isBatch
             ? tx(lang, `Toplu Ləğv (${itemList.length} məhsul)`, `Групповая отмена (${itemList.length} поз.)`, `Batch Void (${itemList.length} items)`)
-            : `${tx(lang, 'Item əməliyyatı', 'Операция по позиции', 'Item action')} · ${target.item?.item_name || ''}`}
+            : `${tx(lang, 'Məhsul əməliyyatı', 'Операция по позиции', 'Item action')} · ${target.item?.item_name || ''}`}
         </h3>
         <div className="mt-2 text-sm text-slate-300">
           {quickAction
-            ? tx(lang, 'Seçilmiş itemlər hələ mətbəxə göndərilməyib. Sürətli ləğv admin şifrəsiz işləyəcək.', 'Позиции еще не отправлены на кухню. Быстрая отмена пройдет без пароля админа.', 'Items have not moved to kitchen yet. Quick void without admin password.')
+            ? tx(lang, 'Seçilmiş məhsullar hələ mətbəxə göndərilməyib. Sürətli ləğv admin şifrəsiz işləyəcək.', 'Позиции еще не отправлены на кухню. Быстрая отмена пройдет без пароля админа.', 'Items have not moved to kitchen yet. Quick void without admin password.')
             : tx(lang, 'Seçilmiş əməliyyat üçün vahid mətbəx ləğv çeki çıxarılacaq və audit loqa yazılacaq.', 'Будет напечатан единый чек отмены для кухни и записано в аудит.', 'A single kitchen void ticket will be printed and logged in audit.')}
         </div>
 
@@ -68,8 +90,8 @@ export default function ItemActionModal({ target, lang, onClose, onConfirm }: It
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-            <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{target.item?.status || '-'}</span></div>
-            <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionLabel(target.action, labels)}</span></div>
+            <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{localizeStatus(target.item?.status, lang)}</span></div>
+            <div className="mt-1 flex justify-between"><span>{tx(lang, 'Əməliyyat', 'Действие', 'Action')}</span><span>{itemActionLabel(target.action, labels)}</span></div>
           </div>
         )}
         {actionName === 'DECREASE' && !quickAction && (

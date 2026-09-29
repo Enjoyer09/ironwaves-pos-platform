@@ -203,7 +203,7 @@ export default function OperationsPanel({
         {activeTab === 'combine' && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-base font-bold text-white sm:text-lg">{tx(lang, 'Masaları Bir Check Altında Birləşdir', 'Объединение столов', 'Combine tables under one check')}</h4>
+              <h4 className="text-base font-bold text-white sm:text-lg">{tx(lang, 'Masaları bir hesab altında birləşdir', 'Объединение столов', 'Combine tables under one bill')}</h4>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 {tx(
                   lang,

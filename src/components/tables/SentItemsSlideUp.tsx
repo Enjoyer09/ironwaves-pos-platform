@@ -62,7 +62,7 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
         <div className="flex items-center justify-between border-b border-slate-700/60 px-5 py-4">
           <div>
             <div className="text-base font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-            <div className="text-xs text-slate-400">{items.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+            <div className="text-xs text-slate-400">{items.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
           </div>
           <div className="flex items-center gap-2">
             {userCanEdit && voidableItems.length > 0 && (
@@ -138,10 +138,10 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
                   }}
                   className={`rounded-xl border px-4 py-3 transition ${
                     isTerminal
-                      ? 'border-slate-800/50 opacity-40'
+                      ? 'border-slate-800/50 opacity-30'
                       : isSelected
-                      ? 'border-amber-400 bg-amber-500/15 ring-1 ring-amber-400/50'
-                      : 'border-slate-700/50 bg-slate-900/40 hover:bg-slate-900/60'
+                      ? 'border-amber-400 bg-amber-500/15 ring-1 ring-amber-400/50 opacity-100'
+                      : 'border-slate-700/50 bg-slate-900/40 hover:bg-slate-900/60 opacity-50'
                   }`}
                 >
                   <div className="flex items-center gap-3">

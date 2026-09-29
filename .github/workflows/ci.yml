@@ -114,6 +114,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Vite does not type-check. Undefined identifiers (e.g. isManagerUser, zReceiptRef)
+      # shipped to production and crashed waiter screens, so tsc is a hard gate now.
+      - name: Type check
+        run: npm run typecheck
       - name: Build frontend
         env:
           VITE_API_BASE_URL: "https://example.invalid"

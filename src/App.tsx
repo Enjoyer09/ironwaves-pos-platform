@@ -727,13 +727,10 @@ export default function App() {
   })();
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
-    staff: (() => {
-      const base = Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff;
-      // Let the tenant decide if staff can see Z-Report (configured via Settings -> Role permissions)
-      const list = [...base];
-      if (!list.includes('analytics')) list.push('analytics');
-      return list;
-    })(),
+    // P1-5: analytics used to be force-pushed into every waiter's module list,
+    // so "Analitika" always showed in the waiter nav. Respect the tenant's
+    // role_modules.staff configuration instead (Settings -> Role permissions).
+    staff: Array.isArray(roleModules?.staff) ? [...roleModules!.staff] : [...defaultRoleModules.staff],
     manager: Array.isArray(roleModules?.manager)
       ? Array.from(new Set([...roleModules!.manager, 'dashboard']))
       : defaultRoleModules.manager,
@@ -2062,18 +2059,23 @@ export default function App() {
                   {manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : t.refresh}
                 </span>
               </button>
-              <button
-                onClick={toggleUiMode}
-                className="neon-btn px-3 py-2"
-                title={tx(safeLang, 'İnterfeysi dəyiş', 'Сменить интерфейс', 'Toggle layout')}
-              >
-                <LayoutGrid size={16} />
-                <span className="hidden sm:inline">
-                  {currentUiMode === 'modern'
-                    ? tx(safeLang, 'Müasir Rejim', 'Модерн', 'Modern')
-                    : tx(safeLang, 'Klassik', 'Классика', 'Classic')}
-                </span>
-              </button>
+              {/* P1-5: only admin/manager may flip the whole terminal between Modern/Classic.
+                  Previously any waiter could tap it; the localStorage override then outranked
+                  the tenant setting, stuck on the device, and confused the next PIN user. */}
+              {['admin', 'manager', 'super_admin'].includes(sessionRole) && (
+                <button
+                  onClick={toggleUiMode}
+                  className="neon-btn px-3 py-2"
+                  title={tx(safeLang, 'İnterfeysi dəyiş', 'Сменить интерфейс', 'Toggle layout')}
+                >
+                  <LayoutGrid size={16} />
+                  <span className="hidden sm:inline">
+                    {currentUiMode === 'modern'
+                      ? tx(safeLang, 'Müasir Rejim', 'Модерн', 'Modern')
+                      : tx(safeLang, 'Klassik', 'Классика', 'Classic')}
+                  </span>
+                </button>
+              )}
               <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
                 className="neon-btn px-3 py-2"

@@ -23,6 +23,7 @@ export interface KitchenTicketData {
   order_type_label?: string;
   created_at?: string | number | Date;
   server_name?: string;
+  company_name?: string;
   cup_mode?: 'paper' | 'glass';
   notes?: string;
   /** Mətbəxə "dəyişiklik" çeki üçün görkəmli bayraq (LƏĞV / YENİDƏN DÜZƏLT və s.). */

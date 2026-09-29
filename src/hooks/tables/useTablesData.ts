@@ -42,6 +42,9 @@ interface UseTablesDataParams {
   reservationDateRef: React.MutableRefObject<string>;
   skipNextFloorStateLoadRef: React.MutableRefObject<string>;
   detailFetchSeqRef: React.MutableRefObject<number>;
+  // P3-2: optional callback so a failed table-detail refresh is surfaced to the
+  // waiter instead of silently leaving stale data after a successful mutation.
+  onDetailRefreshError?: (error: unknown) => void;
 }
 
 export function useTablesData(params: UseTablesDataParams) {
@@ -61,6 +64,7 @@ export function useTablesData(params: UseTablesDataParams) {
     reservationDateRef,
     skipNextFloorStateLoadRef,
     detailFetchSeqRef,
+    onDetailRefreshError,
   } = params;
 
   const loadDataInFlightRef = useRef(false);
@@ -228,14 +232,25 @@ export function useTablesData(params: UseTablesDataParams) {
 
   const refreshActiveTableDetail = useCallback(async (tableId: string) => {
     const seq = ++detailFetchSeqRef.current;
-    await Promise.all([
+    // P3-2 (review follow-up): this is a best-effort UI refresh, not part of the
+    // caller's mutation transaction. Use allSettled so a refresh failure NEVER
+    // rejects and gets re-characterized by the caller's catch as, e.g., "kitchen
+    // send failed" after the send actually succeeded. Any rejection across all
+    // three fetches surfaces exactly one error toast, and only for the latest
+    // request (seq guard) to avoid spam on rapid table switches.
+    const results = await Promise.allSettled([
       loadData(),
       activeFloorIdRef.current ? loadFloorState(activeFloorIdRef.current) : Promise.resolve(),
       get_table_detail_live(tenantId, tableId).then((next) => {
         if (detailFetchSeqRef.current === seq) startTransition(() => setTableDetailRecord(next));
-      }).catch(() => {}),
+      }),
     ]);
-  }, [tenantId, loadData, loadFloorState, activeFloorIdRef, detailFetchSeqRef, setTableDetailRecord]);
+    if (detailFetchSeqRef.current !== seq) return; // a newer refresh superseded us
+    const firstRejection = results.find((r) => r.status === 'rejected');
+    if (firstRejection && firstRejection.status === 'rejected') {
+      onDetailRefreshError?.(firstRejection.reason);
+    }
+  }, [tenantId, loadData, loadFloorState, activeFloorIdRef, detailFetchSeqRef, setTableDetailRecord, onDetailRefreshError]);
 
   return {
     loadData,

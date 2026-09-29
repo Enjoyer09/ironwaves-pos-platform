@@ -1768,6 +1768,19 @@ def update_table_layout(
             table.items_json = "[]"
             table.total = Decimal("0.00")
             _release_table_lock(table)
+    if payload.guest_count is not None:
+        # Waiter guest-count edit from the table workspace. Previously this field was
+        # dropped by the schema, so the UI showed "updated" while nothing changed.
+        if not table.is_occupied:
+            raise HTTPException(status_code=400, detail="Masa açıq deyil")
+        _ensure_table_write_access(table, user)
+        next_guests = max(1, int(payload.guest_count))
+        table.guest_count = next_guests
+        active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
+        if active_session:
+            active_session.guest_count = next_guests
+        if active_check:
+            active_check.guest_count = next_guests
     db.commit()
     _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "floor_id": table.floor_plan_id, "action": "layout"})
     return {"ok": True, "table": _table_state_payload(db, tenant.id, table)}
@@ -2424,6 +2437,8 @@ def update_draft_item(
         item.note = payload.note
     if payload.modifier_json is not None:
         item.modifier_json = payload.modifier_json
+    if payload.course_no is not None:
+        item.course_no = payload.course_no
     if table and check:
         _sync_check_and_table_from_items(db, tenant.id, table, check)
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ORDER_DRAFT_ITEM_UPDATED", details=json.dumps({"item_id": item.id, "qty": item.qty}, ensure_ascii=False)))

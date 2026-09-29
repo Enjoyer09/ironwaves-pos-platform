@@ -339,6 +339,8 @@ class TableLayoutUpdateIn(BaseModel):
     capacity: int | None = None
     shape: str | None = None
     status: str | None = None
+    # Waiter-editable: guest count of the active session (was silently dropped before).
+    guest_count: int | None = Field(default=None, ge=1, le=99)
 
 
 class TableCombineIn(BaseModel):
@@ -390,6 +392,7 @@ class DraftItemUpdateIn(BaseModel):
     qty: int | None = Field(default=None, ge=1)
     note: str | None = None
     modifier_json: str | None = None
+    course_no: int | None = Field(default=None, ge=1, le=9)
 
 
 class OrderItemActionIn(BaseModel):

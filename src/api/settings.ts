@@ -2296,10 +2296,10 @@ export async function get_public_branding_live(tenant_id?: string) {
     const s = get_settings(resolvedTenant);
     if (!s.session_settings) s.session_settings = {} as any;
     if (data?.device_authorization_enabled !== undefined) {
-      s.session_settings.device_authorization_enabled = Boolean(data.device_authorization_enabled);
+      s.session_settings!.device_authorization_enabled = Boolean(data.device_authorization_enabled);
     }
     if (data?.staff_pin_length !== undefined) {
-      s.session_settings.staff_pin_length = Number(data.staff_pin_length) === 4 ? 4 : 6;
+      s.session_settings!.staff_pin_length = Number(data.staff_pin_length) === 4 ? 4 : 6;
     }
     saveSettings(s);
   }

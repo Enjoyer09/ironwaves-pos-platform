@@ -141,7 +141,7 @@ function FloorView(props: FloorViewProps) {
       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-lg font-bold text-slate-100">
-            {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
+            {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Əsas Zal', 'Основной зал', 'Main Floor')}
           </div>
           {isManager && (
           <div className="mt-1 text-sm text-slate-400">

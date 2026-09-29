@@ -147,10 +147,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [lockTransferTarget, setLockTransferTarget] = useState('');
   const [lockReason, setLockReason] = useState('');
   const [itemActionTarget, setItemActionTarget] = useState<any | null>(null);
-  const [itemActionReason, setItemActionReason] = useState('');
-  const [itemActionReasonCode, setItemActionReasonCode] = useState('guest_changed_mind');
-  const [itemActionQuantityDelta, setItemActionQuantityDelta] = useState('1');
-  const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
+  // P3-1: itemActionReason/ReasonCode/QuantityDelta/ManagerPassword removed —
+  // they were write-only. ItemActionModal owns its own reason/quantity/password
+  // state internally and returns the values via onConfirm(params).
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const [tableReceiptRawCommands, setTableReceiptRawCommands] = useState<string | null>(null);
   const safeTableReceiptHtml = useMemo(() => sanitizeHtmlForIframe(tableReceiptHtml), [tableReceiptHtml]);
@@ -312,6 +311,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     reservationDateRef,
     skipNextFloorStateLoadRef,
     detailFetchSeqRef,
+    // P3-2: surface a failed table-detail refresh (e.g. after a successful
+    // send/void) so the waiter isn't left staring at stale order data.
+    onDetailRefreshError: (e: any) =>
+      notify(
+        'error',
+        e?.message ||
+          tx(lang, 'Sifariş məlumatı yenilənmədi', 'Не удалось обновить данные заказа', 'Failed to refresh order data'),
+      ),
   });
 
   // ── Realtime sync hook (Task 7) ──
@@ -663,10 +670,27 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setTableDetailRecord(null);
       return;
     }
+    // P3-2: surface table-detail load failures instead of silently showing an
+    // empty/stale order. `cancelled` guards against applying a stale response
+    // when the waiter switches tables mid-fetch.
+    let cancelled = false;
     void get_table_detail_live(tenant_id, viewTableId)
-      .then((next) => setTableDetailRecord(next))
-      .catch(() => setTableDetailRecord(null));
-  }, [tenant_id, viewTableId]);
+      .then((next) => {
+        if (!cancelled) setTableDetailRecord(next);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setTableDetailRecord(null);
+        notify(
+          'error',
+          e?.message ||
+            tx(lang, 'Masa məlumatı yüklənmədi', 'Не удалось загрузить данные стола', 'Failed to load table details'),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant_id, viewTableId, notify, lang]);
 
   useEffect(() => {
     if (!viewTableId || !detailPanelRef.current) return;
@@ -870,7 +894,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         await refreshActiveTableDetail(viewTableId);
         return;
       } catch (e: any) {
-        // quiet fallback
+        notify('error', e?.message || tx(lang, 'Mərhələ yenilənmədi', 'Подача не обновлена', 'Course was not updated'));
+        return;
       }
     }
     setRoundDraft((prev) =>
@@ -939,7 +964,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           try {
             const tableName = table.label || 'Sifaris';
             const activeCheck = activeDetail?.check;
-            const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
+            const checkDisplayId = String(activeCheck?.check_number || activeCheck?.id || tableName).trim();
             const ticketData = {
               ticket_id: checkDisplayId,
               order_id: checkDisplayId,
@@ -974,13 +999,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           }
         }
 
-        notify('success', tx(lang, 'Yeni sifariş mətbəxə göndərildi', 'Новый заказ отправлен на кухню', 'New order sent to kitchen'));
+        notify('success', tx(lang, 'Mətbəxə göndərildi ✓ Masa açıq qalır', 'Отправлено на кухню ✓ Стол остаётся открытым', 'Sent to kitchen ✓ Table stays open'));
         setDraftSendError(null);
         setRoundDraft([]);
+        // P1-1: stay on the table after sending so the waiter can add another
+        // round (drinks then food) and see what was sent. The refresh moves the
+        // items into the "Göndərilmişlər" panel; no auto-close.
         await refreshActiveTableDetail(table.id);
-        if (isMobileView || isBahaYLab) {
-          closeTableDetail();
-        }
         return;
       } catch (e: any) {
         const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
@@ -1009,7 +1034,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         try {
           const tableName = table.label || 'Sifaris';
           const activeCheck = activeDetail?.check;
-          const checkDisplayId = String(activeCheck?.check_no ? `CHK-${activeCheck.check_no}` : (activeCheck?.id || tableName)).trim();
+          const checkDisplayId = String(activeCheck?.check_number || activeCheck?.id || tableName).trim();
           const ticketData = {
             ticket_id: checkDisplayId,
             order_id: checkDisplayId,
@@ -1044,13 +1069,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }
       }
 
-      notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
+      notify('success', tx(lang, 'Mətbəxə göndərildi ✓ Masa açıq qalır', 'Отправлено на кухню ✓ Стол остаётся открытым', 'Sent to kitchen ✓ Table stays open'));
       setDraftSendError(null);
       clearRoundComposer();
+      // P1-1: stay on the table (see note above).
       await refreshActiveTableDetail(table.id);
-      if (isMobileView || isBahaYLab) {
-        closeTableDetail();
-      }
     } catch (e: any) {
       const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi', 'Не отправлено на кухню', 'Kitchen send failed');
       setDraftSendError(message);
@@ -1232,13 +1255,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       }
       const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
       const activeCheck = activeDetail?.check;
-      const checkId = String(activeCheck?.id || activeCheck?.check_no || table.label || '').trim();
+      const checkId = String(activeCheck?.id || activeCheck?.check_number || table.label || '').trim();
 
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
         checkId: checkId || undefined,
-        checkNo: activeCheck?.check_no || undefined,
+        checkNo: activeCheck?.check_number || undefined,
         isPreCheck: true,
         items: payItems.map((row: any) => ({
           item_name: row.item_name,
@@ -1259,15 +1282,19 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         paperWidth: printSettings.paper_width || '80mm',
       });
 
-      await printDirectOrFallback({
-        html: receiptMarkup,
+      // P0-2 fix: previous call used a non-existent object signature + undefined `zReceiptRef`,
+      // which threw on every tap. Use the real (html, options) signature and report the result.
+      const printRes = await printDirectOrFallback(receiptMarkup, {
         paperWidth: printSettings.paper_width || '80mm',
         useQz: Boolean(printSettings.use_qz),
         printerName: printSettings.printer_name,
-        previewRef: zReceiptRef as any,
       });
+      if (!printRes.success) {
+        notify('error', printRes.error || tx(lang, 'Aralıq hesab çap edilmədi — printeri yoxlayın', 'Предчек не напечатан — проверьте принтер', 'Pre-check not printed — check the printer'));
+        return;
+      }
 
-      notify('success', tx(lang, 'Pre-check çap edildi', 'Предчек напечатан', 'Pre-check printed'));
+      notify('success', tx(lang, 'Aralıq hesab çap edildi', 'Предчек напечатан', 'Pre-check printed'));
     } catch (e: any) {
       console.error('Pre-check print error:', e);
       notify('error', e?.message || tx(lang, 'Pre-check çap edilmədi', 'Ошибка печати предчека', 'Failed to print pre-check'));
@@ -1351,13 +1378,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
       const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
       const activeCheck = activeDetail?.check;
-      const checkId = String(result?.sale_id || result?.id || activeCheck?.id || activeCheck?.check_no || '').trim();
+      const checkId = String(result?.sale_id || result?.id || activeCheck?.id || activeCheck?.check_number || '').trim();
 
       const receiptMarkup = await buildTableReceiptHtml({
         tableLabel: table.label,
         operator: user?.username || 'staff',
         checkId: checkId || undefined,
-        checkNo: activeCheck?.check_no || undefined,
+        checkNo: activeCheck?.check_number || undefined,
         items: payItems.map((row: any) => ({
           item_name: row.item_name,
           qty: row.qty,
@@ -2088,10 +2115,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           lang={lang}
           onClose={() => {
             setItemActionTarget(null);
-            setItemActionReason('');
-            setItemActionReasonCode('guest_changed_mind');
-            setItemActionQuantityDelta('1');
-            setItemActionManagerPassword('');
           }}
           onConfirm={async (params) => {
             try {
@@ -2167,10 +2190,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               }
 
               setItemActionTarget(null);
-              setItemActionReason('');
-              setItemActionReasonCode('guest_changed_mind');
-              setItemActionQuantityDelta('1');
-              setItemActionManagerPassword('');
               notify('success', tx(lang, 'Item statusu yeniləndi', 'Статус позиции обновлен', 'Item status updated'));
               if (viewTableId) {
                 await refreshActiveTableDetail(viewTableId);
@@ -2317,7 +2336,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     items: row.items.map((item) => ({
                       item_name: item.item_name,
                       qty: item.qty,
-                      seat_label: item.seat_no ? `Seat ${item.seat_no}` : undefined,
+                      seat_label: item.seat_no ? `${tx(lang, 'Oturacaq', 'Место', 'Seat')} ${item.seat_no}` : undefined,
                       action: item.status === 'VOIDED' ? 'CANCEL' : null,
                       reason: item.note || '',
                     })),
@@ -2371,6 +2390,24 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         )}
                       </div>
                     </div>
+                    {/* P3-3: Offline banner inside the full-screen detail panel.
+                        The page-level banner (top of tables-page-shell) is hidden
+                        behind this fixed inset-0 panel while a waiter works an
+                        order, so we surface connectivity here — right where
+                        send/void actions happen and may fail to sync. */}
+                    {!isOnline && (
+                      <div className="mb-2.5 flex items-center gap-2 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-2.5 px-3 text-xs font-bold text-amber-100 shadow-sm">
+                        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+                        <span className="min-w-0">
+                          {tx(
+                            lang,
+                            'Offline — dəyişikliklər internet qayıdana kimi sync olmaya bilər',
+                            'Офлайн — изменения могут не синхронизироваться до восстановления связи',
+                            'Offline — changes may not sync until the connection returns',
+                          )}
+                        </span>
+                      </div>
+                    )}
                     {/* Modern Table Locked Alert for other waiters */}
                     {tableLockHolder && tableLockHolder !== user?.username && (
                       <div className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/15 p-2.5 px-3 text-xs shadow-sm">
@@ -2539,6 +2576,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
 	                  </div>
 	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
+                  {/* P1-4: the workspace tab bar is hidden on mobile modern, so once a waiter
+                      taps "Servis" (or lands on Servis/History/Ops) there is no way back to the
+                      order composer except closing the table. Give a persistent return button. */}
+                  {isBahaYLab && isMobileView && tableWorkspaceTab !== 'compose' && (
+                    <button
+                      type="button"
+                      onClick={() => setTableWorkspaceTab('compose')}
+                      className="mb-3 inline-flex min-h-12 shrink-0 items-center gap-2 self-start rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 px-4 py-2.5 text-sm font-bold text-cyan-100 transition active:scale-95 taktil-target"
+                    >
+                      ← {tx(lang, 'Sifarişə qayıt', 'К заказу', 'Back to order')}
+                    </button>
+                  )}
                   {tableWorkspaceTab === 'history' && (
                     <HistoryTab rounds={rounds} lang={lang} />
                   )}
@@ -2607,13 +2656,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                          setTableDiscountPercent(String(chosenDiscount || 0));
 	                        }}
 	                        sentItems={sentDisplayItems}
-	                        onShowFullList={() => setShowFullOrderList(true)}
-	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
-	                        lockHolder={tableLockHolder || ''}
-	                        userCanEditTable={userCanEditTable}
+	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); }}
 	                        readyCount={readyItems.length}
-	                        roundsCount={rounds.length}
-	                        activeTab={tableWorkspaceTab}
 	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
 	                        onBack={() => closeTableDetail()}
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
@@ -2776,8 +2820,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             } else {
                               setItemActionTarget({ item, action });
                             }
-                            setItemActionQuantityDelta('1');
-                            setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
                           }}
                         />
                       )}
@@ -2797,8 +2839,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        } else {
 	                          setItemActionTarget({ item, action: 'VOID' });
 	                        }
-	                        setItemActionReason('');
-	                        setItemActionManagerPassword('');
 	                      }}
 	                      onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                    />
@@ -2921,6 +2961,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         const t = tables.find((x) => x.id === viewTableId);
         if (!t) return null;
         const otherTables = tables.filter((x) => x.id !== t.id);
+        // P0-1 fix: these were referenced here but only defined inside the detail-panel IIFE,
+        // so opening the modal crashed the whole Tables module. Same rules as the detail panel.
+        const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+        const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.locked_by : null) || t.assigned_to || '').trim() || null;
+        const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
         return (
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-modalFadeIn"

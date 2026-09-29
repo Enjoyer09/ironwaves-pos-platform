@@ -55,7 +55,7 @@ export default function FullOrderListModal(props: FullOrderListModalProps) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-lg font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-            <div className="mt-1 text-sm text-slate-400">{tableLabel} · {items.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+            <div className="mt-1 text-sm text-slate-400">{tableLabel} · {items.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
           </div>
           <div className="flex items-center gap-2">
             {userCanEditTable && voidableItems.length > 0 && (

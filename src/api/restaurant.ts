@@ -35,6 +35,7 @@ export type TableLayoutUpdatePayload = {
   capacity?: number;
   shape?: string;
   status?: string;
+  guest_count?: number;
 };
 
 export type FloorTableState = {
@@ -193,7 +194,7 @@ function assertLocalReservationSlotAvailable(
 function getLocalFloorPlans(tenant_id: string): FloorPlanRecord[] {
   const existing = getDB<any>(localFloorKey).filter((row) => row.tenant_id === tenant_id);
   if (existing.length > 0) return existing;
-  const seed = [{ id: `floor_${tenant_id}`, tenant_id, name: 'Main Floor', width_units: 12, height_units: 8, is_active: true }];
+  const seed = [{ id: `floor_${tenant_id}`, tenant_id, name: 'Əsas Zal', width_units: 12, height_units: 8, is_active: true }];
   setDB(localFloorKey, [...getDB<any>(localFloorKey), ...seed]);
   return seed;
 }
@@ -294,6 +295,7 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
       capacity: payload.capacity ?? tables[idx].capacity ?? 4,
       shape: payload.shape ?? tables[idx].shape ?? 'rectangle',
       status: nextStatus,
+      guest_count: payload.guest_count !== undefined ? Math.max(1, Number(payload.guest_count)) : tables[idx].guest_count,
     };
     if (String(nextStatus).toUpperCase() === 'AVAILABLE') {
       tables[idx] = {
@@ -467,8 +469,12 @@ export async function act_on_order_item_live(
   if (!isBackendEnabled()) {
     // LOCAL REJİM: masa sətrinin və metbəx sifarişinin vəziyyətini yaz ki,
     // KDS ekranında LƏĞV / YENİDƏN DÜZƏLT / XƏTA və s. əks olunsun.
-    const settings = getSettings();
+    // P0-3 fix: `getSettings`, `action`, `delta` were undefined here, so every local-mode
+    // item action (void/decrease/waste/remake) threw a ReferenceError.
+    const settings: any = get_settings();
     const kitchenMode = settings?.print_settings?.kitchen_mode || 'paper_only';
+    const action = String(payload.action || '').toUpperCase();
+    const delta = Math.max(0, Number(payload.quantity_delta || 0));
 
     const mapToKitchenStatus = (a: string): string => {
       switch (a) {
@@ -620,7 +626,7 @@ export async function send_check_drafts_live(
   });
 }
 
-export async function update_draft_item_live(itemId: string, payload: { qty?: number; note?: string | null; modifier_json?: string | null }) {
+export async function update_draft_item_live(itemId: string, payload: { qty?: number; note?: string | null; modifier_json?: string | null; course_no?: number }) {
   if (!isBackendEnabled()) {
     const tables = getDB<any>('tables');
     for (const t of tables) {
@@ -632,6 +638,7 @@ export async function update_draft_item_live(itemId: string, payload: { qty?: nu
           qty: payload.qty ?? items[idx].qty,
           note: payload.note ?? items[idx].note,
           modifier_json: payload.modifier_json ?? items[idx].modifier_json,
+          course_no: payload.course_no ?? items[idx].course_no,
         };
         t.items = items;
         setDB('tables', tables);
