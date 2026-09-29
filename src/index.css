@@ -2663,6 +2663,29 @@ html {
   }
 }
 
+/* 15" touch POS (1024x768 / 1366x768): the compact rules above shrink the root
+   font to 78-84%, which turned 44px targets into ~34px and 12px labels into ~9px
+   on the waiter screens. TablesPage adds `waiter-touch` to <html> only while the
+   Modern waiter UI is active on a coarse-pointer device, so the cashier POS keeps
+   its tuned compact layout. The class selector outranks the plain `html` rules. */
+html.waiter-touch {
+  font-size: 100%;
+}
+
+/* Category tabs keep their 62px height but lose the 28px side padding, so 4-5
+   categories fit beside the order panel at 1024px instead of 2-3. */
+html.waiter-touch .pos-category-btn {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+/* In-draft qty badge on menu tiles: was forced to 20px / 9px text. */
+html.waiter-touch .pos-product-card:not(.pos3-card):not(.pos2-product-card) .absolute.right-1.top-1 {
+  height: 1.75rem !important;
+  width: 1.75rem !important;
+  font-size: 14px !important;
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;
@@ -4267,5 +4290,19 @@ html:active-view-transition-type(backward)::view-transition-new(tab-content) {
 html[data-theme='light'] .text-slate-400 { color: #64748b !important; }
 html[data-theme='light'] .text-slate-500 { color: #475569 !important; }
 
-/* Touch targets (Apple HIG minimum 36-44px) — interactive elements */
-button, a, [role="button"] { min-height: 32px; }
+/* Touch targets (Apple HIG minimum 36-44px) — interactive elements.
+   NOTE: this rule is unlayered, and unlayered CSS beats Tailwind v4's
+   @layer utilities, so it silently caps every `min-h-*` on buttons at 32px.
+   On the waiter touch screen (html.waiter-touch) it moves to @layer base so the
+   designed 44-56px `min-h-*` targets apply; everywhere else it is unchanged. */
+/* :where() keeps the original per-selector specificity ((0,0,1) / (0,1,0)), so
+   the unlayered .neon-btn / .pay-btn / `table button` touch min-heights in other
+   modules still win exactly as before. */
+:where(html:not(.waiter-touch)) button,
+:where(html:not(.waiter-touch)) a,
+:where(html:not(.waiter-touch)) [role="button"] { min-height: 32px; }
+@layer base {
+  :where(html.waiter-touch) button,
+  :where(html.waiter-touch) a,
+  :where(html.waiter-touch) [role="button"] { min-height: 32px; }
+}

@@ -268,7 +268,8 @@ export default function MobileWaiterUI({
           <button 
             type="button" 
             onClick={(e) => { e.stopPropagation(); setKitchenAlertToast(null); }}
-            className="h-8 w-8 shrink-0 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 font-bold"
+            aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+            className="h-11 w-11 shrink-0 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 font-bold"
           >
             ✕
           </button>
@@ -291,11 +292,11 @@ export default function MobileWaiterUI({
                 <span className="text-sm sm:text-base font-extrabold text-white truncate">
                   {user?.username || tx(lang, 'Ofisiant', 'Официант', 'Waiter')}
                 </span>
-                <span className="rounded-full bg-amber-400/15 border border-amber-400/30 px-2 py-0.5 text-[10px] font-black text-amber-300 shrink-0">
+                <span className="hidden sm:inline rounded-full bg-amber-400/15 border border-amber-400/30 px-2 py-0.5 text-xs font-black text-amber-300 shrink-0">
                   {tx(lang, 'Ofisiant', 'Официант', 'Waiter')}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400 mt-0.5">
+              <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs font-semibold text-slate-300 mt-0.5">
                 <span>{tables.length} {tx(lang, 'Masa', 'Столов', 'Tables')}</span>
                 <span>•</span>
                 <span className="text-emerald-400 font-bold">{freeCount} {tx(lang, 'Boş', 'Свободно', 'Free')}</span>
@@ -311,12 +312,13 @@ export default function MobileWaiterUI({
             <button
               type="button"
               onClick={toggleSound}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all active:scale-95 ${
+              className={`flex h-11 w-11 items-center justify-center rounded-xl border transition-all active:scale-95 ${
                 soundEnabled 
                   ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20' 
                   : 'border-slate-800 bg-slate-800/40 text-slate-500 hover:text-slate-400'
               }`}
-              title={soundEnabled ? tx(lang, 'Mətbəx səsi: Aktiv', 'Звук кухни: Вкл', 'Kitchen sound: On') : tx(lang, 'Mətbəx səsi: Səssiz', 'Звук кухни: Выкл', 'Kitchen sound: Off')}
+              aria-label={soundEnabled ? tx(lang, 'Mətbəx səsi: Aktiv', 'Звук кухни: Вкл', 'Kitchen sound: On') : tx(lang, 'Mətbəx səsi: Səssiz', 'Звук кухни: Выкл', 'Kitchen sound: Off')}
+              aria-pressed={soundEnabled}
             >
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
@@ -336,10 +338,10 @@ export default function MobileWaiterUI({
               type="button"
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 active:scale-95 transition ${
+              className={`flex h-11 w-11 items-center justify-center rounded-xl border border-slate-800 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 active:scale-95 transition ${
                 isRefreshing ? 'animate-spin text-amber-400' : ''
               }`}
-              title={tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+              aria-label={tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
             >
               <RefreshCw size={17} />
             </button>
@@ -348,7 +350,7 @@ export default function MobileWaiterUI({
             <button
               type="button"
               onClick={onFastSwitch}
-              className="flex h-10 px-3 items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800/80 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white active:scale-95 transition shadow-sm"
+              className="flex h-11 px-3 items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800/80 text-sm font-bold text-slate-200 hover:bg-slate-700 hover:text-white active:scale-95 transition shadow-sm"
               title={tx(lang, 'İstifadəçini dəyiş / PIN kilidi', 'Сменить пользователя / PIN', 'Switch user / PIN')}
             >
               <UserCheck size={16} className="text-amber-400" />
@@ -362,14 +364,14 @@ export default function MobileWaiterUI({
           <button
             type="button"
             onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setActiveFloorId(''); }}
-            className={`flex-none flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+            className={`flex-none flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
               !activeFloorId
                 ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md shadow-amber-500/20 scale-[1.02]'
                 : 'border border-slate-800 bg-slate-800/50 text-slate-300 hover:border-slate-700 active:scale-95'
             }`}
           >
             <span>{tx(lang, 'Bütün Zallar', 'Все залы', 'All Zones')}</span>
-            <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+            <span className={`rounded-full px-1.5 py-0.5 text-xs font-black ${
               !activeFloorId ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-700 text-slate-300'
             }`}>
               {tables.length}
@@ -384,14 +386,14 @@ export default function MobileWaiterUI({
                 key={fp.id}
                 type="button"
                 onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setActiveFloorId(fp.id); }}
-                className={`flex-none flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                className={`flex-none flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
                   active
                     ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md shadow-amber-500/20 scale-[1.02]'
                     : 'border border-slate-800 bg-slate-800/50 text-slate-300 hover:border-slate-700 active:scale-95'
                 }`}
               >
                 <span>{fp.name}</span>
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-black ${
                   active ? 'bg-slate-950/25 text-slate-950' : 'bg-slate-700 text-slate-300'
                 }`}>
                   {countInfo.total}
@@ -414,14 +416,16 @@ export default function MobileWaiterUI({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={tx(lang, 'Masa nömrəsi və ya ad ilə axtarın...', 'Поиск по номеру или названию стола...', 'Search table # or name...')}
-            className="w-full rounded-2xl border border-slate-800 bg-slate-900/90 pl-10 pr-9 py-2.5 text-xs sm:text-sm font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/60 transition shadow-inner"
+            data-virtual-keyboard="on"
+            className="w-full min-h-12 rounded-2xl border border-slate-800 bg-slate-900/90 pl-10 pr-12 py-2.5 text-base font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/60 transition shadow-inner"
           />
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs"
+              aria-label={tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-sm"
             >
               ✕
             </button>
@@ -444,7 +448,7 @@ export default function MobileWaiterUI({
                 key={key}
                 type="button"
                 onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setStatusFilter(key); }}
-                className={`flex-none flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
+                className={`flex-none flex min-h-11 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold transition-all whitespace-nowrap ${
                   isSelected
                     ? key === 'all'      ? 'bg-slate-200 text-slate-950 font-black shadow-md'
                     : key === 'mine'     ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-md shadow-amber-400/30'
@@ -457,7 +461,7 @@ export default function MobileWaiterUI({
               >
                 {icon && <span>{icon}</span>}
                 <span>{label}</span>
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-black ${
                   isSelected 
                     ? (key === 'all' || key === 'mine' || key === 'ready' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/25 text-white') 
                     : 'bg-slate-800 text-slate-400'
@@ -515,7 +519,7 @@ export default function MobileWaiterUI({
               >
                 {/* ── Ready Alert Pulsing Badge ── */}
                 {isReady && (
-                  <div className="absolute -top-2 -right-2 z-30 flex items-center gap-1 rounded-full bg-cyan-400 px-2 py-0.5 text-[10px] font-black text-slate-950 shadow-lg animate-bounce">
+                  <div className="absolute -top-2 -right-2 z-30 flex items-center gap-1 rounded-full bg-cyan-400 px-2 py-0.5 text-xs font-black text-slate-950 shadow-lg animate-bounce">
                     <span>🔔</span>
                     <span>{readyItemsCount > 0 ? `${readyItemsCount} ` : ''}{tx(lang, 'Hazır!', 'Готово!', 'Ready!')}</span>
                   </div>
@@ -523,7 +527,7 @@ export default function MobileWaiterUI({
 
                 {/* ── Bill Requested Badge ── */}
                 {isBillRequested && !isReady && (
-                  <div className="absolute -top-2 -right-2 z-20 flex items-center gap-1 rounded-full bg-purple-500 px-2 py-0.5 text-[9px] font-black text-white shadow-md">
+                  <div className="absolute -top-2 -right-2 z-20 flex items-center gap-1 rounded-full bg-purple-500 px-2 py-0.5 text-xs font-black text-white shadow-md">
                     <span>🧾</span>
                     <span>{tx(lang, 'Hesab', 'Счет', 'Bill')}</span>
                   </div>
@@ -546,7 +550,7 @@ export default function MobileWaiterUI({
                     </div>
                     {/* Zone name sub-caption if viewing all zones */}
                     {!activeFloorId && table.floor_plan_id && (
-                      <div className="text-[10px] font-bold text-slate-400 truncate">
+                      <div className="text-xs font-bold text-slate-300 truncate">
                         {floorPlans.find(f => f.id === table.floor_plan_id)?.name || ''}
                       </div>
                     )}
@@ -555,7 +559,7 @@ export default function MobileWaiterUI({
                   {/* Top Status Pill */}
                   <div>
                     {isOccupied ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black shrink-0 ${
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-black shrink-0 ${
                         isReady 
                           ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'
                           : isBillRequested
@@ -565,7 +569,7 @@ export default function MobileWaiterUI({
                         {isBillRequested ? tx(lang, 'Çek Çıxıb', 'Предчек', 'Pre-check') : tx(lang, 'Dolu', 'Занят', 'Busy')}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400 shrink-0">
+                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-xs font-extrabold text-emerald-400 shrink-0">
                         {tx(lang, 'Boş', 'Свободен', 'Free')}
                       </span>
                     )}
@@ -585,7 +589,7 @@ export default function MobileWaiterUI({
 
                       {/* Elapsed Seating Timer with Smart Colors */}
                       {elapsedMin > 0 && (
-                        <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold">
+                        <div className="mt-1.5 flex items-center gap-1 text-xs font-bold">
                           <Clock size={11} className={elapsedMin >= 45 ? 'text-amber-400' : 'text-slate-400'} />
                           <span className={
                             elapsedMin >= 90
@@ -607,7 +611,7 @@ export default function MobileWaiterUI({
                         <Users size={12} className="text-slate-400" />
                         <span>{tx(lang, 'Maks:', 'Макс:', 'Max:')} {table.capacity || 4}</span>
                       </div>
-                      <div className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-black text-emerald-400">
+                      <div className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-xs font-black text-emerald-400">
                         <span>+</span>
                         <span>{tx(lang, 'Masa Aç', 'Открыть', 'Open')}</span>
                       </div>
@@ -616,19 +620,19 @@ export default function MobileWaiterUI({
                 </div>
 
                 {/* ── BOTTOM: Waiter / Guest Footer ── */}
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-slate-300">
                   {isOccupied ? (
                     <>
                       <div className="flex items-center gap-1 text-slate-300 truncate">
                         <Users size={12} className="shrink-0 text-slate-400" />
                         <span>{guestNum}</span>
                       </div>
-                      <div className="truncate max-w-[90px] text-right text-[10px] font-bold text-slate-300">
+                      <div className="truncate max-w-[110px] text-right text-xs font-bold text-slate-200">
                         {assigned ? (isMyTable ? '★ ' + assigned : assigned) : '—'}
                       </div>
                     </>
                   ) : (
-                    <div className="w-full text-center text-[10px] font-bold text-emerald-400/80">
+                    <div className="w-full text-center text-xs font-bold text-emerald-300">
                       {tx(lang, 'Toxun və dərhal aç', 'Нажмите чтобы открыть', 'Tap to open')}
                     </div>
                   )}
@@ -661,7 +665,7 @@ export default function MobileWaiterUI({
       {/* ─── STICKY MOBILE BOTTOM SHIFT SUMMARY DOCK ─── */}
       <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/90 bg-[#0b101c]/95 backdrop-blur-xl px-4 py-2.5 sm:px-6 flex items-center justify-between shadow-[0_-8px_30px_rgba(0,0,0,0.6)]">
         <div className="flex items-center gap-3">
-          <div className="text-xs font-bold text-slate-300">
+          <div className="text-sm font-bold text-slate-300">
             <span className="text-rose-400 font-extrabold">{occupiedCount}</span> {tx(lang, 'dolu', 'занято', 'busy')}
             <span className="mx-1.5 text-slate-400">•</span>
             <span className="text-amber-400 font-extrabold">{myTablesCount}</span> {tx(lang, 'mənim', 'моих', 'mine')}
@@ -679,9 +683,9 @@ export default function MobileWaiterUI({
           <button
             type="button"
             onClick={handleManualRefresh}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 active:scale-95 transition hover:bg-slate-700"
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800 px-4 py-1.5 text-sm font-bold text-slate-200 active:scale-95 transition hover:bg-slate-700"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-amber-400' : ''} />
+            <RefreshCw size={16} className={isRefreshing ? 'animate-spin text-amber-400' : ''} />
             <span>{tx(lang, 'Yenilə', 'Обновить', 'Refresh')}</span>
           </button>
         </div>
@@ -707,7 +711,7 @@ export default function MobileWaiterUI({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl font-black text-amber-400">{quickOpenTable.label}</span>
-                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-black text-emerald-400">
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-xs font-black text-emerald-400">
                     {tx(lang, 'Yeni Masa Açılır', 'Открытие стола', 'Opening Table')}
                   </span>
                 </div>
@@ -718,7 +722,8 @@ export default function MobileWaiterUI({
               <button
                 type="button"
                 onClick={() => setQuickOpenTable(null)}
-                className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 font-bold transition active:scale-90"
+                aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                className="h-11 w-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 font-bold transition active:scale-90"
               >
                 ✕
               </button>
@@ -735,7 +740,7 @@ export default function MobileWaiterUI({
                   className="rounded-2xl py-3 text-base font-black transition-all bg-gradient-to-b from-slate-800 to-slate-900/90 border border-slate-700/80 text-slate-100 hover:border-amber-400 hover:text-amber-300 active:scale-95 shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-50 taktil-target"
                 >
                   <span className="text-xl leading-none font-black">{num}</span>
-                  <span className="text-[10px] text-slate-400 font-semibold">
+                  <span className="text-xs text-slate-300 font-semibold">
                     👤 {tx(lang, 'qonaq', 'гост.', 'guests')}
                   </span>
                 </button>

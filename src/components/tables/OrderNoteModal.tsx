@@ -136,14 +136,14 @@ export default function OrderNoteModal({
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
-              className="neon-input h-11 w-full text-sm font-bold pr-9 focus:ring-yellow-300/20"
+              className="neon-input h-12 w-full text-base font-bold pr-12 focus:ring-yellow-300/20"
               autoFocus
             />
             {noteText && (
               <button
                 type="button"
                 onClick={() => setNoteText('')}
-                className="absolute right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-400 hover:text-slate-200"
+                className="absolute right-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-sm text-slate-300 hover:text-slate-100"
               >
                 ✕
               </button>
@@ -155,7 +155,7 @@ export default function OrderNoteModal({
             <button
               type="button"
               onClick={() => handleAddCustomPreset()}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-yellow-400/90 hover:text-yellow-300 active:scale-95 transition"
+              className="mt-1.5 inline-flex min-h-11 items-center gap-1 text-sm font-bold text-yellow-400/90 hover:text-yellow-300 active:scale-95 transition"
             >
               <span>+ &quot;{noteText.split(',')[0].trim()}&quot;</span>
               <span className="underline">{tx(lang, 'şablonlara əlavə et (Pin)', 'добавить в шаблоны', 'add as preset')}</span>
@@ -166,7 +166,7 @@ export default function OrderNoteModal({
         {/* Smart / Frequently Used Notes (if any learned) */}
         {smartTopNotes.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400 mb-1.5">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-amber-400 mb-1.5">
               <span>🔥</span>
               <span>{tx(lang, 'Tez-tez İstifadə Olunanlar (Smart)', 'Часто используемые', 'Frequently Used')}</span>
             </div>
@@ -178,7 +178,7 @@ export default function OrderNoteModal({
                     key={tag}
                     type="button"
                     onClick={() => toggleTag(tag)}
-                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition active:scale-95 taktil-target ${
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-95 taktil-target ${
                       isSelected
                         ? 'border-amber-400 bg-amber-400/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.2)]'
                         : 'border-amber-500/30 bg-amber-950/20 text-amber-200/80 hover:border-amber-400/50'
@@ -194,9 +194,9 @@ export default function OrderNoteModal({
 
         {/* Business Presets Grid */}
         <div>
-          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
             <span>📌 {tx(lang, 'Biznes Şablonları', 'Шаблоны заведения', 'Business Presets')}</span>
-            <span className="text-[9px] text-slate-500 font-medium">({presets.length} {tx(lang, 'seçim', 'вариантов', 'options')})</span>
+            <span className="text-xs text-slate-400 font-medium">({presets.length} {tx(lang, 'seçim', 'вариантов', 'options')})</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {presets.map((mod) => {
@@ -211,12 +211,14 @@ export default function OrderNoteModal({
                       : 'border-slate-800 bg-slate-900/60 text-slate-300 font-bold hover:border-slate-700'
                   }`}
                 >
-                  <span className="truncate text-xs">{mod}</span>
+                  <span className="truncate text-sm">{mod}</span>
+                  {/* Was opacity-0 until hover: invisible on touch but still tappable,
+                      so presets got deleted by accident. Now visible with a real target. */}
                   <button
                     type="button"
-                    title={tx(lang, 'Şablonu sil', 'Удалить шаблон', 'Delete preset')}
+                    aria-label={`${tx(lang, 'Şablonu sil', 'Удалить шаблон', 'Delete preset')}: ${mod}`}
                     onClick={(e) => handleRemovePreset(e, mod)}
-                    className="opacity-0 group-hover:opacity-100 hover:text-rose-400 text-slate-500 text-[11px] px-1 transition"
+                    className="-my-1 -mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base text-slate-400 transition hover:text-rose-400 active:bg-rose-500/15 active:text-rose-300"
                   >
                     ×
                   </button>
@@ -232,7 +234,7 @@ export default function OrderNoteModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 active:scale-95 taktil-target"
+            className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 min-h-12 py-2.5 text-base font-bold text-slate-200 hover:bg-slate-700 active:scale-95 taktil-target"
           >
             {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
           </button>
@@ -240,7 +242,7 @@ export default function OrderNoteModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 active:scale-95 hover:brightness-105 taktil-target disabled:opacity-50"
+            className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 min-h-12 py-2.5 text-base font-black text-slate-950 shadow-md shadow-yellow-500/10 active:scale-95 hover:brightness-105 taktil-target disabled:opacity-50"
           >
             {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
           </button>
