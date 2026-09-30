@@ -12,6 +12,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.json_utils import safe_json_list
+from app.services.finance_service import commission_percent as _commission_percent
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -1040,7 +1041,7 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                             commission = (topup_amount * Decimal("0.005")).quantize(Decimal("0.01"))
                     else:
                         commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-                        card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+                        card_transfer_percent = _commission_percent(commission_cfg, "card_transfer_percent", "0.5")
                         commission = (topup_amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
                 # Do not block day open due to balance limitations of safe/card wallets.
                 # Accounts are allowed to have temporary negative balances in double-entry ledger.

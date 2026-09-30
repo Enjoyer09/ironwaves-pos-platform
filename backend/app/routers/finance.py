@@ -145,6 +145,7 @@ def _finance_category_label(value: str | None = None, category_code: str | None 
 
 from app.services.finance_service import (  # noqa: E402 - keep router API thin while preserving helper names
     FINANCE_ACCOUNT_DEFS,
+    commission_percent as _commission_percent,
     account_ledger_totals as _account_ledger_totals,
     account_ledger_totals_for_update as _account_ledger_totals_for_update,
     create_finance_transaction_record as _create_finance_transaction_record,
@@ -180,8 +181,10 @@ def _ensure_finance_write_access(user) -> None:
 
 
 def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None, policy: dict | None = None) -> bool:
-    if explicit is not None:
-        return bool(explicit)
+    # A client may *request* approval (escalate), but must never be able to
+    # opt out of the tenant approval policy by sending requires_approval=false.
+    if explicit is True:
+        return True
     tx_type = _normalize_text(transaction_type).replace("-", "_")
     policy = policy or DEFAULT_FINANCE_POLICY
     if tx_type == "investor_repayment" and bool(policy.get("investor_repayment_requires_approval", True)):
@@ -263,6 +266,30 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 
 def _investor_debt_balance(db: Session, tenant_id: str) -> Decimal:
     return _ledger_balances_snapshot(db, tenant_id).get("investor", Decimal("0.00"))
+
+
+def _ensure_investor_repayment_capacity(db: Session, tenant_id: str, source_code: str, amount: Decimal) -> None:
+    """Re-validate an investor repayment against *current* balances.
+
+    Must be called (with accounts locked) both when posting directly and when
+    approving a pending request, otherwise two pending requests approved in
+    sequence can overpay the investor and drive the debt negative.
+    """
+    source_code = str(source_code or "").strip().lower()
+    _lock_finance_accounts(db, tenant_id, source_code, "investor")
+    amount = Decimal(str(amount))
+    debt = _investor_debt_balance(db, tenant_id)
+    if amount > debt:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Investor repayment exceeds current investor debt ({debt.quantize(Decimal('0.01'))} AZN)",
+        )
+    available = _wallet_balance(db, tenant_id, source_code)
+    if amount > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient balance in '{source_code}' ({available.quantize(Decimal('0.01'))} AZN)",
+        )
 
 
 def _active_shift(db: Session, tenant_id: str) -> Shift | None:
@@ -1620,6 +1647,9 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
     tx_type = _normalize_text(payload.transaction_type).replace("-", "_")
     category_label = _finance_category_label(payload.category, payload.category_code) if (payload.category or payload.category_code) else None
     policy = _finance_policy(db, tenant.id)
+    if tx_type == "investor_repayment":
+        # Fail fast on obviously invalid requests; re-checked again at approval time.
+        _ensure_investor_repayment_capacity(db, tenant.id, source, amount)
     if _approval_required(tx_type, amount, payload.requires_approval, policy):
         txn = _create_finance_transaction_record(
             db,
@@ -1747,6 +1777,13 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
             status_code=403,
             detail="Yaratdığınız maliyyə əməliyyatını özünüz təsdiqləyə bilməzsiniz",
         )
+    if _normalize_text(txn.transaction_type).replace("-", "_") == "investor_repayment":
+        source_account = (
+            db.query(FinanceAccount)
+            .filter(FinanceAccount.tenant_id == tenant.id, FinanceAccount.id == txn.source_account_id)
+            .first()
+        )
+        _ensure_investor_repayment_capacity(db, tenant.id, source_account.code if source_account else "", Decimal(str(txn.amount)))
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     txn.status = "approved"
     txn.approved_by = user.username
@@ -2013,7 +2050,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
                 commission = (amount * Decimal("0.005")).quantize(Decimal("0.01"))
         else:
             commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-            card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+            card_transfer_percent = _commission_percent(commission_cfg, "card_transfer_percent", "0.5")
             commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
 
     if payload.type == "out":
@@ -2131,7 +2168,7 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
                 commission = (amount * Decimal("0.005")).quantize(Decimal("0.01"))
         else:
             commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-            card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+            card_transfer_percent = _commission_percent(commission_cfg, "card_transfer_percent", "0.5")
             commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
 
     bal = _wallet_balance(db, tenant.id, source)

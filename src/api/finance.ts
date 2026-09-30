@@ -404,7 +404,8 @@ export const transfer_funds = (
     | 'safe_to_cash',
   amount: string,
   commission: string,
-  transferred_by: string
+  transferred_by: string,
+  auto_commission = true,
 ) => {
   const finances = getFinanceLocal(tenant_id);
   const now = new Date().toISOString();
@@ -415,7 +416,7 @@ export const transfer_funds = (
     (settings.bank_commission as any)?.card_transfer_percent ?? 0.5,
   );
 
-  if ((direction === 'card_to_cash' || direction === 'card_to_debt') && comm_amount.lte(0)) {
+  if (auto_commission && (direction === 'card_to_cash' || direction === 'card_to_debt') && comm_amount.lte(0)) {
     comm_amount = transfer_amount.times(cardTransferPercent.div(100)).toDecimalPlaces(2);
   }
 
@@ -1382,8 +1383,23 @@ export const reject_finance_transaction_async = async (tenant_id: string, transa
   });
 };
 
+// Local/offline mode has no ledger, approval queue or reconciliation store.
+// Operations that depend on them must fail loudly instead of returning a fake
+// "success" that makes the UI show a toast while nothing is persisted.
+const OFFLINE_LEDGER_UNSUPPORTED =
+  'Bu əməliyyat yalnız serverə qoşulu rejimdə mümkündür (offline rejimdə ledger yoxdur).';
+
+const LOCAL_TRANSFER_DIRECTIONS: Record<string, Parameters<typeof transfer_funds>[1]> = {
+  'card:cash': 'card_to_cash',
+  'cash:card': 'cash_to_card',
+  'cash:debt': 'cash_to_debt',
+  'card:debt': 'card_to_debt',
+  'cash:safe': 'cash_to_safe',
+  'safe:cash': 'safe_to_cash',
+};
+
 export const request_finance_reversal_async = async (tenant_id: string, transaction_id: string) => {
-  if (!isBackendEnabled()) return { success: true, transaction_id: uuidv4(), status: 'pending_approval' };
+  if (!isBackendEnabled()) throw new Error(OFFLINE_LEDGER_UNSUPPORTED);
   return apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}/reverse`, {
     method: 'POST',
     tenantId: tenant_id,
@@ -1404,13 +1420,42 @@ export const create_finance_ledger_transaction_async = async (
     note?: string;
     requires_approval?: boolean;
   },
+  created_by = 'admin',
 ) => {
   if (!isBackendEnabled()) {
-    return {
-      success: true,
-      transaction_id: uuidv4(),
-      status: payload.requires_approval ? 'pending_approval' : 'posted',
-    };
+    // Offline mode is single-device with no approval queue: post directly to
+    // the local wallet store and report status 'posted' so the UI can say so.
+    const txType = String(payload.transaction_type || '').trim().toLowerCase().replace(/-/g, '_');
+    const from = String(payload.source_account_code || '').trim().toLowerCase();
+    const to = String(payload.destination_account_code || '').trim().toLowerCase();
+    if (txType === 'investor_repayment') {
+      if (from !== 'cash' && from !== 'card' && from !== 'safe') {
+        throw new Error('Yanlış ödəniş mənbəyi');
+      }
+      const res = repay_investor(tenant_id, payload.amount, from, created_by, payload.note);
+      return { success: true, transaction_id: uuidv4(), status: 'posted', paid: res.paid };
+    }
+    if (txType === 'internal_transfer') {
+      const direction = LOCAL_TRANSFER_DIRECTIONS[`${from}:${to}`];
+      if (!direction) throw new Error(OFFLINE_LEDGER_UNSUPPORTED);
+      // Commission is posted by the caller as a separate 'expense' request,
+      // so disable transfer_funds' automatic card commission here.
+      transfer_funds(tenant_id, direction, payload.amount, '0', created_by, false);
+      return { success: true, transaction_id: uuidv4(), status: 'posted' };
+    }
+    if (txType === 'expense' && (from === 'cash' || from === 'card' || from === 'safe')) {
+      create_finance_entry(
+        tenant_id,
+        'out',
+        payload.category || 'Ledger Xərc',
+        payload.amount,
+        from,
+        payload.note || '',
+        created_by,
+      );
+      return { success: true, transaction_id: uuidv4(), status: 'posted' };
+    }
+    throw new Error(OFFLINE_LEDGER_UNSUPPORTED);
   }
   const categoryLabel = payload.category ? financeCategoryLabelFromValue(payload.category) : payload.category;
   const categoryCode = payload.category_code || (payload.category ? financeCategoryCodeFromValue(payload.category) || undefined : undefined);
@@ -1455,8 +1500,8 @@ export const create_finance_reconciliation_async = async (
   notes?: string,
 ) => {
   if (!isBackendEnabled()) {
-    const variance = new Decimal(counted_balance || '0').minus(new Decimal(expected_balance || '0'));
-    return { success: true, id: uuidv4(), variance: variance.toString() };
+    // Nothing is persisted offline; don't pretend a reconciliation was recorded.
+    throw new Error(OFFLINE_LEDGER_UNSUPPORTED);
   }
   return apiRequest<any>('/api/v1/finance/reconciliations', {
     method: 'POST',

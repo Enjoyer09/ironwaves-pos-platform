@@ -70,6 +70,31 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return default
 
 
+def commission_percent(config: dict | None, key: str, default: Decimal | float | int | str, *fallback_keys: str) -> Decimal:
+    """Read a commission percentage from settings.
+
+    Unlike ``config.get(key) or default`` this keeps an explicit 0 (tenant
+    disabled the commission) and only falls back when the value is missing,
+    empty or not a valid non-negative number.
+    """
+    config = config if isinstance(config, dict) else {}
+    raw = None
+    for candidate in (key, *fallback_keys):
+        value = config.get(candidate)
+        if value is not None and str(value).strip() != "":
+            raw = value
+            break
+    if raw is None:
+        return Decimal(str(default))
+    try:
+        parsed = Decimal(str(raw).strip().replace(",", "."))
+    except Exception:
+        return Decimal(str(default))
+    if not parsed.is_finite() or parsed < 0:
+        return Decimal(str(default))
+    return parsed
+
+
 def finance_policy(db: Session, tenant_id: str) -> dict:
     raw = _setting_value(db, tenant_id, "finance_policy", DEFAULT_FINANCE_POLICY)
     if not isinstance(raw, dict):

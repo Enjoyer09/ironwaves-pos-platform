@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     db_idle_in_transaction_session_timeout_ms: int = 15000
     startup_schema_guard_enabled: bool = True
     startup_create_all_enabled: bool = True
+    # Finance v2 (GL) API. Off by default: tables may exist but no endpoint is
+    # reachable and no existing flow writes to the new ledger until enabled.
+    finance_v2_enabled: bool = False
+    # Shadow mode: a background job mirrors every posted legacy transaction into
+    # the GL and reconciles both ledgers nightly. Never blocks or alters POS flows.
+    finance_v2_shadow_enabled: bool = False
+    finance_v2_shadow_interval_seconds: int = 300
+    finance_v2_reconcile_hour_baku: int = 4
     startup_runtime_migrations_enabled: bool = False
     startup_schema_version: int = 2026041301
     startup_data_retention_cleanup_enabled: bool = True
