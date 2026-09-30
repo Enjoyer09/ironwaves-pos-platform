@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db import Base
 import app.models  # noqa: F401 - register SQLAlchemy models for autogenerate
+import app.gl.models  # noqa: F401 - Finance v2 GL tables
 
 
 config = context.config

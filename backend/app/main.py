@@ -26,6 +26,7 @@ from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User, CentralBackupLog
 from app.realtime import realtime_hub
 from app.routers import agent, ai_ops, analytics_api, auth, branches, catalog, customer_feedback_ops, finance, integrations, operations, pos, reports, restaurant, settings as settings_router, tenants, suppliers
+from app.gl import router as gl_router  # Finance v2; endpoints 404 unless FINANCE_V2_ENABLED
 from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
 from app.services.backup_scheduler import start_backup_scheduler
@@ -1411,3 +1412,4 @@ app.include_router(agent.router)
 app.include_router(integrations.router)
 app.include_router(suppliers.router)
 app.include_router(branches.router)
+app.include_router(gl_router.router)
