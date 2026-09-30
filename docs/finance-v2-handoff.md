@@ -54,6 +54,8 @@ HARD RULES:
    1 AZN amounts, always reversed/voided afterwards, reconcile 14/14 before and after.
    Do not reset or create real user passwords.
 6. Posted journals are immutable; corrections are storno/adjusting journals. Keep maker-checker (4-eyes).
+   The GL API only reverses GL-owned journals (source_module manual/gl); operational ones (sales, stock,
+   shifts, mirrored legacy) return 409 source_managed and are corrected in their own module.
 7. The PR preview environment always fails (its Postgres is never deployed) — infra, not code.
 8. Money is Decimal end-to-end (backend) and decimal.js (frontend). No floats.
 
@@ -61,8 +63,8 @@ LOCAL VERIFICATION:
 - Backend: python3 -m venv /tmp/iw-venv && /tmp/iw-venv/bin/pip install -r backend/requirements.txt -r backend/requirements-dev.txt
   cd backend && DATABASE_URL=sqlite:////tmp/iw-test.db JWT_SECRET=test-secret-test-secret-test-secret-123456
   SUPERADMIN_PASSWORD=Test-Passw0rd-123 /tmp/iw-venv/bin/python -m pytest tests -p no:cacheprovider -o addopts="" -q
-  (baseline: 872 passed, 11 skipped)
-- Frontend: npx tsc --noEmit -p . && npm run -s test:smoke (60/60) && npx vite build
+  (baseline: 874 passed, 11 skipped)
+- Frontend: npx tsc --noEmit -p . && npm run -s test:smoke (60/60) && npm run -s test:gl (3/3) && npx vite build
 - Staging = local Docker container iw-staging-pg (127.0.0.1:55433, user postgres, password staging, db railway),
   a restored production copy. Use DATABASE_URL=postgresql://postgres:staging@127.0.0.1:55433/railway
   (psycopg2 driver, not psycopg). Staging login: demo_admin / Staging-Rehearsal-2026! with header
@@ -98,7 +100,9 @@ Working method:
 
 ### WP0 — Ship P3a (ready, not yet deployed)
 
-Branch `feature/finance-v2-p3a`, commit `b06aecf9`: year-end close, AP/AR sub-ledger, refresh-token retention.
+Branch `feature/finance-v2-p3a`: year-end close, AP/AR sub-ledger, refresh-token retention, Excel/PDF
+export (financev2/exporters.ts + reportExports.ts, no new dependencies), reversal guard for operational journals.
+If this package is already merged (check `git log origin/main`), skip to WP1.
 
 ```text
 Task: ship branch feature/finance-v2-p3a to production.
