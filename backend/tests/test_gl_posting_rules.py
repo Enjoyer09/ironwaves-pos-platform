@@ -180,12 +180,13 @@ def test_expense_with_input_vat_only_under_vat_regime():
         pr.ExpensePaid("e3", DAY, "rent_expense", "400", None).spec(SIMPLIFIED)  # on credit without supplier
 
 
-def test_stock_on_credit_needs_supplier_and_tracks_partner():
+def test_stock_on_credit_tracks_partner_when_known():
     spec = pr.StockReceived("g1", DAY, "80.00", supplier_id="sup-1", invoice_no="INV-7").spec(SIMPLIFIED)
     ap = [l for l in spec.lines if l.account == "accounts_payable"][0]
     assert ap.partner_type == "supplier" and ap.partner_id == "sup-1"
-    with pytest.raises(GLError):
-        pr.StockReceived("g2", DAY, "80.00").spec(SIMPLIFIED)
+    unassigned = pr.StockReceived("g2", DAY, "80.00").spec(SIMPLIFIED)  # legacy restocks often have no supplier
+    ap2 = [l for l in unassigned.lines if l.account == "accounts_payable"][0]
+    assert ap2.partner_id is None and "göstərilməyib" in ap2.memo
 
 
 @pytest.mark.parametrize("kind,dr,cr", [
@@ -266,10 +267,10 @@ def test_void_with_and_without_stock_return(db, tid):
 
 def test_sale_correction_versions(db, tid):
     pr.post_event(db, tid, sale(sale_id="c", payments=(pr.SalePayment("card", "10"),)), actor="k")
-    fixed = pr.correct_sale(db, tid, sale(sale_id="c", payments=(pr.SalePayment("cash", "10"),)), actor="mgr", reason="nağd idi")
-    assert fixed.idempotency_key == "sale:c:v2"
+    storno, fixed = pr.correct_sale(db, tid, sale(sale_id="c", payments=(pr.SalePayment("cash", "10"),)), actor="mgr", reason="nağd idi")
+    assert storno.journal_type == "reversal" and fixed.idempotency_key == "sale:c:v2"
     assert pr.active_sale_journal(db, tid, "c").id == fixed.id
-    again = pr.correct_sale(db, tid, sale(sale_id="c", payments=(pr.SalePayment("cash", "8"),)), actor="mgr", reason="endirim")
+    again = pr.correct_sale(db, tid, sale(sale_id="c", payments=(pr.SalePayment("cash", "8"),)), actor="mgr", reason="endirim")[-1]
     assert again.idempotency_key == "sale:c:v3"
     assert bal(db, tid, "bank_main") == D("0.00") and bal(db, tid, "cash_drawer") == D("108.00")
 

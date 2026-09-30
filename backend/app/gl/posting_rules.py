@@ -534,9 +534,10 @@ class StockReceived:
         lines.dr("inventory", amount - vat, f"Anbar mədaxili {self.invoice_no or ''}".strip())
         lines.dr("vat_input", vat, "Əvəzləşdirilən ƏDV")
         if self.paid_from is None:
-            if not self.supplier_id:
-                raise GLError("A purchase on credit needs a supplier", "partner_required")
-            lines.cr("accounts_payable", amount, "Təchizatçıya borc", partner_type="supplier", partner_id=self.supplier_id)
+            # Supplier is optional: legacy restocks on credit mostly have none. Unassigned AP
+            # stays visible in the AP sub-ledger (partner_id NULL) until P3 introduces bills.
+            lines.cr("accounts_payable", amount, "Təchizatçıya borc" + ("" if self.supplier_id else " (təchizatçı göstərilməyib)"),
+                     partner_type="supplier" if self.supplier_id else None, partner_id=self.supplier_id)
         else:
             lines.cr(wallet_role(self.paid_from), amount, "Nağd alış")
         return JournalSpec("purchase", lines.build(), f"Mal alışı {self.invoice_no or ''}".strip(), "stock_receipt",
@@ -612,19 +613,26 @@ def post_event(db: Session, tenant_id: str, event, *, actor: str, require_approv
 
 
 def active_sale_journal(db: Session, tenant_id: str, sale_id: str) -> GLJournal | None:
-    """The current (latest, not reversed) sale journal."""
+    """The current (latest, not reversed) *native* sale journal.
+
+    Mirrored legacy journals (idempotency ``legacy:<id>``) are deliberately
+    excluded: sales made before dual mode are corrected through legacy flows and
+    mirrored, never through the native rules.
+    """
     return (
         db.query(GLJournal)
         .filter(GLJournal.tenant_id == tenant_id, GLJournal.source_type == "sale", GLJournal.source_id == sale_id,
-                GLJournal.status == "posted", GLJournal.reversed_by_id.is_(None), GLJournal.journal_type == "sales")
+                GLJournal.status == "posted", GLJournal.reversed_by_id.is_(None), GLJournal.journal_type == "sales",
+                GLJournal.idempotency_key.like(f"sale:{sale_id}:v%"))
         .order_by(GLJournal.created_at.desc())
         .first()
     )
 
 
-def void_sale(db: Session, tenant_id: str, sale_id: str, *, actor: str, reason: str, stock_returned: bool) -> GLJournal:
+def void_sale(db: Session, tenant_id: str, sale_id: str, *, actor: str, reason: str, stock_returned: bool) -> list[GLJournal]:
     """Full void: reverse the sale journal. If stock was *not* returned, the COGS
-    part is re-booked as a write-off (goods are gone even though the sale is not)."""
+    part is re-booked as a write-off (goods are gone even though the sale is not).
+    Returns ``[storno]`` or ``[storno, write_off]``."""
     journal = active_sale_journal(db, tenant_id, sale_id)
     if not journal:
         raise GLError("No active sale journal to void", "sale_journal_not_found", 404)
@@ -641,18 +649,20 @@ def void_sale(db: Session, tenant_id: str, sale_id: str, *, actor: str, reason: 
             ZERO,
         )
         if cogs > 0:
-            post_event(db, tenant_id, StockWrittenOff(f"void:{sale_id}", reversal.posting_date, cogs, f"Ləğv edilmiş satış {sale_id[:8]}"), actor=actor)
-    return reversal
+            writeoff = post_event(db, tenant_id, StockWrittenOff(f"void:{sale_id}", reversal.posting_date, cogs, f"Ləğv edilmiş satış {sale_id[:8]}"), actor=actor)
+            return [reversal, writeoff]
+    return [reversal]
 
 
-def correct_sale(db: Session, tenant_id: str, corrected: SaleCompleted, *, actor: str, reason: str) -> GLJournal:
+def correct_sale(db: Session, tenant_id: str, corrected: SaleCompleted, *, actor: str, reason: str) -> list[GLJournal]:
     """Replace a sale's accounting (e.g. payment method or amount corrected):
-    reverse the active journal and post the corrected event as the next version."""
+    reverse the active journal and post the corrected event as the next version.
+    Returns ``[storno, new_version]`` — callers comparing money effects need both."""
     current = active_sale_journal(db, tenant_id, corrected.sale_id)
     if not current:
         raise GLError("No active sale journal to correct", "sale_journal_not_found", 404)
     key = str(current.idempotency_key or "")
     version = int(key.rsplit(":v", 1)[1]) + 1 if ":v" in key else 2
     today = gl.business_today()
-    gl.reverse_journal(db, tenant_id, current.id, actor=actor, reason=f"Satış düzəlişi: {reason}", posting_date=today, require_approval=False)
-    return post_event(db, tenant_id, replace(corrected, version=version, posting_date=today), actor=actor)
+    storno = gl.reverse_journal(db, tenant_id, current.id, actor=actor, reason=f"Satış düzəlişi: {reason}", posting_date=today, require_approval=False)
+    return [storno, post_event(db, tenant_id, replace(corrected, version=version, posting_date=today), actor=actor)]

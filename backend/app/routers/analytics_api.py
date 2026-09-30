@@ -1,4 +1,5 @@
 import json
+import secrets
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -11,6 +12,9 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import Customer, FinanceAccount, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
+from app.gl import bridge as _gl_bridge  # Finance v2 dual-mode hooks (no-op in legacy mode)
+from app.gl import posting_rules as _gl_rules
+from app.gl.engine import business_today as _gl_today
 from app.services.finance_service import (
     commission_percent as _commission_percent,
     finance_account_code as _finance_account_code,
@@ -673,6 +677,14 @@ def void_sale(
     ledger_backed = _sale_has_posted_ledger_payments(db, tenant.id, row.id)
     if ledger_backed:
         _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username, include_cogs=True)
+        # Finance v2 (dual mode, native sales only): storno today; goods not returned are written off.
+        _gl_bridge.emit(
+            db, tenant.id,
+            lambda: _gl_rules.void_sale(db, tenant.id, row.id, actor=user.username, reason=payload.reason or "Ləğv",
+                                        stock_returned=bool(payload.return_to_stock))
+            if _gl_rules.active_sale_journal(db, tenant.id, row.id) else None,
+            actor=user.username, event_type="SaleVoided",
+        )
     else:
         if pm == "split":
             finance_rows = (
@@ -839,6 +851,23 @@ def adjust_sale(
             note=f"Sale correction {row.id}",
             card_fee_percent=card_sale_percent if payment_source == "card" else Decimal("0"),
         )
+
+    # Finance v2 (dual mode, native sales only): reverse and re-post as the next version.
+    def _gl_correct():
+        if not _gl_rules.active_sale_journal(db, tenant.id, row.id):
+            return None
+        payments = (
+            (_gl_rules.SalePayment("cash", split_cash), _gl_rules.SalePayment("card", split_card)) if next_method == "split"
+            else (_gl_rules.SalePayment("staff" if next_method == "staff" else next_method, next_total),)
+        )
+        corrected = _gl_rules.SaleCompleted(
+            sale_id=row.id, posting_date=_gl_today(), payments=tuple(p for p in payments if Decimal(str(p.amount)) > 0),
+            discount=Decimal(str(row.discount_amount or 0)).quantize(Decimal("0.01")), card_fee_percent=card_sale_percent,
+            cogs=Decimal(str(row.cogs or 0)).quantize(Decimal("0.01")), receipt_code=row.receipt_code,
+        )
+        return _gl_rules.correct_sale(db, tenant.id, corrected, actor=user.username, reason=payload.reason or "Satış düzəlişi")
+
+    _gl_bridge.emit(db, tenant.id, _gl_correct, actor=user.username, event_type="SaleCorrected")
     db.commit()
     return {"success": True}
 
@@ -921,6 +950,26 @@ def partial_refund_sale(
                 card_fee_percent=card_sale_percent,
                 note_prefix=f"Partial refund remaining {row.id}",
             )
+
+        # Finance v2 (dual mode, native sales only): post only the refunded part, per payment method.
+        def _gl_refund():
+            if not _gl_rules.active_sale_journal(db, tenant.id, row.id):
+                return None
+            if current_paid > 0 and current_cash > 0 and current_card > 0:
+                parts = [("cash", current_cash - next_cash), ("card", current_card - next_card)]
+            elif current_cash > 0 or pm in {"cash", "nəğd", "staff"}:
+                parts = [("cash", refund_amount)]
+            else:
+                parts = [("card", refund_amount)]
+            refund_id = secrets.token_hex(8)
+            return [
+                _gl_rules.post_event(db, tenant.id, _gl_rules.SaleRefunded(
+                    f"{row.id}:{refund_id}:{method}", row.id, _gl_today(), method, amount.quantize(Decimal("0.01")),
+                    payload.reason or "Qismən qaytarma"), actor=user.username)
+                for method, amount in parts if amount > 0
+            ]
+
+        _gl_bridge.emit(db, tenant.id, _gl_refund, actor=user.username, event_type="SaleRefunded")
     else:
         if pm == "split":
             finance_rows = (
