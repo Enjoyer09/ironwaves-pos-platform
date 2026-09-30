@@ -4,6 +4,7 @@ export type ModuleKey =
   | 'kds'
   | 'zreport'
   | 'finance'
+  | 'financev2'
   | 'inventory'
   | 'suppliers'
   | 'combos'
@@ -28,6 +29,7 @@ export const ALL_MODULE_KEYS: ModuleKey[] = [
   'kds',
   'zreport',
   'finance',
+  'financev2',
   'inventory',
   'suppliers',
   'combos',
@@ -57,6 +59,9 @@ const MODULE_ALIASES: Record<string, ModuleKey> = {
   zreport: 'zreport',
   'z-report': 'zreport',
   finance: 'finance',
+  financev2: 'financev2',
+  'finance-v2': 'financev2',
+  ledger: 'financev2',
   inventory: 'inventory',
   suppliers: 'suppliers',
   combos: 'combos',

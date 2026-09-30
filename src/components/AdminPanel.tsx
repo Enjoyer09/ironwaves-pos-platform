@@ -18,6 +18,7 @@ import { buildSaleReceiptHtml } from '../lib/receipt_html';
 import { get_settings_live, get_business_profile_live } from '../api/settings';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
+const FinanceV2Panel = lazy(() => import('./admin/FinanceV2Panel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
 const SuppliersPanel = lazy(() => import('./admin/SuppliersPanel'));
 const DashboardPanel = lazy(() => import('./admin/DashboardPanel'));
@@ -36,7 +37,7 @@ const DatabasePanel = lazy(() => import('./admin/DatabasePanel'));
 const TenantsPanel = lazy(() => import('./admin/TenantsPanel'));
 const FeedbackInboxPanel = lazy(() => import('./admin/FeedbackInboxPanel'));
 
-type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'suppliers' | 'crm' | 'customerapp' | 'posbuilder' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
+type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'financev2' | 'inventory' | 'suppliers' | 'crm' | 'customerapp' | 'posbuilder' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
@@ -150,6 +151,8 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = useMemo(() => ([
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
+    // Finance v2 is gated per tenant by App navigation; only list it once it has been opened from there.
+    ...(activeTab === 'financev2' ? [{ key: 'financev2' as AdminTab, label: tx(lang, 'Mühasibat (v2)', 'Бухучёт (v2)', 'Accounting (v2)') }] : []),
     { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
     { key: 'zreport', label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
     { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
@@ -167,7 +170,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
     { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
     { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
-  ]), [lang, currentRole]);
+  ]), [lang, currentRole, activeTab]);
 
   const saleStatusMeta = (status: any) => {
     const normalized = String(status || '').toUpperCase();
@@ -1564,6 +1567,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
         {activeTab === 'tables' && <TablesHappyHourPanel />}
 
         {activeTab === 'finance' && <FinancePanel />}
+        {activeTab === 'financev2' && <FinanceV2Panel />}
         {activeTab === 'inventory' && <InventoryPanel />}
         {activeTab === 'suppliers' && <SuppliersPanel />}
         {activeTab === 'crm' && <CRMPanel />}
