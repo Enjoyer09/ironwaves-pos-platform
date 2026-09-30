@@ -440,6 +440,13 @@ def sales_payment_totals(
     void_sales = Decimal(str(db.query(func.coalesce(func.sum(Sale.total), 0)).filter(*void_filters).scalar() or 0)).quantize(Decimal("0.01"))
     void_count = Decimal(str(db.query(func.count(Sale.id)).filter(*void_filters).scalar() or 0))
 
+    from app.gl.read_model import gl_sales_payment_totals, reports_source
+
+    if reports_source(db, tenant_id) == "gl":
+        # Finance v2 P2c-2: money split from the GL; Sale-table figures are shared.
+        base = {"sales_total": sales_total, "sales_count": sales_count, "void_sales": void_sales, "void_count": void_count}
+        return gl_sales_payment_totals(db, tenant_id, start, end, cashier=cashier, sale_filters=sale_filters, base=base)
+
     payment_rows = (
         db.query(
             FinanceAccount.code,
