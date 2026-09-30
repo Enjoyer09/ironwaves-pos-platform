@@ -4,13 +4,140 @@ import { tx } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
 import { glApi, type GLPeriod, type GLPeriodStatus, type TaxRegime } from '../../../api/gl';
 import { useGL, useGLLoad } from './context';
-import { Badge, Card, Empty, Field, Loading, Metric, ReasonDialog, btn, errorText, inputCls, money, periodStatusLabel } from './FinanceV2Parts';
+import { Badge, Card, Dialog, Empty, Field, Loading, Metric, ReasonDialog, btn, errorText, inputCls, money, periodStatusLabel } from './FinanceV2Parts';
 
 // ─────────────────────────────── periods ────────────────────────────────
 
 const periodTone = (status: string) => (status === 'closed' ? 'rose' : status === 'soft_closed' ? 'amber' : 'emerald') as 'rose' | 'amber' | 'emerald';
 
+function FiscalYearCard() {
+  const { lang, caps, notify, bump, openJournal } = useGL();
+  const [year, setYear] = React.useState(Number(caps.business_today.slice(0, 4)) - 1);
+  const { data: s, loading, error } = useGLLoad(() => glApi.fiscalYear(year), [year]);
+  const [busy, setBusy] = React.useState(false);
+  const [confirmClose, setConfirmClose] = React.useState(false);
+  const [asking, setAsking] = React.useState(false);
+  const years = Array.from({ length: 4 }, (_, i) => Number(caps.business_today.slice(0, 4)) - i);
+
+  const blockerLabel = (b: string) => ({
+    year_not_ended: tx(lang, 'İl hələ bitməyib', 'Год ещё не закончился', 'The year has not ended'),
+    pending_journals: tx(lang, 'Təsdiq gözləyən jurnallar var', 'Есть проводки на утверждении', 'Journals are pending approval'),
+    open_periods: tx(lang, 'Bütün aylar ən azı yumşaq bağlanmalıdır', 'Все месяцы должны быть хотя бы мягко закрыты', 'Every month must be at least soft-closed'),
+    december_closed: tx(lang, 'Dekabr tam bağlıdır — yumşaq bağlıya keçirin', 'Декабрь закрыт — переведите в мягко закрытый', 'December is closed — set it to soft-closed'),
+  }[b] || b);
+
+  const close = async () => {
+    setBusy(true);
+    try {
+      const journal = await glApi.closeFiscalYear(year);
+      notify('success', tx(lang, `${year} ili bağlandı`, `${year} год закрыт`, `${year} closed`));
+      setConfirmClose(false);
+      bump();
+      openJournal(journal.id);
+    } catch (e) {
+      notify('error', errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      title={tx(lang, 'Maliyyə ilinin bağlanması', 'Закрытие финансового года', 'Fiscal year close')}
+      subtitle={tx(lang,
+        'Gəlir və xərc hesabları sıfırlanır, ilin nəticəsi 343-ə köçürülür. Bağlı ilə yazılış edilmir; yenidən açmaq ikinci şəxsin təsdiqi ilədir.',
+        'Счета доходов и расходов обнуляются, результат года переносится на 343. В закрытый год проводить нельзя; переоткрытие — с утверждением второго лица.',
+        'Revenue and expense accounts are zeroed and the result moves to 343. A closed year accepts no postings; reopening needs a second approver.')}
+      actions={(
+        <Field id="gl-fy-year" label={tx(lang, 'İl', 'Год', 'Year')}>
+          <select id="gl-fy-year" className={inputCls} value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </Field>
+      )}
+    >
+      {loading && !s ? <Loading lang={lang} /> : null}
+      {error ? <Empty>{error}</Empty> : null}
+      {s ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Metric label={tx(lang, 'Status', 'Статус', 'Status')} value={s.closed ? tx(lang, 'Bağlı', 'Закрыт', 'Closed') : tx(lang, 'Açıq', 'Открыт', 'Open')} tone={s.closed ? 'violet' : 'sky'} />
+            <Metric label={tx(lang, 'Köçürüləcək nəticə', 'Результат к переносу', 'Result to transfer')} value={s.closed ? '—' : money(s.net_result_to_close)} tone={s.net_result_to_close.startsWith('-') ? 'rose' : 'emerald'} />
+            <Metric label={tx(lang, 'Hesab sayı', 'Счетов', 'Accounts')} value={s.closed ? '—' : String(s.accounts_to_close)} tone="amber" />
+          </div>
+          {s.closing_journal ? (
+            <button type="button" className={btn.ghost} onClick={() => openJournal(s.closing_journal!.id)}>
+              {tx(lang, 'Bağlanış jurnalı', 'Проводка закрытия', 'Closing journal')} {s.closing_journal.journal_no}
+            </button>
+          ) : null}
+          {s.blockers.length ? (
+            <ul className="space-y-1 text-sm text-amber-200">
+              {s.blockers.map((b) => <li key={b}>• {blockerLabel(b)}</li>)}
+            </ul>
+          ) : null}
+          {caps.can_control ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {!s.closed ? (
+                <button type="button" className={btn.primary} disabled={!s.can_close || busy} onClick={() => setConfirmClose(true)}>
+                  {tx(lang, `${year} ilini bağla`, `Закрыть ${year} год`, `Close ${year}`)}
+                </button>
+              ) : (
+                <button type="button" className={btn.warn} disabled={busy} onClick={() => setAsking(true)}>
+                  {tx(lang, 'Yenidən açmağı istə', 'Запросить переоткрытие', 'Request reopen')}
+                </button>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {confirmClose && s ? (
+        <Dialog title={tx(lang, `${year} ilini bağla`, `Закрыть ${year} год`, `Close ${year}`)} onClose={() => setConfirmClose(false)} labelledBy="gl-fy-confirm">
+          <p className="text-sm text-slate-300">
+            {tx(lang,
+              `${s.accounts_to_close} gəlir/xərc hesabı sıfırlanacaq və ${money(s.net_result_to_close)} 343-ə köçürüləcək. Bundan sonra ${year} ilinə yazılış edilməyəcək.`,
+              `${s.accounts_to_close} счетов доходов/расходов будут обнулены, ${money(s.net_result_to_close)} перенесено на 343. Проводки в ${year} год станут невозможны.`,
+              `${s.accounts_to_close} revenue/expense accounts will be zeroed and ${money(s.net_result_to_close)} moved to 343. No more postings into ${year}.`)}
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" className={btn.ghost} onClick={() => setConfirmClose(false)}>{tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}</button>
+            <button type="button" className={btn.primary} disabled={busy} onClick={() => void close()}>
+              {busy ? tx(lang, 'Bağlanır...', 'Закрытие...', 'Closing...') : tx(lang, 'Təsdiqlə və bağla', 'Подтвердить и закрыть', 'Confirm and close')}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+      {asking ? (
+        <ReasonDialog
+          lang={lang}
+          title={tx(lang, `${year} ilini yenidən aç`, `Переоткрыть ${year} год`, `Reopen ${year}`)}
+          confirmLabel={tx(lang, 'Sorğu göndər', 'Отправить запрос', 'Send request')}
+          onCancel={() => setAsking(false)}
+          onConfirm={async (reason) => {
+            try {
+              await glApi.reopenFiscalYear(year, reason);
+              notify('success', tx(lang, 'Storno təsdiq növbəsinə göndərildi', 'Сторно отправлено на утверждение', 'Reversal sent for approval'));
+              setAsking(false);
+              bump();
+            } catch (e) {
+              notify('error', errorText(e));
+            }
+          }}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
 export function PeriodsTab() {
+  return (
+    <div className="space-y-4">
+      <PeriodsCard />
+      <FiscalYearCard />
+    </div>
+  );
+}
+
+function PeriodsCard() {
   const { lang, caps, notify, bump } = useGL();
   const { data, loading, error } = useGLLoad(() => glApi.periods(), []);
   const [pending, setPending] = React.useState<{ period: GLPeriod; status: GLPeriodStatus } | null>(null);

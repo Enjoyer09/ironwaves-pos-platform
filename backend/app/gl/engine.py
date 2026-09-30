@@ -14,7 +14,7 @@ from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,24 @@ CENT = Decimal("0.01")
 ZERO = Decimal("0.00")
 BUSINESS_TZ = ZoneInfo("Asia/Baku")
 GENESIS_HASH = "0" * 64
+# source_type of year-end closing journals (and, by inheritance, their reversals).
+YEAR_CLOSE_SOURCE = "year_close"
+
+
+def not_year_close():
+    """SQL filter excluding year-end closing entries. P&L-style reports must use it,
+    otherwise the closing journal would zero the year's revenue and expenses."""
+    return or_(GLJournal.source_type.is_(None), GLJournal.source_type != YEAR_CLOSE_SOURCE)
+
+
+def active_year_close(db: Session, tenant_id: str, year: int) -> GLJournal | None:
+    """The posted, not reversed closing journal of ``year`` (None while the year is open)."""
+    return (
+        db.query(GLJournal)
+        .filter(GLJournal.tenant_id == tenant_id, GLJournal.source_type == YEAR_CLOSE_SOURCE, GLJournal.source_id == str(year),
+                GLJournal.journal_type == "closing", GLJournal.status == "posted", GLJournal.reversed_by_id.is_(None))
+        .first()
+    )
 
 
 class GLError(Exception):
@@ -466,6 +484,9 @@ def create_journal(
 
     period = get_or_create_period(db, tenant_id, posting_date)
     _assert_period_postable(period, allow_soft_closed=allow_soft_closed)
+    # A closed fiscal year only accepts its own closing entries (and their reversal on reopen).
+    if source_type != YEAR_CLOSE_SOURCE and posting_date.year < business_today().year and active_year_close(db, tenant_id, posting_date.year):
+        raise GLError(f"Fiscal year {posting_date.year} is closed; reopen it or post in the current year", "year_closed", 409)
 
     journal = GLJournal(
         tenant_id=tenant_id,
@@ -696,6 +717,7 @@ def reverse_journal(
     reason: str,
     posting_date: date | None = None,
     require_approval: bool = False,
+    allow_soft_closed: bool = False,
 ) -> GLJournal:
     """Storno: a new journal with debit/credit swapped. The original stays untouched
     except for the ``reversed_by_id`` link. If the original's period is closed the
@@ -743,6 +765,7 @@ def reverse_journal(
         idempotency_key=f"reversal:{original.id}:{len(prior) + 1}",
         branch_id=original.branch_id,
         require_approval=require_approval,
+        allow_soft_closed=allow_soft_closed,
         reversal_of_id=original.id,
     )
     if reversal.status == "posted":

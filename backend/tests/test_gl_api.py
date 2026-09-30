@@ -172,3 +172,27 @@ def test_end_to_end_flow(env):
 
     integrity = c.get("/api/v1/gl/integrity").json()
     assert integrity["audit_chain"]["valid"] and integrity["balances"]["valid"] and integrity["trial_balance_balanced"]
+
+
+def test_fiscal_year_endpoints(env):
+    c = env.client
+    assert c.post("/api/v1/gl/setup").status_code == 200
+    assert c.post("/api/v1/gl/journals", json={
+        "journal_type": "general", "posting_date": "2025-04-02", "description": "sale",
+        "lines": [{"account": "cash_drawer", "debit": "50"}, {"account": "sales_revenue", "credit": "50"}],
+    }).json()["status"] == "posted"
+    status = c.get("/api/v1/gl/years/2025").json()
+    assert status["closed"] is False and "open_periods" in status["blockers"]
+    blocked = c.post("/api/v1/gl/years/2025/close")
+    assert blocked.status_code == 409 and blocked.json()["detail"]["code"] == "open_periods"
+
+    _as(env, "mgr", "manager")
+    assert c.post("/api/v1/gl/years/2025/close").status_code == 403
+    assert c.get("/api/v1/gl/years/2025").status_code == 200
+    _as(env, "owner", "admin")
+    assert c.post("/api/v1/gl/periods/2025/4/status", json={"status": "soft_closed"}).status_code == 200
+    closed = c.post("/api/v1/gl/years/2025/close")
+    assert closed.status_code == 200 and closed.json()["journal_type"] == "closing"
+    assert c.get("/api/v1/gl/years/2025").json()["closed"] is True
+    reopen = c.post("/api/v1/gl/years/2025/reopen", json={"reason": "correction"})
+    assert reopen.status_code == 200 and reopen.json()["status"] == "pending_approval"

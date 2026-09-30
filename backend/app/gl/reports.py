@@ -12,7 +12,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.gl.engine import CENT, ZERO, GLError
+from app.gl.engine import CENT, ZERO, GLError, not_year_close
 from app.gl.models import GLAccount, GLAccountBalance, GLFiscalPeriod, GLJournal, GLJournalLine
 
 
@@ -20,12 +20,15 @@ def _s(value: Decimal) -> str:
     return str(Decimal(value).quantize(CENT))
 
 
-def _turnover(db: Session, tenant_id: str, *, date_from: date | None = None, date_to: date | None = None, branch_id: str | None = None) -> dict[str, tuple[Decimal, Decimal]]:
+def _turnover(db: Session, tenant_id: str, *, date_from: date | None = None, date_to: date | None = None, branch_id: str | None = None,
+              exclude_year_close: bool = False) -> dict[str, tuple[Decimal, Decimal]]:
     query = (
         db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0), func.coalesce(func.sum(GLJournalLine.credit), 0))
         .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
         .filter(GLJournalLine.tenant_id == tenant_id, GLJournal.status == "posted")
     )
+    if exclude_year_close:
+        query = query.filter(not_year_close())
     if date_from:
         query = query.filter(GLJournal.posting_date >= date_from)
     if date_to:
@@ -133,7 +136,8 @@ def _pl_group(account: GLAccount) -> str:
 
 def profit_and_loss(db: Session, tenant_id: str, *, date_from: date, date_to: date, branch_id: str | None = None) -> dict:
     _check_range(date_from, date_to)
-    turnover = _turnover(db, tenant_id, date_from=date_from, date_to=date_to, branch_id=branch_id)
+    # Closing entries move the year's result to equity; they are not income or expense.
+    turnover = _turnover(db, tenant_id, date_from=date_from, date_to=date_to, branch_id=branch_id, exclude_year_close=True)
     groups: dict[str, dict] = {g: {"lines": [], "total": ZERO} for g in ("revenue", "cogs", "operating_expenses", "other_income", "finance_costs", "taxes")}
     for account in _accounts(db, tenant_id):
         if account.account_type not in {"revenue", "expense"}:

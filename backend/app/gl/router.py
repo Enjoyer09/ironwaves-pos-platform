@@ -332,6 +332,49 @@ def change_period_status(year: int, month: int, payload: PeriodStatusIn, db: Ses
     return {"year": period.year, "month": period.month, "status": period.status}
 
 
+# ─────────────────────────────── sub-ledgers ────────────────────────────
+
+
+@router.get("/subledger/{ledger}")
+def partner_subledger(ledger: str, as_of: date | None = None,
+                      db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """AP / AR per partner with FIFO aging (0-30 / 31-60 / 61-90 / 90+ days)."""
+    _require(user, GL_READ_ROLES)
+    from app.gl.subledger import subledger
+
+    return _read(lambda: subledger(db, tenant.id, ledger, as_of=as_of))
+
+
+# ─────────────────────────────── fiscal year ────────────────────────────
+
+
+@router.get("/years/{year}")
+def fiscal_year_status(year: int, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _require(user, GL_READ_ROLES)
+    from app.gl.year_end import year_status
+
+    return _read(lambda: year_status(db, tenant.id, year))
+
+
+@router.post("/years/{year}/close")
+def close_year(year: int, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl.year_end import close_fiscal_year
+
+    journal = _run(db, lambda: close_fiscal_year(db, tenant.id, year, actor=user.username))
+    return _journal_out(db, journal, with_lines=True)
+
+
+@router.post("/years/{year}/reopen")
+def reopen_year(year: int, payload: ReasonIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Requests the storno of the closing journal; another approver must approve it."""
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl.year_end import request_reopen_fiscal_year
+
+    journal = _run(db, lambda: request_reopen_fiscal_year(db, tenant.id, year, actor=user.username, reason=payload.reason))
+    return _journal_out(db, journal)
+
+
 # ─────────────────────────────── tax ────────────────────────────────────
 
 

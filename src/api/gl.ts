@@ -228,6 +228,44 @@ export type GLIntegrity = {
   trial_balance_balanced: boolean;
 };
 
+export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus';
+
+export type SubledgerPartner = {
+  partner_type: string | null;
+  partner_id: string | null;
+  name: string | null;
+  balance: Money;
+  open: Money;
+  advance: Money;
+  buckets: Record<AgingBucket, Money>;
+  oldest_open_date: string | null;
+};
+
+export type Subledger = {
+  ledger: 'ap' | 'ar';
+  as_of: string;
+  control_accounts: Array<{ id: string; code: string; name: string }>;
+  control_balance: Money;
+  partners: SubledgerPartner[];
+  totals: Record<AgingBucket | 'advance' | 'balance', Money>;
+  unassigned_balance: Money;
+  reconciled: boolean;
+};
+
+export type FiscalYearBlocker = 'year_not_ended' | 'pending_journals' | 'open_periods' | 'december_closed';
+
+export type FiscalYearStatus = {
+  year: number;
+  closed: boolean;
+  closing_journal: { id: string; journal_no: string | null; posted_at: string | null; posted_by: string | null } | null;
+  pending_journals: number;
+  periods: Array<{ month: number; status: GLPeriodStatus }>;
+  net_result_to_close: Money;
+  accounts_to_close: number;
+  blockers: FiscalYearBlocker[];
+  can_close: boolean;
+};
+
 type Params = Record<string, string | number | null | undefined>;
 
 function withQuery(path: string, params?: Params): string {
@@ -275,6 +313,10 @@ export const glApi = {
   profitLoss: (date_from: string, date_to: string) => get<ProfitLoss>('/reports/profit-loss', { date_from, date_to }),
   accountLedger: (accountId: string, params: { date_from?: string; date_to?: string; limit?: number; offset?: number } = {}) =>
     get<AccountLedger>(`/reports/account-ledger/${encodeURIComponent(accountId)}`, params),
+  subledger: (ledger: 'ap' | 'ar', as_of?: string) => get<Subledger>(`/subledger/${ledger}`, { as_of }),
+  fiscalYear: (year: number) => get<FiscalYearStatus>(`/years/${year}`),
+  closeFiscalYear: (year: number) => post<GLJournal>(`/years/${year}/close`),
+  reopenFiscalYear: (year: number, reason: string) => post<GLJournal>(`/years/${year}/reopen`, { reason }),
   shadowStatus: () => get<ShadowStatus>('/shadow/status'),
   integrity: () => get<GLIntegrity>('/integrity'),
 };
