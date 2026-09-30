@@ -128,8 +128,10 @@ class TenantResult:
         }
 
 
-def _legacy_rows(db: Session, tenant_id: str, *, only_missing: bool = False):
+def _legacy_rows(db: Session, tenant_id: str, *, only_missing: bool = False, exclude_ids: set[str] | None = None):
     query = db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status.in_(IMPORTED_STATUSES))
+    if exclude_ids:
+        query = query.filter(~FinanceTransaction.id.in_(list(exclude_ids)))
     # Dual mode: legacy postings already replaced by a native journal must never be mirrored.
     covered = db.query(GLLegacyLink.id).filter(GLLegacyLink.tenant_id == tenant_id, GLLegacyLink.legacy_txn_id == FinanceTransaction.id)
     query = query.filter(~covered.exists())
@@ -154,7 +156,8 @@ def _legacy_rows(db: Session, tenant_id: str, *, only_missing: bool = False):
     return txns, code_by_account, lines_by_txn
 
 
-def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit: bool = True, incremental: bool = False) -> TenantResult:
+def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit: bool = True, incremental: bool = False,
+                   exclude_ids: set[str] | None = None) -> TenantResult:
     """Import posted/reversed legacy transactions of one tenant. See module docstring.
 
     ``incremental=True`` (shadow mode) reads only legacy rows that are not in the
@@ -163,7 +166,7 @@ def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit
     """
     gl.ensure_chart(db, tenant_id, actor=MIGRATION_ACTOR)
     result = TenantResult(tenant_id=tenant_id)
-    txns, code_by_account, lines_by_txn = _legacy_rows(db, tenant_id, only_missing=incremental)
+    txns, code_by_account, lines_by_txn = _legacy_rows(db, tenant_id, only_missing=incremental, exclude_ids=exclude_ids)
     if incremental and not txns:
         return result
     migrated: dict[str, str] = {
