@@ -1,6 +1,10 @@
 # Finance v2 (GL) — handoff plan for the next AI coding agent
 
 State as of 2026-09-30. Paste **section 1 + section 2** into the new agent first, then one work package (section 3) at a time.
+Full architecture, UI and roadmap explanation: **`docs/FINANCE_V2_HANDOFF.md`** — tell the agent to read it before any work
+(section "Git state": production = `main` @ `0f63eccb`; these docs live on branch `docs/finance-v2-handoff` / PR #38 until merged;
+new work always branches from a fresh `origin/main` as `feature/finance-v2-<wp-name>`).
+WP0 is done (PR #37, merge `0f63eccb`); only its follow-up check of the token purge remains.
 
 ---
 
@@ -98,7 +102,7 @@ Working method:
 
 ## 3. Work packages (in order)
 
-### WP0 — Ship P3a (ready, not yet deployed)
+### WP0 — Ship P3a (DONE: PR #37, merge `0f63eccb`; kept for reference and the token-purge follow-up)
 
 Branch `feature/finance-v2-p3a`: year-end close, AP/AR sub-ledger, refresh-token retention, Excel/PDF
 export (financev2/exporters.ts + reportExports.ts, no new dependencies), reversal guard for operational journals.
