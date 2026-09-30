@@ -74,6 +74,7 @@ AMHP_ACCOUNTS: tuple[AccountDef, ...] = (
     AccountDef("533", "Əməyin ödənişi üzrə işçi heyətinə olan borclar", "liability", system_role="payroll_payable"),
     AccountDef("538", "Digər qısamüddətli kreditor borcları", "liability"),
     AccountDef("538.1", "Təsisçi / investor borcu", "liability", parent="538", system_role="investor_loan"),
+    AccountDef("538.2", "Digər borc alınmış vəsaitlər", "liability", parent="538", system_role="other_borrowings"),
     AccountDef("538.9", "Aydınlaşdırılmamış məbləğlər (suspense)", "liability", parent="538", system_role="suspense"),
     AccountDef("543", "Alınmış qısamüddətli avanslar", "liability"),
     AccountDef("543.1", "Müştəri depozitləri (masa/rezerv)", "liability", parent="543", system_role="customer_deposits"),
