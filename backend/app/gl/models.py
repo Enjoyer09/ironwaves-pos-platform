@@ -254,3 +254,28 @@ class GLShadowRun(Base):
     ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class GLLegacyLink(Base):
+    """Dual mode: which legacy transactions a native GL journal replaces.
+
+    A covered legacy transaction is never mirrored by the shadow job (that would
+    double-count). ``wallet_diff`` records, per legacy wallet code, how the
+    native journal differs from the legacy postings it covers (e.g. the card fee
+    legacy forgot on table checks) so nightly reconciliation can explain every
+    cent of difference.
+    """
+
+    __tablename__ = "gl_legacy_links"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "legacy_txn_id", name="uq_gl_legacy_links_txn"),
+        Index("ix_gl_legacy_links_tenant_journal", "tenant_id", "journal_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    legacy_txn_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    journal_id: Mapped[str] = mapped_column(String(36), ForeignKey("gl_journals.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    wallet_diff: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

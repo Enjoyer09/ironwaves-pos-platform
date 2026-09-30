@@ -2938,6 +2938,14 @@ def settle_check(
         note=f"Restaurant sale COGS {sale.id}",
         related_table_id=table.id,
     )
+    # Finance v2 (dual mode only): one compound journal incl. card fee and applied deposit.
+    from app.gl.bridge import emit_sale as _emit_gl_sale
+    from app.routers.pos import _bank_commission_config
+
+    _emit_gl_sale(
+        db, tenant.id, sale=sale, payments=payment_parts, actor=user.username,
+        card_fee_percent=lambda: _bank_commission_config(db, tenant.id)[0], deposit_applied=deposit_amount,
+    )
 
     nonbillable_stock_items = _nonbillable_stock_items_for_check(db, tenant.id, active_check.id)
     if nonbillable_stock_items:

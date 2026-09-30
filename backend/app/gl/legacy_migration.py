@@ -32,7 +32,7 @@ from app.gl import engine as gl
 from app.gl import reports
 from app.gl.coa_az import LEGACY_CODE_TO_ROLE
 from app.gl.engine import BUSINESS_TZ, ZERO, LineIn, MigrationMeta
-from app.gl.models import GLAccount, GLJournal, GLJournalLine
+from app.gl.models import GLAccount, GLJournal, GLJournalLine, GLLegacyLink
 from app.models import FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction
 
 MIGRATION_ACTOR = "system:legacy-migration"
@@ -130,6 +130,9 @@ class TenantResult:
 
 def _legacy_rows(db: Session, tenant_id: str, *, only_missing: bool = False):
     query = db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status.in_(IMPORTED_STATUSES))
+    # Dual mode: legacy postings already replaced by a native journal must never be mirrored.
+    covered = db.query(GLLegacyLink.id).filter(GLLegacyLink.tenant_id == tenant_id, GLLegacyLink.legacy_txn_id == FinanceTransaction.id)
+    query = query.filter(~covered.exists())
     if only_missing:
         already = db.query(GLJournal.id).filter(GLJournal.tenant_id == tenant_id, GLJournal.legacy_ref == FinanceTransaction.id)
         query = query.filter(~already.exists())
@@ -209,7 +212,12 @@ def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit
         if txn.transaction_type == "reversal":
             reversal_of = migrated.get(txn.reference)
             if not reversal_of:
-                raise gl.GLError(f"Original of reversal {txn.id} was not migrated first", "reversal_order")
+                original_covered = db.query(GLLegacyLink.id).filter(
+                    GLLegacyLink.tenant_id == tenant_id, GLLegacyLink.legacy_txn_id == txn.reference).first()
+                if not original_covered:
+                    raise gl.GLError(f"Original of reversal {txn.id} was not migrated first", "reversal_order")
+                # Dual mode fallback: the original lives in a native journal; mirror this
+                # legacy reversal as a standalone correction (same wallet effect, no link).
 
         sale_id = txn.related_order_id
         journal = gl.create_journal(
@@ -339,6 +347,74 @@ def reconcile_tenant(db: Session, tenant_id: str) -> dict:
     check("balance_sheet_balanced", True, bs["balanced"])
 
     return {"tenant_id": tenant_id, "ok": all(c["ok"] for c in checks), "checks": checks}
+
+
+def reconcile_dual_tenant(db: Session, tenant_id: str) -> dict:
+    """Reconciliation for tenants in *dual* mode.
+
+    Native journals intentionally differ from legacy (one compound journal per
+    sale, card fees legacy forgot, VAT split ...), so 1:1 counts no longer apply.
+    What must hold instead:
+
+    * completeness — every posted legacy transaction is either mirrored (shadow)
+      or covered by a native journal, never both;
+    * money — every legacy wallet/balance-sheet account equals its GL account
+      after adding the per-event differences recorded at posting time;
+    * all generic GL integrity checks.
+    """
+    import json as _json
+
+    from app.gl.bridge import WALLET_CODES
+
+    checks: list[dict] = []
+
+    def check(name: str, legacy, gl_value, ok: bool | None = None):
+        passed = (legacy == gl_value) if ok is None else ok
+        checks.append({"check": name, "legacy": str(legacy), "gl": str(gl_value), "ok": bool(passed)})
+
+    legacy_ids = {tid for (tid,) in db.query(FinanceTransaction.id).filter(
+        FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status.in_(IMPORTED_STATUSES)).all()}
+    mirrored = {ref for (ref,) in db.query(GLJournal.legacy_ref).filter(
+        GLJournal.tenant_id == tenant_id, GLJournal.legacy_ref.isnot(None)).all()}
+    links = db.query(GLLegacyLink).filter(GLLegacyLink.tenant_id == tenant_id).all()
+    covered = {link.legacy_txn_id for link in links}
+    check("every_legacy_txn_accounted_for", len(legacy_ids), len(legacy_ids & (mirrored | covered)))
+    check("no_txn_both_mirrored_and_covered", 0, len(mirrored & covered))
+
+    diffs: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    explained: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(lambda: ZERO))
+    for link in links:
+        if link.wallet_diff:
+            for code, amount in _json.loads(link.wallet_diff).items():
+                diffs[code] += Decimal(amount)
+                explained[link.event_type][code] += Decimal(amount)
+
+    legacy_net = _legacy_net_by_code(db, tenant_id)
+    by_role = {a.system_role: a for a in db.query(GLAccount).filter(GLAccount.tenant_id == tenant_id, GLAccount.system_role.isnot(None)).all()}
+    gl_all = {
+        acc: Decimal(str(d)) - Decimal(str(c))
+        for acc, d, c in db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0), func.coalesce(func.sum(GLJournalLine.credit), 0))
+        .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+        .filter(GLJournalLine.tenant_id == tenant_id, GLJournal.status == "posted")
+        .group_by(GLJournalLine.account_id).all()
+    }
+    for code in WALLET_CODES:
+        account = by_role[LEGACY_CODE_TO_ROLE[code]]
+        expected = (legacy_net.get(code, ZERO) + diffs.get(code, ZERO)).quantize(Decimal("0.01"))
+        check(f"balance:{code}→{account.code} (legacy + explained diff)", expected, gl_all.get(account.id, ZERO).quantize(Decimal("0.01")))
+
+    check("trial_balance_balanced", True, reports.trial_balance(db, tenant_id)["balanced"])
+    check("materialized_balances_valid", True, reports.verify_materialized_balances(db, tenant_id)["valid"])
+    check("audit_chain_valid", True, gl.verify_audit_chain(db, tenant_id)["valid"])
+    check("balance_sheet_balanced", True, reports.balance_sheet(db, tenant_id, as_of=gl.business_today())["balanced"])
+    return {
+        "tenant_id": tenant_id,
+        "mode": "dual",
+        "ok": all(c["ok"] for c in checks),
+        "checks": checks,
+        "native_journals": len({link.journal_id for link in links}),
+        "explained_differences": {evt: {k: str(v) for k, v in codes.items() if v} for evt, codes in explained.items()},
+    }
 
 
 def open_items(db: Session, tenant_id: str) -> dict:
