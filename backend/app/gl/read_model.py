@@ -309,6 +309,90 @@ def gl_cash_flow(db: Session, tenant_id: str, date_from: date | None, date_to: d
     }
 
 
+# ─────────────────────────────── sales payment totals ───────────────────
+
+
+def gl_sales_payment_totals(db: Session, tenant_id: str, start: datetime | None, end: datetime | None, *,
+                            cashier: str | None = None, sale_filters: list | None = None, base: dict | None = None) -> dict:
+    """Cash / card / deposit split of sales from the GL (Z-report, reconciliation).
+
+    ``base`` carries the Sale-table figures (totals, counts, voids), which are
+    operational data and identical in both sources. Money per sale comes from
+    its active sales journals (native or mirrored; reversed ones excluded) minus
+    native partial refunds. Card is gross (bank net + acquiring fee), matching
+    legacy.
+    """
+    from sqlalchemy import and_, case, or_
+
+    from app.models import Sale
+
+    catch_up(db, tenant_id)
+    role = {a.id: a.system_role for a in db.query(GLAccount).filter(GLAccount.tenant_id == tenant_id,
+                                                                     GLAccount.system_role.in_(["cash_drawer", "bank_main", "bank_fees", "customer_deposits"])).all()}
+    sale_match = or_(
+        and_(GLJournal.source_type == "sale", GLJournal.source_id == Sale.id, GLJournal.journal_type == "sales",
+             GLJournal.reversed_by_id.is_(None)),
+        and_(GLJournal.source_type == "sale_refund", GLJournal.source_id.like(Sale.id + ":%")),
+    )
+    rows = (
+        db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0) - func.coalesce(func.sum(GLJournalLine.credit), 0))
+        .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+        .join(Sale, and_(Sale.tenant_id == GLJournal.tenant_id, sale_match))
+        .filter(GLJournal.tenant_id == tenant_id, GLJournal.status == "posted", GLJournalLine.account_id.in_(list(role)), *(sale_filters or []))
+        .group_by(GLJournalLine.account_id)
+        .all()
+    )
+    net = defaultdict(lambda: ZERO)
+    for account_id, amount in rows:
+        net[role[account_id]] += Decimal(str(amount or 0))
+    cash_sales = net["cash_drawer"].quantize(CENT)
+    card_sales = (net["bank_main"] + net["bank_fees"]).quantize(CENT)
+    deposit_applied = net["customer_deposits"].quantize(CENT)
+    out = dict(base or {})
+    ledger_total = (cash_sales + card_sales + deposit_applied).quantize(CENT)
+    out.update({
+        "cash_sales": cash_sales,
+        "card_sales": card_sales,
+        "deposit_applied": deposit_applied,
+        "ledger_sales_total": ledger_total,
+        "reconciliation_gap": (Decimal(str(out.get("sales_total", ZERO))) - ledger_total).quantize(CENT),
+    })
+    return out
+
+
+def gl_sale_payment_splits(db: Session, tenant_id: str, sale_ids: list[str]) -> dict[str, dict[str, Decimal]]:
+    """Per-sale cash/card received (card gross), from active sales journals minus native refunds."""
+    if not sale_ids:
+        return {}
+    from sqlalchemy import or_
+
+    catch_up(db, tenant_id)
+    role = {a.id: a.system_role for a in db.query(GLAccount).filter(GLAccount.tenant_id == tenant_id,
+                                                                     GLAccount.system_role.in_(["cash_drawer", "bank_main", "bank_fees"])).all()}
+    ids = [str(s) for s in sale_ids]
+    rows = (
+        db.query(GLJournal.source_type, GLJournal.source_id, GLJournalLine.account_id,
+                 func.coalesce(func.sum(GLJournalLine.debit), 0) - func.coalesce(func.sum(GLJournalLine.credit), 0))
+        .join(GLJournalLine, GLJournalLine.journal_id == GLJournal.id)
+        .filter(
+            GLJournal.tenant_id == tenant_id, GLJournal.status == "posted", GLJournalLine.account_id.in_(list(role)),
+            or_(
+                (GLJournal.source_type == "sale") & (GLJournal.journal_type == "sales") & GLJournal.reversed_by_id.is_(None) & GLJournal.source_id.in_(ids),
+                (GLJournal.source_type == "sale_refund") & or_(*[GLJournal.source_id.like(f"{sid}:%") for sid in ids]),
+            ),
+        )
+        .group_by(GLJournal.source_type, GLJournal.source_id, GLJournalLine.account_id)
+        .all()
+    )
+    out: dict[str, dict[str, Decimal]] = {}
+    for source_type, source_id, account_id, amount in rows:
+        sale_id = source_id if source_type == "sale" else str(source_id).split(":", 1)[0]
+        bucket = out.setdefault(sale_id, {"cash": ZERO, "card": ZERO})
+        key = "cash" if role[account_id] == "cash_drawer" else "card"
+        bucket[key] = (bucket[key] + Decimal(str(amount or 0))).quantize(CENT)
+    return out
+
+
 # ─────────────────────────────── parity ─────────────────────────────────
 
 

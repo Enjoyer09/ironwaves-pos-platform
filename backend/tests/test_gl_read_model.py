@@ -205,3 +205,73 @@ def test_open_shift_with_float_under_gl_reports(db, tenant, monkeypatch):
     shift = db.query(Shift).filter(Shift.id == res["shift_id"]).one()
     assert fs.shift_cash_breakdown_from_ledger(db, tenant.id, shift)["expected_cash"] == D("150.00")
     assert fs.ledger_balances_snapshot(db, tenant.id)["cash"] == D("150.00")
+
+
+# ─────────────────────────── P2c-2: Z-report sales split ───────────────────────────
+
+
+def _sales_window(db, tenant):
+    start = datetime.utcnow() - timedelta(hours=1)
+    return fs.sales_payment_totals(db, tenant.id, start, None)
+
+
+def test_sales_split_legacy_default_unchanged(db, tenant):
+    _card_sale(db, tenant)
+    totals = _sales_window(db, tenant)
+    assert totals["card_sales"] == D("50.00") and totals["reconciliation_gap"] == D("0.00")
+
+
+def test_sales_split_from_gl_gross_card_and_refunds(db, tenant):
+    from app.routers import analytics_api
+
+    _to_gl(db, tenant)
+    split_sale = Sale(id=str(uuid.uuid4()), tenant_id=tenant.id, cashier="k", payment_method="Split", total=D("30.00"),
+                      discount_amount=D("0"), cogs=D("0"), items_json="[]", status="COMPLETED")
+    db.add(split_sale)
+    db.flush()
+    fs.post_sale_payment(db, tenant_id=tenant.id, sale_id=split_sale.id, amount=D("20"), payment_source="cash", created_by="k")
+    fs.post_sale_payment(db, tenant_id=tenant.id, sale_id=split_sale.id, amount=D("10"), payment_source="card", created_by="k", card_fee_percent=D("2"))
+    bridge.emit_sale(db, tenant.id, sale=split_sale, payments=[("cash", D("20")), ("card", D("10"))], actor="k", card_fee_percent=D("2"))
+    db.commit()
+    totals = _sales_window(db, tenant)
+    assert (totals["cash_sales"], totals["card_sales"], totals["reconciliation_gap"]) == (D("20.00"), D("10.00"), D("0.00"))
+    analytics_api.partial_refund_sale(split_sale.id, analytics_api.SalePartialRefundIn(refund_amount=D("6.00"), reason="qismən"),
+                                      db=db, tenant=tenant, user=ADMIN)
+    totals = _sales_window(db, tenant)
+    assert totals["sales_total"] == D("24.00")
+    assert (totals["cash_sales"], totals["card_sales"], totals["reconciliation_gap"]) == (D("16.00"), D("8.00"), D("0.00"))
+
+
+def test_sales_split_excludes_voided_native_sale(db, tenant):
+    from app.routers import analytics_api
+
+    _to_gl(db, tenant)
+    sale = _card_sale(db, tenant)
+    analytics_api.void_sale(sale.id, analytics_api.SaleVoidIn(reason="səhv"), db=db, tenant=tenant, user=ADMIN)
+    totals = _sales_window(db, tenant)
+    assert totals["card_sales"] == D("0.00") and totals["void_sales"] == D("50.00")
+
+
+def test_sales_split_shows_gl_truth_where_legacy_misclassified(monkeypatch, db, tenant):
+    """pos.py books 'Nağd' as card in legacy; the GL-served Z-report shows it as cash."""
+    from app.routers import pos
+    from app.schemas import SaleCreateIn, SaleItemIn
+
+    _to_gl(db, tenant)
+    monkeypatch.setattr(pos, "_active_shift", lambda *_: True)
+    monkeypatch.setattr(pos, "_staff_shift_session_open", lambda *_: True)
+    monkeypatch.setattr(pos, "_bank_commission_config", lambda *_: (D("2"), D("0.5")))
+    pos.create_sale(payload=SaleCreateIn(cart_items=[SaleItemIn(item_name="Çay", price=D("3.00"), qty=1, category="İçki")], payment_method="Nağd"),
+                    db=db, tenant=tenant, user=ADMIN)
+    totals = _sales_window(db, tenant)
+    assert totals["cash_sales"] == D("3.00") and totals["card_sales"] == D("0.00") and totals["reconciliation_gap"] == D("0.00")
+
+
+def test_cashier_breakdown_from_gl(db, tenant):
+    from app.routers import reports
+
+    _to_gl(db, tenant)
+    _card_sale(db, tenant, amount="40.00")
+    start = datetime.utcnow() - timedelta(hours=1)
+    breakdown = reports._shift_cashier_breakdown(db, tenant.id, start, None)
+    assert breakdown == [{"cashier": "k", "sales_count": 1, "total": "40.00", "cash": "0.00", "card": "40.00"}]

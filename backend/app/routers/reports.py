@@ -305,7 +305,11 @@ def _shift_cashier_breakdown(db: Session, tenant_id: str, opened_at: datetime | 
     rows = db.query(Sale.id, Sale.cashier, Sale.total, Sale.payment_method).filter(*filters).all()
     sale_ids = [row.id for row in rows]
     payments_by_sale: dict[str, dict[str, Decimal]] = {}
-    if sale_ids:
+    if sale_ids and _gl_reports_source(db, tenant_id) == "gl":
+        from app.gl.read_model import gl_sale_payment_splits
+
+        payments_by_sale = gl_sale_payment_splits(db, tenant_id, sale_ids)  # Finance v2 P2c-2
+    elif sale_ids:
         payment_rows = (
             db.query(
                 FinanceTransaction.related_order_id,
