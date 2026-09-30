@@ -9,6 +9,20 @@
 - **Companion file:** `docs/finance-v2-handoff.md`, with copy-paste prompts per work package (WP0–WP6).
 - **Owner language:** Azerbaijani. Reply to the owner in Azerbaijani, short and factual.
 
+### Git state (read first)
+
+| Ref | What it is |
+|---|---|
+| `main` / `origin/main` @ `0f63eccb` | **Production.** All Finance v2 code (PRs #31–#37) is merged here. Railway auto-deploys every push to `main`. |
+| `docs/finance-v2-handoff` (PR #38) | **This document** and `docs/finance-v2-handoff.md`. Docs only. If PR #38 is not merged yet, these files exist only on this branch: `git fetch origin && git checkout docs/finance-v2-handoff`, or read with `git show origin/docs/finance-v2-handoff:docs/FINANCE_V2_HANDOFF.md`. After merge they are on `main`. |
+| `feature/finance-v2-p2d`, `feature/finance-v2-p3a` (and earlier `feature/finance-v2-*`) | Already merged. Do not reuse them; do not commit on them. |
+| `semantic-review/` (untracked folder in the working tree) | Not part of Finance v2. Leave it alone and do not commit it. |
+
+Rules for new work:
+- Always branch from a fresh `origin/main`: `git fetch origin && git checkout -b feature/finance-v2-<wp-name> origin/main`, with one branch and one PR per work package.
+- Never commit to `main` directly.
+- Stage files by name, never with `git add .`, because of the untracked folder above.
+
 ---
 
 ## 0. TL;DR for the next agent
