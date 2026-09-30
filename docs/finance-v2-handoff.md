@@ -1,6 +1,8 @@
 # Finance v2 (GL) — handoff plan for the next AI coding agent
 
 State as of 2026-09-30. Paste **section 1 + section 2** into the new agent first, then one work package (section 3) at a time.
+Full architecture, UI and roadmap explanation: **`docs/FINANCE_V2_HANDOFF.md`** — tell the agent to read it before any work.
+WP0 is done (PR #37, merge `0f63eccb`); only its follow-up check of the token purge remains.
 
 ---
 
