@@ -108,13 +108,24 @@ def catch_up(db: Session, tenant_id: str) -> int:
 # ─────────────────────────────── balances ───────────────────────────────
 
 
+def _year_close_turnover(db: Session, tenant_id: str) -> dict[str, tuple[Decimal, Decimal]]:
+    rows = (
+        db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0), func.coalesce(func.sum(GLJournalLine.credit), 0))
+        .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+        .filter(GLJournal.tenant_id == tenant_id, GLJournal.status == "posted", GLJournal.source_type == gl.YEAR_CLOSE_SOURCE)
+        .group_by(GLJournalLine.account_id)
+        .all()
+    )
+    return {acc: (Decimal(str(d)), Decimal(str(c))) for acc, d, c in rows}
+
+
 def gl_wallet_balances(db: Session, tenant_id: str, *, sync: bool = True) -> dict[str, Decimal]:
     """Balances keyed by *legacy* wallet codes, signed like the legacy snapshot
     (assets debit-positive, liabilities credit-positive). From materialized balances."""
     if sync:
         catch_up(db, tenant_id)
     rows = (
-        db.query(GLAccount.system_role, GLAccount.account_type, GLAccount.normal_side,
+        db.query(GLAccount.id, GLAccount.system_role, GLAccount.account_type, GLAccount.normal_side,
                  func.coalesce(func.sum(GLAccountBalance.debit_total), 0), func.coalesce(func.sum(GLAccountBalance.credit_total), 0))
         .outerjoin(GLAccountBalance, (GLAccountBalance.account_id == GLAccount.id) & (GLAccountBalance.tenant_id == GLAccount.tenant_id))
         .filter(GLAccount.tenant_id == tenant_id)
@@ -123,8 +134,12 @@ def gl_wallet_balances(db: Session, tenant_id: str, *, sync: bool = True) -> dic
     )
     by_role: dict[str, Decimal] = {}
     revenue = expense = ZERO
-    for role, account_type, normal_side, debit, credit in rows:
-        d, c = Decimal(str(debit)), Decimal(str(credit))
+    # Legacy never closes years, so its revenue/expense codes are cumulative. Undo what
+    # year-end closing moved from P&L accounts into retained earnings to stay comparable.
+    closed = _year_close_turnover(db, tenant_id)
+    for account_id, role, account_type, normal_side, debit, credit in rows:
+        cd, cc = closed.get(account_id, (ZERO, ZERO))
+        d, c = Decimal(str(debit)) - cd, Decimal(str(credit)) - cc
         if role:
             by_role[role] = d - c if normal_side == "debit" else c - d
         if account_type == "revenue":
@@ -233,7 +248,8 @@ def gl_profit_loss(db: Session, tenant_id: str, date_from: date | None, date_to:
         .join(GLJournalLine, GLJournalLine.journal_id == GLJournal.id)
         .join(GLAccount, GLAccount.id == GLJournalLine.account_id)
         .filter(GLJournal.tenant_id == tenant_id, GLJournal.status == "posted", GLJournal.posting_date >= date_from,
-                GLJournal.posting_date <= date_to, GLAccount.account_type == "expense", GLAccount.system_role != "cogs")
+                GLJournal.posting_date <= date_to, GLAccount.account_type == "expense", GLAccount.system_role != "cogs",
+                gl.not_year_close())
         .scalar() or 0
     )
     return {

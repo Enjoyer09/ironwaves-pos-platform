@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.gl.engine import (
     GLError,
     LineIn,
+    not_year_close,
     ZERO,
     accounts_by_role,
     append_audit,
@@ -171,6 +172,7 @@ def _period_revenue_base(db: Session, tenant_id: str, period: GLFiscalPeriod) ->
             GLJournal.status == "posted",
             GLJournal.period_id == period.id,
             GLAccount.account_type == "revenue",
+            not_year_close(),  # December's closing entry is not negative revenue
         )
         .one()
     )

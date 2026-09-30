@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 import secrets
+import threading
 import time
 import traceback
 import uuid
@@ -32,6 +33,7 @@ from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
 from app.services.backup_scheduler import start_backup_scheduler
 from app.services.birthday_scheduler import start_birthday_scheduler
+from app.services.token_retention import purge_refresh_tokens
 from app.tenant import resolve_tenant_from_request
 
 
@@ -1264,12 +1266,36 @@ def _run_data_retention_cleanup():
         if last_cleanup and now - last_cleanup < timedelta(hours=interval_hours):
             return
         conn.execute(text("DELETE FROM revoked_tokens WHERE expires_at < :now"), {"now": now})
+        removed_refresh = purge_refresh_tokens(conn, now=now)
+        if removed_refresh:
+            print(f"[retention] removed {removed_refresh} dead refresh tokens")
         conn.execute(text("DELETE FROM audit_logs WHERE created_at < :cutoff"), {"cutoff": audit_cutoff})
         conn.execute(
             text("DELETE FROM notifications WHERE is_read = TRUE AND created_at < :cutoff"),
             {"cutoff": data_cutoff},
         )
         _mark_runtime_state(conn, "data_retention_cleanup")
+
+
+_retention_thread_started = False
+
+
+def _start_retention_scheduler() -> None:
+    """Re-run retention hourly; the job itself throttles to its configured interval (default 24h)."""
+    global _retention_thread_started
+    if _retention_thread_started or not settings.startup_data_retention_cleanup_enabled:
+        return
+    _retention_thread_started = True
+
+    def loop():
+        while True:
+            time.sleep(3600)
+            try:
+                _run_data_retention_cleanup()
+            except Exception as exc:  # never let the thread die
+                print(f"[retention] cleanup failed: {exc}")
+
+    threading.Thread(target=loop, daemon=True, name="data-retention").start()
 
 
 @app.on_event("startup")
@@ -1297,6 +1323,7 @@ async def on_startup():
             "Run `alembic upgrade head` during deploy before starting app replicas."
         )
     _run_data_retention_cleanup()
+    _start_retention_scheduler()
     with SessionLocal() as db:
         _seed_initial_data(db)
         _seed_demo_tenant(db)

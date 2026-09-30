@@ -1,8 +1,9 @@
 import React from 'react';
 import { Decimal } from 'decimal.js';
-import { X } from 'lucide-react';
+import { FileSpreadsheet, Printer, X } from 'lucide-react';
 import { tx } from '../../../i18n';
 import type { GLJournal, GLPeriodStatus } from '../../../api/gl';
+import { exportCsv, exportPdf, type ExportReport } from './exporters';
 
 // ─────────────────────────────── formatting ─────────────────────────────
 
@@ -255,6 +256,25 @@ export function ReasonDialog({ lang, title, confirmLabel, optional = false, onCa
         </button>
       </div>
     </Dialog>
+  );
+}
+
+export function ExportButtons({ lang, build, onBlocked }: { lang: string; build: () => ExportReport | null; onBlocked?: () => void }) {
+  const run = (kind: 'csv' | 'pdf') => {
+    const report = build();
+    if (!report) return;
+    if (kind === 'csv') exportCsv(report);
+    else if (!exportPdf(report, lang)) onBlocked?.();
+  };
+  return (
+    <div className="flex gap-2">
+      <button type="button" className={btn.ghost} onClick={() => run('csv')} aria-label={tx(lang, 'Excel-ə (CSV) ixrac et', 'Экспорт в Excel (CSV)', 'Export to Excel (CSV)')}>
+        <span className="inline-flex items-center gap-2"><FileSpreadsheet size={16} aria-hidden="true" />Excel</span>
+      </button>
+      <button type="button" className={btn.ghost} onClick={() => run('pdf')} aria-label={tx(lang, 'PDF / çap', 'PDF / печать', 'PDF / print')}>
+        <span className="inline-flex items-center gap-2"><Printer size={16} aria-hidden="true" />PDF</span>
+      </button>
+    </div>
   );
 }
 

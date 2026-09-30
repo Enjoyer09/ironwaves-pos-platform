@@ -17,6 +17,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.gl import engine, reports, tax
 from app.gl.engine import GLError, LineIn
+from app.gl.legacy_migration import GL_ONLY_SOURCE_MODULES
 from app.gl.models import GLAccount, GLJournal, GLJournalLine
 from app.models import Tenant
 from app.services.finance_service import finance_policy
@@ -306,6 +307,17 @@ def reject(journal_id: str, payload: ReasonIn, db: Session = Depends(get_db), te
 @router.post("/journals/{journal_id}/reverse")
 def reverse(journal_id: str, payload: ReverseIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _require(user, GL_WRITE_ROLES)
+    original = db.query(GLJournal).filter(GLJournal.tenant_id == tenant.id, GLJournal.id == journal_id).first()
+    if original is not None:
+        # Operational journals (sales, stock, shifts, mirrored legacy) are owned by their source module:
+        # reversing them here would leave the sale/legacy ledger untouched and the books out of sync.
+        if original.source_type == engine.YEAR_CLOSE_SOURCE:
+            raise HTTPException(status_code=409, detail={"code": "use_year_reopen", "message": "Reopen the fiscal year instead of reversing its closing journal"})
+        if original.legacy_ref or (original.source_module not in GL_ONLY_SOURCE_MODULES):
+            raise HTTPException(status_code=409, detail={
+                "code": "source_managed",
+                "message": "This journal comes from an operation (sale, stock, shift...). Correct it in that module (void/refund/adjustment) or post an adjusting journal.",
+            })
     journal = _run(db, lambda: engine.reverse_journal(
         db, tenant.id, journal_id, actor=user.username, reason=payload.reason, posting_date=payload.posting_date,
         # Reversals always go through a second person.
@@ -330,6 +342,49 @@ def change_period_status(year: int, month: int, payload: PeriodStatusIn, db: Ses
         raise HTTPException(status_code=400, detail="Invalid period")
     period = _run(db, lambda: engine.set_period_status(db, tenant.id, year=year, month=month, status=payload.status, actor=user.username, reason=payload.reason))
     return {"year": period.year, "month": period.month, "status": period.status}
+
+
+# ─────────────────────────────── sub-ledgers ────────────────────────────
+
+
+@router.get("/subledger/{ledger}")
+def partner_subledger(ledger: str, as_of: date | None = None,
+                      db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """AP / AR per partner with FIFO aging (0-30 / 31-60 / 61-90 / 90+ days)."""
+    _require(user, GL_READ_ROLES)
+    from app.gl.subledger import subledger
+
+    return _read(lambda: subledger(db, tenant.id, ledger, as_of=as_of))
+
+
+# ─────────────────────────────── fiscal year ────────────────────────────
+
+
+@router.get("/years/{year}")
+def fiscal_year_status(year: int, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _require(user, GL_READ_ROLES)
+    from app.gl.year_end import year_status
+
+    return _read(lambda: year_status(db, tenant.id, year))
+
+
+@router.post("/years/{year}/close")
+def close_year(year: int, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl.year_end import close_fiscal_year
+
+    journal = _run(db, lambda: close_fiscal_year(db, tenant.id, year, actor=user.username))
+    return _journal_out(db, journal, with_lines=True)
+
+
+@router.post("/years/{year}/reopen")
+def reopen_year(year: int, payload: ReasonIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Requests the storno of the closing journal; another approver must approve it."""
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl.year_end import request_reopen_fiscal_year
+
+    journal = _run(db, lambda: request_reopen_fiscal_year(db, tenant.id, year, actor=user.username, reason=payload.reason))
+    return _journal_out(db, journal)
 
 
 # ─────────────────────────────── tax ────────────────────────────────────

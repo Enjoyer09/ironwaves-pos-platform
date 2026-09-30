@@ -177,7 +177,10 @@ export function JournalDrawer({ journalId, onClose }: { journalId: string; onClo
     }
   };
 
-  const canReverse = Boolean(j && caps.can_write && j.status === 'posted' && !j.reversed_by_id && j.journal_type !== 'reversal');
+  // Only journals created in the GL itself can be reversed here; operational ones (sales, stock, shifts,
+  // mirrored legacy) are corrected in their own module, and year-end closing via "reopen year".
+  const glOwned = Boolean(j && (j.source_module === 'manual' || j.source_module === 'gl') && j.source_type !== 'year_close');
+  const canReverse = Boolean(j && glOwned && caps.can_write && j.status === 'posted' && !j.reversed_by_id && j.journal_type !== 'reversal');
   const pending = j?.status === 'pending_approval';
 
   return (
