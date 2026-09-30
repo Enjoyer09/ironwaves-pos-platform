@@ -210,6 +210,16 @@ def account_ledger_totals_for_update(db: Session, tenant_id: str, account: Finan
 
 
 def ledger_balances_snapshot(db: Session, tenant_id: str, *, ensure_accounts: bool = True) -> dict[str, Decimal]:
+    """Wallet balances by legacy code. Served from the GL for tenants whose
+    reports source is ``gl`` (Finance v2 P2c); legacy ledger otherwise."""
+    from app.gl.read_model import gl_wallet_balances, reports_source
+
+    if reports_source(db, tenant_id) == "gl":
+        return gl_wallet_balances(db, tenant_id)
+    return _legacy_ledger_balances_snapshot(db, tenant_id, ensure_accounts=ensure_accounts)
+
+
+def _legacy_ledger_balances_snapshot(db: Session, tenant_id: str, *, ensure_accounts: bool = True) -> dict[str, Decimal]:
     accounts = (
         ensure_finance_accounts(db, tenant_id)
         if ensure_accounts
@@ -266,6 +276,23 @@ def shift_cash_breakdown_from_ledger(
     *,
     lock_for_update: bool = False,
 ) -> dict[str, Decimal]:
+    """Expected drawer cash for the shift (X/Z/handover/expected-cash). GL-backed
+    for tenants whose reports source is ``gl``; legacy ledger otherwise."""
+    from app.gl.read_model import gl_shift_cash_breakdown, reports_source
+
+    if shift is not None and reports_source(db, tenant_id) == "gl":
+        return gl_shift_cash_breakdown(db, tenant_id, shift, lock_for_update=lock_for_update)
+    return _legacy_shift_cash_breakdown(db, tenant_id, shift, lock_for_update=lock_for_update)
+
+
+def _legacy_shift_cash_breakdown(
+    db: Session,
+    tenant_id: str,
+    shift: Shift | None,
+    *,
+    lock_for_update: bool = False,
+    until: datetime | None = None,
+) -> dict[str, Decimal]:
     if not shift:
         return {
             "opening_cash": Decimal("0.00"),
@@ -290,6 +317,8 @@ def shift_cash_breakdown_from_ledger(
         )
         if shift.opened_at:
             rows_query = rows_query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+        if until:
+            rows_query = rows_query.filter(FinanceLedgerEntry.created_at <= until)
         rows = rows_query.with_entities(FinanceLedgerEntry.entry_side, FinanceLedgerEntry.amount).with_for_update().all()
         cash_in = sum((Decimal(str(amount or 0)) for side, amount in rows if str(side).lower() == "debit"), Decimal("0")).quantize(
             Decimal("0.01")
@@ -304,6 +333,8 @@ def shift_cash_breakdown_from_ledger(
         )
         if shift.opened_at:
             base_query = base_query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+        if until:
+            base_query = base_query.filter(FinanceLedgerEntry.created_at <= until)
         debit_sum, credit_sum = base_query.with_entities(
             func.coalesce(
                 func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),

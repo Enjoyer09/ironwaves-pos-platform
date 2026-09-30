@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.gl import bridge  # noqa: E402
+from app.gl import bridge, read_model  # noqa: E402
 from app.gl.legacy_migration import reconcile_dual_tenant, reconcile_tenant  # noqa: E402
 from app.gl.shadow import sync_tenant  # noqa: E402
 from app.models import FinanceTransaction, Tenant  # noqa: E402
@@ -38,6 +38,8 @@ def main() -> int:
     parser.add_argument("--set", choices=bridge.LEDGER_MODES)
     parser.add_argument("--reason")
     parser.add_argument("--reconcile", action="store_true")
+    parser.add_argument("--parity", action="store_true", help="legacy vs GL numbers served to finance screens")
+    parser.add_argument("--reports", choices=read_model.REPORT_SOURCES, help="switch the reports source (gl requires dual + clean parity)")
     parser.add_argument("--allow-production", action="store_true")
     args = parser.parse_args()
 
@@ -45,14 +47,38 @@ def main() -> int:
         if args.list:
             ids = {tid for (tid,) in db.query(FinanceTransaction.tenant_id).distinct().all()}
             for t in db.query(Tenant).filter(Tenant.id.in_(ids)).order_by(Tenant.name).all():
-                print(f"{t.name:<32} {t.id}  mode={bridge.get_ledger_mode(db, t.id)}")
+                print(f"{t.name:<32} {t.id}  mode={bridge.get_ledger_mode(db, t.id):<7} reports={read_model.reports_source(db, t.id)}")
             return 0
         if not args.tenant:
             parser.error("--tenant is required")
+        if args.parity:
+            report = read_model.parity_report(db, args.tenant)
+            db.rollback()
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report["ok"] else 1
+        if args.reports:
+            if _is_production(settings.database_url) and not args.allow_production:
+                print("Refusing to change a production tenant without --allow-production", file=sys.stderr)
+                return 2
+            sync_tenant(db, args.tenant)
+            if args.reports == "gl":
+                recon = reconcile_dual_tenant(db, args.tenant)
+                parity = read_model.parity_report(db, args.tenant)
+                if not recon["ok"] or not parity["ok"]:
+                    db.rollback()
+                    print(f"ABORTED — reconcile {_summary(recon)}; parity unexplained={parity['unexplained']}", file=sys.stderr)
+                    return 1
+            result = read_model.set_reports_source(db, args.tenant, args.reports, actor="system:cli", reason=args.reason or "")
+            db.commit()
+            print(json.dumps(result))
+            return 0
         if args.set:
             if _is_production(settings.database_url) and not args.allow_production:
                 print("Refusing to change a production tenant without --allow-production", file=sys.stderr)
                 return 2
+            if args.set == "legacy" and read_model.reports_source(db, args.tenant) == "gl":
+                print("Switch reports back to legacy first (--reports legacy)", file=sys.stderr)
+                return 1
             sync_tenant(db, args.tenant)  # catch up the shadow first
             result = bridge.set_ledger_mode(db, args.tenant, args.set, actor="system:cli", reason=args.reason or "")
             report = reconcile_dual_tenant(db, args.tenant) if args.set == "dual" else reconcile_tenant(db, args.tenant)

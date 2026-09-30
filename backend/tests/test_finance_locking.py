@@ -56,6 +56,8 @@ def test_account_ledger_totals_for_update_locks_account_and_ledger_rows():
 def test_shift_cash_breakdown_from_ledger_lock_mode_locks_before_totals(monkeypatch):
     account = SimpleNamespace(id="cash-account")
     monkeypatch.setattr(finance_service, "finance_account", lambda db, tenant_id, code: account)
+    # Legacy reports source (the default); pinned so the scripted fake session only sees ledger queries.
+    monkeypatch.setattr("app.gl.read_model.reports_source", lambda *_args, **_kw: "legacy")
 
     account_lock_query = _FakeQuery(one_result=("account-row",))
     ledger_lock_query = _FakeQuery(rows=[("debit", Decimal("20.00")), ("credit", Decimal("4.00"))])

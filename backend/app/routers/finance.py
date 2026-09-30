@@ -1105,6 +1105,20 @@ def get_finance_reports_overview(
 ):
     _ensure_finance_read_access(user)
     start, end = _period_bounds(date_from, date_to)
+    from app.gl import read_model as _gl_read
+
+    if _gl_read.reports_source(db, tenant.id) == "gl":
+        # Finance v2 P2c: same response shape, numbers from the GL (inclusive dates).
+        d_from = start.date() if start else None
+        d_to = (end - timedelta(days=1)).date() if end else None
+        _gl_read.catch_up(db, tenant.id)
+        return {
+            "period": {"date_from": date_from, "date_to": date_to},
+            "source": "gl",
+            "balance_sheet": _gl_read.gl_balance_sheet(db, tenant.id),
+            "profit_loss": _gl_read.gl_profit_loss(db, tenant.id, d_from, d_to),
+            "cash_flow": _gl_read.gl_cash_flow(db, tenant.id, d_from, d_to),
+        }
     return {
         "period": {
             "date_from": date_from,

@@ -17,6 +17,7 @@ from app.services.finance_service import commission_percent as _commission_perce
 from app.gl import bridge as _gl_bridge  # Finance v2 dual-mode hooks (no-op in legacy mode)
 from app.gl import posting_rules as _gl_rules
 from app.gl.engine import business_today as _gl_bridge_today
+from app.gl.read_model import reports_source as _gl_reports_source
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -1099,6 +1100,16 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                                                bank_fee=commission.quantize(Decimal("0.01")) if funding_source == "card" else Decimal("0")),
                 actor=user.username,
             )
+            if _gl_reports_source(db, tenant.id) == "gl":
+                # GL-served tenants: `opening_cash` above is the GL drawer *before* the float
+                # (legacy postings reach the GL only via the native journal or the shadow
+                # mirror). Opening = before + float, and the shift starts after the funding
+                # posting so the float is never counted twice. Holds whether the native
+                # journal succeeded or the float is mirrored later (posted_at < opened_at).
+                db.flush()
+                opening_cash = (opening_cash + topup_amount).quantize(Decimal("0.01"))
+                row.opening_cash = opening_cash
+                row.opened_at = _utcnow() + timedelta(milliseconds=1)
         db.commit()
         current_key = _normalized(user.username)
         return {
