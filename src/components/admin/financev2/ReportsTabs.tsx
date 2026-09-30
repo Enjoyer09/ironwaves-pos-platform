@@ -2,7 +2,8 @@ import React from 'react';
 import { tx } from '../../../i18n';
 import { glApi, type StatementSection } from '../../../api/gl';
 import { useGL, useGLLoad } from './context';
-import { Badge, Card, DateRange, Empty, Field, Loading, Metric, btn, inputCls, isZero, journalTypeLabel, money } from './FinanceV2Parts';
+import { Badge, Card, DateRange, Empty, ExportButtons, Field, Loading, Metric, btn, inputCls, isZero, journalTypeLabel, money } from './FinanceV2Parts';
+import { accountLedgerReport, financialStatementsReport, trialBalanceReport } from './reportExports';
 
 // ─────────────────────────────── overview ───────────────────────────────
 
@@ -42,8 +43,14 @@ function Section({ title, section }: { title: string; section: StatementSection 
   );
 }
 
+function usePopupBlocked() {
+  const { lang, notify } = useGL();
+  return () => notify('warning', tx(lang, 'Brauzer pəncərəni blokladı — pop-up icazəsi verin', 'Браузер заблокировал окно — разрешите pop-up', 'The browser blocked the window — allow pop-ups'));
+}
+
 export function OverviewTab({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
   const { lang } = useGL();
+  const popupBlocked = usePopupBlocked();
   const { data, loading, error } = useGLLoad(
     () => Promise.all([glApi.balanceSheet(to), glApi.profitLoss(from, to)]),
     [from, to],
@@ -54,7 +61,12 @@ export function OverviewTab({ from, to, setFrom, setTo }: { from: string; to: st
       <Card
         title={tx(lang, 'Maliyyə vəziyyəti', 'Финансовое положение', 'Financial position')}
         subtitle={tx(lang, 'Balans hesabatın son tarixinə, mənfəət/zərər seçilmiş dövrə görədir.', 'Баланс на конечную дату, P&L за выбранный период.', 'Balance sheet as of the end date, P&L for the selected period.')}
-        actions={<DateRange lang={lang} idPrefix="gl-ov" from={from} to={to} onFrom={setFrom} onTo={setTo} />}
+        actions={(
+          <>
+            <DateRange lang={lang} idPrefix="gl-ov" from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <ExportButtons lang={lang} onBlocked={popupBlocked} build={() => (bs && pl ? financialStatementsReport(lang, bs, pl) : null)} />
+          </>
+        )}
       >
         {loading && !data ? <Loading lang={lang} /> : null}
         {error ? <Empty>{error}</Empty> : null}
@@ -111,6 +123,7 @@ export function OverviewTab({ from, to, setFrom, setTo }: { from: string; to: st
 
 export function TrialBalanceTab({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
   const { lang, openLedger } = useGL();
+  const popupBlocked = usePopupBlocked();
   const [hideZero, setHideZero] = React.useState(true);
   const { data, loading, error } = useGLLoad(() => glApi.trialBalance({ date_from: from, date_to: to }), [from, to]);
   const rows = (data?.rows || []).filter((row) => !hideZero || !(
@@ -132,6 +145,7 @@ export function TrialBalanceTab({ from, to, setFrom, setTo }: { from: string; to
           {data ? (data.balanced
             ? <Badge tone="emerald">{tx(lang, 'Balanslaşıb', 'Сбалансирован', 'Balanced')}</Badge>
             : <Badge tone="rose">{tx(lang, 'Balanslaşmayıb', 'Не сбалансирован', 'Not balanced')}</Badge>) : null}
+          <ExportButtons lang={lang} onBlocked={popupBlocked} build={() => (data ? trialBalanceReport(lang, data, rows) : null)} />
         </>
       )}
     >
@@ -196,6 +210,7 @@ export function AccountLedgerTab({ accountId, setAccountId, from, to, setFrom, s
   from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void;
 }) {
   const { lang, accounts, openJournal } = useGL();
+  const popupBlocked = usePopupBlocked();
   const [offset, setOffset] = React.useState(0);
   React.useEffect(() => { setOffset(0); }, [accountId, from, to]);
   const postable = accounts.filter((a) => a.is_postable && a.is_active);
@@ -217,6 +232,7 @@ export function AccountLedgerTab({ accountId, setAccountId, from, to, setFrom, s
             </select>
           </Field>
           <DateRange lang={lang} idPrefix="gl-al" from={from} to={to} onFrom={setFrom} onTo={setTo} />
+          <ExportButtons lang={lang} onBlocked={popupBlocked} build={() => (data ? accountLedgerReport(lang, data, from, to) : null)} />
         </>
       )}
     >

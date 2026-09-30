@@ -196,3 +196,30 @@ def test_fiscal_year_endpoints(env):
     assert c.get("/api/v1/gl/years/2025").json()["closed"] is True
     reopen = c.post("/api/v1/gl/years/2025/reopen", json={"reason": "correction"})
     assert reopen.status_code == 200 and reopen.json()["status"] == "pending_approval"
+
+
+def test_operational_journals_cannot_be_reversed_from_the_gl_api(env):
+    from app.gl import engine as gl_engine
+    from app.gl.engine import LineIn
+
+    c = env.client
+    assert c.post("/api/v1/gl/setup").status_code == 200
+    c.post("/api/v1/gl/journals", json={
+        "journal_type": "general", "posting_date": "2026-05-05", "description": "capital",
+        "lines": [{"account": "cash_drawer", "debit": "100"}, {"account": "301", "credit": "100"}],
+    })
+    with env.Session() as s:
+        sale = gl_engine.create_journal(s, tenant_id=env.tenant_id, journal_type="sales", created_by="k", posting_date=None,
+                                        description="POS sale", source_module="pos", source_type="sale", source_id="s-1",
+                                        lines=[LineIn(account="cash_drawer", debit=5), LineIn(account="sales_revenue", credit=5)])
+        mirrored = gl_engine.create_journal(s, tenant_id=env.tenant_id, journal_type="general", created_by="k", description="legacy",
+                                            source_module="legacy", legacy_ref="ft-1",
+                                            lines=[LineIn(account="cash_drawer", debit=2), LineIn(account="other_income", credit=2)])
+        s.commit()
+        sale_id, mirrored_id = sale.id, mirrored.id
+    for jid in (sale_id, mirrored_id):
+        r = c.post(f"/api/v1/gl/journals/{jid}/reverse", json={"reason": "wrong"})
+        assert r.status_code == 409 and r.json()["detail"]["code"] == "source_managed"
+    manual = c.get("/api/v1/gl/journals", params={"journal_type": "general", "limit": 50}).json()["items"]
+    manual_id = next(j["id"] for j in manual if j["source_module"] == "manual")
+    assert c.post(f"/api/v1/gl/journals/{manual_id}/reverse", json={"reason": "wrong"}).json()["status"] == "pending_approval"

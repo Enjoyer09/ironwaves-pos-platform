@@ -273,3 +273,16 @@ def test_manual_gl_journals_are_explained_in_dual_reconciliation(db, tid):
     report = reconcile_dual_tenant(db, tid)
     assert report["ok"], [c for c in report["checks"] if not c["ok"]]
     assert "GLOnlyJournal" not in report["explained_differences"]
+
+
+def test_manual_gl_journal_does_not_break_legacy_mode_reconciliation(db, tid):
+    """Legacy-mode tenants (e.g. if the global API flag is ever on): reconcile_tenant only compares mirrored journals."""
+    assert bridge.get_ledger_mode(db, tid) == "legacy"
+    gl.create_journal(
+        db, tenant_id=tid, journal_type="general", created_by="owner", description="manual",
+        lines=[gl.LineIn(account="cash_drawer", debit=D("3")), gl.LineIn(account="other_income", credit=D("3"))],
+        source_module="manual",
+    )
+    db.commit()
+    report = reconcile_tenant(db, tid)
+    assert report["ok"], [c for c in report["checks"] if not c["ok"]]

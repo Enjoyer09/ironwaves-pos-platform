@@ -17,6 +17,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.gl import engine, reports, tax
 from app.gl.engine import GLError, LineIn
+from app.gl.legacy_migration import GL_ONLY_SOURCE_MODULES
 from app.gl.models import GLAccount, GLJournal, GLJournalLine
 from app.models import Tenant
 from app.services.finance_service import finance_policy
@@ -306,6 +307,17 @@ def reject(journal_id: str, payload: ReasonIn, db: Session = Depends(get_db), te
 @router.post("/journals/{journal_id}/reverse")
 def reverse(journal_id: str, payload: ReverseIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _require(user, GL_WRITE_ROLES)
+    original = db.query(GLJournal).filter(GLJournal.tenant_id == tenant.id, GLJournal.id == journal_id).first()
+    if original is not None:
+        # Operational journals (sales, stock, shifts, mirrored legacy) are owned by their source module:
+        # reversing them here would leave the sale/legacy ledger untouched and the books out of sync.
+        if original.source_type == engine.YEAR_CLOSE_SOURCE:
+            raise HTTPException(status_code=409, detail={"code": "use_year_reopen", "message": "Reopen the fiscal year instead of reversing its closing journal"})
+        if original.legacy_ref or (original.source_module not in GL_ONLY_SOURCE_MODULES):
+            raise HTTPException(status_code=409, detail={
+                "code": "source_managed",
+                "message": "This journal comes from an operation (sale, stock, shift...). Correct it in that module (void/refund/adjustment) or post an adjusting journal.",
+            })
     journal = _run(db, lambda: engine.reverse_journal(
         db, tenant.id, journal_id, actor=user.username, reason=payload.reason, posting_date=payload.posting_date,
         # Reversals always go through a second person.

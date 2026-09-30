@@ -2,12 +2,13 @@ import React from 'react';
 import { tx } from '../../../i18n';
 import { glApi, type AgingBucket } from '../../../api/gl';
 import { useGL, useGLLoad } from './context';
-import { Badge, Card, Empty, Field, Loading, Metric, inputCls, isZero, money } from './FinanceV2Parts';
+import { Badge, Card, Empty, ExportButtons, Field, Loading, Metric, inputCls, isZero, money } from './FinanceV2Parts';
+import { subledgerReport } from './reportExports';
 
 const BUCKETS: AgingBucket[] = ['0_30', '31_60', '61_90', '90_plus'];
 
 export function PartnersTab() {
-  const { lang, caps, openLedger } = useGL();
+  const { lang, caps, notify, openLedger } = useGL();
   const [ledger, setLedger] = React.useState<'ap' | 'ar'>('ap');
   const [asOf, setAsOf] = React.useState(caps.business_today);
   const { data, loading, error } = useGLLoad(() => glApi.subledger(ledger, asOf), [ledger, asOf]);
@@ -52,6 +53,11 @@ export function PartnersTab() {
           <Field id="gl-sl-asof" label={tx(lang, 'Tarixə', 'На дату', 'As of')}>
             <input id="gl-sl-asof" type="date" className={inputCls} value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           </Field>
+          <ExportButtons
+            lang={lang}
+            onBlocked={() => notify('warning', tx(lang, 'Brauzer pəncərəni blokladı — pop-up icazəsi verin', 'Браузер заблокировал окно — разрешите pop-up', 'The browser blocked the window — allow pop-ups'))}
+            build={() => (data ? subledgerReport(lang, data) : null)}
+          />
         </>
       )}
     >
