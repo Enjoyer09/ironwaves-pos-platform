@@ -359,6 +359,15 @@ def account_ledger(account_id: str, date_from: date | None = None, date_to: date
     return _read(lambda: reports.account_ledger(db, tenant.id, account_id, date_from=date_from, date_to=date_to, limit=limit, offset=offset))
 
 
+@router.get("/shadow/status")
+def shadow_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Shadow-mode evidence for cut-over: recent sync batches and nightly reconciliations."""
+    _require(user, GL_CONTROLLER_ROLES | {"auditor"})
+    from app.gl.shadow import shadow_status as _status
+
+    return _status(db, tenant.id)
+
+
 @router.get("/integrity")
 def integrity(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     """Audit-chain and materialized-balance verification (for auditors / nightly checks)."""

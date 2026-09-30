@@ -128,30 +128,45 @@ class TenantResult:
         }
 
 
-def _legacy_rows(db: Session, tenant_id: str):
-    txns = (
-        db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status.in_(IMPORTED_STATUSES))
-        .order_by(func.coalesce(FinanceTransaction.posted_at, FinanceTransaction.created_at).asc(),
-                  FinanceTransaction.created_at.asc(), FinanceTransaction.id.asc())
-        .all()
-    )
+def _legacy_rows(db: Session, tenant_id: str, *, only_missing: bool = False):
+    query = db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status.in_(IMPORTED_STATUSES))
+    if only_missing:
+        already = db.query(GLJournal.id).filter(GLJournal.tenant_id == tenant_id, GLJournal.legacy_ref == FinanceTransaction.id)
+        query = query.filter(~already.exists())
+    txns = query.order_by(
+        func.coalesce(FinanceTransaction.posted_at, FinanceTransaction.created_at).asc(),
+        FinanceTransaction.created_at.asc(),
+        FinanceTransaction.id.asc(),
+    ).all()
     code_by_account = {a.id: a.code for a in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()}
     lines_by_txn: dict[str, list[FinanceLedgerEntry]] = defaultdict(list)
-    for line in db.query(FinanceLedgerEntry).filter(FinanceLedgerEntry.tenant_id == tenant_id).order_by(FinanceLedgerEntry.created_at, FinanceLedgerEntry.id):
+    line_query = db.query(FinanceLedgerEntry).filter(FinanceLedgerEntry.tenant_id == tenant_id)
+    if only_missing:
+        ids = [t.id for t in txns]
+        if not ids:
+            return txns, code_by_account, lines_by_txn
+        line_query = line_query.filter(FinanceLedgerEntry.transaction_id.in_(ids))
+    for line in line_query.order_by(FinanceLedgerEntry.created_at, FinanceLedgerEntry.id):
         lines_by_txn[line.transaction_id].append(line)
     return txns, code_by_account, lines_by_txn
 
 
-def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit: bool = True) -> TenantResult:
-    """Import all posted/reversed legacy transactions of one tenant. See module docstring."""
+def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit: bool = True, incremental: bool = False) -> TenantResult:
+    """Import posted/reversed legacy transactions of one tenant. See module docstring.
+
+    ``incremental=True`` (shadow mode) reads only legacy rows that are not in the
+    GL yet, so a run with nothing new costs two small queries. Historic lowest
+    balances are only computed in full mode.
+    """
     gl.ensure_chart(db, tenant_id, actor=MIGRATION_ACTOR)
     result = TenantResult(tenant_id=tenant_id)
+    txns, code_by_account, lines_by_txn = _legacy_rows(db, tenant_id, only_missing=incremental)
+    if incremental and not txns:
+        return result
     migrated: dict[str, str] = {
         ref: jid for ref, jid in db.query(GLJournal.legacy_ref, GLJournal.id).filter(
             GLJournal.tenant_id == tenant_id, GLJournal.legacy_ref.isnot(None)).all()
     }
-    txns, code_by_account, lines_by_txn = _legacy_rows(db, tenant_id)
     by_id = {t.id: t for t in txns}
     running: dict[str, Decimal] = defaultdict(lambda: ZERO)
     watched = {"cash_drawer", "safe", "bank_main"}
@@ -173,7 +188,7 @@ def migrate_tenant(db: Session, tenant_id: str, *, batch_size: int = 500, commit
             amount = Decimal(str(line.amount))
             is_debit = line.entry_side == "debit"
             lines.append(LineIn(role, debit=amount if is_debit else ZERO, credit=ZERO if is_debit else amount))
-            if role in watched:
+            if role in watched and not incremental:
                 running[role] += amount if is_debit else -amount
         posting_date = _business_date(txn.posted_at or (legacy_lines[0].created_at if legacy_lines else txn.created_at))
         for role in watched:

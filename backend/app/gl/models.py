@@ -237,3 +237,20 @@ class GLAuditEvent(Base):
     prev_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class GLShadowRun(Base):
+    """Shadow-mode job log: legacy→GL sync batches and nightly reconciliations."""
+
+    __tablename__ = "gl_shadow_runs"
+    __table_args__ = (Index("ix_gl_shadow_runs_tenant_type_started", "tenant_id", "run_type", "started_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    run_type: Mapped[str] = mapped_column(String(16), nullable=False)  # sync | reconcile
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
