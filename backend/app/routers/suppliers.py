@@ -145,7 +145,7 @@ def pay_supplier(
     if source_code not in {"cash", "card", "safe"}:
         raise HTTPException(status_code=400, detail="Payment source must be cash, card, or safe")
 
-    post_finance_transaction(
+    legacy_txn = post_finance_transaction(
         db,
         tenant_id=tenant.id,
         transaction_type="supplier_payment",
@@ -158,6 +158,11 @@ def pay_supplier(
         note=payload.note or f"{supplier.name} öhdəlik ödənişi",
         supplier_id=supplier.id,
     )
+    # Finance v2 (dual mode only).
+    from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+    from app.gl.engine import business_today as _gl_today
+
+    _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.SupplierPaid(legacy_txn.id, _gl_today(), supplier.id, amount, source_code), actor=user.username)
 
     supplier.balance -= amount
     db.commit()

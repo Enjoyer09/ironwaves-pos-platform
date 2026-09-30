@@ -913,6 +913,13 @@ def post_inventory_restock(
         supplier_id=supplier_id,
     )
     # Inventory asset flows are ledger-only. Legacy wallet mirror should stay operational-cash focused.
+    from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+    from app.gl.engine import business_today as _gl_today
+
+    _gl_bridge.emit(db, tenant_id, lambda: _gl_rules.StockReceived(
+        txn.id, _gl_today(), amount, paid_from=None if source_code == "payable" else source_code,
+        supplier_id=supplier_id, invoice_no=(reference or "")[:60] or None,
+    ), actor=created_by)
     return txn
 
 
@@ -941,6 +948,10 @@ def post_inventory_loss(
         note=note,
         reference=reference,
     )
+    from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+    from app.gl.engine import business_today as _gl_today
+
+    _gl_bridge.emit(db, tenant_id, lambda: _gl_rules.StockWrittenOff(txn.id, _gl_today(), amount, (note or category or "Anbar itkisi")[:300]), actor=created_by)
     return txn
 
 

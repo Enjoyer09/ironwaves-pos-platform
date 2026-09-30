@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
+from app.gl import bridge as _gl_bridge  # Finance v2 dual-mode hooks (no-op in legacy mode)
+from app.gl import posting_rules as _gl_rules
+from app.gl.engine import business_today as _gl_today
 import json
+import secrets
 
 from app.models import (
     AuditLog,
@@ -2102,6 +2106,29 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
             note=f"Komissiya: Xərc ödənişi ({amount} AZN)",
         )
 
+    # Finance v2 (dual mode only): one journal for the entry incl. its bank fee.
+    def _gl_entry():
+        from app.gl.legacy_migration import _norm, map_role
+
+        ref = posted_txn.id if posted_txn else secrets.token_hex(8)
+        day = _gl_today()
+        amt = amount.quantize(Decimal("0.01"))
+        note = payload.description or category_label
+        if payload.type == "in":
+            if payload.source == "debt":
+                return _gl_rules.FinancingMovement(ref, day, "lend_back", "cash", amt)
+            if _is_founder_investment_category(category_label):
+                return _gl_rules.FinancingMovement(ref, day, "investor_in", payload.source, amt)
+            if _norm(category_label) == "borc alindi":
+                return _gl_rules.FinancingMovement(ref, day, "loan_in", payload.source, amt)
+            return _gl_rules.OtherIncomeReceived(ref, day, amt, payload.source, note)
+        if payload.source not in {"cash", "card", "safe"}:
+            return None  # unsupported combination: leave it to the shadow mirror
+        return _gl_rules.ExpensePaid(ref, day, map_role("expense", "expense", category_label), amt, payload.source,
+                                     bank_fee=commission.quantize(Decimal("0.01")), note=note)
+
+    _gl_bridge.emit(db, tenant.id, _gl_entry, actor=user.username, event_type="FinanceEntry")
+
     entry_id = mirror_rows[0].id if mirror_rows else (posted_txn.id if posted_txn else None)
 
     db.add(
@@ -2198,6 +2225,19 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
             category="Bank Komissiyası",
             note=f"Transfer komissiyası: {payload.direction}",
         )
+
+    # Finance v2 (dual mode only).
+    def _gl_transfer():
+        ref, day, amt, fee = secrets.token_hex(8), _gl_today(), amount.quantize(Decimal("0.01")), commission.quantize(Decimal("0.01"))
+        if target == "debt":  # money lent out (+ optional bank fee from the source)
+            journals = [_gl_rules.post_event(db, tenant.id, _gl_rules.FinancingMovement(ref, day, "lend_out", source, amt), actor=user.username)]
+            if fee > 0:
+                journals.append(_gl_rules.post_event(db, tenant.id, _gl_rules.ExpensePaid(f"{ref}:fee", day, "bank_fees", fee, source,
+                                                                                          note="Transfer komissiyası"), actor=user.username))
+            return journals
+        return _gl_rules.WalletTransfer(ref, day, source, target, amt, bank_fee=fee, note=payload.description)
+
+    _gl_bridge.emit(db, tenant.id, _gl_transfer, actor=user.username, event_type="WalletTransfer")
     db.commit()
     return {"success": True, "commission": str(commission)}
 
@@ -2278,6 +2318,8 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
         category="İnvestora Geri Ödəniş",
         note=payload.description or "İnvestora ödəniş",
     )
+    _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.FinancingMovement(posted_txn.id, _gl_today(), "investor_repay", pay_from,
+                                                                        payable.quantize(Decimal("0.01"))), actor=user.username)
     db.commit()
 
     remaining_debt = _investor_debt_balance(db, tenant.id)
