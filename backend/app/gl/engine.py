@@ -407,6 +407,24 @@ def _validate_lines(db: Session, tenant_id: str, lines: list[LineIn]) -> tuple[l
     return resolved, total_debit
 
 
+@dataclass(frozen=True)
+class MigrationMeta:
+    """Historic metadata for journals imported from the legacy ledger.
+
+    Only the migration job may pass this. It preserves who/when from the
+    original record and skips the non-negative cash guard, because the legacy
+    history is already a fact (it may contain moments where a drawer dipped
+    below zero). All other invariants (balance, period, idempotency) still apply.
+    """
+
+    created_by: str
+    created_at: datetime
+    posted_by: str | None = None
+    posted_at: datetime | None = None
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+
+
 def create_journal(
     db: Session,
     *,
@@ -425,6 +443,7 @@ def create_journal(
     require_approval: bool = False,
     allow_soft_closed: bool = False,
     reversal_of_id: str | None = None,
+    migration: MigrationMeta | None = None,
 ) -> GLJournal:
     """Validate and persist a journal. Posts immediately unless ``require_approval``.
 
@@ -433,6 +452,8 @@ def create_journal(
     """
     if journal_type not in JOURNAL_TYPES:
         raise GLError(f"Unknown journal type: {journal_type}", "invalid_journal_type")
+    if migration is not None and require_approval:
+        raise GLError("Migrated journals are imported as posted", "invalid_migration")
     posting_date = posting_date or business_today()
     resolved, total = _validate_lines(db, tenant_id, lines)
 
@@ -463,8 +484,10 @@ def create_journal(
         reversal_of_id=reversal_of_id,
         total_debit=total,
         total_credit=total,
-        created_by=created_by,
-        created_at=_now(),
+        created_by=migration.created_by if migration else created_by,
+        created_at=migration.created_at if migration else _now(),
+        approved_by=migration.approved_by if migration else None,
+        approved_at=migration.approved_at if migration else None,
     )
     try:
         with db.begin_nested():
@@ -504,7 +527,7 @@ def create_journal(
             payload={"journal_type": journal_type, "amount": str(total), "posting_date": posting_date.isoformat()},
         )
         return journal
-    return _post(db, journal, actor=created_by, allow_soft_closed=allow_soft_closed)
+    return _post(db, journal, actor=created_by, allow_soft_closed=allow_soft_closed, migration=migration)
 
 
 def _journal_lines(db: Session, journal: GLJournal) -> list[GLJournalLine]:
@@ -593,7 +616,7 @@ def _check_non_negative(db: Session, journal: GLJournal, lines: list[GLJournalLi
             )
 
 
-def _post(db: Session, journal: GLJournal, *, actor: str, allow_soft_closed: bool) -> GLJournal:
+def _post(db: Session, journal: GLJournal, *, actor: str, allow_soft_closed: bool, migration: MigrationMeta | None = None) -> GLJournal:
     period = db.query(GLFiscalPeriod).filter(GLFiscalPeriod.id == journal.period_id).with_for_update(read=True).one()
     _assert_period_postable(period, allow_soft_closed=allow_soft_closed)
     lines = _journal_lines(db, journal)
@@ -601,26 +624,29 @@ def _post(db: Session, journal: GLJournal, *, actor: str, allow_soft_closed: boo
     total_credit = sum((Decimal(str(line.credit)) for line in lines), ZERO)
     if len(lines) < 2 or total_debit != total_credit or total_debit != Decimal(str(journal.total_debit)):
         raise GLError("Journal lines are inconsistent with header totals", "unbalanced")
-    guarded = _lock_guarded_accounts(db, journal, lines)
+    guarded = _lock_guarded_accounts(db, journal, lines) if migration is None else []
     _apply_balances(db, journal, lines)
     db.flush()
-    _check_non_negative(db, journal, lines, guarded)
+    if migration is None:
+        _check_non_negative(db, journal, lines, guarded)
     journal.journal_no = _next_journal_no(db, journal.tenant_id, journal.posting_date)
     journal.status = "posted"
-    journal.posted_by = actor
-    journal.posted_at = _now()
+    journal.posted_by = (migration.posted_by or migration.created_by) if migration else actor
+    journal.posted_at = (migration.posted_at or migration.created_at) if migration else _now()
     db.flush()
-    append_audit(
-        db, journal.tenant_id, event_type="JOURNAL_POSTED", entity_type="journal", entity_id=journal.id, actor=actor,
-        payload={
-            "journal_no": journal.journal_no,
-            "journal_type": journal.journal_type,
-            "posting_date": journal.posting_date.isoformat(),
-            "amount": str(total_debit),
-            "source": [journal.source_type, journal.source_id],
-            "lines": [[line.account_id, str(line.debit), str(line.credit)] for line in lines],
-        },
-    )
+    payload = {
+        "journal_no": journal.journal_no,
+        "journal_type": journal.journal_type,
+        "posting_date": journal.posting_date.isoformat(),
+        "amount": str(total_debit),
+        "source": [journal.source_type, journal.source_id],
+        "lines": [[line.account_id, str(line.debit), str(line.credit)] for line in lines],
+    }
+    if migration is not None:
+        payload["migrated_from"] = journal.legacy_ref
+        payload["original_posted_by"] = journal.posted_by
+    append_audit(db, journal.tenant_id, event_type="JOURNAL_MIGRATED" if migration else "JOURNAL_POSTED",
+                 entity_type="journal", entity_id=journal.id, actor=actor, payload=payload)
     return journal
 
 
