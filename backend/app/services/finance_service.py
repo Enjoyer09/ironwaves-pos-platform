@@ -577,6 +577,11 @@ def post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: s
     txn.status = "posted"
     txn.posted_by = posted_by
     txn.posted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Finance v2 dual mode: let the GL bridge know which legacy postings this
+    # request produced, so a native journal can claim (cover) them.
+    from app.gl.bridge import record_legacy_posting
+
+    record_legacy_posting(db, txn.id)
     db.add(
         AuditLog(
             tenant_id=txn.tenant_id,

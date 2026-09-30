@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import re
+import uuid
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +14,9 @@ from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.json_utils import safe_json_list
 from app.services.finance_service import commission_percent as _commission_percent
+from app.gl import bridge as _gl_bridge  # Finance v2 dual-mode hooks (no-op in legacy mode)
+from app.gl import posting_rules as _gl_rules
+from app.gl.engine import business_today as _gl_bridge_today
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -1087,6 +1091,14 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
         db.add(row)
         sessions = _open_staff_shift_session(db, tenant.id, user.username, opened_at)
         db.flush()
+        if topup_amount > 0:
+            # Finance v2 (dual mode only): opening float from investor/safe/bank (+ bank fee).
+            _gl_bridge.emit(
+                db, tenant.id,
+                lambda: _gl_rules.DrawerFunded(row.id, _gl_bridge_today(), funding_source, topup_amount.quantize(Decimal("0.01")),
+                                               bank_fee=commission.quantize(Decimal("0.01")) if funding_source == "card" else Decimal("0")),
+                actor=user.username,
+            )
         db.commit()
         current_key = _normalized(user.username)
         return {
@@ -1171,6 +1183,11 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
             note="X-report difference",
             related_shift_id=active.id if active else None,
         )
+        _gl_bridge.emit(
+            db, tenant.id,
+            lambda: _gl_rules.CashCountVariance(active.id, _gl_bridge_today(), "x", str(uuid.uuid4()), Decimal(str(diff)).quantize(Decimal("0.01"))),
+            actor=user.username,
+        )
         db.commit()
 
     return {
@@ -1207,6 +1224,11 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             related_shift_id=active.id,
         )
         db.flush()
+        _gl_bridge.emit(
+            db, tenant.id,
+            lambda: _gl_rules.WagePaidFromDrawer(active.id, _gl_bridge_today(), Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
+            actor=user.username,
+        )
 
     breakdown = _shift_cash_breakdown(db, tenant.id, active, lock_for_update=True)
     expected = breakdown["expected_cash"]
@@ -1237,6 +1259,11 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             note="Z-report close: open deposit liability settled",
         )
         deposit_settled_amount = deposit_balance_before
+        _gl_bridge.emit(
+            db, tenant.id,
+            lambda: _gl_rules.DepositForfeited(f"zclose:{active.id}", _gl_bridge_today(), deposit_balance_before),
+            actor=user.username,
+        )
     deposit_balance_after = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
     if deposit_balance_after > Decimal("0.01"):
         raise HTTPException(
@@ -1259,6 +1286,11 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             note="Z-report difference",
             related_shift_id=active.id,
     )
+        _gl_bridge.emit(
+            db, tenant.id,
+            lambda: _gl_rules.CashCountVariance(active.id, _gl_bridge_today(), "z", active.id, difference),
+            actor=user.username,
+        )
     account_codes = _finance_account_code_map(db, tenant.id)
     account_id_by_code = {code: account_id for account_id, code in account_codes.items()}
     report_account_ids = [
@@ -1793,6 +1825,11 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
                 category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
                 note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
                 related_shift_id=active.id,
+            )
+            _gl_bridge.emit(
+                db, tenant.id,
+                lambda: _gl_rules.CashCountVariance(active.id, _gl_bridge_today(), "handover", row.id, difference.quantize(Decimal("0.01"))),
+                actor=user.username,
             )
 
     active.opened_by = user.username

@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
 from app.services.finance_service import commission_percent, mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
+from app.gl.bridge import emit_sale as emit_gl_sale
 # P1.1 — qazanma hesabı buradan gəlir. Router-də inline düstur saxlamırıq ki,
 # frontend güzgüsü (`src/lib/loyalty.ts`) və testlər eyni qaydanı işlədə bilsin.
 from app.services.loyalty_accrual import compute_points_earned, find_tier_multiplier, resolve_first_purchase_bonus
@@ -1076,6 +1077,18 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         amount=Decimal(str(cogs_total or 0)).quantize(Decimal("0.01")),
         created_by=user.username,
         note=f"POS sale COGS {sale.receipt_code or sale.id[:8]}",
+    )
+
+    # Finance v2: native compound journal in dual mode. Lazy + contained: no-op in legacy mode, never raises.
+    emit_gl_sale(
+        db, tenant.id, sale=sale, actor=user.username,
+        payments=lambda: (
+            [("cash", split_cash), ("card", split_card)] if payment_method == "split"
+            else [("staff", total)] if payment_method == "staff"
+            else [(payment_method, total)]
+        ),
+        card_fee_percent=card_sale_percent,
+        staff_benefit=lambda: staff_benefit_used if payment_method == "staff" else 0,
     )
 
     if customer is not None:

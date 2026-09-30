@@ -6500,6 +6500,11 @@ def open_table(
             note=f"{row.label} üçün depozit ({deposit_guest_count} nəfər)",
             related_table_id=row.id,
         )
+        # Finance v2 (dual mode only). Legacy books every deposit as cash; kept identical here.
+        from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+        from app.gl.engine import business_today as _gl_today
+
+        _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.DepositHeld(f"{row.id}:{secrets.token_hex(8)}", _gl_today(), "cash", deposit_amount.quantize(Decimal("0.01")), table_id=row.id), actor=user.username)
     db.add(
         AuditLog(
             tenant_id=tenant.id,
@@ -6878,6 +6883,10 @@ def abort_table(
             note=f"{row.label} - masa ləğv edildi (depozit geri qaytarıldı)",
             related_table_id=row.id,
         )
+        from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+        from app.gl.engine import business_today as _gl_today
+
+        _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.DepositRefunded(f"{row.id}:{secrets.token_hex(8)}", _gl_today(), "cash", deposit_amount.quantize(Decimal("0.01"))), actor=user.username)
 
     row.is_occupied = False
     row.assigned_to = None
@@ -7183,6 +7192,16 @@ def pay_table(
             related_table_id=row.id,
             related_order_id=sale.id,
         )
+
+    # Finance v2 (dual mode only): one compound journal for this table payment.
+    from app.gl.bridge import emit_sale as _emit_gl_sale
+    from app.routers.pos import _bank_commission_config
+
+    _emit_gl_sale(
+        db, tenant.id, sale=sale, actor=user.username,
+        payments=lambda: [("cash", split_cash), ("card", split_card)] if payment_method == "split" else [(payment_method, extra_due)],
+        card_fee_percent=lambda: _bank_commission_config(db, tenant.id)[0], deposit_applied=seat_deposit_amount,
+    )
 
     if pay_scope == "seat":
         remaining_guest_count = max(0, int(row.guest_count or 0) - 1)
@@ -7750,6 +7769,10 @@ def accept_shift_handover_op(
                 category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
                 note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
             )
+            from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+            from app.gl.engine import business_today as _gl_today
+
+            _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.CashCountVariance(active.id, _gl_today(), "handover", row.id, difference.quantize(Decimal("0.01"))), actor=user.username)
 
     active.opened_by = user.username
     row.status = "ACCEPTED"

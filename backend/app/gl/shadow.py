@@ -78,12 +78,19 @@ def reconcile_tenant_shadow(db: Session, tenant_id: str, *, started: datetime | 
 
     ``started`` is the cycle's clock (UTC, naive); the once-per-day guard relies on it."""
     started = started or _utcnow()
+    from app.gl.bridge import get_ledger_mode
+    from app.gl.legacy_migration import reconcile_dual_tenant
+
+    def run():
+        mode = get_ledger_mode(db, tenant_id)
+        return reconcile_dual_tenant(db, tenant_id) if mode == "dual" else reconcile_tenant(db, tenant_id)
+
     sync_tenant(db, tenant_id)
-    report = reconcile_tenant(db, tenant_id)
+    report = run()
     db.rollback()  # reconciliation is read-only; end the snapshot
     if not report["ok"]:
         sync_tenant(db, tenant_id)
-        report = reconcile_tenant(db, tenant_id)
+        report = run()
         db.rollback()
     failed = [c for c in report["checks"] if not c["ok"]]
     if failed:

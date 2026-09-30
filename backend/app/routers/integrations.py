@@ -382,6 +382,11 @@ async def process_delivery_order_logic(
         note=f"{provider_title} order COGS {sale.id}",
     )
 
+    # Finance v2 (dual mode only). ACCT: platform settles to bank; its commission is booked on settlement, not here.
+    from app.gl.bridge import emit_sale as _emit_gl_sale
+
+    _emit_gl_sale(db, tenant_id, sale=sale, payments=[("card", total)], actor=cashier_name)
+
     # 9. Create KitchenOrder
     kitchen_order = KitchenOrder(
         tenant_id=tenant_id,
