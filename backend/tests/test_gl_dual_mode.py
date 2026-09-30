@@ -251,3 +251,25 @@ def test_pos_nagd_legacy_misclassification_is_surfaced(monkeypatch, db, tid):
     diff = json.loads(db.query(GLLegacyLink).filter(GLLegacyLink.wallet_diff.isnot(None)).one().wallet_diff)
     assert diff == {"cash": "10.00", "card": "-9.80"}  # legacy: card +10 -0.20 fee; native: cash +10
     assert reconcile_dual_tenant(db, tid)["ok"]
+
+
+def test_manual_gl_journals_are_explained_in_dual_reconciliation(db, tid):
+    """Journals posted from the Finance v2 UI never reach legacy; they must not break the nightly check."""
+    _dual(db, tid)
+    journal = gl.create_journal(
+        db, tenant_id=tid, journal_type="general", created_by="owner", description="manual",
+        lines=[gl.LineIn(account="cash_drawer", debit=D("5")), gl.LineIn(account="other_income", credit=D("5"))],
+        source_module="manual",
+    )
+    db.commit()
+    report = reconcile_dual_tenant(db, tid)
+    assert report["ok"], [c for c in report["checks"] if not c["ok"]]
+    assert report["explained_differences"]["GLOnlyJournal"] == {"cash": "5.00"}
+
+    # A reversal (inherits source_module) cancels the explained difference.
+    rev = gl.reverse_journal(db, tid, journal.id, actor="owner", reason="undo")
+    assert rev.status == "posted" and rev.source_module == "manual"
+    db.commit()
+    report = reconcile_dual_tenant(db, tid)
+    assert report["ok"], [c for c in report["checks"] if not c["ok"]]
+    assert "GLOnlyJournal" not in report["explained_differences"]

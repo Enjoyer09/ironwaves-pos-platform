@@ -54,7 +54,7 @@ def env(monkeypatch):
     api.dependency_overrides[get_tenant] = lambda: SimpleNamespace(id=tenant_id)
     api.dependency_overrides[get_current_user] = lambda: state["user"]
     monkeypatch.setattr(settings, "finance_v2_enabled", True)
-    yield SimpleNamespace(client=TestClient(api), state=state)
+    yield SimpleNamespace(client=TestClient(api), state=state, Session=Session, tenant_id=tenant_id)
     engine.dispose()
 
 
@@ -66,6 +66,34 @@ def test_api_is_hidden_when_flag_off(env, monkeypatch):
     monkeypatch.setattr(settings, "finance_v2_enabled", False)
     assert env.client.get("/api/v1/gl/accounts").status_code == 404
     assert env.client.post("/api/v1/gl/setup").status_code == 404
+    assert env.client.get("/api/v1/gl/capabilities").status_code == 404
+
+
+def test_api_is_enabled_per_tenant_in_dual_mode(env, monkeypatch):
+    from app.gl import engine as gl_engine
+    from app.gl.bridge import set_ledger_mode
+
+    monkeypatch.setattr(settings, "finance_v2_enabled", False)
+    with env.Session() as s:
+        gl_engine.ensure_chart(s, env.tenant_id, actor="test")
+        s.commit()
+    assert env.client.get("/api/v1/gl/capabilities").status_code == 404
+    with env.Session() as s:
+        set_ledger_mode(s, env.tenant_id, "dual", actor="test", reason="pilot")
+        s.commit()
+
+    caps = env.client.get("/api/v1/gl/capabilities")
+    assert caps.status_code == 200
+    body = caps.json()
+    assert body["enabled"] and body["ledger_mode"] == "dual" and body["reports_source"] == "legacy"
+    assert body["chart_ready"] and body["can_control"] and body["can_approve"]
+    assert env.client.get("/api/v1/gl/accounts").status_code == 200
+
+    _as(env, "mgr", "manager")
+    body = env.client.get("/api/v1/gl/capabilities").json()
+    assert body["can_write"] and not body["can_approve"] and not body["can_control"] and not body["can_audit"]
+    _as(env, "kassir", "staff")
+    assert env.client.get("/api/v1/gl/capabilities").status_code == 403
 
 
 def test_permissions(env):

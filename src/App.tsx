@@ -22,6 +22,7 @@ import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
 import { apiRequest, isBackendEnabled, setClientAuthSession } from './api/client';
+import { getGLCapabilities } from './api/gl';
 
 
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
@@ -57,6 +58,7 @@ type AdminView =
   | 'analytics'
   | 'menu'
   | 'finance'
+  | 'financev2'
   | 'inventory'
   | 'crm'
   | 'customerapp'
@@ -90,6 +92,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
   kds: 'Mətbəx komandasının iş ekranıdır: sifariş statusları burada yenilənir.',
   zreport: 'Gün sonu yekun hesabatı və kassa nəticələri bu bölmədə çıxarılır.',
   finance: 'Pul axını, transferlər, investor borcu və jurnal nəzarəti bu bölmədədir.',
+  financev2: 'Milli Hesablar Planı üzrə baş kitab: balans, mənfəət/zərər, sınaq balansı, jurnallar, dövr bağlanışı və vergi.',
   inventory: 'Anbar qalıqları, xammal hərəkətləri və kritik limitlər burada izlənir.',
   suppliers: 'Təchizatçıların idarə edilməsi, əlaqə məlumatları və borc (AP) qalıqları burada idarə olunur.',
   combos: 'Kampaniya və kombo məhsullar burada yaradılır və idarə olunur.',
@@ -780,7 +783,7 @@ export default function App() {
       const target = String(detail?.module || '').trim().toLowerCase() as ModuleKey;
       if (!target) return;
       const allowedTargets = new Set<ModuleKey>([
-        'pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'dashboard', 'analytics',
+        'pos', 'tables', 'kds', 'zreport', 'finance', 'financev2', 'inventory', 'combos', 'dashboard', 'analytics',
         'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes', 'tenants', 'notes', 'settings', 'landing', 'database',
       ]);
       if (!allowedTargets.has(target)) return;
@@ -1105,6 +1108,21 @@ export default function App() {
   const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
   const moduleTenantKey = `${selectedTenantId}:${String(user?.username || 'guest')}`;
 
+  // Finance v2 (GL) is rolled out per tenant; the backend answers 404 where it is off.
+  const [glAvailable, setGlAvailable] = useState(false);
+  useEffect(() => {
+    const glRoles = ['admin', 'super_admin', 'finance_admin', 'manager', 'accountant', 'auditor'];
+    if (!hasValidUser || !backendMode || !user?.tenant_id || !glRoles.includes(sessionRole)) {
+      setGlAvailable(false);
+      return;
+    }
+    let alive = true;
+    void getGLCapabilities().then((caps) => {
+      if (alive) setGlAvailable(Boolean(caps?.enabled));
+    });
+    return () => { alive = false; };
+  }, [hasValidUser, backendMode, user?.tenant_id, sessionRole]);
+
   useEffect(() => {
     if (!hasValidUser || sessionRole !== 'super_admin') {
       setAvailableTenants([]);
@@ -1166,6 +1184,7 @@ export default function App() {
     { key: 'kds', label: t.modules.kds },
     { key: 'dashboard', label: t.modules.dashboard, manager: true },
     { key: 'finance', label: t.modules.finance, manager: true },
+    { key: 'financev2', label: (t.modules as any).financev2 || tx(safeLang, 'Mühasibat (v2)', 'Бухучёт (v2)', 'Accounting (v2)'), manager: true },
     { key: 'analytics', label: t.modules.analytics, manager: true },
     { key: 'zreport', label: t.modules.zreport },
     { key: 'inventory', label: t.modules.inventory, manager: true },
@@ -1183,9 +1202,16 @@ export default function App() {
     { key: 'tenants', label: t.modules.tenants, superAdminOnly: true },
   ];
 
-  const canAccess = (key: ModuleKey) => {
+  const canAccess = (key: ModuleKey): boolean => {
     const role = sessionRole;
     const definition = moduleButtons.find((item) => item.key === key);
+    // Finance v2 appears only where the backend enables the GL for this tenant and role.
+    // Managers additionally need the regular finance module in their role permissions.
+    if (key === 'financev2') {
+      if (!glAvailable) return false;
+      if (role === 'manager') return canAccess('finance');
+      return true;
+    }
     if (definition?.superAdminOnly) return role === 'super_admin';
     if (role === 'super_admin') return true;
     if (role === 'admin') return true;
@@ -2149,7 +2175,7 @@ export default function App() {
           {(() => {
             const isModern = currentUiMode === 'modern';
             const OPERATIONAL_KEYS: ModuleKey[] = ['pos', 'tables', 'kds', 'zreport'];
-            const MANAGEMENT_KEYS: ModuleKey[] = ['dashboard', 'finance', 'analytics'];
+            const MANAGEMENT_KEYS: ModuleKey[] = ['dashboard', 'finance', 'financev2', 'analytics'];
             const CATALOG_KEYS: ModuleKey[] = ['menu', 'recipes', 'inventory', 'suppliers'];
             const CUSTOMER_KEYS: ModuleKey[] = ['crm', 'customerapp'];
             const SYSTEM_KEYS: ModuleKey[] = ['settings', 'ai', 'notes', 'logs', 'database', 'landing', 'tenants'];

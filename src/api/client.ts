@@ -216,6 +216,35 @@ type ApiRequestOptions = {
   _skip401Refresh?: boolean;
 };
 
+// Backend details may be a string, a structured {code, message} object or a FastAPI validation array.
+export function formatErrorDetail(detail: unknown): string {
+  if (detail === null || detail === undefined) return '';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (item && typeof item === 'object') {
+          const loc = Array.isArray((item as any).loc) ? (item as any).loc.filter((p: unknown) => p !== 'body').join('.') : '';
+          const msg = String((item as any).msg || (item as any).message || '');
+          return loc ? `${loc}: ${msg}` : msg;
+        }
+        return String(item);
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof detail === 'object') {
+    const message = (detail as any).message ?? (detail as any).msg ?? (detail as any).detail;
+    if (message !== undefined && message !== null) return String(message);
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return String(detail);
+    }
+  }
+  return String(detail);
+}
+
 function isFormDataBody(value: unknown): value is FormData {
   return typeof FormData !== 'undefined' && value instanceof FormData;
 }
@@ -524,7 +553,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
         request_id: backendRequestId,
       });
     }
-    throw new Error(`${String(detail)} (request_id: ${backendRequestId})`);
+    throw new Error(`${formatErrorDetail(detail)} (request_id: ${backendRequestId})`);
   }
 
   if ((endedAt - startedAt) > 2500) {

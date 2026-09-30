@@ -1,6 +1,6 @@
 """Finance v2 GL API — /api/v1/gl
 
-Gated by ``settings.finance_v2_enabled`` (404 when off). Nothing in the legacy
+Gated by ``settings.finance_v2_enabled`` or, per tenant, by dual ledger mode (404 otherwise). Nothing in the legacy
 finance flows calls into this module yet; wiring happens in P1 (shadow mode).
 """
 from __future__ import annotations
@@ -27,8 +27,20 @@ GL_APPROVER_ROLES = {"admin", "super_admin", "finance_admin"}
 GL_CONTROLLER_ROLES = {"admin", "super_admin", "finance_admin"}
 
 
-def _enabled() -> None:
-    if not settings.finance_v2_enabled:
+def _tenant_enabled(db: Session, tenant_id: str) -> bool:
+    """The API is on globally via the flag, or per tenant once it runs the GL natively (dual mode)."""
+    if settings.finance_v2_enabled:
+        return True
+    from app.gl.bridge import get_ledger_mode
+
+    try:
+        return get_ledger_mode(db, tenant_id) == "dual"
+    except Exception:
+        return False
+
+
+def _enabled(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)) -> None:
+    if not _tenant_enabled(db, tenant.id):
         raise HTTPException(status_code=404, detail="Not Found")
 
 
@@ -155,6 +167,30 @@ class AccrueIn(BaseModel):
 
 
 # ─────────────────────────────── chart ──────────────────────────────────
+
+
+@router.get("/capabilities")
+def capabilities(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """What the UI may show for this tenant/user. Reaching this endpoint at all means the API is enabled."""
+    _require(user, GL_READ_ROLES)
+    from app.gl.bridge import get_ledger_mode
+    from app.gl.read_model import reports_source
+
+    role = _role(user)
+    chart_ready = db.query(GLAccount.id).filter(GLAccount.tenant_id == tenant.id).first() is not None
+    return {
+        "enabled": True,
+        "ledger_mode": get_ledger_mode(db, tenant.id),
+        "reports_source": reports_source(db, tenant.id),
+        "chart_ready": chart_ready,
+        "role": role,
+        "can_read": role in GL_READ_ROLES,
+        "can_write": role in GL_WRITE_ROLES,
+        "can_approve": role in GL_APPROVER_ROLES,
+        "can_control": role in GL_CONTROLLER_ROLES,
+        "can_audit": role in (GL_CONTROLLER_ROLES | {"auditor"}),
+        "business_today": engine.business_today().isoformat(),
+    }
 
 
 @router.post("/setup")

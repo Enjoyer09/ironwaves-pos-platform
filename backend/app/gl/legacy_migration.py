@@ -37,6 +37,8 @@ from app.models import FinanceAccount, FinanceEntry, FinanceLedgerEntry, Finance
 
 MIGRATION_ACTOR = "system:legacy-migration"
 IMPORTED_STATUSES = ("posted", "reversed")
+# Journals created directly in the GL (Finance v2 UI / tax engine); legacy never sees them.
+GL_ONLY_SOURCE_MODULES = ("manual", "gl")
 
 # Legacy codes that map 1:1 onto a single GL account (balance must match exactly).
 ONE_TO_ONE_CODES = ("cash", "card", "safe", "payable", "deposit", "investor", "debt", "inventory_asset", "adjustment")
@@ -394,6 +396,23 @@ def reconcile_dual_tenant(db: Session, tenant_id: str) -> dict:
 
     legacy_net = _legacy_net_by_code(db, tenant_id)
     by_role = {a.system_role: a for a in db.query(GLAccount).filter(GLAccount.tenant_id == tenant_id, GLAccount.system_role.isnot(None)).all()}
+
+    # GL-only journals (manual entries from the Finance v2 UI, tax accruals and their reversals) have no
+    # legacy counterpart by design; their effect on wallet accounts is an explained difference.
+    wallet_code_by_account = {by_role[LEGACY_CODE_TO_ROLE[code]].id: code for code in WALLET_CODES if LEGACY_CODE_TO_ROLE.get(code) in by_role}
+    gl_only = (
+        db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0), func.coalesce(func.sum(GLJournalLine.credit), 0))
+        .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+        .filter(GLJournalLine.tenant_id == tenant_id, GLJournal.status == "posted", GLJournal.legacy_ref.is_(None),
+                GLJournal.source_module.in_(GL_ONLY_SOURCE_MODULES), GLJournalLine.account_id.in_(list(wallet_code_by_account)))
+        .group_by(GLJournalLine.account_id).all()
+    )
+    for account_id, d, c in gl_only:
+        amount = Decimal(str(d)) - Decimal(str(c))
+        if amount:
+            code = wallet_code_by_account[account_id]
+            diffs[code] += amount
+            explained["GLOnlyJournal"][code] += amount
     gl_all = {
         acc: Decimal(str(d)) - Decimal(str(c))
         for acc, d, c in db.query(GLJournalLine.account_id, func.coalesce(func.sum(GLJournalLine.debit), 0), func.coalesce(func.sum(GLJournalLine.credit), 0))
