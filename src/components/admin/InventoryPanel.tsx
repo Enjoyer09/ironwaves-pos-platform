@@ -8,7 +8,8 @@ import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { tx } from '../../i18n';
-import { apiRequest, getApiBaseUrl } from '../../api/client';
+import { apiRequest, getApiBaseUrl, isBackendEnabled } from '../../api/client';
+import { getGLCapabilities } from '../../api/gl';
 import { verifyLocalCredential } from '../../lib/local_auth';
 import { getDB } from '../../lib/db_sim';
 
@@ -40,6 +41,19 @@ export default function InventoryPanel() {
     return () => {
       mountedRef.current = false;
       window.clearTimeout(historyTimer);
+    };
+  }, [tenant_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLedgerDual(false);
+    if (isBackendEnabled()) {
+      void getGLCapabilities().then((caps) => {
+        if (!cancelled) setLedgerDual(caps?.ledger_mode === 'dual');
+      });
+    }
+    return () => {
+      cancelled = true;
     };
   }, [tenant_id]);
 
@@ -119,6 +133,7 @@ export default function InventoryPanel() {
   const [customType, setCustomType] = useState('');
   const [newPaymentSource, setNewPaymentSource] = useState<'payable' | 'cash' | 'card' | 'safe'>('payable');
   const [newSupplier, setNewSupplier] = useState('');
+  const [newSupplierId, setNewSupplierId] = useState('');
   const [newInvoiceNo, setNewInvoiceNo] = useState('');
   const [newMinLimit, setNewMinLimit] = useState('5');
   const [measureType, setMeasureType] = useState<'çəki' | 'say' | 'həcm'>('çəki');
@@ -134,6 +149,9 @@ export default function InventoryPanel() {
   const [restockSupplierId, setRestockSupplierId] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
+  // Dual ledger mode: every stock receipt with a value needs a supplier (the backend enforces it too).
+  // No GL API / no access (null) = legacy rules.
+  const [ledgerDual, setLedgerDual] = useState(false);
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: string; unit: string; min_limit: string } | null>(null);
   const [editCustomType, setEditCustomType] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
@@ -248,6 +266,16 @@ export default function InventoryPanel() {
     }
   };
 
+  // Legacy: payable restocks need a supplier (unchanged). Dual: any receipt with a value does.
+  const supplierRequiredMessage = tx(lang,
+    'İkili mühasibat rejimində hər mədaxil üçün təchizatçı seçilməlidir',
+    'В двойном режиме учёта для каждого поступления нужно выбрать поставщика',
+    'In dual ledger mode every stock receipt needs a supplier');
+  const restockSupplierMissing = !restockSupplierId
+    && (restockPaymentSource === 'payable' || (ledgerDual && isPositiveDecimalInput(restockTotalPrice)));
+  const restockValid = isPositiveDecimalInput(restockQty) && isNonNegativeDecimalInput(restockTotalPrice) && !restockSupplierMissing;
+  const addSupplierMissing = ledgerDual && !newSupplierId && isPositiveDecimalInput(newCost);
+
   const inventoryTypeOptions = useMemo(
     () => Array.from(
       new Set(
@@ -264,6 +292,11 @@ export default function InventoryPanel() {
       notify('error', tx(lang, 'Kateqoriya boş ola bilməz', 'Категория не может быть пустой', 'Category cannot be empty'));
       return;
     }
+    if (addSupplierMissing) {
+      notify('error', supplierRequiredMessage);
+      return;
+    }
+    const selectedSupplier = ledgerDual ? suppliers.find((s) => s.id === newSupplierId) : null;
     try {
       const qty = parseDecimalInput(newQty);
       const totalPrice = parseDecimalInput(newCost);
@@ -277,7 +310,8 @@ export default function InventoryPanel() {
         unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
         min_limit: parseDecimalInput(newMinLimit),
         payment_source: newPaymentSource,
-        supplier: newSupplier.trim() || undefined,
+        supplier: (selectedSupplier ? selectedSupplier.name : newSupplier.trim()) || undefined,
+        supplier_id: selectedSupplier ? selectedSupplier.id : undefined,
         invoice_no: newInvoiceNo.trim() || undefined,
       }, user?.username || 'Admin');
       setNewName('');
@@ -288,6 +322,7 @@ export default function InventoryPanel() {
       setNewType('Xammal');
       setNewPaymentSource('payable');
       setNewSupplier('');
+      setNewSupplierId('');
       setNewInvoiceNo('');
       setIsAdding(false);
       await loadData();
@@ -314,8 +349,10 @@ export default function InventoryPanel() {
     const totalPrice = parseDecimalInput(restockTotalPrice);
     if (qty.lte(0) || totalPrice.lt(0)) return;
 
-    if (restockPaymentSource === 'payable' && !restockSupplierId) {
-      notify('error', tx(lang, 'Öhdəlik (AP) üçün təchizatçı seçilməlidir', 'Для кредиторки (AP) необходимо выбрать поставщика', 'Supplier must be selected for payable (AP)'));
+    if (restockSupplierMissing) {
+      notify('error', ledgerDual
+        ? supplierRequiredMessage
+        : tx(lang, 'Öhdəlik (AP) üçün təchizatçı seçilməlidir', 'Для кредиторки (AP) необходимо выбрать поставщика', 'Supplier must be selected for payable (AP)'));
       return;
     }
 
@@ -323,6 +360,7 @@ export default function InventoryPanel() {
       await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
         payment_source: restockPaymentSource,
         supplier: restockSupplier.trim() || undefined,
+        supplier_id: restockSupplierId || undefined,
         invoice_no: restockInvoiceNo.trim() || undefined,
       });
 
@@ -575,6 +613,10 @@ export default function InventoryPanel() {
               <select
                 className="neon-input"
                 value={restockSupplierId}
+                aria-label={tx(lang, 'Təchizatçı', 'Поставщик', 'Supplier')}
+                aria-required={ledgerDual || restockPaymentSource === 'payable'}
+                aria-invalid={ledgerDual && restockSupplierMissing}
+                aria-describedby={ledgerDual && restockSupplierMissing ? 'inv-restock-supplier-hint' : undefined}
                 onChange={(e) => {
                   const selectedId = e.target.value;
                   setRestockSupplierId(selectedId);
@@ -589,12 +631,19 @@ export default function InventoryPanel() {
               </select>
               <input className="neon-input col-span-2 animate-fade-in" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
             </div>
+            {ledgerDual && restockSupplierMissing ? (
+              <p id="inv-restock-supplier-hint" className="mt-2 text-sm text-amber-200" aria-live="polite">{supplierRequiredMessage}</p>
+            ) : null}
             <div className="mt-4 flex gap-2">
-              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleRestock(restockModal.id); }}>
-                {tx(lang, 'Təsdiqlə', 'Подтвердить')}
+              <button
+                className="glossy-gold min-h-11 rounded-lg px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={ledgerDual && !restockValid}
+                onClick={() => { void handleRestock(restockModal.id); }}
+              >
+                {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
               </button>
-              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockSupplierId(''); setRestockInvoiceNo(''); }}>
-                {tx(lang, 'Ləğv et', 'Отмена')}
+              <button className="neon-btn min-h-11 rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockSupplierId(''); setRestockInvoiceNo(''); }}>
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
               </button>
             </div>
           </div>
@@ -806,11 +855,31 @@ export default function InventoryPanel() {
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
           </select>
           <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
-          <input className="neon-input min-h-13" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
+          {ledgerDual ? (
+            <select
+              className="neon-input min-h-13"
+              value={newSupplierId}
+              aria-label={tx(lang, 'Təchizatçı', 'Поставщик', 'Supplier')}
+              aria-required={isPositiveDecimalInput(newCost)}
+              aria-invalid={addSupplierMissing}
+              aria-describedby={addSupplierMissing ? 'inv-add-supplier-hint' : undefined}
+              onChange={(e) => setNewSupplierId(e.target.value)}
+            >
+              <option value="">{tx(lang, '-- Təchizatçı seç --', '-- Выбрать поставщика --', '-- Select Supplier --')}</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input className="neon-input min-h-13" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
+          )}
           <input className="neon-input min-h-13" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={newInvoiceNo} onChange={e => setNewInvoiceNo(e.target.value)} />
+          {addSupplierMissing ? (
+            <p id="inv-add-supplier-hint" className="text-sm text-amber-200" aria-live="polite">{supplierRequiredMessage}</p>
+          ) : null}
           <button
             onClick={() => { void handleAdd(); }}
-            disabled={!newName.trim() || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost)}
+            disabled={!newName.trim() || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost) || addSupplierMissing}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed min-h-13 px-4 py-3 rounded-lg font-semibold"
           >
             {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}

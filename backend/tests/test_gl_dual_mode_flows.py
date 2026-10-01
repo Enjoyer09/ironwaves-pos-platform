@@ -215,6 +215,8 @@ def test_repay_investor_direct(db, tenant):
 
 
 def test_restock_on_credit_without_supplier_and_loss(db, tenant):
+    # finance_service is below the API: the dual-mode "supplier required" rule is enforced in
+    # routers/catalog.py (see test_dual_restock_without_supplier_rejected), not here.
     fs.post_inventory_restock(db, tenant_id=tenant.id, amount=D("80"), created_by="k", payment_source="payable", reference="INV-1")
     fs.post_inventory_restock(db, tenant_id=tenant.id, amount=D("30"), created_by="k", payment_source="cash")
     fs.post_inventory_loss(db, tenant_id=tenant.id, amount=D("5"), created_by="k", note="xarab oldu")
@@ -352,3 +354,108 @@ def test_all_hooks_are_noops_in_legacy_mode(db, tenant):
     fs.post_inventory_restock(db, tenant_id=tenant.id, amount=D("10"), created_by="k")
     db.commit()
     assert db.query(GLJournal).count() == before and db.query(GLLegacyLink).count() == 0
+
+
+# ─────────────── stock receipts need a supplier in dual mode (FEAT-003, F7) ───────────────
+
+
+def _item(db, tid, name="Un"):
+    from app.models import InventoryItem
+
+    row = InventoryItem(tenant_id=tid, name=name, unit="kg", stock_qty=D("0"), unit_cost=D("0"), min_limit=D("0"))
+    db.add(row)
+    db.commit()
+    return row
+
+
+def _restock(db, tenant, item_id, **kw):
+    from app.routers import catalog
+    from app.schemas import InventoryRestockIn
+
+    payload = InventoryRestockIn(qty_added=D("10"), total_price=D("50"), **kw)
+    return catalog.restock_inventory_item(item_id, payload, db=db, tenant=tenant, user=ADMIN)
+
+
+def _stock_ap_lines(db, tid):
+    from app.gl.models import GLJournalLine
+
+    ap = gl.accounts_by_role(db, tid)["accounts_payable"]
+    return (db.query(GLJournalLine).join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+            .filter(GLJournal.tenant_id == tid, GLJournal.source_type == "stock_receipt", GLJournalLine.account_id == ap.id).all())
+
+
+def test_dual_restock_without_supplier_rejected(db, tenant):
+    from fastapi import HTTPException
+
+    item = _item(db, tenant.id)
+    for source in ("payable", "cash"):
+        with pytest.raises(HTTPException) as exc:
+            _restock(db, tenant, item.id, payment_source=source, supplier="Bazar")  # free-text name is not a supplier
+        assert exc.value.status_code == 400 and exc.value.detail["code"] == "supplier_required"
+    with pytest.raises(HTTPException) as exc:
+        _restock(db, tenant, item.id, supplier_id="no-such-supplier")
+    assert exc.value.status_code == 404
+    db.rollback()
+    assert D(str(db.get(type(item), item.id).stock_qty)) == D("0")
+    assert not _stock_ap_lines(db, tenant.id)
+
+
+def test_dual_restock_with_supplier_tags_partner(db, tenant):
+    sup = _supplier(db, tenant.id, "Un Dəyirmanı")
+    db.commit()
+    item = _item(db, tenant.id)
+    _restock(db, tenant, item.id, supplier_id=sup.id, payment_source="payable")
+    lines = _stock_ap_lines(db, tenant.id)
+    assert [(ln.partner_type, ln.partner_id, D(str(ln.credit))) for ln in lines] == [("supplier", sup.id, D("50.00"))]
+    assert _partner_balance(db, tenant.id, sup.id) == D("50.00")
+    assert D(str(db.get(Supplier, sup.id).balance)) == D("50")
+    ok(db, tenant.id)
+
+
+def test_legacy_restock_without_supplier_still_allowed(db, tenant):
+    from app.models import FinanceTransaction
+
+    bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
+    db.commit()
+    item = _item(db, tenant.id)
+    out = _restock(db, tenant, item.id, payment_source="payable", supplier="Bazar")
+    assert D(out["stock_qty"]) == D("10")
+    assert db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant.id,
+                                               FinanceTransaction.transaction_type == "inventory_restock").count() == 1
+
+
+def test_dual_create_item_with_stock_requires_supplier(db, tenant):
+    from fastapi import HTTPException
+    from app.models import InventoryItem
+    from app.routers import catalog
+    from app.schemas import InventoryItemCreateIn
+
+    def create(name, **kw):
+        payload = InventoryItemCreateIn(name=name, stock_qty=D("2"), unit="kg", unit_cost=D("5"), **kw)
+        return catalog.create_inventory_item(payload, db=db, tenant=tenant, user=ADMIN)
+
+    with pytest.raises(HTTPException) as exc:
+        create("Şəkər")
+    assert exc.value.status_code == 400 and exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+    assert db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).count() == 0
+    # An item without opening stock is not a receipt: no supplier needed.
+    catalog.create_inventory_item(InventoryItemCreateIn(name="Duz", stock_qty=D("0"), unit="kg", unit_cost=D("0")),
+                                  db=db, tenant=tenant, user=ADMIN)
+    sup = _supplier(db, tenant.id, "Şirin MMC")
+    db.commit()
+    create("Şəkər", supplier_id=sup.id)
+    # The merge branch (same name again) is a receipt too.
+    with pytest.raises(HTTPException) as exc:
+        create("şəkər", payment_source="cash")
+    assert exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+    with pytest.raises(HTTPException) as exc:
+        create("şəkər", supplier_id="foreign-supplier")
+    assert exc.value.status_code == 404
+    db.rollback()
+    create("şəkər", supplier_id=sup.id)
+    lines = _stock_ap_lines(db, tenant.id)
+    assert [(ln.partner_id, D(str(ln.credit))) for ln in lines] == [(sup.id, D("10.00")), (sup.id, D("10.00"))]
+    assert _partner_balance(db, tenant.id, sup.id) == D("20.00")
+    ok(db, tenant.id)

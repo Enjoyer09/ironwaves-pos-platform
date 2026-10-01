@@ -228,7 +228,11 @@ export type GLIntegrity = {
   trial_balance_balanced: boolean;
 };
 
-export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus';
+/** 'current' = not yet due (only partners aged by bill due date have it non-zero). */
+export type AgingBucket = 'current' | '0_30' | '31_60' | '61_90' | '90_plus';
+
+/** due_date: open bills by due date; posting_date: FIFO by posting date; mixed: bills + undocumented remainder. */
+export type AgingBasis = 'due_date' | 'posting_date' | 'mixed';
 
 export type SubledgerPartner = {
   partner_type: string | null;
@@ -238,6 +242,7 @@ export type SubledgerPartner = {
   open: Money;
   advance: Money;
   buckets: Record<AgingBucket, Money>;
+  aging_basis: AgingBasis;
   oldest_open_date: string | null;
 };
 

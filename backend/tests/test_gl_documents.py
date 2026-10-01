@@ -876,3 +876,97 @@ def test_detail_includes_journal_lines(db, tid):
     assert [(p["amount"], p["created_by"], p["posting_date"]) for p in pending] == [("25.00", "mgr", "2026-09-15")]
     assert pending[0]["journal_id"]
 
+
+
+# ─────────────────────── Borclar: AP aging by due date (FEAT-003, F9) ───────────────────────
+
+EMPTY_BUCKETS = {"current": "0.00", "0_30": "0.00", "31_60": "0.00", "61_90": "0.00", "90_plus": "0.00"}
+
+
+def _ap_row(db, tid, supplier_id, as_of):
+    ap = subledger(db, tid, "ap", as_of=as_of)
+    assert ap["reconciled"] and D(ap["totals"]["balance"]) == D(ap["control_balance"])
+    return next((r for r in ap["partners"] if r["partner_id"] == supplier_id), None), ap
+
+
+def _open_docs(db, tid, supplier_id):
+    docs = db.query(GLDocument).filter(GLDocument.tenant_id == tid, GLDocument.partner_id == supplier_id).all()
+    return sum((documents.get_document_open_balance(db, tid, d.id) for d in docs), D("0.00"))
+
+
+def test_documented_partner_aged_by_due_date(db, tid):
+    as_of = date(2026, 9, 30)
+    # Issued 90 days ago but due in 10 days: not yet due, so 'current' (posting-date aging said 61_90).
+    _bill(db, tid, "INV-AGE-1", total="100.00", issue=as_of - timedelta(days=90), due=as_of + timedelta(days=10))
+    # Issued 50 days ago, 40 days past due: 31_60 (posting-date aging said 31_60 too, by issue date).
+    _bill(db, tid, "INV-AGE-2", total="40.00", issue=as_of - timedelta(days=50), due=as_of - timedelta(days=40))
+    row, ap = _ap_row(db, tid, "sup-1", as_of)
+    assert row["aging_basis"] == "due_date"
+    assert row["buckets"] == {**EMPTY_BUCKETS, "current": "100.00", "31_60": "40.00"}
+    assert row["balance"] == row["open"] == "140.00" and row["advance"] == "0.00"
+    assert ap["totals"]["current"] == "100.00" and ap["totals"]["90_plus"] == "0.00"
+    # A bill issued after as_of does not exist yet; as_of before the due date of bill 2 -> current.
+    earlier, _ = _ap_row(db, tid, "sup-1", as_of - timedelta(days=45))
+    assert earlier["buckets"] == {**EMPTY_BUCKETS, "current": "140.00"}
+
+
+def test_mixed_partner_remainder_uses_posting_date(db, tid):
+    as_of = date(2026, 9, 30)
+    # Undocumented legacy receipt on credit tagged with the supplier, 100 days old.
+    gl.create_journal(db, tenant_id=tid, journal_type="purchase", created_by="legacy-sync", posting_date=as_of - timedelta(days=100),
+                      description="Legacy restock", lines=[
+                          LineIn(account="inventory", debit=D("70"), credit=D("0")),
+                          LineIn(account="accounts_payable", debit=D("0"), credit=D("70"), partner_type="supplier", partner_id="sup-1")])
+    _bill(db, tid, "INV-MIX", total="100.00", issue=as_of - timedelta(days=5), due=as_of + timedelta(days=25))
+    row, _ = _ap_row(db, tid, "sup-1", as_of)
+    assert row["aging_basis"] == "mixed"
+    assert row["buckets"] == {**EMPTY_BUCKETS, "current": "100.00", "90_plus": "70.00"}
+    assert row["balance"] == row["open"] == "170.00"
+    # Settled beyond the documents (unallocated payment): the excess shows as advance, aged by due date.
+    _bill(db, tid, "INV-ADV", total="100.00", partner="sup-2", issue=as_of - timedelta(days=5), due=as_of - timedelta(days=1))
+    gl.create_journal(db, tenant_id=tid, journal_type="general", created_by="t", posting_date=as_of - timedelta(days=2),
+                      description="Unallocated payment", lines=[
+                          LineIn(account="accounts_payable", debit=D("30"), credit=D("0"), partner_type="supplier", partner_id="sup-2"),
+                          LineIn(account="cash_drawer", debit=D("0"), credit=D("30"))])
+    row2, ap = _ap_row(db, tid, "sup-2", as_of)
+    assert row2["aging_basis"] == "due_date"
+    assert row2["buckets"] == {**EMPTY_BUCKETS, "0_30": "100.00"}
+    assert (row2["open"], row2["advance"], row2["balance"]) == ("100.00", "30.00", "70.00")
+    assert ap["totals"]["advance"] == "30.00"
+    # Partners without documents keep posting-date aging.
+    _unassigned_ap(db, tid, "20", posting_date=as_of - timedelta(days=10))
+    unassigned, _ = _ap_row(db, tid, None, as_of)
+    assert unassigned["aging_basis"] == "posting_date" and unassigned["buckets"] == {**EMPTY_BUCKETS, "0_30": "20.00"}
+
+
+def test_invariant_sum_open_equals_subledger_balance(db, tid):
+    as_of = date(2026, 9, 30)
+
+    def check(expected_open, buckets):
+        row, _ = _ap_row(db, tid, "sup-1", as_of)
+        open_docs = _open_docs(db, tid, "sup-1")
+        assert open_docs == D(expected_open)
+        if row is None:
+            assert open_docs == D("0.00")
+            return
+        assert row["aging_basis"] == "due_date"
+        assert D(row["balance"]) == D(row["open"]) == open_docs
+        assert sum((D(v) for v in row["buckets"].values()), D("0")) == open_docs
+        assert row["buckets"] == {**EMPTY_BUCKETS, **buckets}
+
+    late = _bill(db, tid, "INV-INV-1", total="100.00", issue=date(2026, 9, 10), due=date(2026, 9, 25))
+    future = _bill(db, tid, "INV-INV-2", total="50.00", issue=date(2026, 9, 10), due=date(2026, 10, 20))
+    check("150.00", {"0_30": "100.00", "current": "50.00"})
+    pay_bill(db, tid, late.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    check("110.00", {"0_30": "60.00", "current": "50.00"})
+    pay_bill(db, tid, late.id, amount="60.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+    check("50.00", {"current": "50.00"})
+    void_document(db, tid, future.id, actor="admin-1", reason="Səhv faktura")
+    check("50.00", {"current": "50.00"})  # void pending: still owed
+    _approve(db, tid, documents._pending_void(db, tid, future).id)
+    check("0.00", {})
+    # A payment dated after as_of does not reduce the as-of open balance.
+    third = _bill(db, tid, "INV-INV-3", total="30.00", issue=date(2026, 9, 20), due=date(2026, 9, 28))
+    pay_bill(db, tid, third.id, amount="30.00", paid_from="cash_drawer", posting_date=date(2026, 10, 1))
+    row, _ = _ap_row(db, tid, "sup-1", as_of)
+    assert row["buckets"] == {**EMPTY_BUCKETS, "0_30": "30.00"} and row["open"] == "30.00"

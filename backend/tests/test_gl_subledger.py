@@ -76,7 +76,7 @@ def test_ap_fifo_aging_and_reconciliation(db, tid):
     rows = {r["partner_id"]: r for r in ap["partners"]}
     a = rows["sup-a"]
     assert a["name"] == "Ət Tədarük MMC" and a["balance"] == "200.00"
-    assert a["buckets"] == {"0_30": "50.00", "31_60": "150.00", "61_90": "0.00", "90_plus": "0.00"}
+    assert a["buckets"] == {"current": "0.00", "0_30": "50.00", "31_60": "150.00", "61_90": "0.00", "90_plus": "0.00"}
     assert a["oldest_open_date"] == "2026-08-15"
     b = rows["sup-b"]
     assert b["balance"] == "-20.00" and b["advance"] == "20.00" and b["open"] == "0.00"

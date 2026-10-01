@@ -1,5 +1,5 @@
 import { tx } from '../../../i18n';
-import type { AccountLedger, BalanceSheet, ProfitLoss, StatementSection, Subledger, TrialBalance } from '../../../api/gl';
+import type { AccountLedger, AgingBasis, BalanceSheet, ProfitLoss, StatementSection, Subledger, TrialBalance } from '../../../api/gl';
 import type { ExportReport, ExportSection } from './exporters';
 
 const statement = (heading: string, section: StatementSection, lang: string): ExportSection => ({
@@ -111,6 +111,12 @@ export function accountLedgerReport(lang: string, led: AccountLedger, from: stri
   };
 }
 
+export function agingBasisLabel(lang: string, basis: AgingBasis): string {
+  if (basis === 'due_date') return tx(lang, 'Son ödəniş tarixinə görə', 'По сроку оплаты', 'By due date');
+  if (basis === 'mixed') return tx(lang, 'Qarışıq: faktura + yazılış tarixi', 'Смешанно: счета + дата проводки', 'Mixed: bills + posting date');
+  return tx(lang, 'Yazılış tarixinə görə', 'По дате проводки', 'By posting date');
+}
+
 export function subledgerReport(lang: string, sl: Subledger): ExportReport {
   const name = sl.ledger === 'ap' ? tx(lang, 'Kreditor borcları', 'Кредиторская задолженность', 'Accounts payable') : tx(lang, 'Debitor borcları', 'Дебиторская задолженность', 'Accounts receivable');
   return {
@@ -123,13 +129,15 @@ export function subledgerReport(lang: string, sl: Subledger): ExportReport {
     ],
     fileBase: `${sl.ledger === 'ap' ? 'kreditor' : 'debitor'}_${sl.as_of}`,
     sections: [{
-      columns: [tx(lang, 'Tərəf', 'Контрагент', 'Partner'), '0–30', '31–60', '61–90', '90+', tx(lang, 'Avans', 'Аванс', 'Advance'),
-        tx(lang, 'Qalıq', 'Сальдо', 'Balance'), tx(lang, 'Ən köhnə', 'Старейший', 'Oldest')],
-      numeric: [1, 2, 3, 4, 5, 6],
+      columns: [tx(lang, 'Tərəf', 'Контрагент', 'Partner'), tx(lang, 'Vaxtı çatmayıb', 'Срок не наступил', 'Not yet due'),
+        '0–30', '31–60', '61–90', '90+', tx(lang, 'Avans', 'Аванс', 'Advance'),
+        tx(lang, 'Qalıq', 'Сальдо', 'Balance'), tx(lang, 'Yaş əsası', 'Основа возраста', 'Aging basis'), tx(lang, 'Ən köhnə', 'Старейший', 'Oldest')],
+      numeric: [1, 2, 3, 4, 5, 6, 7],
       rows: sl.partners.map((p) => [p.name || tx(lang, 'Tərəf göstərilməyib', 'Контрагент не указан', 'No partner assigned'),
-        p.buckets['0_30'], p.buckets['31_60'], p.buckets['61_90'], p.buckets['90_plus'], p.advance, p.balance, p.oldest_open_date || '']),
-      footer: [tx(lang, 'Cəmi', 'Итого', 'Total'), sl.totals['0_30'], sl.totals['31_60'], sl.totals['61_90'], sl.totals['90_plus'],
-        sl.totals.advance, sl.totals.balance, ''],
+        p.buckets.current, p.buckets['0_30'], p.buckets['31_60'], p.buckets['61_90'], p.buckets['90_plus'], p.advance, p.balance,
+        agingBasisLabel(lang, p.aging_basis), p.oldest_open_date || '']),
+      footer: [tx(lang, 'Cəmi', 'Итого', 'Total'), sl.totals.current, sl.totals['0_30'], sl.totals['31_60'], sl.totals['61_90'],
+        sl.totals['90_plus'], sl.totals.advance, sl.totals.balance, '', ''],
     }],
   };
 }
