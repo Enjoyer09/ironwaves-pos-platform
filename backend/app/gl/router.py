@@ -325,6 +325,7 @@ def approve(journal_id: str, db: Session = Depends(get_db), tenant: Tenant = Dep
     from app.gl import documents
 
     def work():
+        documents.lock_documents_for_journal(db, tenant.id, journal_id)  # same lock order as pay/void
         journal = engine.approve_journal(db, tenant.id, journal_id, approver=user.username, allow_soft_closed=True)
         # Same transaction: if the document side cannot follow (e.g. bill already settled), the approval rolls back.
         documents.after_journal_approved(db, tenant.id, journal)
@@ -340,6 +341,7 @@ def reject(journal_id: str, payload: ReasonIn, db: Session = Depends(get_db), te
     from app.gl import documents
 
     def work():
+        documents.lock_documents_for_journal(db, tenant.id, journal_id)
         journal = engine.reject_journal(db, tenant.id, journal_id, actor=user.username, reason=payload.reason)
         documents.after_journal_rejected(db, tenant.id, journal)
         return journal
@@ -351,8 +353,16 @@ def reject(journal_id: str, payload: ReasonIn, db: Session = Depends(get_db), te
 @router.post("/journals/{journal_id}/reverse")
 def reverse(journal_id: str, payload: ReverseIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _require(user, GL_WRITE_ROLES)
+    from app.gl.documents import DOCUMENT_SOURCE_TYPES
+
     original = db.query(GLJournal).filter(GLJournal.tenant_id == tenant.id, GLJournal.id == journal_id).first()
     if original is not None:
+        # Bill and bill-payment journals belong to the document: a bare storno would leave the bill open.
+        if original.source_type in DOCUMENT_SOURCE_TYPES:
+            raise HTTPException(status_code=409, detail={
+                "code": "document_managed",
+                "message": "This journal belongs to an AP bill. Void the bill or reverse the payment in Bills instead.",
+            })
         # Operational journals (sales, stock, shifts, mirrored legacy) are owned by their source module:
         # reversing them here would leave the sale/legacy ledger untouched and the books out of sync.
         if original.source_type == engine.YEAR_CLOSE_SOURCE:
@@ -517,31 +527,47 @@ def integrity(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant
 # ─────────────────────────────── documents (bills & invoices) ───────────
 
 
+@router.get("/suppliers")
+def list_suppliers(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Supplier picker for bills/reclass ([{id, name}]); readable by every GL reader (ops API is admin/manager only)."""
+    _require(user, GL_READ_ROLES)
+    from app.models import Supplier
+
+    rows = db.query(Supplier.id, Supplier.name).filter(Supplier.tenant_id == tenant.id).order_by(Supplier.name.asc(), Supplier.id.asc()).all()
+    return [{"id": sid, "name": name} for sid, name in rows]
+
+
 @router.get("/documents")
-def list_documents(kind: str | None = None, status: str | None = None, partner_id: str | None = None,
-                   due_before: date | None = None, due_after: date | None = None,
+def list_documents(kind: str = Query("ap_bill", pattern="^ap_bill$"), status: str | None = None, partner_id: str | None = None,
+                   due_before: date | None = None, due_after: date | None = None, overdue_only: bool = False,
+                   search: str | None = Query(None, max_length=100),
                    limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
                    db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    """List business documents (AP bills / AR invoices) with open balances and aging."""
+    """List AP bills (AR invoices are deferred) with open balances, aging and a summary over all pages."""
     _require(user, GL_READ_ROLES)
     from app.gl import documents
 
     return _read(lambda: documents.list_documents(
         db, tenant.id, kind=kind, status=status, partner_id=partner_id,
-        due_before=due_before, due_after=due_after, limit=limit, offset=offset
+        due_before=due_before, due_after=due_after, overdue_only=overdue_only, search=search, limit=limit, offset=offset
     ))
 
 
 @router.post("/documents/bills")
 def create_bill(payload: CreateBillIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    """Create an AP bill, posting its purchase journal and creating the document."""
+    """Create an AP bill (StockReceived / ExpensePaid on credit).
+
+    Non-approvers and totals >= the large-transfer threshold need a second person: the bill stays
+    ``pending_approval`` until its journal is approved (``rejected`` if rejected).
+    """
     _require(user, GL_WRITE_ROLES)
     from app.gl import documents
 
     doc = _run(db, lambda: documents.create_bill(
         db, tenant.id, partner_id=payload.partner_id, number=payload.number,
         issue_date=payload.issue_date, due_date=payload.due_date, total=payload.total,
-        expense_account=payload.expense_account, note=payload.note, branch_id=payload.branch_id, actor=user.username
+        expense_account=payload.expense_account, note=payload.note, branch_id=payload.branch_id, actor=user.username,
+        require_approval=_manual_needs_approval(db, tenant.id, user, payload.total),
     ))
     return documents.get_document_detail(db, tenant.id, doc.id)
 
@@ -575,7 +601,10 @@ def pay_bill(document_id: str, payload: PayBillIn, db: Session = Depends(get_db)
 
 @router.post("/documents/{document_id}/void")
 def void_document(document_id: str, payload: ReasonIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    """Void an open bill and reverse its journal (only allowed when no payment allocations exist)."""
+    """Request the void of an open bill: its storno waits for a second person (``pending_void_journal_id``).
+
+    Only allowed when no payments are allocated (net) or pending; the bill becomes void on approval.
+    """
     _require(user, GL_WRITE_ROLES)
     from app.gl import documents
 
@@ -583,9 +612,25 @@ def void_document(document_id: str, payload: ReasonIn, db: Session = Depends(get
     return documents.get_document_detail(db, tenant.id, doc.id)
 
 
+@router.post("/documents/{document_id}/payments/{journal_id}/reverse")
+def reverse_bill_payment(document_id: str, journal_id: str, payload: ReasonIn, db: Session = Depends(get_db),
+                         tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Request the reversal of a posted bill payment (storno pending a second person); on approval the
+    allocation is cancelled by a negative row and the bill is open again."""
+    _require(user, GL_WRITE_ROLES)
+    from app.gl import documents
+
+    return _run(db, lambda: documents.reverse_bill_payment(
+        db, tenant.id, document_id, journal_id, actor=user.username, reason=payload.reason,
+    ))
+
+
 @router.post("/documents/reclassify-unassigned")
 def reclassify_unassigned(payload: ReclassifyAPIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    """Reclassify historical unassigned AP (partner_id=NULL) to a designated supplier."""
+    """Request the reclassification of unassigned AP (partner_id=NULL) to a supplier.
+
+    Capped at the available unassigned balance; always pending owner approval by a second person.
+    """
     _require(user, GL_CONTROLLER_ROLES)
     from app.gl import documents
 

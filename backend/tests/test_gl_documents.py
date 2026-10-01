@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -24,7 +24,7 @@ from app.gl.documents import (
     void_document,
 )
 from app.gl.engine import GLError, LineIn
-from app.gl.models import GLDocumentAllocation, GLJournal, GLJournalLine
+from app.gl.models import GLAccount, GLDocument, GLDocumentAllocation, GLJournal, GLJournalLine
 from app.gl.posting_rules import SupplierPaid, post_event
 from app.gl.subledger import subledger
 from app.models import Supplier, Tenant
@@ -73,6 +73,19 @@ def tid(db):
         ],
     )
     return t
+
+
+def _approve(db, tid, journal_id, approver="checker-1"):
+    """What POST /journals/{id}/approve does: approve, then the document hook, same transaction."""
+    journal = gl.approve_journal(db, tid, journal_id, approver=approver)
+    documents.after_journal_approved(db, tid, journal)
+    return journal
+
+
+def _reject(db, tid, journal_id, actor="checker-1"):
+    journal = gl.reject_journal(db, tid, journal_id, actor=actor, reason="yanlışdır")
+    documents.after_journal_rejected(db, tid, journal)
+    return journal
 
 
 def test_create_bill_success(db, tid):
@@ -179,10 +192,17 @@ def test_void_bill_reverses_journal(db, tid):
     )
     assert bill.status == "open"
 
-    # Voiding succeeds when no allocations exist
-    voided = void_document(db, tid, bill.id, actor="admin-1", reason="Wrong invoice")
-    assert voided.status == "void"
+    # Step 1: the void request only creates a pending storno; the bill stays open (maker-checker).
+    requested = void_document(db, tid, bill.id, actor="admin-1", reason="Wrong invoice")
+    assert requested.status == "open"
+    storno_id = get_document_detail(db, tid, bill.id)["pending_void_journal_id"]
+    assert storno_id
+    # Step 2: a second person approves the storno; only then is the bill void.
+    _approve(db, tid, storno_id)
+    assert bill.status == "void"
     assert get_document_open_balance(db, tid, bill.id) == D("0.00")
+    original = db.query(GLJournal).filter(GLJournal.id == bill.journal_id).one()
+    assert original.reversed_by_id == storno_id
 
     # Trying to void already void document raises error
     with pytest.raises(GLError) as exc:
@@ -202,10 +222,18 @@ def test_void_bill_with_allocations_blocked(db, tid):
     )
     pay_bill(db, tid, bill.id, amount="100.00", paid_from="cash_drawer")
 
-    # Voiding must be rejected because payment allocations exist
+    # Voiding must be rejected because payment allocations exist (net, not row count)
     with pytest.raises(GLError) as exc:
         void_document(db, tid, bill.id)
     assert exc.value.code == "document_has_allocations"
+
+    # A payment still waiting for approval blocks the void as well.
+    other = _bill(db, tid, "INV-PENDING-PAY", total="50.00")
+    pay_bill(db, tid, other.id, amount="20.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), actor="mgr",
+             require_approval=True)
+    with pytest.raises(GLError) as exc:
+        void_document(db, tid, other.id)
+    assert exc.value.code == "payment_pending" and exc.value.status_code == 409
 
 
 def test_reclassify_unassigned_ap(db, tid):
@@ -240,6 +268,10 @@ def test_reclassify_unassigned_ap(db, tid):
     )
     assert res["amount"] == "500.00"
     assert res["to_supplier_id"] == "sup-2"
+    # Reclass is always owner-approved: nothing moves until a second person approves it.
+    assert res["status"] == "pending_approval" and res["journal_id"]
+    assert subledger(db, tid, "ap", as_of=date(2026, 8, 15))["unassigned_balance"] == "500.00"
+    _approve(db, tid, res["journal_id"])
 
     # Check subledger after reclassification:
     # Unassigned balance is now 0.00, and sup-2 has balance 500.00!
@@ -445,13 +477,13 @@ def test_documents_api_full_flow(monkeypatch):
         )
         s.commit()
 
-    # 2. POST /documents/bills
+    # 2. POST /documents/bills (below the 500 large-transfer threshold, so an admin bill posts directly)
     bill_payload = {
         "partner_id": "sup-api-1",
         "number": "BILL-API-101",
         "issue_date": "2026-09-10",
         "due_date": "2026-09-25",
-        "total": 600.0,
+        "total": 450.0,
         "note": "Ingredients order",
     }
     r = client.post("/api/v1/gl/documents/bills", json=bill_payload)
@@ -460,7 +492,7 @@ def test_documents_api_full_flow(monkeypatch):
     doc_id = doc_data["id"]
     assert doc_data["number"] == "BILL-API-101"
     assert doc_data["status"] == "open"
-    assert doc_data["open"] == "600.00"
+    assert doc_data["open"] == "450.00"
 
     # 3. GET /documents
     r = client.get("/api/v1/gl/documents")
@@ -485,13 +517,13 @@ def test_documents_api_full_flow(monkeypatch):
     assert r.status_code == 200
     pay_res = r.json()
     assert pay_res["status"] == "partially_paid"
-    assert pay_res["remaining_open"] == "350.00"
+    assert pay_res["remaining_open"] == "200.00"
 
     # 6. Check detail again
     r = client.get(f"/api/v1/gl/documents/{doc_id}")
     assert r.status_code == 200
     assert r.json()["status"] == "partially_paid"
-    assert r.json()["open"] == "350.00"
+    assert r.json()["open"] == "200.00"
     assert len(r.json()["allocations"]) == 1
 
     # 7. Try voiding bill with payment allocations -> 409
@@ -525,4 +557,322 @@ def test_documents_api_full_flow(monkeypatch):
     assert r.status_code == 200
     assert r.json()["amount"] == "300.00"
     assert r.json()["to_supplier_id"] == "sup-api-1"
+    assert r.json()["status"] == "pending_approval"
+
+
+# ─────────────────────── lifecycle, validation, maker-checker (FEAT-002) ───────────────────────
+
+
+def _unassigned_ap(db, tid, amount, posting_date=date(2026, 8, 1)):
+    """Historic AP without a supplier (like legacy restocks on credit)."""
+    return gl.create_journal(
+        db, tenant_id=tid, journal_type="purchase", created_by="legacy-sync", posting_date=posting_date,
+        description="Legacy restock without supplier",
+        lines=[LineIn(account="inventory", debit=D(amount), credit=D("0")),
+               LineIn(account="accounts_payable", debit=D("0"), credit=D(amount))],
+    )
+
+
+def _source_journal(db, doc):
+    return db.query(GLJournal).filter(GLJournal.id == doc.journal_id).one()
+
+
+def _lines(db, journal):
+    return (
+        db.query(GLAccount.code, GLAccount.system_role, GLJournalLine.debit, GLJournalLine.credit, GLJournalLine.partner_id)
+        .join(GLAccount, GLAccount.id == GLJournalLine.account_id)
+        .filter(GLJournalLine.journal_id == journal.id)
+        .order_by(GLJournalLine.line_no)
+        .all()
+    )
+
+
+def _sup_balance(db, tid, supplier_id):
+    row = next((r for r in subledger(db, tid, "ap")["partners"] if r["partner_id"] == supplier_id), None)
+    return D(row["balance"]) if row else D("0.00")
+
+
+def _doc_count(db, tid):
+    return db.query(GLDocument).filter(GLDocument.tenant_id == tid).count()
+
+
+def test_bill_unknown_or_foreign_supplier_rejected(db, tid):
+    other = str(uuid.uuid4())
+    db.add(Tenant(id=other, name="O", slug=f"o-{other[:8]}", domain=f"{other[:8]}.other", status="active"))
+    db.add(Supplier(id="sup-foreign", tenant_id=other, name="Başqa tenant"))
+    db.flush()
+    for ghost in ("sup-ghost", "sup-foreign"):
+        with pytest.raises(GLError) as exc:
+            _bill(db, tid, f"INV-{ghost}", partner=ghost)
+        assert exc.value.code == "supplier_not_found" and exc.value.status_code == 404
+    assert _doc_count(db, tid) == 0
+    assert db.query(GLJournal).filter(GLJournal.tenant_id == tid, GLJournal.source_type == "document").count() == 0
+
+
+def test_bill_rejects_cash_and_ap_accounts(db, tid):
+    for bad in ("cash_drawer", "bank_main", "accounts_payable", "531", "sales_revenue", "share_capital", "721", "no-such"):
+        with pytest.raises(GLError) as exc:
+            create_bill(db, tid, partner_id="sup-1", number=f"INV-{bad}", issue_date=date(2026, 9, 10),
+                        due_date=date(2026, 9, 20), total="10.00", expense_account=bad)
+        assert (exc.value.code, exc.value.status_code) == ("invalid_expense_account", 400), bad
+    assert _doc_count(db, tid) == 0
+
+
+def test_inventory_bill_uses_stock_received(db, tid):
+    bill = _bill(db, tid, "INV-STOCK", total="120.00")
+    journal = _source_journal(db, bill)
+    assert journal.idempotency_key == f"stock:bill:{bill.id}"
+    assert (journal.source_module, journal.source_type, journal.source_id) == ("gl", "document", bill.id)
+    assert journal.status == "posted"
+    assert [(r.system_role, D(r.debit), D(r.credit), r.partner_id) for r in _lines(db, journal)] == [
+        ("inventory", D("120.00"), D("0.00"), None),
+        ("accounts_payable", D("0.00"), D("120.00"), "sup-1"),
+    ]
+    # Inventory chosen by code goes through the same rule.
+    by_code = create_bill(db, tid, partner_id="sup-1", number="INV-STOCK-2", issue_date=date(2026, 9, 10),
+                          due_date=date(2026, 9, 20), total="5.00", expense_account="201")
+    assert _source_journal(db, by_code).idempotency_key == f"stock:bill:{by_code.id}"
+
+
+def test_expense_bill_uses_expense_paid(db, tid):
+    bill = create_bill(db, tid, partner_id="sup-1", number="INV-RENT", issue_date=date(2026, 9, 10), due_date=date(2026, 9, 20),
+                       total="300.00", expense_account="721.9", note="Oktyabr", actor="admin-1")
+    journal = _source_journal(db, bill)
+    assert journal.idempotency_key == f"expense:bill:{bill.id}"
+    assert (journal.source_module, journal.source_type, journal.source_id) == ("gl", "document", bill.id)
+    assert "INV-RENT" in journal.description and "Oktyabr" in journal.description
+    assert [(r.code, D(r.debit), D(r.credit), r.partner_id) for r in _lines(db, journal)] == [
+        ("721.9", D("300.00"), D("0.00"), None),
+        ("531", D("0.00"), D("300.00"), "sup-1"),
+    ]
+    rent = create_bill(db, tid, partner_id="sup-1", number="INV-RENT-2", issue_date=date(2026, 9, 10), due_date=date(2026, 9, 20),
+                       total="50.00", expense_account="rent_expense")
+    assert _source_journal(db, rent).idempotency_key == f"expense:bill:{rent.id}"
+    assert [r.code for r in _lines(db, _source_journal(db, rent))] == ["721.2", "531"]
+
+
+def test_bill_total_sub_cent_rejected(db, tid):
+    for bad in ("10.005", "NaN", "-5.00"):
+        with pytest.raises(GLError) as exc:
+            _bill(db, tid, f"INV-CENT-{bad}", total=bad)
+        assert exc.value.code == "invalid_amount", bad
+    assert _doc_count(db, tid) == 0
+
+
+def test_pending_bill_follows_journal_approval(db, tid):
+    bill = create_bill(db, tid, partner_id="sup-1", number="INV-PEND", issue_date=date(2026, 9, 10), due_date=date(2026, 9, 20),
+                       total="1000000.00", actor="admin-1", require_approval=True)
+    assert bill.status == "pending_approval"
+    assert _source_journal(db, bill).status == "pending_approval"
+    assert get_document_open_balance(db, tid, bill.id) == D("0.00")
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    assert exc.value.code == "invalid_status"
+    _approve(db, tid, bill.journal_id)
+    assert bill.status == "open" and get_document_open_balance(db, tid, bill.id) == D("1000000.00")
+
+    rejected = create_bill(db, tid, partner_id="sup-1", number="INV-REJ", issue_date=date(2026, 9, 10), due_date=date(2026, 9, 20),
+                           total="70.00", actor="admin-1", require_approval=True)
+    _reject(db, tid, rejected.journal_id)
+    assert rejected.status == "rejected" and get_document_open_balance(db, tid, rejected.id) == D("0.00")
+    assert _sup_balance(db, tid, "sup-1") == D("1000000.00")
+
+
+def test_voided_number_not_reusable(db, tid):
+    bill = _bill(db, tid, "INV-REUSE")
+    void_document(db, tid, bill.id, actor="admin-1", reason="Səhv faktura")
+    _approve(db, tid, get_document_detail(db, tid, bill.id)["pending_void_journal_id"])
+    assert bill.status == "void"
+    with pytest.raises(GLError) as exc:
+        _bill(db, tid, "INV-REUSE")
+    assert exc.value.code == "duplicate_bill" and exc.value.status_code == 409
+    assert "voided" in exc.value.message and "INV-REUSE" in exc.value.message
+    # Another supplier may use the same number.
+    assert _bill(db, tid, "INV-REUSE", partner="sup-2").status == "open"
+
+
+def test_void_creates_pending_storno_doc_stays_open(db, tid):
+    bill = _bill(db, tid, "INV-VOID-PENDING", total="80.00")
+    returned = void_document(db, tid, bill.id, actor="admin-1", reason="Səhv faktura")
+    assert returned.status == "open"
+    detail = get_document_detail(db, tid, bill.id)
+    storno = db.query(GLJournal).filter(GLJournal.id == detail["pending_void_journal_id"]).one()
+    assert storno.status == "pending_approval" and storno.reversal_of_id == bill.journal_id
+    assert (storno.source_type, storno.source_id) == ("document", bill.id)
+    assert detail["status"] == "open" and detail["open"] == "80.00"
+    assert _sup_balance(db, tid, "sup-1") == D("80.00")  # nothing moved in the books yet
+    with pytest.raises(GLError) as exc:
+        void_document(db, tid, bill.id, actor="admin-1")
+    assert (exc.value.code, exc.value.status_code) == ("void_pending", 409)
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    assert (exc.value.code, exc.value.status_code) == ("void_pending", 409)
+    with pytest.raises(GLError) as exc:
+        _approve(db, tid, storno.id, approver="admin-1")
+    assert exc.value.code == "self_approval"
+
+
+def test_void_rejected_keeps_bill_open(db, tid):
+    bill = _bill(db, tid, "INV-VOID-REJ", total="40.00")
+    void_document(db, tid, bill.id, actor="admin-1", reason="Səhv faktura")
+    _reject(db, tid, get_document_detail(db, tid, bill.id)["pending_void_journal_id"])
+    detail = get_document_detail(db, tid, bill.id)
+    assert detail["status"] == "open" and detail["open"] == "40.00" and detail["pending_void_journal_id"] is None
+    assert _source_journal(db, bill).reversed_by_id is None
+    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    assert res["status"] == "partially_paid"
+
+
+def test_void_approval_rechecks_allocations(db, tid):
+    bill = _bill(db, tid, "INV-VOID-RACE", total="60.00")
+    void_document(db, tid, bill.id, actor="admin-1", reason="Səhv faktura")
+    storno_id = get_document_detail(db, tid, bill.id)["pending_void_journal_id"]
+    # Something settled the bill outside the pay path while the void waited for approval.
+    other = post_event(db, tid, SupplierPaid("outside-void", date(2026, 9, 15), "sup-1", "10.00", "cash"), actor="admin-1")
+    db.add(GLDocumentAllocation(tenant_id=tid, document_id=bill.id, journal_id=other.id, journal_line_no=1, amount=D("10.00")))
+    db.flush()
+    journal = gl.approve_journal(db, tid, storno_id, approver="checker-1")
+    with pytest.raises(GLError) as exc:
+        documents.after_journal_approved(db, tid, journal)
+    assert exc.value.code == "document_has_allocations" and exc.value.status_code == 409
+
+
+def test_reverse_bill_payment_guards(db, tid):
+    bill = _bill(db, tid, "INV-RP", total="100.00")
+    other = _bill(db, tid, "INV-RP-OTHER", total="100.00")
+    pay = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    # Not a payment of that bill / not a payment at all.
+    for doc_id, journal_id in ((other.id, pay["journal_id"]), (bill.id, bill.journal_id)):
+        with pytest.raises(GLError) as exc:
+            documents.reverse_bill_payment(db, tid, doc_id, journal_id, actor="admin-1", reason="Səhv ödəniş")
+        assert (exc.value.code, exc.value.status_code) == ("payment_not_found", 404)
+    res = documents.reverse_bill_payment(db, tid, bill.id, pay["journal_id"], actor="admin-1", reason="Səhv ödəniş")
+    assert res["journal_status"] == "pending_approval" and res["reversal_of_id"] == pay["journal_id"]
+    assert get_document_open_balance(db, tid, bill.id) == D("60.00")  # unchanged until approved
+    with pytest.raises(GLError) as exc:
+        documents.reverse_bill_payment(db, tid, bill.id, pay["journal_id"], actor="admin-1", reason="Səhv ödəniş")
+    assert exc.value.code == "reversal_pending"
+    _approve(db, tid, res["journal_id"])
+    allocs = sorted(D(a.amount) for a in _allocs(db, tid, bill.id))
+    assert allocs == [D("-40.00"), D("40.00")]
+    assert bill.status == "open" and get_document_open_balance(db, tid, bill.id) == D("100.00")
+    assert _sup_balance(db, tid, "sup-1") == D("200.00")  # both bills fully open again
+
+
+def test_reclass_capped_at_unassigned(db, tid):
+    with pytest.raises(GLError) as exc:
+        reclassify_unassigned_ap(db, tid, amount="10.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert (exc.value.code, exc.value.status_code) == ("reclass_exceeds_unassigned", 409)
+    _unassigned_ap(db, tid, "100")
+    with pytest.raises(GLError) as exc:
+        reclassify_unassigned_ap(db, tid, amount="100.01", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert exc.value.code == "reclass_exceeds_unassigned" and "100.00" in exc.value.message
+    # Dated before the unassigned AP existed: nothing to reclassify yet.
+    with pytest.raises(GLError) as exc:
+        reclassify_unassigned_ap(db, tid, amount="50.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 7, 31))
+    assert exc.value.code == "reclass_exceeds_unassigned"
+    with pytest.raises(GLError) as exc:
+        reclassify_unassigned_ap(db, tid, amount="10.005", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert exc.value.code == "invalid_amount"
+    res = reclassify_unassigned_ap(db, tid, amount="100.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert res["status"] == "pending_approval"
+
+
+def test_reclass_ghost_supplier_rejected(db, tid):
+    _unassigned_ap(db, tid, "100")
+    other = str(uuid.uuid4())
+    db.add(Tenant(id=other, name="O", slug=f"o-{other[:8]}", domain=f"{other[:8]}.other", status="active"))
+    db.add(Supplier(id="sup-foreign", tenant_id=other, name="Başqa tenant"))
+    db.flush()
+    for ghost in ("sup-ghost", "sup-foreign"):
+        with pytest.raises(GLError) as exc:
+            reclassify_unassigned_ap(db, tid, amount="10.00", to_supplier_id=ghost, actor="owner", posting_date=date(2026, 9, 10))
+        assert (exc.value.code, exc.value.status_code) == ("supplier_not_found", 404)
+    assert db.query(GLJournal).filter(GLJournal.tenant_id == tid, GLJournal.source_type == "reclass").count() == 0
+
+
+def test_reclass_pending_until_approved(db, tid):
+    _unassigned_ap(db, tid, "200")
+    res = reclassify_unassigned_ap(db, tid, amount="80.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert res["status"] == "pending_approval" and res["journal_no"] is None
+    assert subledger(db, tid, "ap")["unassigned_balance"] == "200.00"
+    with pytest.raises(GLError) as exc:
+        _approve(db, tid, res["journal_id"], approver="owner")
+    assert exc.value.code == "self_approval"
+    _approve(db, tid, res["journal_id"])
+    assert subledger(db, tid, "ap")["unassigned_balance"] == "120.00"
+    assert _sup_balance(db, tid, "sup-2") == D("80.00")
+
+
+def test_two_pending_reclasses_cannot_exceed(db, tid):
+    _unassigned_ap(db, tid, "100")
+    first = reclassify_unassigned_ap(db, tid, amount="60.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    with pytest.raises(GLError) as exc:
+        reclassify_unassigned_ap(db, tid, amount="50.00", to_supplier_id="sup-1", actor="owner", posting_date=date(2026, 9, 10))
+    assert exc.value.code == "reclass_exceeds_unassigned" and "40.00" in exc.value.message
+    reclassify_unassigned_ap(db, tid, amount="40.00", to_supplier_id="sup-1", actor="owner", posting_date=date(2026, 9, 10))
+    # Rejecting a pending reclass releases its reservation.
+    _reject(db, tid, first["journal_id"])
+    again = reclassify_unassigned_ap(db, tid, amount="60.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    assert again["status"] == "pending_approval"
+
+
+def test_reclass_approval_rechecks_unassigned(db, tid):
+    _unassigned_ap(db, tid, "100")
+    res = reclassify_unassigned_ap(db, tid, amount="100.00", to_supplier_id="sup-2", actor="owner", posting_date=date(2026, 9, 10))
+    # Meanwhile part of the unassigned AP was settled by an adjusting journal.
+    gl.create_journal(db, tenant_id=tid, journal_type="general", created_by="admin-1", posting_date=date(2026, 9, 5),
+                      description="Unassigned AP paid", lines=[LineIn(account="accounts_payable", debit=D("30")),
+                                                              LineIn(account="cash_drawer", credit=D("30"))])
+    journal = gl.approve_journal(db, tid, res["journal_id"], approver="checker-1")
+    with pytest.raises(GLError) as exc:
+        documents.after_journal_approved(db, tid, journal)
+    assert (exc.value.code, exc.value.status_code) == ("reclass_exceeds_unassigned", 409)
+
+
+def test_summary_covers_all_pages(db, tid):
+    today = gl.business_today()
+    overdue = _bill(db, tid, "S-1", total="100.00", issue=today - timedelta(days=40), due=today - timedelta(days=10))
+    _bill(db, tid, "S-2", total="200.00", issue=today - timedelta(days=5), due=today + timedelta(days=10))
+    _bill(db, tid, "S-3", total="300.00", partner="sup-2", issue=today - timedelta(days=3), due=today + timedelta(days=20))
+    pay_bill(db, tid, overdue.id, amount="30.00", paid_from="cash_drawer", posting_date=today)
+    voided = _bill(db, tid, "S-4", total="999.00", issue=today - timedelta(days=9), due=today - timedelta(days=1))
+    void_document(db, tid, voided.id, actor="admin-1", reason="Səhv faktura")
+    _approve(db, tid, get_document_detail(db, tid, voided.id)["pending_void_journal_id"])
+
+    page = list_documents(db, tid, kind="ap_bill", limit=1)
+    assert page["total"] == 4 and len(page["items"]) == 1
+    assert page["summary"] == {"total_billed": "600.00", "total_open": "570.00", "overdue_open": "70.00", "overdue_count": 1}
+    assert list_documents(db, tid, partner_id="sup-2", limit=1)["summary"]["total_open"] == "300.00"
+
+
+def test_overdue_only_and_search_filters(db, tid):
+    today = gl.business_today()
+    _bill(db, tid, "OD-1", total="10.00", issue=today - timedelta(days=40), due=today - timedelta(days=10))
+    _bill(db, tid, "FUT-1", total="20.00", issue=today - timedelta(days=1), due=today + timedelta(days=10))
+    _bill(db, tid, "XZ-77", total="30.00", partner="sup-2", issue=today - timedelta(days=1), due=today + timedelta(days=5))
+    paid_late = _bill(db, tid, "PAID-OLD", total="5.00", issue=today - timedelta(days=40), due=today - timedelta(days=20))
+    pay_bill(db, tid, paid_late.id, amount="5.00", paid_from="cash_drawer", posting_date=today)
+
+    overdue = list_documents(db, tid, overdue_only=True)
+    assert [d["number"] for d in overdue["items"]] == ["OD-1"] and overdue["total"] == 1
+    assert overdue["summary"]["overdue_count"] == 1 and overdue["summary"]["overdue_open"] == "10.00"
+    assert [d["number"] for d in list_documents(db, tid, search="xz-7")["items"]] == ["XZ-77"]  # number, any case
+    assert [d["number"] for d in list_documents(db, tid, search="xəzər")["items"]] == ["XZ-77"]  # supplier name
+
+
+def test_detail_includes_journal_lines(db, tid):
+    bill = create_bill(db, tid, partner_id="sup-1", number="INV-LINES", issue_date=date(2026, 9, 10), due_date=date(2026, 9, 20),
+                       total="75.00", expense_account="721.9", note="Kağız", actor="admin-1")
+    detail = get_document_detail(db, tid, bill.id)
+    assert detail["journal_status"] == "posted"
+    assert detail["pending_void_journal_id"] is None and detail["pending_payments"] == []
+    assert [(l["line_no"], l["account_code"], l["debit"], l["credit"]) for l in detail["lines"]] == [
+        (1, "721.9", "75.00", "0.00"), (2, "531", "0.00", "75.00")]
+    assert all(l["account_name"] and "memo" in l for l in detail["lines"])
+    pay_bill(db, tid, bill.id, amount="25.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), actor="mgr",
+             require_approval=True)
+    pending = get_document_detail(db, tid, bill.id)["pending_payments"]
+    assert [(p["amount"], p["created_by"], p["posting_date"]) for p in pending] == [("25.00", "mgr", "2026-09-15")]
+    assert pending[0]["journal_id"]
 

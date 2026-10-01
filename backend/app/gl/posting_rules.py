@@ -429,6 +429,7 @@ class ExpensePaid:
     supplier_id: str | None = None
     bank_fee: Decimal | str = ZERO
     note: str | None = None
+    branch_id: str | None = None
 
     def spec(self, tax: TaxSettings) -> JournalSpec:
         amount = _pos(self.amount, "Amount")
@@ -449,7 +450,7 @@ class ExpensePaid:
             lines.cr(wallet_role(self.paid_from), amount + fee, "Ödəniş")
             lines.dr("bank_fees", fee, "Bank komissiyası")
         return JournalSpec("purchase" if self.paid_from is None else "cash", lines.build(), self.note or "Xərc",
-                           "expense", self.expense_id, f"expense:{self.expense_id}", self.posting_date)
+                           "expense", self.expense_id, f"expense:{self.expense_id}", self.posting_date, self.branch_id)
 
 
 @dataclass(frozen=True)
@@ -522,6 +523,7 @@ class StockReceived:
     supplier_id: str | None = None
     input_vat: Decimal | str = ZERO
     invoice_no: str | None = None
+    branch_id: str | None = None
 
     def spec(self, tax: TaxSettings) -> JournalSpec:
         amount = _pos(self.amount, "Amount")
@@ -541,7 +543,7 @@ class StockReceived:
         else:
             lines.cr(wallet_role(self.paid_from), amount, "Nağd alış")
         return JournalSpec("purchase", lines.build(), f"Mal alışı {self.invoice_no or ''}".strip(), "stock_receipt",
-                           self.receipt_id, f"stock:{self.receipt_id}", self.posting_date)
+                           self.receipt_id, f"stock:{self.receipt_id}", self.posting_date, self.branch_id)
 
 
 @dataclass(frozen=True)

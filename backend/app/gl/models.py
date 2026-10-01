@@ -282,7 +282,8 @@ class GLLegacyLink(Base):
 
 
 DOCUMENT_KINDS = ("ap_bill", "ar_invoice")
-DOCUMENT_STATUSES = ("open", "partially_paid", "paid", "void")
+# pending_approval/rejected follow the bill journal's approval (String(16), no CHECK: no migration needed).
+DOCUMENT_STATUSES = ("pending_approval", "open", "partially_paid", "paid", "rejected", "void")
 
 
 class GLDocument(Base):
@@ -311,7 +312,7 @@ class GLDocument(Base):
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="AZN")
     total: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open | partially_paid | paid | void
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # see DOCUMENT_STATUSES
     journal_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("gl_journals.id"), nullable=True)
     created_by: Mapped[str] = mapped_column(String(64), nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

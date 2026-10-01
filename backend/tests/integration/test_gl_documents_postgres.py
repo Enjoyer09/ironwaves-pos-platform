@@ -158,3 +158,95 @@ def test_bill_lifecycle_keeps_dual_reconcile_pg(Session, env):
     with Session() as s:
         assert s.get(GLDocument, doc_id).status == "paid"
         assert gl.verify_audit_chain(s, tid)["valid"]
+
+
+# ─────────────────────── lifecycle with maker-checker (FEAT-002) ───────────────────────
+
+
+def _approve(Session, tid, journal_id, approver):
+    """What POST /journals/{id}/approve does, in its own transaction."""
+    with Session() as s:
+        try:
+            documents.lock_documents_for_journal(s, tid, journal_id)
+            journal = gl.approve_journal(s, tid, journal_id, approver=approver, allow_soft_closed=True)
+            documents.after_journal_approved(s, tid, journal)
+            s.commit()
+            return ("ok", journal.status)
+        except GLError as exc:
+            s.rollback()
+            return (exc.code, None)
+
+
+def _audit_valid(Session, tid):
+    with Session() as s:
+        assert gl.verify_audit_chain(s, tid)["valid"]
+
+
+def test_full_lifecycle_dual_reconcile_pg(Session, env):
+    tid, sid = env
+    doc_id = _bill(Session, tid, sid, "100.00")
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+    pay = None
+    with Session() as s:
+        pay = documents.pay_bill(s, tid, doc_id, amount="100.00", paid_from="cash_drawer", actor="owner", idempotency_key="life-full-0001")
+        s.commit()
+    assert pay["status"] == "paid" and pay["journal_status"] == "posted"
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+    with Session() as s:
+        rev = documents.reverse_bill_payment(s, tid, doc_id, pay["journal_id"], actor="owner", reason="Səhv ödəniş")
+        s.commit()
+    assert rev["journal_status"] == "pending_approval"
+    assert _approve(Session, tid, rev["journal_id"], "owner")[0] == "self_approval"
+    assert _approve(Session, tid, rev["journal_id"], "cfo") == ("ok", "posted")
+    with Session() as s:
+        doc = s.get(GLDocument, doc_id)
+        assert doc.status == "open" and documents.get_document_open_balance(s, tid, doc_id) == D("100.00")
+        assert sorted(D(a.amount) for a in s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == doc_id)) == [
+            D("-100.00"), D("100.00")]
+        assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == D("500.00")
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+    with Session() as s:
+        documents.void_document(s, tid, doc_id, actor="owner", reason="Səhv faktura")
+        s.commit()
+        storno_id = documents.get_document_detail(s, tid, doc_id)["pending_void_journal_id"]
+    assert storno_id
+    _assert_reconciled(Session, tid, sid)
+    assert _approve(Session, tid, storno_id, "cfo") == ("ok", "posted")
+    with Session() as s:
+        assert s.get(GLDocument, doc_id).status == "void"
+        assert documents.get_document_open_balance(s, tid, doc_id) == D("0.00")
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+
+def test_concurrent_void_approval_and_payment(Session, env):
+    """A payment racing the approval of a void on an open bill: never both succeed."""
+    tid, sid = env
+    for attempt in range(3):
+        doc_id = _bill(Session, tid, sid, "10.00")
+        with Session() as s:
+            documents.void_document(s, tid, doc_id, actor="owner", reason="Səhv faktura")
+            s.commit()
+            storno_id = documents.get_document_detail(s, tid, doc_id)["pending_void_journal_id"]
+
+        def run(i):
+            if i == 0:
+                return ("void",) + _approve(Session, tid, storno_id, "cfo")
+            return ("pay",) + _pay(Session, tid, doc_id, "10.00", f"race-void-{attempt}", "cashier")
+
+        outcomes = {kind: code for kind, code, _ in _race(2, run)}
+        assert outcomes["void"] == "ok", outcomes
+        assert outcomes["pay"] in ("void_pending", "invalid_status"), outcomes
+        with Session() as s:
+            doc = s.get(GLDocument, doc_id)
+            assert doc.status == "void"
+            assert not _payment_journals(s, tid, doc_id)
+            assert s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == doc_id).count() == 0
+        _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
