@@ -80,6 +80,7 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `tax.py` | Tax profiles, simplified tax accrual, VAT split | `set_tax_profile`, `get_tax_profile`, `accrue_simplified_tax` (posts only the delta, safe to repeat), `tax_summary`, `split_vat` |
 | `year_end.py` | Fiscal year close/reopen | `year_status`, `close_fiscal_year`, `request_reopen_fiscal_year` |
 | `subledger.py` | AP/AR per partner, FIFO settlement, aging | `subledger(db, tid, "ap"\|"ar", as_of)` |
+| `documents.py` | AP bills & AR invoices kernel, allocations & unassigned AP reclassification | `create_bill`, `pay_bill`, `void_document`, `allocate_payment`, `reclassify_unassigned_ap`, `list_documents`, `get_document_detail` |
 | `router.py` | HTTP API `/api/v1/gl` | Section 3 |
 
 Scripts:
@@ -100,7 +101,7 @@ Related, outside `gl/`:
   - `finance_v2_ledger_mode` → `{"mode": "dual", "since", "by"}`
   - `finance_v2_reports_source` → `{"source": "gl", ...}`
 
-### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002`; head = `20260930_0002`)
+### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001`; head = `20261001_0001`)
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -109,6 +110,8 @@ Related, outside `gl/`:
 | `gl_journals` | Header: `journal_no` (gapless per tenant/year, e.g. `JV-2026-000021`), type, status, `posting_date`, `period_id`, `source_module`, `source_type`, `source_id`, `idempotency_key`, `legacy_ref`, `reversal_of_id`, `reversed_by_id`, maker/approver fields | unique (tenant, journal_no), unique (tenant, idempotency_key) |
 | `gl_journal_lines` | Lines: account, debit, credit, branch, `partner_type`, `partner_id`, `tax_code`, memo | unique (journal, line_no) |
 | `gl_account_balances` | Materialized debit/credit totals per (account, period, branch). Verified by `verify_materialized_balances` | unique key |
+| `gl_documents` | Header: AP bills & AR invoices (`kind`, `partner_id`, `partner_name`, `number`, `issue_date`, `due_date`, `total`, `open_balance`, `status`, `journal_id`) | unique (tenant, kind, partner_id, number), indexed (due_date, status) |
+| `gl_document_allocations` | Payment/storno matching: `document_id`, `journal_id`, `journal_line_no`, `amount`, `created_at` | indexed (tenant, document_id) |
 | `gl_sequences` | Gapless numbering (row lock) | |
 | `gl_tax_profiles` | Regime history per tenant (`effective_from` = 1st of month) | |
 | `gl_audit_events` | Hash-chained, append-only audit log (`seq`, prev hash, hash) | unique (tenant, seq) |
@@ -223,6 +226,12 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 | POST | `/journals/{id}/approve` · `/reject` · `/reverse` | APPROVER · APPROVER · WRITE | Reverse creates a pending storno |
 | GET / POST | `/periods` · `/periods/{y}/{m}/status` | READ / CONTROLLER | Status open / soft_closed / closed |
 | GET | `/subledger/{ap\|ar}?as_of=` | READ | Per-partner buckets `0_30 / 31_60 / 61_90 / 90_plus`, advance, `reconciled` |
+| GET | `/documents` | READ | Filter: kind (default ap_bill), status, partner_id, overdue_only, search, limit, offset |
+| POST | `/documents/bills` | WRITE | Create AP bill + journal into 531 / expense (or inventory); idempotency_key |
+| GET | `/documents/{id}` | READ | Document header + allocations history |
+| POST | `/documents/{id}/pay` | WRITE | Pay bill from wallet (221/223), journal to 531 + allocation |
+| POST | `/documents/{id}/void` | WRITE | Void bill (only if open & unallocated), storno of original journal |
+| POST | `/documents/reclassify-unassigned` | WRITE | Reclassify unassigned historical AP (531) to specific supplier (net zero) |
 | GET / POST / POST | `/years/{y}` · `/years/{y}/close` · `/years/{y}/reopen` | READ / CONTROLLER / CONTROLLER | Status + blockers; close posts the closing journal; reopen creates a pending storno |
 | GET / POST | `/tax-profile` | READ / CONTROLLER | `effective_from` must be the 1st of a month |
 | POST | `/tax/simplified/accrue` | CONTROLLER | Posts the delta only |
@@ -246,6 +255,7 @@ src/components/admin/financev2/
                       ExportButtons, btn/inputCls style tokens                                          285
   ReportsTabs.tsx     OverviewTab (BS+P&L), TrialBalanceTab, AccountLedgerTab                           294
   JournalsTabs.tsx    JournalsTab, ApprovalsTab, JournalDrawer, NewJournalDialog                        423
+  BillsTab.tsx        AP Bills & Document Allocations, Due-date aging, Reclassify AP                    831
   PartnersTab.tsx     AP/AR aging ("Borclar")                                                           133
   ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab                   448
   exporters.ts        buildCsv/exportCsv (BOM, ';', formula-injection guard), exportPdf (print window) 134
@@ -277,7 +287,7 @@ Registration (a new module is wired in all of these places):
 │ MALİYYƏ V2 · BAŞ KİTAB           [Canlı yazılış|Kölgə rejimi] [Hesabatlar: GL|köhnə] [⟳] │
 │ Mühasibat uçotu — AMHP, ikili yazılış, audit zənciri                          │
 └──────────────────────────────────────────────────────────────────────────────┘
-[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Dövrlər və il | Vergi | Nəzarət* ]
+[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət* ]
 ┌ tabpanel ────────────────────────────────────────────────────────────────────┐
 │  Card(title, subtitle, actions=[filters…, Excel, PDF])                        │
 │  Metric grid · tables (overflow-x-auto, min-w) · empty/loading/error states  │
@@ -295,6 +305,7 @@ If capabilities == null → neutral "not enabled for this business / your role" 
 | `journals` | Jurnallar | `journals({status,type,from,to,limit:50,offset})` | Filters, paging, "Yeni yazılış" (`can_write`) |
 | `approvals` | Təsdiqlər | `journals({status:'pending_approval'})` | Open → approve/reject in the drawer (`can_approve`); the tab badge shows the count |
 | `partners` | Borclar | `subledger('ap'\|'ar', asOf)` | AP/AR switch (radiogroup), as-of date, bucket KPIs, reconciled badge, unassigned badge, export |
+| `bills` | Fakturalar | `documents(p)`, `createBill`, `payBill`, `voidDocument` | AP bills & AR invoices list; KPI metrics (overdue, open debt); status filter; register bill; pay bill (with wallet choice); void bill (storno); unassigned AP reclassify |
 | `periods` | Dövrlər və il | `periods()`, `fiscalYear(y)` | Period status buttons (`can_control`, reason dialog); fiscal year card: blockers, close (confirm dialog), request reopen (reason) |
 | `tax` | Vergi | `taxProfile()`, `taxSummary(y,m)` | Regime form (`can_control`; month picker, since the backend requires the 1st), accrue button when not up to date |
 | `integrity` | Nəzarət | `integrity()`, `shadowStatus()` | Audit chain / balances / TB checks; clean-night streak; last runs |
@@ -392,9 +403,9 @@ export function BillsTab() {
 | `dc9e5773-…` | art-space.ironwaves.store | legacy | legacy | Real |
 | SocialBee `b3f7c248-…` | socialbee.ironwaves.store | legacy | legacy | Real |
 
-- Shadow mode is on (`FINANCE_V2_SHADOW_ENABLED=true`). There are 0 shadow/native errors so far.
+- Shadow mode is on (`FINANCE_V2_SHADOW_ENABLED=true`). There are 0 shadow/native errors so far. Nightly reconciliation on 2026-10-01 passed with `ok=True` across all tenants.
 - Merged PRs: #31 (GL core), #32/#33 (dual), #34/#35 (read model, Z-split), #36 (panel + per-tenant gate), #37 (year close, AP/AR, exports, reversal guard, token retention).
-- The first automatic refresh-token purge is expected **after 2026-10-01 07:13 UTC**: the last retention run was 2026-09-30 07:13 UTC and the job runs every 24 h. At the snapshot the table had 253 003 rows, 40 of them live; afterwards expect a few thousand. **Verify this.**
+- **WP0 Token purge verification (2026-10-01):** The retention job successfully purged expired refresh tokens after 2026-10-01 07:13 UTC. Row count dropped from **253,003** down to **3,120** (over 249,800 dead sessions cleaned up).
 - Backups:
   - Encrypted dumps are in `~/iw-backups/2026-09-30/`; the latest is `…-premerge-p3a.dump.enc` (77.5 MB).
   - The key is in macOS Keychain entry `iw-backup-2026-09-30`.
@@ -424,10 +435,10 @@ Detailed prompts for each package are in `docs/finance-v2-handoff.md`.
 
 | # | Package | Status | Summary |
 |---|---|---|---|
-| WP0 | Ship P3a | **Done** (PR #37) | Only follow-up: check the token purge after 2026-10-01 07:13 UTC |
+| WP0 | Ship P3a | **Done** (PR #37) | Follow-up verified: token purge executed (253,003 → 3,120 rows) on 2026-10-01. |
 | WP1 | Platform reports → GL | Waiting | 2-3 clean nights + real activity → `--parity` → owner OK → `--reports gl` |
 | WP2 | Corrections + real-customer rollout | **Blocked on accountant** | Encode the answers; adjusting-journal list for owner approval; Daily Coffee dual → reports gl; Gyros one week later |
-| WP3 | Bills and invoices (P3b) | Next code work | `gl_documents` + `gl_document_allocations`; due-date aging; supplier required for new receipts in dual; reclass tool for unassigned AP; UI (bills list, detail, pay bill) |
+| WP3 | Bills and invoices (P3b) | **Done** (`feature/finance-v2-p3b`) | `gl_documents` + `gl_document_allocations`; due-date aging; payment matching; void storno; unassigned AP reclassification tool; frontend `BillsTab` UI; 100% green tests |
 | WP4 | P2e, stop legacy writes | After every tenant is on reports gl for ≥ 2 weeks | Ledger mode `gl`; inventory all legacy writers and readers; emit must raise in gl mode; skip shadow; one-way switch with a fresh backup |
 | WP5 | UI QA | Any time | Desktop 1440 / mobile 390 pass; fix layout, a11y and i18n issues |
 | WP6 | Housekeeping | Dated items | 10-04 backup deletion (ask); remove Railway SSH key `macbookair-finance-v2`; **`railway config migrate` before 2026-12-01**; retention for `audit_logs` / `receipt_html` |

@@ -167,6 +167,32 @@ class AccrueIn(BaseModel):
     month: int = Field(ge=1, le=12)
 
 
+class CreateBillIn(BaseModel):
+    partner_id: str = Field(min_length=1, max_length=64)
+    number: str = Field(min_length=1, max_length=64)
+    issue_date: date
+    due_date: date
+    total: Decimal = Field(gt=Decimal("0"))
+    expense_account: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+    branch_id: str | None = Field(default=None, max_length=36)
+
+
+class PayBillIn(BaseModel):
+    amount: Decimal = Field(gt=Decimal("0"))
+    paid_from: str = Field(pattern="^(cash_drawer|bank_main|safe)$")
+    posting_date: date | None = None
+    bank_fee: Decimal = Decimal("0")
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ReclassifyAPIn(BaseModel):
+    amount: Decimal = Field(gt=Decimal("0"))
+    to_supplier_id: str = Field(min_length=1, max_length=64)
+    reason: str = Field(default="Təchizatçı təyini", max_length=500)
+    posting_date: date | None = None
+
+
 # ─────────────────────────────── chart ──────────────────────────────────
 
 
@@ -468,3 +494,79 @@ def integrity(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant
         "balances": reports.verify_materialized_balances(db, tenant.id),
         "trial_balance_balanced": reports.trial_balance(db, tenant.id)["balanced"],
     }
+
+
+# ─────────────────────────────── documents (bills & invoices) ───────────
+
+
+@router.get("/documents")
+def list_documents(kind: str | None = None, status: str | None = None, partner_id: str | None = None,
+                   due_before: date | None = None, due_after: date | None = None,
+                   limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
+                   db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """List business documents (AP bills / AR invoices) with open balances and aging."""
+    _require(user, GL_READ_ROLES)
+    from app.gl import documents
+
+    return _read(lambda: documents.list_documents(
+        db, tenant.id, kind=kind, status=status, partner_id=partner_id,
+        due_before=due_before, due_after=due_after, limit=limit, offset=offset
+    ))
+
+
+@router.post("/documents/bills")
+def create_bill(payload: CreateBillIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Create an AP bill, posting its purchase journal and creating the document."""
+    _require(user, GL_WRITE_ROLES)
+    from app.gl import documents
+
+    doc = _run(db, lambda: documents.create_bill(
+        db, tenant.id, partner_id=payload.partner_id, number=payload.number,
+        issue_date=payload.issue_date, due_date=payload.due_date, total=payload.total,
+        expense_account=payload.expense_account, note=payload.note, branch_id=payload.branch_id, actor=user.username
+    ))
+    return documents.get_document_detail(db, tenant.id, doc.id)
+
+
+@router.get("/documents/{document_id}")
+def get_document(document_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Get document detail with payment allocations."""
+    _require(user, GL_READ_ROLES)
+    from app.gl import documents
+
+    return _read(lambda: documents.get_document_detail(db, tenant.id, document_id))
+
+
+@router.post("/documents/{document_id}/pay")
+def pay_bill(document_id: str, payload: PayBillIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Pay an open bill from a wallet, posting SupplierPaid and allocating payment."""
+    _require(user, GL_WRITE_ROLES)
+    from app.gl import documents
+
+    return _run(db, lambda: documents.pay_bill(
+        db, tenant.id, document_id, amount=payload.amount, paid_from=payload.paid_from,
+        posting_date=payload.posting_date, bank_fee=payload.bank_fee, actor=user.username, note=payload.note
+    ))
+
+
+@router.post("/documents/{document_id}/void")
+def void_document(document_id: str, payload: ReasonIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Void an open bill and reverse its journal (only allowed when no payment allocations exist)."""
+    _require(user, GL_WRITE_ROLES)
+    from app.gl import documents
+
+    doc = _run(db, lambda: documents.void_document(db, tenant.id, document_id, actor=user.username, reason=payload.reason))
+    return documents.get_document_detail(db, tenant.id, doc.id)
+
+
+@router.post("/documents/reclassify-unassigned")
+def reclassify_unassigned(payload: ReclassifyAPIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Reclassify historical unassigned AP (partner_id=NULL) to a designated supplier."""
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl import documents
+
+    return _run(db, lambda: documents.reclassify_unassigned_ap(
+        db, tenant.id, amount=payload.amount, to_supplier_id=payload.to_supplier_id,
+        actor=user.username, reason=payload.reason, posting_date=payload.posting_date
+    ))
+

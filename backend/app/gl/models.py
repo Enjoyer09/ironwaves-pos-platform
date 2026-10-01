@@ -279,3 +279,59 @@ class GLLegacyLink(Base):
     event_type: Mapped[str] = mapped_column(String(48), nullable=False)
     wallet_diff: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+DOCUMENT_KINDS = ("ap_bill", "ar_invoice")
+DOCUMENT_STATUSES = ("open", "partially_paid", "paid", "void")
+
+
+class GLDocument(Base):
+    """Business source document (AP bill or AR invoice) linked to GL postings.
+
+    Holds the business metadata (number, due date, terms) and tracks payment
+    settlement via ``gl_document_allocations`` while keeping the GL as the
+    immutable double-entry source of truth.
+    """
+
+    __tablename__ = "gl_documents"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "kind", "partner_id", "number", name="uq_gl_documents_partner_number"),
+        Index("ix_gl_documents_tenant_kind_status", "tenant_id", "kind", "status"),
+        Index("ix_gl_documents_tenant_partner", "tenant_id", "partner_id"),
+        Index("ix_gl_documents_tenant_due", "tenant_id", "due_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # ap_bill | ar_invoice
+    partner_type: Mapped[str] = mapped_column(String(24), nullable=False)  # supplier | customer | counterparty
+    partner_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    number: Mapped[str] = mapped_column(String(64), nullable=False)
+    issue_date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="AZN")
+    total: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open | partially_paid | paid | void
+    journal_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("gl_journals.id"), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class GLDocumentAllocation(Base):
+    """Settlement link: connects a payment journal line to an open document."""
+
+    __tablename__ = "gl_document_allocations"
+    __table_args__ = (
+        Index("ix_gl_doc_alloc_tenant_document", "tenant_id", "document_id"),
+        Index("ix_gl_doc_alloc_tenant_journal", "tenant_id", "journal_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("gl_documents.id"), nullable=False)
+    journal_id: Mapped[str] = mapped_column(String(36), ForeignKey("gl_journals.id"), nullable=False)
+    journal_line_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+

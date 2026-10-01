@@ -11,8 +11,9 @@ import { AccountLedgerTab, OverviewTab, TrialBalanceTab } from './financev2/Repo
 import { ApprovalsTab, JournalDrawer, JournalsTab } from './financev2/JournalsTabs';
 import { IntegrityTab, PeriodsTab, TaxTab } from './financev2/ControlTabs';
 import { PartnersTab } from './financev2/PartnersTab';
+import { BillsTab } from './financev2/BillsTab';
 
-type Tab = 'overview' | 'trial' | 'ledger' | 'journals' | 'approvals' | 'partners' | 'periods' | 'tax' | 'integrity';
+type Tab = 'overview' | 'trial' | 'ledger' | 'journals' | 'approvals' | 'partners' | 'bills' | 'periods' | 'tax' | 'integrity';
 
 export default function FinanceV2Panel() {
   const { lang, notify } = useAppStore();
@@ -93,6 +94,7 @@ export default function FinanceV2Panel() {
     { id: 'journals', label: tx(lang, 'Jurnallar', 'Проводки', 'Journals'), show: true },
     { id: 'approvals', label: tx(lang, 'Təsdiqlər', 'Утверждения', 'Approvals'), show: true, badge: pendingCount },
     { id: 'partners', label: tx(lang, 'Borclar', 'Долги', 'Payables & receivables'), show: true },
+    { id: 'bills', label: tx(lang, 'Fakturalar', 'Счета', 'Bills'), show: true },
     { id: 'periods', label: tx(lang, 'Dövrlər və il', 'Периоды и год', 'Periods & year'), show: true },
     { id: 'tax', label: tx(lang, 'Vergi', 'Налог', 'Tax'), show: true },
     { id: 'integrity', label: tx(lang, 'Nəzarət', 'Контроль', 'Controls'), show: caps.can_audit },
@@ -172,6 +174,7 @@ export default function FinanceV2Panel() {
               {tab === 'journals' ? <JournalsTab {...range} /> : null}
               {tab === 'approvals' ? <ApprovalsTab /> : null}
               {tab === 'partners' ? <PartnersTab /> : null}
+              {tab === 'bills' ? <BillsTab /> : null}
               {tab === 'periods' ? <PeriodsTab /> : null}
               {tab === 'tax' ? <TaxTab /> : null}
               {tab === 'integrity' && caps.can_audit ? <IntegrityTab /> : null}

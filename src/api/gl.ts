@@ -319,4 +319,79 @@ export const glApi = {
   reopenFiscalYear: (year: number, reason: string) => post<GLJournal>(`/years/${year}/reopen`, { reason }),
   shadowStatus: () => get<ShadowStatus>('/shadow/status'),
   integrity: () => get<GLIntegrity>('/integrity'),
+  documents: (params: { kind?: string; status?: string; partner_id?: string; due_before?: string; due_after?: string; limit?: number; offset?: number } = {}) =>
+    get<GLDocumentPage>('/documents', params),
+  document: (id: string) => get<GLDocument>(`/documents/${encodeURIComponent(id)}`),
+  createBill: (payload: CreateBillInput) => post<GLDocument>('/documents/bills', payload),
+  payBill: (id: string, payload: PayBillInput) =>
+    post<{ document_id: string; number: string; status: string; paid_amount: Money; remaining_open: Money; journal_no: string }>(
+      `/documents/${encodeURIComponent(id)}/pay`,
+      payload
+    ),
+  voidDocument: (id: string, reason: string) => post<GLDocument>(`/documents/${encodeURIComponent(id)}/void`, { reason }),
+  reclassifyUnassignedAP: (payload: ReclassifyAPInput) =>
+    post<{ journal_no: string; amount: Money; to_supplier_id: string }>(`/documents/reclassify-unassigned`, payload),
 };
+
+export type GLDocumentStatus = 'open' | 'partially_paid' | 'paid' | 'void' | string;
+
+export type GLDocumentAllocation = {
+  id: string;
+  journal_id: string;
+  journal_no: string | null;
+  posting_date: string;
+  journal_line_no: number;
+  amount: Money;
+  created_at: string | null;
+};
+
+export type GLDocument = {
+  id: string;
+  kind: 'ap_bill' | 'ar_invoice' | string;
+  partner_type: string;
+  partner_id: string;
+  partner_name: string;
+  number: string;
+  issue_date: string;
+  due_date: string;
+  currency: string;
+  total: Money;
+  open: Money;
+  status: GLDocumentStatus;
+  is_overdue: boolean;
+  days_overdue: number;
+  journal_id: string | null;
+  note: string | null;
+  created_at: string | null;
+  created_by?: string;
+  allocations?: GLDocumentAllocation[];
+};
+
+export type GLDocumentPage = { total: number; items: GLDocument[] };
+
+export type CreateBillInput = {
+  partner_id: string;
+  number: string;
+  issue_date: string;
+  due_date: string;
+  total: number | string;
+  expense_account?: string | null;
+  note?: string | null;
+  branch_id?: string | null;
+};
+
+export type PayBillInput = {
+  amount: number | string;
+  paid_from: 'cash_drawer' | 'bank_main' | 'safe' | string;
+  posting_date?: string;
+  bank_fee?: number | string;
+  note?: string | null;
+};
+
+export type ReclassifyAPInput = {
+  amount: number | string;
+  to_supplier_id: string;
+  reason?: string;
+  posting_date?: string;
+};
+
