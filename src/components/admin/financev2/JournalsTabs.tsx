@@ -9,17 +9,9 @@ import {
   Badge, Card, DateRange, Dialog, Empty, Field, JournalSourceText, JournalStatusBadge, Loading, ReasonDialog,
   btn, errorText, inputCls, isZero, journalStatusLabel, journalTypeLabel, money,
 } from './FinanceV2Parts';
+import { newIdempotencyKey as newKey } from './billsMath';
 
 const PAGE = 50;
-
-function newKey(): string {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  } catch {
-    // fall through
-  }
-  return `k_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
 
 // ─────────────────────────────── list ───────────────────────────────────
 
@@ -179,7 +171,9 @@ export function JournalDrawer({ journalId, onClose }: { journalId: string; onClo
 
   // Only journals created in the GL itself can be reversed here; operational ones (sales, stock, shifts,
   // mirrored legacy) are corrected in their own module, and year-end closing via "reopen year".
-  const glOwned = Boolean(j && (j.source_module === 'manual' || j.source_module === 'gl') && j.source_type !== 'year_close');
+  // Bill and bill-payment journals are GL-only but belong to the bill: void / reverse payment in Bills (409 document_managed).
+  const documentOwned = Boolean(j && (j.source_type === 'document' || j.source_type === 'document_payment'));
+  const glOwned = Boolean(j && (j.source_module === 'manual' || j.source_module === 'gl') && j.source_type !== 'year_close' && !documentOwned);
   const canReverse = Boolean(j && glOwned && caps.can_write && j.status === 'posted' && !j.reversed_by_id && j.journal_type !== 'reversal');
   const pending = j?.status === 'pending_approval';
 
@@ -241,6 +235,17 @@ export function JournalDrawer({ journalId, onClose }: { journalId: string; onClo
               </tbody>
             </table>
           </div>
+
+          {documentOwned && j.status === 'posted' && !j.reversed_by_id && j.journal_type !== 'reversal' ? (
+            <p className="text-xs text-slate-400">
+              {tx(
+                lang,
+                'Bu yazılış alış fakturasına aiddir. Fakturalar bölməsində fakturanı ləğv edin və ya ödənişi geri qaytarın.',
+                'Эта проводка принадлежит счёту поставщика. Аннулируйте счёт или сторнируйте оплату во вкладке «Счета».',
+                'This journal belongs to a supplier bill. Void the bill or reverse the payment in the Bills tab.',
+              )}
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap justify-end gap-2">
             {pending && caps.can_approve ? (
