@@ -179,11 +179,14 @@ class CreateBillIn(BaseModel):
 
 
 class PayBillIn(BaseModel):
+    # Money arrives as strings (decimal-safe) or numbers; documents.pay_bill validates it with engine.money.
     amount: Decimal = Field(gt=Decimal("0"))
     paid_from: str = Field(pattern="^(cash_drawer|bank_main|safe)$")
     posting_date: date | None = None
     bank_fee: Decimal = Decimal("0")
     note: str | None = Field(default=None, max_length=1000)
+    # One key per payment dialog: retries and double clicks replay the original payment.
+    idempotency_key: str = Field(min_length=8, max_length=80, pattern="^[A-Za-z0-9:_-]+$")
 
 
 class ReclassifyAPIn(BaseModel):
@@ -319,14 +322,29 @@ def get_journal(journal_id: str, db: Session = Depends(get_db), tenant: Tenant =
 @router.post("/journals/{journal_id}/approve")
 def approve(journal_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _require(user, GL_APPROVER_ROLES)
-    journal = _run(db, lambda: engine.approve_journal(db, tenant.id, journal_id, approver=user.username, allow_soft_closed=True))
+    from app.gl import documents
+
+    def work():
+        journal = engine.approve_journal(db, tenant.id, journal_id, approver=user.username, allow_soft_closed=True)
+        # Same transaction: if the document side cannot follow (e.g. bill already settled), the approval rolls back.
+        documents.after_journal_approved(db, tenant.id, journal)
+        return journal
+
+    journal = _run(db, work)
     return _journal_out(db, journal)
 
 
 @router.post("/journals/{journal_id}/reject")
 def reject(journal_id: str, payload: ReasonIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _require(user, GL_APPROVER_ROLES)
-    journal = _run(db, lambda: engine.reject_journal(db, tenant.id, journal_id, actor=user.username, reason=payload.reason))
+    from app.gl import documents
+
+    def work():
+        journal = engine.reject_journal(db, tenant.id, journal_id, actor=user.username, reason=payload.reason)
+        documents.after_journal_rejected(db, tenant.id, journal)
+        return journal
+
+    journal = _run(db, work)
     return _journal_out(db, journal)
 
 
@@ -539,13 +557,19 @@ def get_document(document_id: str, db: Session = Depends(get_db), tenant: Tenant
 
 @router.post("/documents/{document_id}/pay")
 def pay_bill(document_id: str, payload: PayBillIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    """Pay an open bill from a wallet, posting SupplierPaid and allocating payment."""
+    """Pay an open bill from a wallet (GL-only payment journal, idempotent per key, overpayment → 409).
+
+    Non-approvers and amounts >= the large-transfer threshold need a second person: the journal stays
+    pending and is allocated when approved.
+    """
     _require(user, GL_WRITE_ROLES)
     from app.gl import documents
 
     return _run(db, lambda: documents.pay_bill(
         db, tenant.id, document_id, amount=payload.amount, paid_from=payload.paid_from,
-        posting_date=payload.posting_date, bank_fee=payload.bank_fee, actor=user.username, note=payload.note
+        posting_date=payload.posting_date, bank_fee=payload.bank_fee, actor=user.username, note=payload.note,
+        idempotency_key=payload.idempotency_key,
+        require_approval=_manual_needs_approval(db, tenant.id, user, payload.amount),
     ))
 
 

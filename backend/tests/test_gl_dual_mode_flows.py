@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -235,6 +236,107 @@ def test_supplier_payment_tracks_partner(db, tenant):
     db.commit()
     suppliers.pay_supplier(sup.id, suppliers.SupplierPaymentIn(amount=D("50"), payment_source="card"), db=db, tenant=tenant, user=ADMIN)
     assert bal(db, tenant.id, "accounts_payable") == D("30.00")
+    ok(db, tenant.id)
+
+
+# ─────────────────────────── AP bills (WP3) ───────────────────────────
+
+
+def _open_docs_total(db, tid, supplier_id):
+    from app.gl import documents
+    from app.gl.models import GLDocument
+
+    docs = db.query(GLDocument).filter(GLDocument.tenant_id == tid, GLDocument.partner_id == supplier_id).all()
+    return sum((documents.get_document_open_balance(db, tid, d.id) for d in docs), D("0.00"))
+
+
+def _partner_balance(db, tid, supplier_id):
+    from app.gl.subledger import subledger
+
+    row = next((r for r in subledger(db, tid, "ap")["partners"] if r["partner_id"] == supplier_id), None)
+    return D(row["balance"]) if row else D("0.00")
+
+
+def _supplier(db, tid, name="Təchizatçı"):
+    sup = Supplier(tenant_id=tid, name=name, balance=D("0"))
+    db.add(sup)
+    db.flush()
+    return sup
+
+
+def test_bill_create_pay_keeps_dual_reconcile(db, tenant):
+    from app.gl import documents
+
+    sup = _supplier(db, tenant.id)
+    today = gl.business_today()
+    bill = documents.create_bill(db, tenant.id, partner_id=sup.id, number="DUAL-1", issue_date=today, due_date=today,
+                                 total="100.00", actor="owner")
+    db.commit()
+    ok(db, tenant.id)
+    documents.pay_bill(db, tenant.id, bill.id, amount="40.00", paid_from="cash_drawer", actor="owner", idempotency_key="dual-pay-1")
+    db.commit()
+    ok(db, tenant.id)
+    assert bill.status == "partially_paid"
+    documents.pay_bill(db, tenant.id, bill.id, amount="60.00", paid_from="bank_main", actor="owner", idempotency_key="dual-pay-2")
+    db.commit()
+    report = ok(db, tenant.id)
+    assert bill.status == "paid"
+    assert bal(db, tenant.id, "cash_drawer") == D("460.00") and bal(db, tenant.id, "bank_main") == D("440.00")
+    assert report["explained_differences"]["GLOnlyJournal"]["cash"] == "-40.00"
+    assert _open_docs_total(db, tenant.id, sup.id) == _partner_balance(db, tenant.id, sup.id) == D("0.00")
+
+
+def test_legacy_supplier_payment_allocates_to_bills(db, tenant):
+    from app.gl import documents
+    from app.routers import suppliers
+
+    sup = _supplier(db, tenant.id, "Kənd Süd")
+    today = gl.business_today()
+    bill = documents.create_bill(db, tenant.id, partner_id=sup.id, number="LEG-1", issue_date=today, due_date=today,
+                                 total="80.00", actor="owner")
+    db.commit()
+    suppliers.pay_supplier(sup.id, suppliers.SupplierPaymentIn(amount=D("50"), payment_source="cash", note="Qəbz 5"),
+                           db=db, tenant=tenant, user=ADMIN)
+    assert documents.get_document_open_balance(db, tenant.id, bill.id) == D("30.00")
+    assert db.get(type(bill), bill.id).status == "partially_paid"
+    assert _open_docs_total(db, tenant.id, sup.id) == _partner_balance(db, tenant.id, sup.id) == D("30.00")
+    journal = native(db, tenant.id, source_type="supplier_payment")[-1]
+    assert "Qəbz 5" in journal.description
+    assert db.query(GLLegacyLink).filter(GLLegacyLink.journal_id == journal.id, GLLegacyLink.event_type == "SupplierPaid").count() == 1
+    ok(db, tenant.id)
+
+
+def test_legacy_supplier_payment_named_bill_first(db, tenant):
+    from app.gl import documents
+    from app.routers import suppliers
+
+    sup = _supplier(db, tenant.id, "Named")
+    today = gl.business_today()
+    first_due = documents.create_bill(db, tenant.id, partner_id=sup.id, number="N-1", issue_date=today, due_date=today,
+                                      total="40.00", actor="owner")
+    named = documents.create_bill(db, tenant.id, partner_id=sup.id, number="N-2", issue_date=today, due_date=today + timedelta(days=10),
+                                  total="40.00", actor="owner")
+    db.commit()
+    suppliers.pay_supplier(sup.id, suppliers.SupplierPaymentIn(amount=D("50"), payment_source="cash", document_ids=[named.id]),
+                           db=db, tenant=tenant, user=ADMIN)
+    assert documents.get_document_open_balance(db, tenant.id, named.id) == D("0.00")
+    assert documents.get_document_open_balance(db, tenant.id, first_due.id) == D("30.00")
+    ok(db, tenant.id)
+
+
+def test_legacy_supplier_overpay_becomes_advance(db, tenant):
+    from app.gl import documents
+    from app.routers import suppliers
+
+    sup = _supplier(db, tenant.id, "Avans")
+    today = gl.business_today()
+    bill = documents.create_bill(db, tenant.id, partner_id=sup.id, number="ADV-1", issue_date=today, due_date=today,
+                                 total="30.00", actor="owner")
+    db.commit()
+    suppliers.pay_supplier(sup.id, suppliers.SupplierPaymentIn(amount=D("50"), payment_source="cash"), db=db, tenant=tenant, user=ADMIN)
+    assert db.get(type(bill), bill.id).status == "paid"
+    assert documents.get_document_open_balance(db, tenant.id, bill.id) == D("0.00")
+    assert _partner_balance(db, tenant.id, sup.id) == D("-20.00")  # 20 advance stays on the partner
     ok(db, tenant.id)
 
 

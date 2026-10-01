@@ -29,10 +29,23 @@ from app.gl.posting_rules import SupplierPaid, post_event
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
+DOCUMENT_PAYMENT_SOURCE = "document_payment"
+# Documents that can still receive payments.
+PAYABLE_STATUSES = ("open", "partially_paid")
 
 
 def _uuid() -> str:
     return str(uuid.uuid4())
+
+
+def _net_allocated(db: Session, tenant_id: str, document_id: str) -> Decimal:
+    """Net settled amount (allocations are append-only; corrections are negative rows)."""
+    allocated = (
+        db.query(func.coalesce(func.sum(GLDocumentAllocation.amount), 0))
+        .filter(GLDocumentAllocation.tenant_id == tenant_id, GLDocumentAllocation.document_id == document_id)
+        .scalar()
+    )
+    return Decimal(str(allocated)).quantize(CENT)
 
 
 def get_document_open_balance(db: Session, tenant_id: str, document_id: str) -> Decimal:
@@ -43,13 +56,78 @@ def get_document_open_balance(db: Session, tenant_id: str, document_id: str) -> 
     if doc.status == "void":
         return ZERO
 
-    allocated = (
-        db.query(func.coalesce(func.sum(GLDocumentAllocation.amount), 0))
-        .filter(GLDocumentAllocation.tenant_id == tenant_id, GLDocumentAllocation.document_id == document_id)
+    open_bal = (Decimal(str(doc.total)) - _net_allocated(db, tenant_id, document_id)).quantize(CENT)
+    return max(ZERO, open_bal)
+
+
+def _lock_document(db: Session, tenant_id: str, document_id: str) -> GLDocument:
+    """Row-lock the document (no-op on SQLite) and re-read it, so checks see the committed state."""
+    doc = (
+        db.query(GLDocument)
+        .filter(GLDocument.tenant_id == tenant_id, GLDocument.id == document_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if not doc:
+        raise GLError(f"Document {document_id} not found", "not_found", 404)
+    return doc
+
+
+def _refresh_status(db: Session, tenant_id: str, doc: GLDocument) -> None:
+    """Recompute open/partially_paid/paid from the NET allocations (void stays void)."""
+    if doc.status not in PAYABLE_STATUSES + ("paid",):
+        return
+    net = _net_allocated(db, tenant_id, doc.id)
+    if net <= ZERO:
+        doc.status = "open"
+    elif net >= Decimal(str(doc.total)):
+        doc.status = "paid"
+    else:
+        doc.status = "partially_paid"
+
+
+def _ap_debit_line(db: Session, tenant_id: str, journal: GLJournal) -> GLJournalLine | None:
+    """The accounts-payable debit line of a payment journal (found by account, never by position)."""
+    ap = gl.accounts_by_role(db, tenant_id).get("accounts_payable")
+    if not ap:
+        return None
+    return (
+        db.query(GLJournalLine)
+        .filter(GLJournalLine.journal_id == journal.id, GLJournalLine.account_id == ap.id, GLJournalLine.debit > 0)
+        .order_by(GLJournalLine.line_no.asc())
+        .first()
+    )
+
+
+def _pending_payments(db: Session, tenant_id: str, document_id: str) -> Decimal:
+    """AP amount of bill payments for this document still waiting for approval (reserved, not yet allocated)."""
+    ap = gl.accounts_by_role(db, tenant_id).get("accounts_payable")
+    if not ap:
+        return ZERO
+    pending = (
+        db.query(func.coalesce(func.sum(GLJournalLine.debit), 0))
+        .join(GLJournal, GLJournal.id == GLJournalLine.journal_id)
+        .filter(
+            GLJournal.tenant_id == tenant_id,
+            GLJournal.status == "pending_approval",
+            GLJournal.source_type == DOCUMENT_PAYMENT_SOURCE,
+            GLJournal.source_id == document_id,
+            GLJournal.reversal_of_id.is_(None),
+            GLJournalLine.account_id == ap.id,
+        )
         .scalar()
     )
-    open_bal = (Decimal(str(doc.total)) - Decimal(str(allocated))).quantize(CENT)
-    return max(ZERO, open_bal)
+    return Decimal(str(pending)).quantize(CENT)
+
+
+def _available_to_pay(db: Session, tenant_id: str, doc: GLDocument) -> tuple[Decimal, Decimal]:
+    """(open balance minus pending payments, pending payments) for a locked document."""
+    if doc.status not in PAYABLE_STATUSES:
+        return ZERO, ZERO
+    open_bal = max(ZERO, (Decimal(str(doc.total)) - _net_allocated(db, tenant_id, doc.id)).quantize(CENT))
+    pending = _pending_payments(db, tenant_id, doc.id)
+    return max(ZERO, open_bal - pending), pending
 
 
 def create_bill(
@@ -169,37 +247,46 @@ def allocate_payment(
     document_ids: list[str] | None = None,
     kind: str = "ap_bill",
 ) -> list[GLDocumentAllocation]:
-    """Allocate a payment journal line against open documents for a partner.
+    """Allocate a payment journal line against a partner's open documents.
 
-    If ``document_ids`` is provided, allocates against those documents in order.
-    Otherwise allocates FIFO by due_date ASC, issue_date ASC.
+    Named ``document_ids`` are settled first (in the given order), then the remainder goes FIFO by
+    due_date, issue_date, created_at. Whatever is left stays an unallocated advance on the partner.
+    Candidate documents are row-locked in id order, and payments still pending approval keep
+    their reservation on a document.
     """
-    rem = Decimal(str(amount or 0)).quantize(CENT)
+    rem = gl.money(amount)
     if rem <= ZERO:
         return []
 
-    q = (
+    db.flush()  # populate_existing below must not discard pending changes
+    docs = (
         db.query(GLDocument)
         .filter(
             GLDocument.tenant_id == tenant_id,
             GLDocument.kind == kind,
             GLDocument.partner_id == partner_id,
-            GLDocument.status.in_(("open", "partially_paid")),
+            GLDocument.status.in_(PAYABLE_STATUSES),
         )
+        .order_by(GLDocument.id.asc())
+        .with_for_update()
+        .populate_existing()
+        .all()
     )
-    if document_ids:
-        docs = [d for did in document_ids for d in q.all() if d.id == did]
-    else:
-        docs = q.order_by(GLDocument.due_date.asc(), GLDocument.issue_date.asc(), GLDocument.created_at.asc()).all()
+    by_id = {d.id: d for d in docs}
+    named: list[GLDocument] = []
+    for did in document_ids or ():
+        if did in by_id and by_id[did] not in named:
+            named.append(by_id[did])
+    rest = sorted((d for d in docs if d not in named), key=lambda d: (d.due_date, d.issue_date, d.created_at or datetime.min))
 
     allocations: list[GLDocumentAllocation] = []
-    for doc in docs:
+    for doc in named + rest:
         if rem <= ZERO:
             break
-        open_bal = get_document_open_balance(db, tenant_id, doc.id)
-        if open_bal <= ZERO:
+        available, _ = _available_to_pay(db, tenant_id, doc)
+        if available <= ZERO:
             continue
-        take = min(rem, open_bal)
+        take = min(rem, available)
         alloc = GLDocumentAllocation(
             id=_uuid(),
             tenant_id=tenant_id,
@@ -209,17 +296,90 @@ def allocate_payment(
             amount=take,
         )
         db.add(alloc)
+        db.flush()
         allocations.append(alloc)
         rem -= take
-
-        # Update status
-        if open_bal - take <= ZERO:
-            doc.status = "paid"
-        else:
-            doc.status = "partially_paid"
+        _refresh_status(db, tenant_id, doc)
 
     db.flush()
     return allocations
+
+
+def _allocate_journal(db: Session, tenant_id: str, journal: GLJournal, *, partner_id: str,
+                      document_ids: tuple[str, ...] | list[str] = ()) -> list[GLDocumentAllocation]:
+    """Allocate a posted payment journal's AP debit line once (replay-safe)."""
+    if db.query(GLDocumentAllocation.id).filter(GLDocumentAllocation.tenant_id == tenant_id,
+                                                GLDocumentAllocation.journal_id == journal.id).first():
+        return []
+    line = _ap_debit_line(db, tenant_id, journal)
+    if line is None:
+        return []
+    return allocate_payment(
+        db,
+        tenant_id,
+        payment_journal_id=journal.id,
+        journal_line_no=line.line_no,
+        partner_id=line.partner_id or partner_id,
+        amount=Decimal(str(line.debit)),
+        document_ids=list(document_ids),
+    )
+
+
+def post_supplier_payment(
+    db: Session,
+    tenant_id: str,
+    event: SupplierPaid,
+    *,
+    actor: str,
+    source_module: str = "pos",
+    source_type: str | None = None,
+    source_id: str | None = None,
+    require_approval: bool = False,
+) -> GLJournal:
+    """Post a SupplierPaid event and, once posted, allocate it to the supplier's bills
+    (``event.document_ids`` first, then FIFO; any excess stays an advance).
+
+    Used by ``pay_bill`` (GL-only document payment) and by the legacy supplier payment
+    (``source_module="pos"``, linked to its legacy transaction by the bridge). A pending
+    journal is allocated by ``after_journal_approved``. Never commits.
+    """
+    key = f"supplier_payment:{event.payment_id}"
+    existed = db.query(GLJournal.id).filter(GLJournal.tenant_id == tenant_id, GLJournal.idempotency_key == key).first() is not None
+    journal = post_event(db, tenant_id, event, actor=actor, require_approval=require_approval,
+                         source_module=source_module, source_type=source_type, source_id=source_id)
+    if journal.status == "posted" and not existed:
+        _allocate_journal(db, tenant_id, journal, partner_id=event.supplier_id, document_ids=event.document_ids)
+    return journal
+
+
+def _payment_result(db: Session, tenant_id: str, doc: GLDocument, journal: GLJournal, *, replayed: bool) -> dict:
+    line = _ap_debit_line(db, tenant_id, journal)
+    allocations_count = (
+        db.query(GLDocumentAllocation)
+        .filter(GLDocumentAllocation.tenant_id == tenant_id, GLDocumentAllocation.document_id == doc.id,
+                GLDocumentAllocation.journal_id == journal.id)
+        .count()
+    )
+    return {
+        "document_id": doc.id,
+        "number": doc.number,
+        "status": doc.status,
+        "paid_amount": str(Decimal(str(line.debit)).quantize(CENT)) if line else "0.00",
+        "remaining_open": str(get_document_open_balance(db, tenant_id, doc.id)),
+        "journal_no": journal.journal_no,
+        "journal_id": journal.id,
+        "journal_status": journal.status,
+        "allocations_count": allocations_count,
+        "replayed": replayed,
+    }
+
+
+def _overpayment(amount: Decimal, available: Decimal, pending: Decimal, number: str) -> GLError:
+    message = (f"Payment {amount} ₼ exceeds the open balance {available} ₼ of bill {number}; "
+               f"pay at most {available} ₼ (overpayments are not accepted for bills)")
+    if pending > ZERO:
+        message += f". {pending} ₼ is already reserved by payments awaiting approval"
+    return GLError(message, "overpayment_not_allowed", 409)
 
 
 def pay_bill(
@@ -233,53 +393,91 @@ def pay_bill(
     bank_fee: Decimal | str = ZERO,
     actor: str = "system",
     note: str | None = None,
+    idempotency_key: str | None = None,
+    require_approval: bool = False,
 ) -> dict:
-    """Pay an open bill from a specified wallet, posting SupplierPaid and allocating."""
-    doc = db.query(GLDocument).filter(GLDocument.tenant_id == tenant_id, GLDocument.id == document_id).first()
-    if not doc:
-        raise GLError(f"Document {document_id} not found", "not_found", 404)
-    if doc.status in ("paid", "void"):
-        raise GLError(f"Cannot pay document in status '{doc.status}'", "invalid_status", 409)
+    """Pay an open bill from a wallet: a GL-only ``document_payment`` journal allocated to the bill.
 
-    open_bal = get_document_open_balance(db, tenant_id, doc.id)
-    pay_amount = Decimal(str(amount or 0)).quantize(CENT)
+    Race- and retry-safe: the document row is locked first, and the journal key is
+    ``supplier_payment:bill:{doc_id}:{idempotency_key}``, so the same key replays the original
+    result (409 ``idempotency_conflict`` for a different amount). Overpayment is rejected (409).
+    With ``require_approval`` the journal waits for a second person; its amount stays reserved
+    and is allocated on approval (``after_journal_approved``).
+    """
+    pay_amount = gl.money(amount)
     if pay_amount <= ZERO:
         raise GLError("Payment amount must be greater than zero", "invalid_amount", 400)
-    if pay_amount > open_bal:
-        raise GLError(f"Payment amount ({pay_amount} ₼) exceeds open bill balance ({open_bal} ₼)", "overpayment_not_allowed", 400)
+    fee = gl.money(bank_fee)
+    if fee < ZERO:
+        raise GLError("Bank fee cannot be negative", "invalid_amount", 400)
 
+    doc = _lock_document(db, tenant_id, document_id)
+    payment_id = f"bill:{doc.id}:{idempotency_key or _uuid()}"
+    existing = (
+        db.query(GLJournal)
+        .filter(GLJournal.tenant_id == tenant_id, GLJournal.idempotency_key == f"supplier_payment:{payment_id}")
+        .first()
+    )
+    if existing is not None:
+        line = _ap_debit_line(db, tenant_id, existing)
+        if line is None or Decimal(str(line.debit)) != pay_amount or Decimal(str(existing.total_debit)) != pay_amount + fee:
+            raise GLError("This payment key was already used with a different amount", "idempotency_conflict", 409)
+        return _payment_result(db, tenant_id, doc, existing, replayed=True)
+
+    if doc.status not in PAYABLE_STATUSES + ("paid",):
+        raise GLError(f"Cannot pay a bill in status '{doc.status}'", "invalid_status", 409)
     p_date = posting_date or gl.business_today()
+    if p_date < doc.issue_date:
+        raise GLError(f"Payment date {p_date.isoformat()} is before the bill's issue date {doc.issue_date.isoformat()}",
+                      "payment_before_issue", 400)
+    available, pending = _available_to_pay(db, tenant_id, doc)
+    if pay_amount > available:
+        raise _overpayment(pay_amount, available, pending, doc.number)
+
     event = SupplierPaid(
-        payment_id=_uuid(),
+        payment_id=payment_id,
         posting_date=p_date,
         supplier_id=doc.partner_id,
         amount=pay_amount,
         paid_from=paid_from,
-        bank_fee=bank_fee,
+        bank_fee=fee,
+        document_ids=(doc.id,),
+        note=note,
     )
-    journal = post_event(db, tenant_id, event, actor=actor)
+    journal = post_supplier_payment(db, tenant_id, event, actor=actor, source_module="gl", source_type=DOCUMENT_PAYMENT_SOURCE,
+                                    source_id=doc.id, require_approval=require_approval)
+    return _payment_result(db, tenant_id, doc, journal, replayed=False)
 
-    # Line 1 is the debit to accounts_payable
-    allocations = allocate_payment(
-        db,
-        tenant_id,
-        payment_journal_id=journal.id,
-        journal_line_no=1,
-        partner_id=doc.partner_id,
-        amount=pay_amount,
-        document_ids=[doc.id],
-    )
 
-    remaining_open = get_document_open_balance(db, tenant_id, doc.id)
-    return {
-        "document_id": doc.id,
-        "number": doc.number,
-        "status": doc.status,
-        "paid_amount": str(pay_amount),
-        "remaining_open": str(remaining_open),
-        "journal_no": journal.journal_no,
-        "allocations_count": len(allocations),
-    }
+def after_journal_approved(db: Session, tenant_id: str, journal: GLJournal) -> None:
+    """Document side effects of an approved journal. The router calls it in the same transaction
+    as ``engine.approve_journal``; raising rolls the approval back.
+
+    ``document_payment``: lock the bill, re-check the amount still fits, then allocate.
+    """
+    if journal.source_type != DOCUMENT_PAYMENT_SOURCE or journal.reversal_of_id or journal.status != "posted":
+        return
+    doc = _lock_document(db, tenant_id, journal.source_id)
+    line = _ap_debit_line(db, tenant_id, journal)
+    if line is None:
+        return
+    if db.query(GLDocumentAllocation.id).filter(GLDocumentAllocation.tenant_id == tenant_id,
+                                                GLDocumentAllocation.journal_id == journal.id).first():
+        return
+    amount = Decimal(str(line.debit)).quantize(CENT)
+    available, pending = _available_to_pay(db, tenant_id, doc)
+    if amount > available:
+        raise _overpayment(amount, available, pending, doc.number)
+    _allocate_journal(db, tenant_id, journal, partner_id=doc.partner_id, document_ids=(doc.id,))
+
+
+def after_journal_rejected(db: Session, tenant_id: str, journal: GLJournal) -> None:
+    """Document side effects of a rejected journal (same transaction as ``engine.reject_journal``).
+
+    A rejected ``document_payment`` was never allocated: rejecting it just releases its
+    reservation, so there is nothing to write.
+    """
+    return None
 
 
 def void_document(

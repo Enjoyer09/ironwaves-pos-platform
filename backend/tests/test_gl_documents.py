@@ -24,6 +24,8 @@ from app.gl.documents import (
     void_document,
 )
 from app.gl.engine import GLError, LineIn
+from app.gl.models import GLDocumentAllocation, GLJournal, GLJournalLine
+from app.gl.posting_rules import SupplierPaid, post_event
 from app.gl.subledger import subledger
 from app.models import Supplier, Tenant
 
@@ -146,10 +148,11 @@ def test_pay_bill_partial_and_full(db, tid):
     assert res1["remaining_open"] == "300.00"
     assert get_document_open_balance(db, tid, bill.id) == D("300.00")
 
-    # 2. Try overpaying (e.g. 350 when 300 is open) -> raises error
+    # 2. Try overpaying (e.g. 350 when 300 is open) -> rejected with 409 (owner decision F15)
     with pytest.raises(GLError) as exc:
         pay_bill(db, tid, bill.id, amount="350.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
     assert exc.value.code == "overpayment_not_allowed"
+    assert exc.value.status_code == 409
 
     # 3. Pay remaining 300 -> status becomes paid
     res2 = pay_bill(db, tid, bill.id, amount="300.00", paid_from="cash_drawer", posting_date=date(2026, 9, 20))
@@ -259,6 +262,133 @@ def test_list_documents_filtering(db, tid):
     assert sup1_docs["items"][0]["number"] == "B-1"
 
 
+# ─────────────────────────── payment safety (FEAT-001) ───────────────────────────
+
+
+def _bill(db, tid, number, total="100.00", *, partner="sup-1", issue=date(2026, 9, 10), due=date(2026, 9, 25)):
+    return create_bill(db, tid, partner_id=partner, number=number, issue_date=issue, due_date=due, total=total, actor="admin-1")
+
+
+def _payment_journals(db, tid, doc_id):
+    return (
+        db.query(GLJournal)
+        .filter(GLJournal.tenant_id == tid, GLJournal.source_type == "document_payment", GLJournal.source_id == doc_id)
+        .all()
+    )
+
+
+def _allocs(db, tid, doc_id):
+    return db.query(GLDocumentAllocation).filter(GLDocumentAllocation.tenant_id == tid, GLDocumentAllocation.document_id == doc_id).all()
+
+
+def test_pay_bill_same_key_replays_once(db, tid):
+    bill = _bill(db, tid, "INV-REPLAY")
+    first = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
+    again = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
+    assert first["replayed"] is False and again["replayed"] is True
+    assert again["journal_no"] == first["journal_no"] and again["journal_id"] == first["journal_id"]
+    assert len(_payment_journals(db, tid, bill.id)) == 1
+    assert len(_allocs(db, tid, bill.id)) == 1
+    assert get_document_open_balance(db, tid, bill.id) == D("60.00")
+    assert again["remaining_open"] == "60.00" and again["status"] == "partially_paid"
+
+
+def test_pay_bill_same_key_different_amount_conflicts(db, tid):
+    bill = _bill(db, tid, "INV-CONFLICT")
+    pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="41.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
+    assert exc.value.code == "idempotency_conflict" and exc.value.status_code == 409
+    assert len(_payment_journals(db, tid, bill.id)) == 1
+
+
+def test_overpayment_rejected_409_with_clear_message(db, tid):
+    bill = _bill(db, tid, "INV-OVER")
+    pay_bill(db, tid, bill.id, amount="70.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="30.01", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+    assert exc.value.code == "overpayment_not_allowed" and exc.value.status_code == 409
+    assert "30.00" in exc.value.message and "INV-OVER" in exc.value.message
+    # A fully paid bill reports the same, explicit reason.
+    pay_bill(db, tid, bill.id, amount="30.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="1.00", paid_from="cash_drawer", posting_date=date(2026, 9, 17))
+    assert exc.value.code == "overpayment_not_allowed" and "0.00" in exc.value.message
+
+
+def test_payment_before_issue_rejected(db, tid):
+    bill = _bill(db, tid, "INV-EARLY", issue=date(2026, 9, 10))
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 9))
+    assert exc.value.code == "payment_before_issue" and exc.value.status_code == 400
+    assert not _payment_journals(db, tid, bill.id)
+
+
+def test_pay_bill_rejects_sub_cent(db, tid):
+    bill = _bill(db, tid, "INV-CENT")
+    for bad in ("10.005", "NaN"):
+        with pytest.raises(GLError) as exc:
+            pay_bill(db, tid, bill.id, amount=bad, paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+        assert exc.value.code == "invalid_amount"
+    with pytest.raises(GLError) as exc:
+        pay_bill(db, tid, bill.id, amount="10.00", bank_fee="0.001", paid_from="bank_main", posting_date=date(2026, 9, 15))
+    assert exc.value.code == "invalid_amount"
+    assert not _payment_journals(db, tid, bill.id)
+
+
+def test_payment_note_persisted(db, tid):
+    bill = _bill(db, tid, "INV-NOTE")
+    res = pay_bill(db, tid, bill.id, amount="25.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), note="Qəbz 77")
+    journal = db.query(GLJournal).filter(GLJournal.id == res["journal_id"]).one()
+    assert "Qəbz 77" in journal.description
+    ap = gl.accounts_by_role(db, tid)["accounts_payable"]
+    ap_line = db.query(GLJournalLine).filter(GLJournalLine.journal_id == journal.id, GLJournalLine.account_id == ap.id).one()
+    assert "Qəbz 77" in ap_line.memo
+
+
+def test_allocate_named_then_fifo(db, tid):
+    named = _bill(db, tid, "NAMED", total="50.00", due=date(2026, 9, 20))
+    earliest = _bill(db, tid, "EARLY-DUE", total="100.00", due=date(2026, 9, 15))
+    later = _bill(db, tid, "LATE-DUE", total="100.00", due=date(2026, 9, 25))
+    journal = post_event(db, tid, SupplierPaid("pay-fifo", date(2026, 9, 16), "sup-1", "80.00", "cash"), actor="admin-1")
+    ap = gl.accounts_by_role(db, tid)["accounts_payable"]
+    ap_line_no = db.query(GLJournalLine.line_no).filter(GLJournalLine.journal_id == journal.id, GLJournalLine.account_id == ap.id).scalar()
+    documents.allocate_payment(db, tid, payment_journal_id=journal.id, journal_line_no=ap_line_no, partner_id="sup-1",
+                               amount="80.00", document_ids=[named.id])
+    assert get_document_open_balance(db, tid, named.id) == D("0.00") and named.status == "paid"
+    assert get_document_open_balance(db, tid, earliest.id) == D("70.00") and earliest.status == "partially_paid"
+    assert get_document_open_balance(db, tid, later.id) == D("100.00") and later.status == "open"
+    assert all(a.journal_line_no == ap_line_no for a in _allocs(db, tid, named.id) + _allocs(db, tid, earliest.id))
+
+
+def test_bill_payment_journal_is_gl_only(db, tid):
+    bill = _bill(db, tid, "INV-GLONLY")
+    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-gl-only")
+    journal = db.query(GLJournal).filter(GLJournal.id == res["journal_id"]).one()
+    assert journal.source_module == "gl"
+    assert journal.source_type == "document_payment" and journal.source_id == bill.id
+    assert journal.idempotency_key == f"supplier_payment:bill:{bill.id}:key-gl-only"
+    assert res["journal_status"] == "posted"
+    ap = gl.accounts_by_role(db, tid)["accounts_payable"]
+    ap_line_no = db.query(GLJournalLine.line_no).filter(GLJournalLine.journal_id == journal.id, GLJournalLine.account_id == ap.id).scalar()
+    assert [a.journal_line_no for a in _allocs(db, tid, bill.id)] == [ap_line_no]
+
+
+def test_approval_hook_rechecks_open_balance(db, tid):
+    bill = _bill(db, tid, "INV-HOOK", total="100.00")
+    res = pay_bill(db, tid, bill.id, amount="60.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15),
+                   actor="mgr", require_approval=True)
+    assert res["journal_status"] == "pending_approval" and res["allocations_count"] == 0
+    # Something settled the bill outside the pay path while the payment waited for approval.
+    other = post_event(db, tid, SupplierPaid("outside", date(2026, 9, 15), "sup-1", "50.00", "cash"), actor="admin-1")
+    db.add(GLDocumentAllocation(tenant_id=tid, document_id=bill.id, journal_id=other.id, journal_line_no=1, amount=D("50.00")))
+    db.flush()
+    journal = gl.approve_journal(db, tid, res["journal_id"], approver="admin-1")
+    with pytest.raises(GLError) as exc:
+        documents.after_journal_approved(db, tid, journal)
+    assert exc.value.code == "overpayment_not_allowed" and exc.value.status_code == 409
+
+
 def test_documents_api_full_flow(monkeypatch):
     """End-to-end HTTP API tests for /api/v1/gl/documents endpoints."""
     from types import SimpleNamespace
@@ -346,9 +476,10 @@ def test_documents_api_full_flow(monkeypatch):
 
     # 5. POST /documents/{id}/pay (partial payment 250)
     pay_payload = {
-        "amount": 250.0,
+        "amount": "250.00",
         "paid_from": "cash_drawer",
         "posting_date": "2026-09-15",
+        "idempotency_key": "pay-api-101-1",
     }
     r = client.post(f"/api/v1/gl/documents/{doc_id}/pay", json=pay_payload)
     assert r.status_code == 200
