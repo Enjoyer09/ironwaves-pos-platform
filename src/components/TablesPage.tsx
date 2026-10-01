@@ -213,6 +213,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const sendRoundInFlightRef = useRef(false);
+  // Visible twin of sendRoundInFlightRef: drives the Send button spinner/disabled state.
+  const [isSendingRound, setIsSendingRound] = useState(false);
   const detailFetchSeqRef = useRef(0);
   const isActiveRef = useRef(isActive);
   const skipNextFloorStateLoadRef = useRef<string>('');
@@ -268,6 +270,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [tenantSettings]);
 
   const isBahaYLab = tablesUiMode === 'modern';
+
+  // 15" touch POS: opt the waiter screens out of the global 78-84% compact root
+  // font (see `html.waiter-touch` in index.css) so touch targets stay >= 44px and
+  // labels stay legible at arm's length. Scoped to this module + touch devices.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isBahaYLab || !isActive) return;
+    const root = document.documentElement;
+    const mq = window.matchMedia?.('(pointer: coarse)');
+    const apply = () => root.classList.toggle('waiter-touch', Boolean(mq?.matches));
+    apply();
+    mq?.addEventListener?.('change', apply);
+    return () => {
+      mq?.removeEventListener?.('change', apply);
+      root.classList.remove('waiter-touch');
+    };
+  }, [isBahaYLab, isActive]);
+
   const {
     cartWidth: tablesCartWidth,
     isDragging: isTablesCartDragging,
@@ -699,10 +718,29 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     });
   }, [viewTableId]);
 
+  // Close the detail panel when the open table becomes free (settled/cancelled
+  // elsewhere). Only react to a real occupied -> free transition: right after a
+  // waiter opens a free table, the table list is still stale (loadData applies it
+  // inside startTransition), and closing on "free" bounced them straight back to
+  // the table list without ever showing the order screen.
+  const seenOccupiedTableRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!viewTableId) return;
+    if (!viewTableId) {
+      seenOccupiedTableRef.current = null;
+      return;
+    }
+    // Switching directly from table A to B must not carry A's "seen occupied" mark.
+    if (seenOccupiedTableRef.current && seenOccupiedTableRef.current !== viewTableId) {
+      seenOccupiedTableRef.current = null;
+    }
     const selected = tables.find((row) => row.id === viewTableId);
-    if (selected && !selected.is_occupied) {
+    if (!selected) return;
+    if (selected.is_occupied) {
+      seenOccupiedTableRef.current = viewTableId;
+      return;
+    }
+    if (seenOccupiedTableRef.current === viewTableId) {
+      seenOccupiedTableRef.current = null;
       setViewTableId(null);
       setTableDetailRecord(null);
     }
@@ -948,6 +986,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     if (!table?.id) return;
     if (sendRoundInFlightRef.current) return; // prevent double-tap
     sendRoundInFlightRef.current = true;
+    setIsSendingRound(true);
     try {
     const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
     const serverDraftItems = activeDetail?.draft_items || [];
@@ -1081,6 +1120,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     }
     } finally {
       sendRoundInFlightRef.current = false;
+      setIsSendingRound(false);
     }
   };
 
@@ -1913,13 +1953,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         message={tx(lang, `${pendingCancelTable?.label || 'Masa'} satışsız bağlanacaq. Kassaya heç bir məbləğ düşməyəcək.`, `${pendingCancelTable?.label || 'Стол'} будет закрыт без продажи.`, `${pendingCancelTable?.label || 'Table'} will be closed without a sale.`)}
         confirmLabel={tx(lang, 'Bəli, ləğv et', 'Да, отменить', 'Yes, cancel')}
         cancelLabel={tx(lang, 'Xeyr', 'Нет', 'No')}
+        // In-app reason field instead of window.prompt: native prompts can't be typed
+        // into with the on-screen keyboard on a touch-only POS.
+        reasonLabel={tx(lang, 'Ləğv səbəbi', 'Причина отмены', 'Cancel reason')}
+        defaultReason={tx(lang, 'Səhv açılmış/boş masa', 'Ошибочно открытый/пустой стол', 'Opened by mistake / empty table')}
         onCancel={() => setPendingCancelTable(null)}
-        onConfirm={async () => {
+        onConfirm={async (reason) => {
           if (!pendingCancelTable) return;
-          const reason = window.prompt(
-            tx(lang, 'Ləğv səbəbi', 'Причина отмены', 'Cancel reason'),
-            tx(lang, 'Səhv açılmış/boş masa', 'Ошибочно открытый/пустой стол', 'Opened by mistake / empty table')
-          );
           if (!reason || !reason.trim()) return;
           setPendingCancelTable(null);
           try {
@@ -2282,7 +2322,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	              const serverDraftItems = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord?.draft_items || []) : [];
 	              const draftRows = detailCheck?.id ? serverDraftItems : roundDraft;
 	              const draftTotal = draftRows.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2);
-	              const effectiveActiveItems = detailActiveItems.length > 0 ? detailActiveItems : items;
+	              // Fallback (offline/local mode): table.items mixes drafts and sent items;
+	              // drafts carry kitchen_sent === false. Live rows without the flag are kept.
+	              const effectiveActiveItems = detailActiveItems.length > 0
+	                ? detailActiveItems
+	                : items.filter((it: any) => it?.kitchen_sent !== false);
+	              // (same predicate as get_table_detail_live's local draft_items)
 	              const sentDisplayItems = effectiveActiveItems;
 	              const fullOrderRows = [...draftRows, ...effectiveActiveItems];
 	              const visibleCheckTotal = new Decimal(detailCheck?.total || (tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.check_total : null) || t.total || 0);
@@ -2631,6 +2676,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onClearDrafts={clearVisibleDrafts}
 	                        onUpdateQty={(id, qty) => updateRoundDraftQty(id, qty)}
 	                        onSend={() => { void sendRoundDirectly(t); }}
+	                        sending={isSendingRound}
 	                        tableOccupied={Boolean(t?.is_occupied)}
 	                        userCanEdit={userCanEditTable}
 	                        onPrintPreCheck={() => { void handlePrintPreCheck(t); }}
@@ -3157,8 +3203,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 kitchenOrders={kitchenOrders}
                 onOpenTable={async (tableId, guestCount) => {
                   await open_table_live(tableId, { guest_count: Number(guestCount || 1), deposit_guest_count: 0, opened_by: user?.username || 'waiter' });
+                  // Refresh BEFORE showing the panel. Setting viewTableId first let the
+                  // "close panel if table is free" effect see the stale (still free) row
+                  // and immediately bounce the waiter back to the table list.
+                  await refreshActiveTableDetail(tableId);
                   setViewTableId(tableId);
-                  await loadData();
                 }}
                 onSelectTable={handleSelectWaiterTable}
                 onFastSwitch={() => window.dispatchEvent(new CustomEvent('trigger-fast-switch'))}

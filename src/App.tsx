@@ -566,6 +566,23 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 15" touch POS: the fit-to-1400x850 scale above shrinks the whole UI to ~73%
+  // at 1024x768. Combined with the compact root font that made waiter touch
+  // targets ~57% of their designed size. TablesPage marks <html class="waiter-touch">
+  // while the Modern waiter UI is active on a touch device; the waiter layout is
+  // responsive on its own, so skip the global scale there.
+  const [waiterTouchActive, setWaiterTouchActive] = useState(false);
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+    const root = document.documentElement;
+    const sync = () => setWaiterTouchActive(root.classList.contains('waiter-touch'));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+  const effectiveScale = waiterTouchActive ? 1 : scale;
+
   const demoGuideShownModulesRef = useRef<Set<ModuleKey>>(new Set());
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
@@ -1994,12 +2011,12 @@ export default function App() {
       <div
         className="flex-1 flex flex-col relative overflow-hidden"
         style={
-          scale < 1
+          effectiveScale < 1
             ? {
-                transform: `scale(${scale})`,
+                transform: `scale(${effectiveScale})`,
                 transformOrigin: 'top left',
-                width: `${100 / scale}%`,
-                height: `${100 / scale}%`,
+                width: `${100 / effectiveScale}%`,
+                height: `${100 / effectiveScale}%`,
                 position: 'absolute',
                 top: 0,
                 left: 0,

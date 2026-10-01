@@ -283,7 +283,9 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
       ));
       if (duplicate) throw new Error('Eyni adlı masa artıq mövcuddur');
     }
-    const nextStatus = payload.status ?? tables[idx].status ?? 'AVAILABLE';
+    // Keep the row's own status (may be undefined for occupied local rows) instead
+    // of stamping 'AVAILABLE' onto an open table.
+    const nextStatus = payload.status ?? tables[idx].status;
     tables[idx] = {
       ...tables[idx],
       label: payload.label !== undefined ? String(payload.label || '').trim() : tables[idx].label,
@@ -297,7 +299,11 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
       status: nextStatus,
       guest_count: payload.guest_count !== undefined ? Math.max(1, Number(payload.guest_count)) : tables[idx].guest_count,
     };
-    if (String(nextStatus).toUpperCase() === 'AVAILABLE') {
+    // Only clear the table when the caller explicitly sets it AVAILABLE. Local
+    // occupied rows often have no `status`, so `nextStatus` fell back to
+    // 'AVAILABLE' and ANY layout edit (guest count, position) wiped the whole
+    // open order offline.
+    if (payload.status !== undefined && String(payload.status).toUpperCase() === 'AVAILABLE') {
       tables[idx] = {
         ...tables[idx],
         is_occupied: false,
@@ -708,7 +714,10 @@ export async function get_table_detail_live(tenant_id: string, tableId: string):
         tax_amount: '0',
         total: row.total || '0',
       } : null,
-      draft_items: Array.isArray(row.items) ? row.items : [],
+      // Only unsent items are drafts. Returning every item meant that in offline
+      // mode, items already sent to the kitchen stayed in the draft list (and could
+      // be sent again) while also showing under "Göndərilmişlər".
+      draft_items: Array.isArray(row.items) ? row.items.filter((it: any) => it?.kitchen_sent === false) : [],
     };
   }
   return apiRequest<TableDetailRecord>(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/detail`, { tenantId: null });

@@ -181,13 +181,26 @@ function MenuGrid({
   const [variantPickerGroup, setVariantPickerGroup] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
   const pressTimer = useRef<number | null>(null);
-
-  // Swipe detection for categories
-  const swipeStartX = useRef<number>(0);
-  const swipeStartY = useRef<number>(0);
+  // Set when a long-press opened the quick-qty popover, so the click that follows
+  // the same touch doesn't ALSO add one item.
+  const longPressFiredRef = useRef(false);
+  // Browsers fire compatibility mousedown/mouseup/click after a touch. Without
+  // this, that mousedown reset longPressFiredRef and the click still added an item.
+  const lastTouchAtRef = useRef(0);
+  // Lifting the finger after a long-press produces a click on whatever is now
+  // under it: the popover backdrop, which closed the popover instantly.
+  const longPressOpenedAtRef = useRef(0);
+  const closeLongPress = () => {
+    if (Date.now() - longPressOpenedAtRef.current < 700) return;
+    setLongPressItem(null);
+  };
 
   const handleTouchStart = (item: any) => {
+    lastTouchAtRef.current = Date.now();
+    longPressFiredRef.current = false;
     pressTimer.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressOpenedAtRef.current = Date.now();
       playHapticHeavy();
       setLongPressItem(item);
       setCustomQtyText('');
@@ -198,37 +211,6 @@ function MenuGrid({
     if (pressTimer.current) {
       window.clearTimeout(pressTimer.current);
       pressTimer.current = null;
-    }
-  };
-
-  const handleSwipeStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (touch) {
-      swipeStartX.current = touch.clientX;
-      swipeStartY.current = touch.clientY;
-    }
-  };
-
-  const handleSwipeEnd = (e: React.TouchEvent) => {
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-    const diffX = touch.clientX - swipeStartX.current;
-    const diffY = touch.clientY - swipeStartY.current;
-
-    // Only switch categories on a clear, deliberate horizontal flick (not vertical scrolling)
-    if (Math.abs(diffX) > 80 && Math.abs(diffX) > Math.abs(diffY) * 2.5 && Math.abs(diffY) < 35) {
-      const idx = categories.indexOf(selectedCategory);
-      if (idx !== -1) {
-        if (diffX < 0) {
-          const nextIdx = (idx + 1) % categories.length;
-          playHapticTouch();
-          onCategoryChange(categories[nextIdx]!);
-        } else {
-          const prevIdx = (idx - 1 + categories.length) % categories.length;
-          playHapticTouch();
-          onCategoryChange(categories[prevIdx]!);
-        }
-      }
     }
   };
 
@@ -386,16 +368,14 @@ function MenuGrid({
   }, [items]);
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col gap-2.5"
-      onTouchStart={handleSwipeStart}
-      onTouchEnd={handleSwipeEnd}
-    >
+    // Swipe-to-change-category was removed here: an 80px sideways drift while
+    // scrolling the menu silently switched the category. Category tabs remain.
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
       {/* Search & Fast Mode Toggle Bar */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1 min-w-0">
           <input
-            className="neon-input w-full pr-8"
+            className="neon-input w-full pr-12"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
@@ -407,8 +387,8 @@ function MenuGrid({
                 tapFeedback();
                 onSearchChange('');
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition active:scale-90"
-              title={tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center text-sm font-bold transition active:scale-90"
+              aria-label={tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
             >
               ✕
             </button>
@@ -456,8 +436,8 @@ function MenuGrid({
               }`}
             >
               <span className="text-base leading-none">{meta.icon}</span>
-              <span className="text-xs sm:text-sm tracking-wide whitespace-nowrap">{meta.label}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+              <span className="text-base tracking-wide whitespace-nowrap">{meta.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${
                 isSelected ? 'bg-white/25 text-white' : 'bg-slate-800/90 text-slate-400 border border-slate-700/50'
               }`}>
                 {count}
@@ -490,12 +470,12 @@ function MenuGrid({
                 {/* Promo / Popular Badges */}
                 <div className="absolute left-1.5 top-1.5 z-20 flex flex-wrap gap-1 items-center pointer-events-none">
                   {isPromo && (
-                    <span className="rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
+                    <span className="rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
                       ⚡ {tx(lang, 'Kampaniya', 'Промо', 'Promo')}
                     </span>
                   )}
                   {isPopular && !isPromo && (
-                    <span className="rounded bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white shadow shadow-rose-500/20">
+                    <span className="rounded bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow shadow-rose-500/20">
                       🔥 {tx(lang, 'Populyar', 'Хит', 'Best')}
                     </span>
                   )}
@@ -515,7 +495,11 @@ function MenuGrid({
                   onTouchEnd={handleTouchEnd}
                   onTouchMove={handleTouchEnd}
                   onMouseDown={() => {
+                    if (Date.now() - lastTouchAtRef.current < 800) return; // touch compat event
+                    longPressFiredRef.current = false;
                     pressTimer.current = window.setTimeout(() => {
+                      longPressFiredRef.current = true;
+                      longPressOpenedAtRef.current = Date.now();
                       playHapticHeavy();
                       setLongPressItem(group.items[0]);
                       setCustomQtyText('');
@@ -525,6 +509,10 @@ function MenuGrid({
                   onMouseLeave={handleTouchEnd}
                   onClick={() => {
                     handleTouchEnd();
+                    if (longPressFiredRef.current) {
+                      longPressFiredRef.current = false;
+                      return;
+                    }
                     playHapticTouch();
                     if (group.hasVariants) {
                       setVariantPickerGroup(group);
@@ -558,12 +546,9 @@ function MenuGrid({
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
                       </div>
                     ) : (
-                      // No image placeholder — square, gradient bg, large initial
-                      <div className="aspect-square w-full min-h-[140px] flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-800/60">
-                        <span className="text-3xl font-bold text-slate-500 select-none">
-                          {String(group.base || '').charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      // No image: no placeholder square. A 140px empty tile with just an
+                      // initial halved how many items fit on a 768px-tall POS screen.
+                      <div className="h-3" aria-hidden="true" />
                     )
                   ) : null}
                   {/* Text info — centered for image mode, left for fast mode */}
@@ -573,7 +558,7 @@ function MenuGrid({
                     </div>
                     <div className={`mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-slate-950/85 px-2.5 py-0.5 text-xs font-black text-amber-300 shadow-sm`}>
                       <span>{group.minPrice.toFixed(2)} ₼</span>
-                      {group.hasVariants && <span className="text-[9px] font-semibold text-slate-400">({group.items.length} variant)</span>}
+                      {group.hasVariants && <span className="text-xs font-semibold text-slate-300">({group.items.length} variant)</span>}
                     </div>
                   </div>
                 </div>
@@ -595,11 +580,11 @@ function MenuGrid({
                         playHapticTouch();
                         void onSelectItem(group.items[0], -1);
                       }}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm active:scale-90 hover:bg-slate-700"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-800 text-slate-100 border border-slate-700 font-bold text-lg active:scale-90"
                     >
                       −
                     </button>
-                    <span className="font-extrabold text-xs text-yellow-300">
+                    <span className="font-extrabold text-base text-yellow-300">
                       {totalQtyInDraft}
                     </span>
                     <button
@@ -610,7 +595,7 @@ function MenuGrid({
                         playHapticTouch();
                         void onSelectItem(group.items[0], 1);
                       }}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm active:scale-90 shadow-sm shadow-yellow-400/20"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-lg active:scale-90 shadow-sm shadow-yellow-400/20"
                     >
                       +
                     </button>
@@ -629,7 +614,7 @@ function MenuGrid({
 
       {/* Long-press Quantity Selector Popover Overlay */}
       {longPressItem && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4" onClick={() => setLongPressItem(null)}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4" onClick={closeLongPress}>
           <div 
             className="w-full max-w-sm p-6 rounded-[28px] border border-white/10 bg-[#0c121e] shadow-[0_24px_60px_rgba(0,0,0,0.65)] relative"
             onClick={(e) => e.stopPropagation()}

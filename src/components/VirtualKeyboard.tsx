@@ -30,7 +30,9 @@ const LETTER_LAYOUTS: Record<KeyboardLang, string[][]> = {
 
 function isKeyboardTarget(node: EventTarget | null): node is KeyboardTarget {
   if (!(node instanceof HTMLInputElement) && !(node instanceof HTMLTextAreaElement)) return false;
-  if (!node.classList.contains('neon-input')) return false;
+  // Opt-in without the neon-input look: data-virtual-keyboard="on" (e.g. the
+  // waiter table search, which otherwise could not be typed into on a touch POS).
+  if (!node.classList.contains('neon-input') && node.dataset.virtualKeyboard !== 'on') return false;
   if (node.disabled || node.readOnly) return false;
   if (node.dataset.virtualKeyboard === 'off') return false;
   if (node instanceof HTMLInputElement) {
