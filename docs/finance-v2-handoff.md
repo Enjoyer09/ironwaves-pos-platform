@@ -155,7 +155,15 @@ Each switch: backup first, owner approval, rollback = --set legacy / --reports l
 
 ### WP3 — P3b: bills and invoices (documents, due dates, matching)
 
-Today the sub-ledger is derived from tagged GL lines and aged by posting date; most historical AP is
+Status: **in review (PR #39, branch `feature/finance-v2-p3b`) — AP only.** Owner decisions taken during review:
+- AR invoices are **deferred**; the package ships AP bills only (`kind=ap_bill`, anything else 422).
+- Overpaying a bill through the bill-pay API is **rejected** (409 `overpayment_not_allowed`). The "overpayment →
+  advance" test in the original prompt below now applies only to legacy supplier payments (excess stays an advance).
+- Voided bill numbers are not reusable (409 `duplicate_bill`).
+
+The implemented API and rules are in `docs/FINANCE_V2_HANDOFF.md` 2.5 and 3. Original prompt, kept for context:
+
+Before WP3 the sub-ledger was derived from tagged GL lines and aged by posting date; most historical AP is
 "unassigned" because legacy restocks had no supplier (staging: Art Space 8 719.86 ₼, Daily Coffee 427.93 ₼).
 
 ```text
