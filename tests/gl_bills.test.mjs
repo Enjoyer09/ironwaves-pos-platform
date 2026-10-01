@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   newIdempotencyKey,
   sumMoney,
@@ -53,4 +55,72 @@ test('newIdempotencyKey is unique and accepted by the pay endpoint', () => {
     // PayBillIn.idempotency_key: 8-80 chars, ^[A-Za-z0-9:_-]+$
     assert.match(key, /^[A-Za-z0-9:_-]{8,80}$/);
   }
+});
+
+// ── Static regression guards for the UI-only review findings (no browser harness in this repo) ──
+const source = (rel) => readFileSync(join(process.cwd(), rel), 'utf8');
+const BILLS = 'src/components/admin/financev2/BillsTab.tsx';
+
+test('F2: PayBillDialog keeps one idempotency key per open dialog and sends it', () => {
+  const s = source(BILLS);
+  assert.match(s, /useRef\(newIdempotencyKey\(\)\)/);
+  assert.match(s, /idempotency_key:\s*idempotencyKey\.current/);
+});
+
+test('F10: BillsTab does no float money arithmetic', () => {
+  assert.doesNotMatch(source(BILLS), /parseFloat\(|Number\(/);
+});
+
+test('F11: KPIs come from the server summary and the list is paged', () => {
+  const s = source(BILLS);
+  assert.match(s, /data\?\.summary/);
+  assert.match(s, /setOffset\(offset \+ PAGE\)/);
+});
+
+test('F14: bill detail renders the source journal lines', () => {
+  assert.match(source(BILLS), /doc\.lines\.map\(/);
+});
+
+test('F16: overdue bills tint the whole row', () => {
+  assert.match(source(BILLS), /<tr key=\{doc\.id\} className=\{doc\.is_overdue \? 'bg-rose-950/);
+});
+
+test('F17: every BillsTab button uses a btn token or a 44px target', () => {
+  const buttons = source(BILLS).match(/<button\b[\s\S]*?>/g) || [];
+  assert.ok(buttons.length > 0);
+  for (const b of buttons) assert.match(b, /btn\.|min-h-11/, b);
+});
+
+test('F18: the bills table has a screen-reader caption', () => {
+  assert.match(source(BILLS), /<caption className="sr-only">/);
+});
+
+test('F19: suppliers are picked from GET /gl/suppliers, not typed as ids', () => {
+  const s = source(BILLS);
+  assert.match(s, /glApi\.suppliers\(\)/);
+  assert.match(source('src/api/gl.ts'), /suppliers: \(\) => get<GLSupplier\[\]>\('\/suppliers'\)/);
+});
+
+test('F23: general expense option is labelled 721.9', () => {
+  assert.match(source(BILLS), /value="general_expense">721\.9 /);
+});
+
+test('D4: JournalDrawer offers no generic storno for document journals', () => {
+  const s = source('src/components/admin/financev2/JournalsTabs.tsx');
+  assert.match(s, /source_type === 'document' \|\| j\.source_type === 'document_payment'/);
+  assert.match(s, /glOwned = [^\n]*!documentOwned/);
+});
+
+test('F7: restock sends supplier_id and the panel requires a supplier in dual mode', () => {
+  const api = source('src/api/inventory.ts');
+  const restock = api.slice(api.indexOf('export async function restock_item_live'), api.indexOf('export async function update_inventory_item_live'));
+  assert.match(restock, /supplier_id: String\(options\?\.supplier_id/);
+  assert.match(source('src/components/admin/InventoryPanel.tsx'), /ledger_mode === 'dual'/);
+});
+
+test('F12: handoff keeps the unverified token purge flagged and drops the unverified reconcile claim', () => {
+  const s = source('docs/FINANCE_V2_HANDOFF.md');
+  assert.match(s, /\*\*Verify this\.\*\*/);
+  assert.doesNotMatch(s, /Nightly reconciliation on 2026-10-01 passed/);
+  assert.match(s, /In review \(PR #39\) — AP only; AR deferred/);
 });
