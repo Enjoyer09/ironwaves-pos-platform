@@ -112,7 +112,10 @@ def test_failed_reconciliation_breaks_the_streak(db, monkeypatch):
     shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR.replace(day=2))
     status = shadow.shadow_status(db, tid)
     assert status["clean_reconciliation_streak"] == 0
-    assert status["runs"][0]["details"]["failed_checks"] == [{"check": "x", "ok": False}]
+    # Sync runs are stamped with the real clock, reconcile runs with the cycle clock,
+    # so pick the newest reconcile run rather than runs[0].
+    last_reconcile = next(r for r in status["runs"] if r["type"] == "reconcile")
+    assert last_reconcile["details"]["failed_checks"] == [{"check": "x", "ok": False}]
 
 
 def test_scheduler_disabled_by_default(monkeypatch):
