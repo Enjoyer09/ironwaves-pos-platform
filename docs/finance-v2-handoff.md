@@ -34,7 +34,10 @@ ARCHITECTURE (read these before changing anything):
 - Frontend: src/api/gl.ts, src/components/admin/FinanceV2Panel.tsx + src/components/admin/financev2/*.
   Module key "financev2" (src/lib/navigation.ts, src/App.tsx canAccess gated by getGLCapabilities()).
 - Scripts: backend/scripts/gl_ledger_mode.py (--list, --tenant X --set dual|legacy --reason, --reconcile,
-  --parity, --reports gl|legacy, needs --allow-production on prod), backend/scripts/gl_migrate_legacy.py.
+  --parity, --reports gl|legacy, needs --allow-production on prod), backend/scripts/gl_migrate_legacy.py,
+  backend/scripts/gl_readiness.py (--tenant X [--json] [--allow-production]): READ-ONLY cut-over gate; prints the
+  go/no-go verdicts can_switch_to_dual and can_switch_reports_to_gl with the reasons each failed, refuses prod
+  without --allow-production (exit code 2), exit 0 only when both verdicts pass. Run it before --set dual / --reports gl.
 
 TENANTS (production):
 - Demo 5dcc537d-7905-4080-ad35-e6a05432dc83 (demo.ironwaves.store): dual + reports gl. Pilot tenant.
@@ -126,8 +129,8 @@ Report in Azerbaijani.
 
 ```text
 Task: move Platform (b3442582…) reports source to gl.
-Precondition: at least 2-3 consecutive clean nightly reconciliations (gl_shadow_runs, run_type='reconcile',
-ok=true) AND at least some real activity. Check first; if not met, report and stop.
+Precondition: run gl_readiness.py --tenant <Platform> first — can_switch_reports_to_gl must be YES (it checks
+dual mode + clean reconcile streak >= 2 + parity ok, no unexplained diffs). If NO, read its reasons and stop.
 Then: gl_ledger_mode.py --tenant <Platform> --parity (must show no unexplained differences), ask the owner,
 then --reports gl --reason "..." --allow-production, re-run --reconcile, spot-check Z-report/shift numbers.
 Rollback: --reports legacy.

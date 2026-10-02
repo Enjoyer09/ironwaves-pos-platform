@@ -82,12 +82,17 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `tax.py` | Tax profiles, simplified tax accrual, VAT split | `set_tax_profile`, `get_tax_profile`, `accrue_simplified_tax` (posts only the delta, safe to repeat), `tax_summary`, `split_vat` |
 | `year_end.py` | Fiscal year close/reopen | `year_status`, `close_fiscal_year`, `request_reopen_fiscal_year` |
 | `subledger.py` | AP/AR per partner, FIFO settlement, aging | `subledger(db, tid, "ap"\|"ar", as_of)` |
+| `readiness.py` | Read-only cut-over gate: posture + the two go/no-go verdicts with reasons (surfaced by `scripts/gl_readiness.py`). Zero DB writes | `readiness(db, tenant_id)` → `{ledger_mode, reports_source, chart_present, clean_reconciliation_streak, native_error_count_7d, current_reconcile, parity, open_items, pending_journals, unassigned_ap, negative_wallets, shadow, shadow_sync_lag_seconds, can_switch_to_dual, can_switch_reports_to_gl}` |
 | `documents.py` | AP bills (AR invoices deferred): bill lifecycle, payment allocations (named first, then FIFO), maker-checker hooks, unassigned-AP reclass | `create_bill`, `pay_bill`, `post_supplier_payment`, `allocate_payment`, `void_document`, `reverse_bill_payment`, `reclassify_unassigned_ap`, `list_documents`, `get_document_detail`, `after_journal_approved` / `after_journal_rejected`, `lock_documents_for_journal`, `DOCUMENT_SOURCE_TYPES = ("document","document_payment")` |
 | `router.py` | HTTP API `/api/v1/gl` | Section 3 |
 
 Scripts:
 - `backend/scripts/gl_ledger_mode.py`: `--list`, `--tenant X --set dual|legacy --reason`, `--reconcile`, `--parity`, `--reports gl|legacy`. It refuses production hosts unless `--allow-production` is passed.
 - `backend/scripts/gl_migrate_legacy.py`: `--all --dry-run --allow-production`.
+- `backend/scripts/gl_readiness.py`: the cut-over **gate** tool. `--tenant X [--json] [--allow-production]`. Reports a tenant's migration posture and the two go/no-go verdicts and prints their failing reasons:
+  - `can_switch_to_dual` — chart present, current reconcile ok, clean reconcile streak >= 2, zero native-posting errors in the last 7 days.
+  - `can_switch_reports_to_gl` — ledger mode `dual`, clean reconcile streak >= 2, parity ok with no unexplained differences.
+  It is strictly **read-only** (zero DB writes; it rolls back any shadow catch-up a reused reader performs) and refuses Railway/production hosts unless `--allow-production` is passed (same message / exit code 2 as `gl_ledger_mode.py`). Exit code 0 only when both verdicts resolve without error. The verdict logic lives in `app/gl/readiness.py` (`readiness(db, tenant_id)`), composed from the existing `bridge`/`read_model`/`shadow`/`subledger`/`legacy_migration` readers. Run it (against a throwaway PG copy, never `railway`) before `gl_ledger_mode.py --set dual` or `--reports gl`.
 
 Related, outside `gl/`:
 - `app/services/finance_service.py`:
