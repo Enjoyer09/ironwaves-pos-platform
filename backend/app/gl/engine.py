@@ -522,6 +522,12 @@ def create_journal(
                 return winner
         raise
 
+    if not require_approval and migration is None:
+        # Take the guarded-account locks BEFORE inserting the lines: the lines' FK checks take
+        # KEY SHARE on gl_accounts, and two postings that both hold it and then ask for FOR UPDATE
+        # (in _post) deadlock on PostgreSQL. Locking first makes the second posting wait instead.
+        _lock_guarded_account_ids(db, tenant_id, [line.account.id for line in resolved])
+
     for no, line in enumerate(resolved, start=1):
         db.add(
             GLJournalLine(
@@ -604,17 +610,21 @@ def account_balance(db: Session, tenant_id: str, account: GLAccount, *, as_of_pe
     return (debit - credit if account.normal_side == "debit" else credit - debit).quantize(CENT)
 
 
-def _lock_guarded_accounts(db: Session, journal: GLJournal, lines: list[GLJournalLine]) -> list[GLAccount]:
-    """Lock non-negative (cash-like) accounts *before* touching balances so that
-    concurrent postings on the same drawer are fully serialized."""
-    account_ids = sorted({line.account_id for line in lines})
+def _lock_guarded_account_ids(db: Session, tenant_id: str, account_ids) -> list[GLAccount]:
+    """Row-lock (id order) the non-negative (cash-like) accounts among ``account_ids``."""
     return (
         db.query(GLAccount)
-        .filter(GLAccount.tenant_id == journal.tenant_id, GLAccount.id.in_(account_ids), GLAccount.allow_negative.is_(False))
+        .filter(GLAccount.tenant_id == tenant_id, GLAccount.id.in_(sorted(set(account_ids))), GLAccount.allow_negative.is_(False))
         .order_by(GLAccount.id.asc())
         .with_for_update()
         .all()
     )
+
+
+def _lock_guarded_accounts(db: Session, journal: GLJournal, lines: list[GLJournalLine]) -> list[GLAccount]:
+    """Lock non-negative (cash-like) accounts *before* touching balances so that
+    concurrent postings on the same drawer are fully serialized."""
+    return _lock_guarded_account_ids(db, journal.tenant_id, [line.account_id for line in lines])
 
 
 def _check_non_negative(db: Session, journal: GLJournal, lines: list[GLJournalLine], guarded: list[GLAccount]) -> None:

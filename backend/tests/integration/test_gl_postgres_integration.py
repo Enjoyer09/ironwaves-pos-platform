@@ -186,3 +186,34 @@ def test_concurrent_idempotent_requests_post_once(Session, tid):
     assert len(set(ids)) == 1
     with Session() as s:
         assert s.query(GLJournal).filter(GLJournal.tenant_id == tid, GLJournal.idempotency_key == "sale:offline-123").count() == 1
+
+
+def test_concurrent_drawer_postings_do_not_deadlock(Session, tid):
+    """Two postings that both fit the drawer must both post (no FK KEY SHARE vs FOR UPDATE deadlock)."""
+    for rnd in range(5):
+        barrier = threading.Barrier(2)
+        results: list[str] = []
+        lock = threading.Lock()
+
+        def worker(n: int):
+            with Session() as s:
+                barrier.wait()
+                try:
+                    gl.create_journal(s, tenant_id=tid, journal_type="cash", created_by=f"cashier{n}", posting_date=DAY,
+                                      lines=[LineIn("general_expense", debit="1.00"), LineIn("cash_drawer", credit="1.00")])
+                    s.commit()
+                    outcome = "ok"
+                except Exception as exc:  # noqa: BLE001 - a deadlock must fail the assertion, not vanish
+                    s.rollback()
+                    outcome = type(exc).__name__
+            with lock:
+                results.append(outcome)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert results == ["ok", "ok"], (rnd, results)
+    with Session() as s:
+        assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == Decimal("90.00")

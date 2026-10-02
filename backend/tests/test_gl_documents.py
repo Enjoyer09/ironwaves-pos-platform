@@ -421,6 +421,58 @@ def test_approval_hook_rechecks_open_balance(db, tid):
     assert exc.value.code == "overpayment_not_allowed" and exc.value.status_code == 409
 
 
+def _record_locks_and_posts(monkeypatch):
+    """Spy on document row locks and journal posts, in call order (R1 lock order)."""
+    calls: list = []
+    real_lock, real_post = documents._lock_payable_documents, documents.post_event
+
+    def lock(db, tenant_id, partner_id, *, kind="ap_bill", document_ids=None):
+        calls.append(("lock", None if document_ids is None else tuple(document_ids)))
+        return real_lock(db, tenant_id, partner_id, kind=kind, document_ids=document_ids)
+
+    def post(*args, **kwargs):
+        calls.append(("post", None))
+        return real_post(*args, **kwargs)
+
+    monkeypatch.setattr(documents, "_lock_payable_documents", lock)
+    monkeypatch.setattr(documents, "post_event", post)
+    return calls
+
+
+def test_bill_payment_locks_only_its_bill(db, tid, monkeypatch):
+    """R1: a bill payment must not sweep-lock the supplier's other bills after posting (PG deadlock)."""
+    bill = _bill(db, tid, "INV-LOCK-A", total="50.00", due=date(2026, 9, 15))
+    other = _bill(db, tid, "INV-LOCK-B", total="50.00", due=date(2026, 9, 12))
+    calls = _record_locks_and_posts(monkeypatch)
+    pay_bill(db, tid, bill.id, amount="50.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16), idempotency_key="lock-a")
+    assert calls and all(c == ("lock", (bill.id,)) for c in calls if c[0] == "lock"), calls
+    assert get_document_open_balance(db, tid, other.id) == D("50.00") and _allocs(db, tid, other.id) == []
+
+
+def test_bill_payment_approval_locks_only_its_bill(db, tid, monkeypatch):
+    """R1: the approval hook of a pending bill payment allocates to (and locks) that bill only."""
+    bill = _bill(db, tid, "INV-LOCK-C", total="50.00")
+    _bill(db, tid, "INV-LOCK-D", total="50.00")
+    res = pay_bill(db, tid, bill.id, amount="20.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15),
+                   actor="mgr", require_approval=True)
+    calls = _record_locks_and_posts(monkeypatch)
+    _approve(db, tid, res["journal_id"])
+    assert [c for c in calls if c[0] == "lock"] == [("lock", (bill.id,))], calls
+    assert get_document_open_balance(db, tid, bill.id) == D("30.00")
+
+
+def test_fifo_payment_locks_bills_before_posting(db, tid, monkeypatch):
+    """R1: a FIFO (legacy supplier) payment locks the supplier's payable bills BEFORE it posts."""
+    first = _bill(db, tid, "INV-FIFO-1", total="30.00", due=date(2026, 9, 12))
+    second = _bill(db, tid, "INV-FIFO-2", total="30.00", due=date(2026, 9, 20))
+    calls = _record_locks_and_posts(monkeypatch)
+    documents.post_supplier_payment(db, tid, SupplierPaid("fifo-lock", date(2026, 9, 16), "sup-1", "40.00", "cash"),
+                                    actor="admin-1", source_module="pos")
+    assert calls[0] == ("lock", None) and calls[1] == ("post", None), calls
+    assert get_document_open_balance(db, tid, first.id) == D("0.00")
+    assert get_document_open_balance(db, tid, second.id) == D("20.00")
+
+
 def test_documents_api_full_flow(monkeypatch):
     """End-to-end HTTP API tests for /api/v1/gl/documents endpoints."""
     from types import SimpleNamespace

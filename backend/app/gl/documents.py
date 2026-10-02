@@ -310,32 +310,22 @@ def allocate_payment(
     amount: Decimal | str,
     document_ids: list[str] | None = None,
     kind: str = "ap_bill",
+    named_only: bool = False,
 ) -> list[GLDocumentAllocation]:
     """Allocate a payment journal line against a partner's open documents.
 
     Named ``document_ids`` are settled first (in the given order), then the remainder goes FIFO by
     due_date, issue_date, created_at. Whatever is left stays an unallocated advance on the partner.
     Candidate documents are row-locked in id order, and payments still pending approval keep
-    their reservation on a document.
+    their reservation on a document. With ``named_only`` only the named documents are candidates
+    (no FIFO sweep), so a bill payment touches no other bill of the supplier.
     """
     rem = gl.money(amount)
     if rem <= ZERO:
         return []
 
-    db.flush()  # populate_existing below must not discard pending changes
-    docs = (
-        db.query(GLDocument)
-        .filter(
-            GLDocument.tenant_id == tenant_id,
-            GLDocument.kind == kind,
-            GLDocument.partner_id == partner_id,
-            GLDocument.status.in_(PAYABLE_STATUSES),
-        )
-        .order_by(GLDocument.id.asc())
-        .with_for_update()
-        .populate_existing()
-        .all()
-    )
+    docs = _lock_payable_documents(db, tenant_id, partner_id, kind=kind,
+                                   document_ids=list(document_ids or ()) if named_only else None)
     by_id = {d.id: d for d in docs}
     named: list[GLDocument] = []
     for did in document_ids or ():
@@ -371,8 +361,26 @@ def allocate_payment(
     return allocations
 
 
+def _lock_payable_documents(db: Session, tenant_id: str, partner_id: str, *, kind: str = "ap_bill",
+                            document_ids: list[str] | None = None) -> list[GLDocument]:
+    """Row-lock (id order) the partner's payable documents, or only ``document_ids`` when given."""
+    db.flush()  # populate_existing below must not discard pending changes
+    q = db.query(GLDocument).filter(
+        GLDocument.tenant_id == tenant_id,
+        GLDocument.kind == kind,
+        GLDocument.partner_id == partner_id,
+        GLDocument.status.in_(PAYABLE_STATUSES),
+    )
+    if document_ids is not None:
+        if not document_ids:
+            return []
+        q = q.filter(GLDocument.id.in_(document_ids))
+    return q.order_by(GLDocument.id.asc()).with_for_update().populate_existing().all()
+
+
 def _allocate_journal(db: Session, tenant_id: str, journal: GLJournal, *, partner_id: str,
-                      document_ids: tuple[str, ...] | list[str] = ()) -> list[GLDocumentAllocation]:
+                      document_ids: tuple[str, ...] | list[str] = (),
+                      named_only: bool = False) -> list[GLDocumentAllocation]:
     """Allocate a posted payment journal's AP debit line once (replay-safe)."""
     if db.query(GLDocumentAllocation.id).filter(GLDocumentAllocation.tenant_id == tenant_id,
                                                 GLDocumentAllocation.journal_id == journal.id).first():
@@ -388,6 +396,7 @@ def _allocate_journal(db: Session, tenant_id: str, journal: GLJournal, *, partne
         partner_id=line.partner_id or partner_id,
         amount=Decimal(str(line.debit)),
         document_ids=list(document_ids),
+        named_only=named_only,
     )
 
 
@@ -401,20 +410,29 @@ def post_supplier_payment(
     source_type: str | None = None,
     source_id: str | None = None,
     require_approval: bool = False,
+    named_only: bool = False,
 ) -> GLJournal:
     """Post a SupplierPaid event and, once posted, allocate it to the supplier's bills
     (``event.document_ids`` first, then FIFO; any excess stays an advance).
 
-    Used by ``pay_bill`` (GL-only document payment) and by the legacy supplier payment
-    (``source_module="pos"``, linked to its legacy transaction by the bridge). A pending
-    journal is allocated by ``after_journal_approved``. Never commits.
+    Used by ``pay_bill`` (GL-only document payment, ``named_only``: the caller has locked and
+    checked the one bill) and by the legacy supplier payment (``source_module="pos"``, linked
+    to its legacy transaction by the bridge). A pending journal is allocated by
+    ``after_journal_approved``. Never commits.
+
+    Lock order is documents before journal: a FIFO allocation locks the supplier's payable bills
+    (id order) BEFORE posting, so it cannot deadlock with a bill payment that holds one bill and
+    waits on the journal sequence / wallet / audit locks.
     """
     key = f"supplier_payment:{event.payment_id}"
     existed = db.query(GLJournal.id).filter(GLJournal.tenant_id == tenant_id, GLJournal.idempotency_key == key).first() is not None
+    if not named_only and not existed and not require_approval:
+        _lock_payable_documents(db, tenant_id, event.supplier_id)
     journal = post_event(db, tenant_id, event, actor=actor, require_approval=require_approval,
                          source_module=source_module, source_type=source_type, source_id=source_id)
     if journal.status == "posted" and not existed:
-        _allocate_journal(db, tenant_id, journal, partner_id=event.supplier_id, document_ids=event.document_ids)
+        _allocate_journal(db, tenant_id, journal, partner_id=event.supplier_id, document_ids=event.document_ids,
+                          named_only=named_only)
     return journal
 
 
@@ -513,7 +531,7 @@ def pay_bill(
         note=note,
     )
     journal = post_supplier_payment(db, tenant_id, event, actor=actor, source_module="gl", source_type=DOCUMENT_PAYMENT_SOURCE,
-                                    source_id=doc.id, require_approval=require_approval)
+                                    source_id=doc.id, require_approval=require_approval, named_only=True)
     return _payment_result(db, tenant_id, doc, journal, replayed=False)
 
 
@@ -557,7 +575,7 @@ def after_journal_approved(db: Session, tenant_id: str, journal: GLJournal) -> N
     available, pending = _available_to_pay(db, tenant_id, doc)
     if amount > available:
         raise _overpayment(amount, available, pending, doc.number)
-    _allocate_journal(db, tenant_id, journal, partner_id=doc.partner_id, document_ids=(doc.id,))
+    _allocate_journal(db, tenant_id, journal, partner_id=doc.partner_id, document_ids=(doc.id,), named_only=True)
 
 
 def after_journal_rejected(db: Session, tenant_id: str, journal: GLJournal) -> None:

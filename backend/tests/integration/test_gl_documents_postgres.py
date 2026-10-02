@@ -250,3 +250,90 @@ def test_concurrent_void_approval_and_payment(Session, env):
             assert s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == doc_id).count() == 0
         _assert_reconciled(Session, tid, sid)
     _audit_valid(Session, tid)
+
+
+# ─────────────── same supplier, different bills: no deadlock (review R1) ───────────────
+
+
+def _guard(fn):
+    """Run ``fn``; report any exception (e.g. DeadlockDetected) as a result instead of losing it in the thread."""
+    try:
+        return fn()
+    except GLError as exc:
+        return (exc.code, None)
+    except Exception as exc:  # noqa: BLE001 - a deadlock must fail the assertion, not vanish
+        return (type(exc).__name__, str(exc)[:200])
+
+
+def test_concurrent_pay_two_bills_same_supplier(Session, env):
+    tid, sid = env
+    for rnd in range(5):
+        a = _bill(Session, tid, sid, "5.00")
+        b = _bill(Session, tid, sid, "5.00")
+        docs = (a, b)
+        results = _race(2, lambda i: _guard(lambda: _pay(Session, tid, docs[i], "5.00", f"two-bills-{rnd}-{i}", f"cashier{i}")))
+        assert [code for code, _ in results] == ["ok", "ok"], results
+        with Session() as s:
+            assert s.get(GLDocument, a).status == "paid" and s.get(GLDocument, b).status == "paid"
+            for d in docs:
+                assert [D(x.amount) for x in s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == d)] == [D("5.00")]
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+
+def test_concurrent_payment_approval_and_pay_other_bill(Session, env):
+    tid, sid = env
+    for rnd in range(3):
+        a = _bill(Session, tid, sid, "5.00")
+        b = _bill(Session, tid, sid, "5.00")
+        with Session() as s:
+            pending = documents.pay_bill(s, tid, a, amount="5.00", paid_from="cash_drawer", actor="mgr",
+                                         idempotency_key=f"appr-{rnd}", require_approval=True)
+            s.commit()
+        assert pending["journal_status"] == "pending_approval"
+
+        def run(i):
+            if i == 0:
+                return _guard(lambda: _approve(Session, tid, pending["journal_id"], "cfo"))
+            return _guard(lambda: _pay(Session, tid, b, "5.00", f"appr-other-{rnd}", "cashier"))
+
+        results = _race(2, run)
+        assert sorted(code for code, _ in results) == ["ok", "ok"], results
+        with Session() as s:
+            assert s.get(GLDocument, a).status == "paid" and s.get(GLDocument, b).status == "paid"
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
+
+
+def test_concurrent_legacy_supplier_payment_and_bill_pay(Session, env):
+    """The legacy FIFO supplier payment (locks the supplier's bills before posting) racing a bill payment."""
+    from types import SimpleNamespace
+
+    from app.routers import suppliers
+
+    tid, sid = env
+    admin = SimpleNamespace(username="owner", role="admin")
+    for rnd in range(3):
+        a = _bill(Session, tid, sid, "5.00")
+        b = _bill(Session, tid, sid, "5.00")
+
+        def legacy():
+            with Session() as s:
+                tenant = s.get(Tenant, tid)
+                try:
+                    suppliers.pay_supplier(sid, suppliers.SupplierPaymentIn(amount=D("5"), payment_source="cash", document_ids=[a]),
+                                           db=s, tenant=tenant, user=admin)
+                    return ("ok", None)
+                except Exception:
+                    s.rollback()
+                    raise
+
+        def run(i):
+            return _guard(legacy) if i == 0 else _guard(lambda: _pay(Session, tid, b, "5.00", f"legacy-race-{rnd}", "cashier"))
+
+        results = _race(2, run)
+        assert sorted(code for code, _ in results) == ["ok", "ok"], results
+        with Session() as s:
+            assert s.get(GLDocument, a).status == "paid" and s.get(GLDocument, b).status == "paid"
+    _assert_reconciled(Session, tid, sid)
+    _audit_valid(Session, tid)
