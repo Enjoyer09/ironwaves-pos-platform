@@ -3,6 +3,7 @@ document lifecycle (void, payment reversal, approval gate), listing and supplier
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal as D
 from types import SimpleNamespace
 
 import pytest
@@ -48,8 +49,9 @@ def env(monkeypatch):
         s.add(Supplier(id="sup-1", tenant_id=tenant_id, name="Bakı Qida MMC"))
         s.flush()
         gl.ensure_chart(s, tenant_id)
-        fs.post_finance_transaction(s, tenant_id=tenant_id, transaction_type="investor_injection", amount="5000", source_code="investor",
-                                    destination_code="cash", created_by="owner", category="Təsisçi İnvestisiyası")
+        for code in ("cash", "card", "safe"):  # card = bank_main; bank and safe are the bill-pay wallets
+            fs.post_finance_transaction(s, tenant_id=tenant_id, transaction_type="investor_injection", amount="5000", source_code="investor",
+                                        destination_code=code, created_by="owner", category="Təsisçi İnvestisiyası")
         s.commit()
         migrate_tenant(s, tenant_id)
         bridge.set_ledger_mode(s, tenant_id, "dual", actor="owner", reason="test")
@@ -87,7 +89,7 @@ def _bill(env, number="B-1", total="100.00"):
 
 
 def _pay(env, doc_id, amount, key, **extra):
-    body = {"amount": amount, "paid_from": "cash_drawer", "posting_date": "2026-09-15", **extra}
+    body = {"amount": amount, "paid_from": "bank_main", "posting_date": "2026-09-15", **extra}
     if key is not None:
         body["idempotency_key"] = key
     return env.client.post(f"/api/v1/gl/documents/{doc_id}/pay", json=body)
@@ -138,6 +140,24 @@ def test_pay_requires_idempotency_key(env):
     assert _pay(env, doc["id"], "10.00", "short").status_code == 422  # < 8 chars
     assert _pay(env, doc["id"], "10.00", "bad key with spaces").status_code == 422
     assert not _payment_journals(env, doc["id"])
+
+
+def test_pay_from_pos_drawer_rejected_http(env):
+    """R2 (owner decision A): bill pay from the POS drawer → 400 wallet_not_allowed; nothing posts, reconcile 14/14."""
+    doc = _bill(env, number="B-DRAWER")
+    r = _pay(env, doc["id"], "10.00", "drawer-pay-0001", paid_from="cash_drawer")
+    assert r.status_code == 400, r.text
+    detail = r.json()["detail"]
+    assert detail["code"] == "wallet_not_allowed"
+    assert "bank" in detail["message"] and "safe" in detail["message"] and "supplier payment" in detail["message"]
+    assert not _payment_journals(env, doc["id"]) and _alloc_count(env, doc["id"]) == 0
+    with env.Session() as s:
+        assert gl.account_balance(s, env.tenant_id, gl.accounts_by_role(s, env.tenant_id)["cash_drawer"]) == D("5000.00")
+        assert len(reconcile_dual_tenant(s, env.tenant_id)["checks"]) == 14
+    _reconciled(env)
+    for wallet in ("bank_main", "safe"):
+        assert _pay(env, doc["id"], "1.00", f"drawer-ok-{wallet}", paid_from=wallet).status_code == 200
+    _reconciled(env)
 
 
 def test_http_replay_same_key(env):

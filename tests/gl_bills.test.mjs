@@ -101,6 +101,15 @@ test('F19: suppliers are picked from GET /gl/suppliers, not typed as ids', () =>
   assert.match(source('src/api/gl.ts'), /suppliers: \(\) => get<GLSupplier\[\]>\('\/suppliers'\)/);
 });
 
+test('R2: PayBillDialog offers only bank (default) and safe, never the POS drawer', () => {
+  const s = source(BILLS);
+  assert.doesNotMatch(s, /cash_drawer/);
+  assert.match(s, /useState<PayBillInput\['paid_from'\]>\('bank_main'\)/);
+  assert.match(s, /<option value="bank_main">/);
+  assert.match(s, /<option value="safe">/);
+  assert.doesNotMatch(source('src/api/gl.ts'), /paid_from: 'cash_drawer'/);
+});
+
 test('F23: general expense option is labelled 721.9', () => {
   assert.match(source(BILLS), /value="general_expense">721\.9 /);
 });

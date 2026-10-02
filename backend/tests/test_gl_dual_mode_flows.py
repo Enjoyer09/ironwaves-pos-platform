@@ -23,6 +23,7 @@ from app.gl import bridge
 from app.gl import engine as gl
 from app.gl import posting_rules as pr
 from app.gl import shadow
+from app.gl.engine import GLError
 from app.gl.legacy_migration import migrate_tenant, reconcile_dual_tenant
 from app.gl.models import GLJournal, GLLegacyLink, GLShadowRun
 from app.models import Sale, Setting, Supplier, Tenant
@@ -275,7 +276,13 @@ def test_bill_create_pay_keeps_dual_reconcile(db, tenant):
                                  total="100.00", actor="owner")
     db.commit()
     ok(db, tenant.id)
-    documents.pay_bill(db, tenant.id, bill.id, amount="40.00", paid_from="cash_drawer", actor="owner", idempotency_key="dual-pay-1")
+    # R2: the POS drawer is not a bill-pay wallet (Z-close counts the legacy drawer); nothing posts.
+    with pytest.raises(GLError) as exc:
+        documents.pay_bill(db, tenant.id, bill.id, amount="40.00", paid_from="cash_drawer", actor="owner", idempotency_key="dual-pay-0")
+    assert exc.value.code == "wallet_not_allowed"
+    db.rollback()
+    ok(db, tenant.id)
+    documents.pay_bill(db, tenant.id, bill.id, amount="40.00", paid_from="safe", actor="owner", idempotency_key="dual-pay-1")
     db.commit()
     ok(db, tenant.id)
     assert bill.status == "partially_paid"
@@ -283,8 +290,10 @@ def test_bill_create_pay_keeps_dual_reconcile(db, tenant):
     db.commit()
     report = ok(db, tenant.id)
     assert bill.status == "paid"
-    assert bal(db, tenant.id, "cash_drawer") == D("460.00") and bal(db, tenant.id, "bank_main") == D("440.00")
-    assert report["explained_differences"]["GLOnlyJournal"]["cash"] == "-40.00"
+    assert bal(db, tenant.id, "cash_drawer") == D("500.00")
+    assert bal(db, tenant.id, "safe") == D("160.00") and bal(db, tenant.id, "bank_main") == D("440.00")
+    assert report["explained_differences"]["GLOnlyJournal"]["safe"] == "-40.00"
+    assert "cash" not in report["explained_differences"]["GLOnlyJournal"]
     assert _open_docs_total(db, tenant.id, sup.id) == _partner_balance(db, tenant.id, sup.id) == D("0.00")
 
 

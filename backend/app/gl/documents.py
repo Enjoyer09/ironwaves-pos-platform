@@ -46,6 +46,9 @@ PAYABLE_STATUSES = ("open", "partially_paid")
 NO_BALANCE_STATUSES = ("pending_approval", "rejected", "void")
 # Debit side of a bill: inventory/merchandise, or any active postable expense account.
 BILL_DEBIT_ROLES = ("inventory", "merchandise")
+# Wallets a bill can be paid from (owner decision R2). Not the POS drawer: a GL-only payment never
+# reaches the legacy cash ledger that Z-close counts, so it would show up as a false shortage.
+BILL_PAY_WALLETS = ("bank_main", "safe")
 
 
 def _uuid() -> str:
@@ -480,7 +483,8 @@ def pay_bill(
     idempotency_key: str | None = None,
     require_approval: bool = False,
 ) -> dict:
-    """Pay an open bill from a wallet: a GL-only ``document_payment`` journal allocated to the bill.
+    """Pay an open bill from the bank or the safe (``BILL_PAY_WALLETS``; the POS drawer → 400
+    ``wallet_not_allowed``): a GL-only ``document_payment`` journal allocated to the bill.
 
     Race- and retry-safe: the document row is locked first, and the journal key is
     ``supplier_payment:bill:{doc_id}:{idempotency_key}``, so the same key replays the original
@@ -494,6 +498,10 @@ def pay_bill(
     fee = gl.money(bank_fee)
     if fee < ZERO:
         raise GLError("Bank fee cannot be negative", "invalid_amount", 400)
+    if paid_from not in BILL_PAY_WALLETS:
+        raise GLError("Bills can be paid only from the bank account or the safe. To pay a supplier with POS drawer "
+                      "cash, use the supplier payment in the POS / Finance flow, so the shift's cash count includes it.",
+                      "wallet_not_allowed", 400)
 
     doc = _lock_document(db, tenant_id, document_id)
     payment_id = f"bill:{doc.id}:{idempotency_key or _uuid()}"

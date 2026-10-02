@@ -469,7 +469,7 @@ function NewBillDialog({ onClose }: { onClose: () => void }) {
 function PayBillDialog({ doc, onClose }: { doc: GLDocument; onClose: () => void }) {
   const { lang, caps, notify, bump } = useGL();
   const [amount, setAmount] = React.useState(doc.open);
-  const [paidFrom, setPaidFrom] = React.useState<PayBillInput['paid_from']>('cash_drawer');
+  const [paidFrom, setPaidFrom] = React.useState<PayBillInput['paid_from']>('bank_main');
   const [postingDate, setPostingDate] = React.useState(caps.business_today);
   const [bankFee, setBankFee] = React.useState('');
   const [note, setNote] = React.useState('');
@@ -546,11 +546,16 @@ function PayBillDialog({ doc, onClose }: { doc: GLDocument; onClose: () => void 
             {amountHint ? <p id="pay-amount-hint" role="alert" className="text-xs font-bold text-rose-300">{amountHint}</p> : null}
           </Field>
           <Field id="pay-wallet" label={tx(lang, 'Haradan ödənilir *', 'Источник оплаты *', 'Pay from *')}>
-            <select id="pay-wallet" className={inputCls} value={paidFrom} onChange={(e) => setPaidFrom(e.target.value as PayBillInput['paid_from'])}>
-              <option value="cash_drawer">221.1 · {tx(lang, 'POS kassası (nağd)', 'Касса POS (наличные)', 'POS cash drawer')}</option>
+            <select id="pay-wallet" aria-describedby="pay-wallet-hint" className={inputCls} value={paidFrom} onChange={(e) => setPaidFrom(e.target.value as PayBillInput['paid_from'])}>
               <option value="bank_main">223.1 · {tx(lang, 'Əsas bank hesabı', 'Основной банковский счёт', 'Main bank account')}</option>
               <option value="safe">221.2 · {tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
             </select>
+            <p id="pay-wallet-hint" className="text-xs text-slate-400">
+              {tx(lang,
+                'POS kassasından nağd ödəniş üçün təchizatçı ödənişindən (POS / Maliyyə) istifadə edin ki, növbənin kassa sayımı onu nəzərə alsın.',
+                'Для оплаты наличными из кассы POS используйте оплату поставщику (POS / Финансы), чтобы её учёл пересчёт кассы смены.',
+                'To pay with POS drawer cash, use the supplier payment (POS / Finance) so the shift cash count includes it.')}
+            </p>
           </Field>
         </div>
 

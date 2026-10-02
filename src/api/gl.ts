@@ -442,7 +442,8 @@ export type CreateBillInput = {
 
 export type PayBillInput = {
   amount: Money;
-  paid_from: 'cash_drawer' | 'bank_main' | 'safe';
+  /** Bank or safe only: the backend rejects the POS drawer (400 wallet_not_allowed), Z-close would miss it. */
+  paid_from: 'bank_main' | 'safe';
   posting_date?: string;
   bank_fee?: Money;
   note?: string | null;

@@ -69,7 +69,9 @@ def tid(db):
         description="Capital injection",
         lines=[
             LineIn(account="cash_drawer", debit=D("10000"), credit=D("0")),
-            LineIn(account="share_capital", debit=D("0"), credit=D("10000")),
+            LineIn(account="bank_main", debit=D("10000"), credit=D("0")),
+            LineIn(account="safe", debit=D("1000"), credit=D("0")),
+            LineIn(account="share_capital", debit=D("0"), credit=D("21000")),
         ],
     )
     return t
@@ -156,19 +158,19 @@ def test_pay_bill_partial_and_full(db, tid):
     )
 
     # 1. Partial payment of 200
-    res1 = pay_bill(db, tid, bill.id, amount="200.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    res1 = pay_bill(db, tid, bill.id, amount="200.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     assert res1["status"] == "partially_paid"
     assert res1["remaining_open"] == "300.00"
     assert get_document_open_balance(db, tid, bill.id) == D("300.00")
 
     # 2. Try overpaying (e.g. 350 when 300 is open) -> rejected with 409 (owner decision F15)
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="350.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+        pay_bill(db, tid, bill.id, amount="350.00", paid_from="bank_main", posting_date=date(2026, 9, 16))
     assert exc.value.code == "overpayment_not_allowed"
     assert exc.value.status_code == 409
 
     # 3. Pay remaining 300 -> status becomes paid
-    res2 = pay_bill(db, tid, bill.id, amount="300.00", paid_from="cash_drawer", posting_date=date(2026, 9, 20))
+    res2 = pay_bill(db, tid, bill.id, amount="300.00", paid_from="bank_main", posting_date=date(2026, 9, 20))
     assert res2["status"] == "paid"
     assert res2["remaining_open"] == "0.00"
     assert get_document_open_balance(db, tid, bill.id) == D("0.00")
@@ -220,7 +222,7 @@ def test_void_bill_with_allocations_blocked(db, tid):
         due_date=date(2026, 9, 25),
         total="300.00",
     )
-    pay_bill(db, tid, bill.id, amount="100.00", paid_from="cash_drawer")
+    pay_bill(db, tid, bill.id, amount="100.00", paid_from="bank_main")
 
     # Voiding must be rejected because payment allocations exist (net, not row count)
     with pytest.raises(GLError) as exc:
@@ -229,7 +231,7 @@ def test_void_bill_with_allocations_blocked(db, tid):
 
     # A payment still waiting for approval blocks the void as well.
     other = _bill(db, tid, "INV-PENDING-PAY", total="50.00")
-    pay_bill(db, tid, other.id, amount="20.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), actor="mgr",
+    pay_bill(db, tid, other.id, amount="20.00", paid_from="bank_main", posting_date=date(2026, 9, 15), actor="mgr",
              require_approval=True)
     with pytest.raises(GLError) as exc:
         void_document(db, tid, other.id)
@@ -315,8 +317,8 @@ def _allocs(db, tid, doc_id):
 
 def test_pay_bill_same_key_replays_once(db, tid):
     bill = _bill(db, tid, "INV-REPLAY")
-    first = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
-    again = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
+    first = pay_bill(db, tid, bill.id, amount="40.00", paid_from="bank_main", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
+    again = pay_bill(db, tid, bill.id, amount="40.00", paid_from="bank_main", posting_date=date(2026, 9, 15), idempotency_key="key-0001")
     assert first["replayed"] is False and again["replayed"] is True
     assert again["journal_no"] == first["journal_no"] and again["journal_id"] == first["journal_id"]
     assert len(_payment_journals(db, tid, bill.id)) == 1
@@ -327,31 +329,31 @@ def test_pay_bill_same_key_replays_once(db, tid):
 
 def test_pay_bill_same_key_different_amount_conflicts(db, tid):
     bill = _bill(db, tid, "INV-CONFLICT")
-    pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
+    pay_bill(db, tid, bill.id, amount="40.00", paid_from="bank_main", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="41.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
+        pay_bill(db, tid, bill.id, amount="41.00", paid_from="bank_main", posting_date=date(2026, 9, 15), idempotency_key="key-0002")
     assert exc.value.code == "idempotency_conflict" and exc.value.status_code == 409
     assert len(_payment_journals(db, tid, bill.id)) == 1
 
 
 def test_overpayment_rejected_409_with_clear_message(db, tid):
     bill = _bill(db, tid, "INV-OVER")
-    pay_bill(db, tid, bill.id, amount="70.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    pay_bill(db, tid, bill.id, amount="70.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="30.01", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+        pay_bill(db, tid, bill.id, amount="30.01", paid_from="bank_main", posting_date=date(2026, 9, 16))
     assert exc.value.code == "overpayment_not_allowed" and exc.value.status_code == 409
     assert "30.00" in exc.value.message and "INV-OVER" in exc.value.message
     # A fully paid bill reports the same, explicit reason.
-    pay_bill(db, tid, bill.id, amount="30.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+    pay_bill(db, tid, bill.id, amount="30.00", paid_from="bank_main", posting_date=date(2026, 9, 16))
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="1.00", paid_from="cash_drawer", posting_date=date(2026, 9, 17))
+        pay_bill(db, tid, bill.id, amount="1.00", paid_from="bank_main", posting_date=date(2026, 9, 17))
     assert exc.value.code == "overpayment_not_allowed" and "0.00" in exc.value.message
 
 
 def test_payment_before_issue_rejected(db, tid):
     bill = _bill(db, tid, "INV-EARLY", issue=date(2026, 9, 10))
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 9))
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="bank_main", posting_date=date(2026, 9, 9))
     assert exc.value.code == "payment_before_issue" and exc.value.status_code == 400
     assert not _payment_journals(db, tid, bill.id)
 
@@ -360,7 +362,7 @@ def test_pay_bill_rejects_sub_cent(db, tid):
     bill = _bill(db, tid, "INV-CENT")
     for bad in ("10.005", "NaN"):
         with pytest.raises(GLError) as exc:
-            pay_bill(db, tid, bill.id, amount=bad, paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+            pay_bill(db, tid, bill.id, amount=bad, paid_from="bank_main", posting_date=date(2026, 9, 15))
         assert exc.value.code == "invalid_amount"
     with pytest.raises(GLError) as exc:
         pay_bill(db, tid, bill.id, amount="10.00", bank_fee="0.001", paid_from="bank_main", posting_date=date(2026, 9, 15))
@@ -368,9 +370,22 @@ def test_pay_bill_rejects_sub_cent(db, tid):
     assert not _payment_journals(db, tid, bill.id)
 
 
+def test_pay_bill_rejects_pos_drawer(db, tid):
+    """R2 (owner decision): bills are paid from bank or safe only; the POS drawer is refused, nothing posts."""
+    bill = _bill(db, tid, "INV-DRAWER")
+    for wallet in ("cash_drawer", "cash", "card", ""):
+        with pytest.raises(GLError) as exc:
+            pay_bill(db, tid, bill.id, amount="10.00", paid_from=wallet, posting_date=date(2026, 9, 15), idempotency_key=f"drawer-{wallet}")
+        assert exc.value.code == "wallet_not_allowed" and exc.value.status_code == 400
+        assert "bank" in exc.value.message and "safe" in exc.value.message
+    assert not _payment_journals(db, tid, bill.id) and bill.status == "open"
+    for wallet in documents.BILL_PAY_WALLETS:
+        assert pay_bill(db, tid, bill.id, amount="10.00", paid_from=wallet, posting_date=date(2026, 9, 15))["status"] == "partially_paid"
+
+
 def test_payment_note_persisted(db, tid):
     bill = _bill(db, tid, "INV-NOTE")
-    res = pay_bill(db, tid, bill.id, amount="25.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), note="Qəbz 77")
+    res = pay_bill(db, tid, bill.id, amount="25.00", paid_from="bank_main", posting_date=date(2026, 9, 15), note="Qəbz 77")
     journal = db.query(GLJournal).filter(GLJournal.id == res["journal_id"]).one()
     assert "Qəbz 77" in journal.description
     ap = gl.accounts_by_role(db, tid)["accounts_payable"]
@@ -395,7 +410,7 @@ def test_allocate_named_then_fifo(db, tid):
 
 def test_bill_payment_journal_is_gl_only(db, tid):
     bill = _bill(db, tid, "INV-GLONLY")
-    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), idempotency_key="key-gl-only")
+    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="bank_main", posting_date=date(2026, 9, 15), idempotency_key="key-gl-only")
     journal = db.query(GLJournal).filter(GLJournal.id == res["journal_id"]).one()
     assert journal.source_module == "gl"
     assert journal.source_type == "document_payment" and journal.source_id == bill.id
@@ -408,7 +423,7 @@ def test_bill_payment_journal_is_gl_only(db, tid):
 
 def test_approval_hook_rechecks_open_balance(db, tid):
     bill = _bill(db, tid, "INV-HOOK", total="100.00")
-    res = pay_bill(db, tid, bill.id, amount="60.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15),
+    res = pay_bill(db, tid, bill.id, amount="60.00", paid_from="bank_main", posting_date=date(2026, 9, 15),
                    actor="mgr", require_approval=True)
     assert res["journal_status"] == "pending_approval" and res["allocations_count"] == 0
     # Something settled the bill outside the pay path while the payment waited for approval.
@@ -444,7 +459,7 @@ def test_bill_payment_locks_only_its_bill(db, tid, monkeypatch):
     bill = _bill(db, tid, "INV-LOCK-A", total="50.00", due=date(2026, 9, 15))
     other = _bill(db, tid, "INV-LOCK-B", total="50.00", due=date(2026, 9, 12))
     calls = _record_locks_and_posts(monkeypatch)
-    pay_bill(db, tid, bill.id, amount="50.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16), idempotency_key="lock-a")
+    pay_bill(db, tid, bill.id, amount="50.00", paid_from="bank_main", posting_date=date(2026, 9, 16), idempotency_key="lock-a")
     assert calls and all(c == ("lock", (bill.id,)) for c in calls if c[0] == "lock"), calls
     assert get_document_open_balance(db, tid, other.id) == D("50.00") and _allocs(db, tid, other.id) == []
 
@@ -453,7 +468,7 @@ def test_bill_payment_approval_locks_only_its_bill(db, tid, monkeypatch):
     """R1: the approval hook of a pending bill payment allocates to (and locks) that bill only."""
     bill = _bill(db, tid, "INV-LOCK-C", total="50.00")
     _bill(db, tid, "INV-LOCK-D", total="50.00")
-    res = pay_bill(db, tid, bill.id, amount="20.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15),
+    res = pay_bill(db, tid, bill.id, amount="20.00", paid_from="bank_main", posting_date=date(2026, 9, 15),
                    actor="mgr", require_approval=True)
     calls = _record_locks_and_posts(monkeypatch)
     _approve(db, tid, res["journal_id"])
@@ -524,7 +539,8 @@ def test_documents_api_full_flow(monkeypatch):
             description="Initial funding",
             lines=[
                 LineIn(account="cash_drawer", debit=D("5000"), credit=D("0")),
-                LineIn(account="share_capital", debit=D("0"), credit=D("5000")),
+                LineIn(account="bank_main", debit=D("5000"), credit=D("0")),
+                LineIn(account="share_capital", debit=D("0"), credit=D("10000")),
             ],
         )
         s.commit()
@@ -558,13 +574,17 @@ def test_documents_api_full_flow(monkeypatch):
     assert r.json()["id"] == doc_id
     assert r.json()["partner_name"] == "Test Supplier API"
 
-    # 5. POST /documents/{id}/pay (partial payment 250)
+    # 5. POST /documents/{id}/pay (partial payment 250). The POS drawer is not a bill-pay wallet (R2).
     pay_payload = {
         "amount": "250.00",
         "paid_from": "cash_drawer",
         "posting_date": "2026-09-15",
         "idempotency_key": "pay-api-101-1",
     }
+    r = client.post(f"/api/v1/gl/documents/{doc_id}/pay", json=pay_payload)
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "wallet_not_allowed"
+    pay_payload["paid_from"] = "bank_main"
     r = client.post(f"/api/v1/gl/documents/{doc_id}/pay", json=pay_payload)
     assert r.status_code == 200
     pay_res = r.json()
@@ -718,7 +738,7 @@ def test_pending_bill_follows_journal_approval(db, tid):
     assert _source_journal(db, bill).status == "pending_approval"
     assert get_document_open_balance(db, tid, bill.id) == D("0.00")
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     assert exc.value.code == "invalid_status"
     _approve(db, tid, bill.journal_id)
     assert bill.status == "open" and get_document_open_balance(db, tid, bill.id) == D("1000000.00")
@@ -757,7 +777,7 @@ def test_void_creates_pending_storno_doc_stays_open(db, tid):
         void_document(db, tid, bill.id, actor="admin-1")
     assert (exc.value.code, exc.value.status_code) == ("void_pending", 409)
     with pytest.raises(GLError) as exc:
-        pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+        pay_bill(db, tid, bill.id, amount="10.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     assert (exc.value.code, exc.value.status_code) == ("void_pending", 409)
     with pytest.raises(GLError) as exc:
         _approve(db, tid, storno.id, approver="admin-1")
@@ -771,7 +791,7 @@ def test_void_rejected_keeps_bill_open(db, tid):
     detail = get_document_detail(db, tid, bill.id)
     assert detail["status"] == "open" and detail["open"] == "40.00" and detail["pending_void_journal_id"] is None
     assert _source_journal(db, bill).reversed_by_id is None
-    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    res = pay_bill(db, tid, bill.id, amount="10.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     assert res["status"] == "partially_paid"
 
 
@@ -792,7 +812,7 @@ def test_void_approval_rechecks_allocations(db, tid):
 def test_reverse_bill_payment_guards(db, tid):
     bill = _bill(db, tid, "INV-RP", total="100.00")
     other = _bill(db, tid, "INV-RP-OTHER", total="100.00")
-    pay = pay_bill(db, tid, bill.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    pay = pay_bill(db, tid, bill.id, amount="40.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     # Not a payment of that bill / not a payment at all.
     for doc_id, journal_id in ((other.id, pay["journal_id"]), (bill.id, bill.journal_id)):
         with pytest.raises(GLError) as exc:
@@ -887,7 +907,7 @@ def test_summary_covers_all_pages(db, tid):
     overdue = _bill(db, tid, "S-1", total="100.00", issue=today - timedelta(days=40), due=today - timedelta(days=10))
     _bill(db, tid, "S-2", total="200.00", issue=today - timedelta(days=5), due=today + timedelta(days=10))
     _bill(db, tid, "S-3", total="300.00", partner="sup-2", issue=today - timedelta(days=3), due=today + timedelta(days=20))
-    pay_bill(db, tid, overdue.id, amount="30.00", paid_from="cash_drawer", posting_date=today)
+    pay_bill(db, tid, overdue.id, amount="30.00", paid_from="bank_main", posting_date=today)
     voided = _bill(db, tid, "S-4", total="999.00", issue=today - timedelta(days=9), due=today - timedelta(days=1))
     void_document(db, tid, voided.id, actor="admin-1", reason="Səhv faktura")
     _approve(db, tid, get_document_detail(db, tid, voided.id)["pending_void_journal_id"])
@@ -904,7 +924,7 @@ def test_overdue_only_and_search_filters(db, tid):
     _bill(db, tid, "FUT-1", total="20.00", issue=today - timedelta(days=1), due=today + timedelta(days=10))
     _bill(db, tid, "XZ-77", total="30.00", partner="sup-2", issue=today - timedelta(days=1), due=today + timedelta(days=5))
     paid_late = _bill(db, tid, "PAID-OLD", total="5.00", issue=today - timedelta(days=40), due=today - timedelta(days=20))
-    pay_bill(db, tid, paid_late.id, amount="5.00", paid_from="cash_drawer", posting_date=today)
+    pay_bill(db, tid, paid_late.id, amount="5.00", paid_from="bank_main", posting_date=today)
 
     overdue = list_documents(db, tid, overdue_only=True)
     assert [d["number"] for d in overdue["items"]] == ["OD-1"] and overdue["total"] == 1
@@ -922,7 +942,7 @@ def test_detail_includes_journal_lines(db, tid):
     assert [(l["line_no"], l["account_code"], l["debit"], l["credit"]) for l in detail["lines"]] == [
         (1, "721.9", "75.00", "0.00"), (2, "531", "0.00", "75.00")]
     assert all(l["account_name"] and "memo" in l for l in detail["lines"])
-    pay_bill(db, tid, bill.id, amount="25.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15), actor="mgr",
+    pay_bill(db, tid, bill.id, amount="25.00", paid_from="bank_main", posting_date=date(2026, 9, 15), actor="mgr",
              require_approval=True)
     pending = get_document_detail(db, tid, bill.id)["pending_payments"]
     assert [(p["amount"], p["created_by"], p["posting_date"]) for p in pending] == [("25.00", "mgr", "2026-09-15")]
@@ -1009,9 +1029,9 @@ def test_invariant_sum_open_equals_subledger_balance(db, tid):
     late = _bill(db, tid, "INV-INV-1", total="100.00", issue=date(2026, 9, 10), due=date(2026, 9, 25))
     future = _bill(db, tid, "INV-INV-2", total="50.00", issue=date(2026, 9, 10), due=date(2026, 10, 20))
     check("150.00", {"0_30": "100.00", "current": "50.00"})
-    pay_bill(db, tid, late.id, amount="40.00", paid_from="cash_drawer", posting_date=date(2026, 9, 15))
+    pay_bill(db, tid, late.id, amount="40.00", paid_from="bank_main", posting_date=date(2026, 9, 15))
     check("110.00", {"0_30": "60.00", "current": "50.00"})
-    pay_bill(db, tid, late.id, amount="60.00", paid_from="cash_drawer", posting_date=date(2026, 9, 16))
+    pay_bill(db, tid, late.id, amount="60.00", paid_from="bank_main", posting_date=date(2026, 9, 16))
     check("50.00", {"current": "50.00"})
     void_document(db, tid, future.id, actor="admin-1", reason="Səhv faktura")
     check("50.00", {"current": "50.00"})  # void pending: still owed
@@ -1019,6 +1039,6 @@ def test_invariant_sum_open_equals_subledger_balance(db, tid):
     check("0.00", {})
     # A payment dated after as_of does not reduce the as-of open balance.
     third = _bill(db, tid, "INV-INV-3", total="30.00", issue=date(2026, 9, 20), due=date(2026, 9, 28))
-    pay_bill(db, tid, third.id, amount="30.00", paid_from="cash_drawer", posting_date=date(2026, 10, 1))
+    pay_bill(db, tid, third.id, amount="30.00", paid_from="bank_main", posting_date=date(2026, 10, 1))
     row, _ = _ap_row(db, tid, "sup-1", as_of)
     assert row["buckets"] == {**EMPTY_BUCKETS, "0_30": "30.00"} and row["open"] == "30.00"

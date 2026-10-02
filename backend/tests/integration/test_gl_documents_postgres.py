@@ -48,15 +48,16 @@ def Session():
 
 @pytest.fixture()
 def env(Session):
-    """A dual-mode tenant with legacy history (500 in the cash drawer) and one supplier."""
+    """A dual-mode tenant with legacy history (500 in the cash drawer, 500 in the bank) and one supplier."""
     tenant_id = str(uuid.uuid4())
     supplier_id = str(uuid.uuid4())
     with Session() as s:
         s.add(Tenant(id=tenant_id, name="IT", slug=f"it-{tenant_id[:10]}", domain=f"{tenant_id[:10]}.it.test", status="active"))
         s.flush()
         gl.ensure_chart(s, tenant_id)
-        fs.post_finance_transaction(s, tenant_id=tenant_id, transaction_type="investor_injection", amount=D("500"), source_code="investor",
-                                    destination_code="cash", created_by="owner", category="Təsisçi İnvestisiyası")
+        for code in ("cash", "card"):  # card = bank_main, the bill-pay wallet (the POS drawer is not one, R2)
+            fs.post_finance_transaction(s, tenant_id=tenant_id, transaction_type="investor_injection", amount=D("500"), source_code="investor",
+                                        destination_code=code, created_by="owner", category="Təsisçi İnvestisiyası")
         s.commit()
         migrate_tenant(s, tenant_id)
         bridge.set_ledger_mode(s, tenant_id, "dual", actor="owner", reason="integration test")
@@ -96,7 +97,7 @@ def _race(n: int, fn) -> list:
 def _pay(Session, tid, doc_id, amount, key, actor):
     with Session() as s:
         try:
-            res = documents.pay_bill(s, tid, doc_id, amount=amount, paid_from="cash_drawer", actor=actor, idempotency_key=key)
+            res = documents.pay_bill(s, tid, doc_id, amount=amount, paid_from="bank_main", actor=actor, idempotency_key=key)
             s.commit()
             return ("ok", res["journal_no"])
         except GLError as exc:
@@ -129,8 +130,8 @@ def test_concurrent_pay_different_keys_pays_once(Session, env):
         assert len(_payment_journals(s, tid, doc_id)) == 1
         assert s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == doc_id).count() == 1
         assert s.get(GLDocument, doc_id).status == "paid"
-        cash = gl.accounts_by_role(s, tid)["cash_drawer"]
-        assert gl.account_balance(s, tid, cash) == D("499.00")
+        bank = gl.accounts_by_role(s, tid)["bank_main"]
+        assert gl.account_balance(s, tid, bank) == D("499.00")
     _assert_reconciled(Session, tid, sid)
 
 
@@ -190,7 +191,7 @@ def test_full_lifecycle_dual_reconcile_pg(Session, env):
 
     pay = None
     with Session() as s:
-        pay = documents.pay_bill(s, tid, doc_id, amount="100.00", paid_from="cash_drawer", actor="owner", idempotency_key="life-full-0001")
+        pay = documents.pay_bill(s, tid, doc_id, amount="100.00", paid_from="bank_main", actor="owner", idempotency_key="life-full-0001")
         s.commit()
     assert pay["status"] == "paid" and pay["journal_status"] == "posted"
     _assert_reconciled(Session, tid, sid)
@@ -207,7 +208,7 @@ def test_full_lifecycle_dual_reconcile_pg(Session, env):
         assert doc.status == "open" and documents.get_document_open_balance(s, tid, doc_id) == D("100.00")
         assert sorted(D(a.amount) for a in s.query(GLDocumentAllocation).filter(GLDocumentAllocation.document_id == doc_id)) == [
             D("-100.00"), D("100.00")]
-        assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == D("500.00")
+        assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["bank_main"]) == D("500.00")
     _assert_reconciled(Session, tid, sid)
     _audit_valid(Session, tid)
 
@@ -287,7 +288,7 @@ def test_concurrent_payment_approval_and_pay_other_bill(Session, env):
         a = _bill(Session, tid, sid, "5.00")
         b = _bill(Session, tid, sid, "5.00")
         with Session() as s:
-            pending = documents.pay_bill(s, tid, a, amount="5.00", paid_from="cash_drawer", actor="mgr",
+            pending = documents.pay_bill(s, tid, a, amount="5.00", paid_from="bank_main", actor="mgr",
                                          idempotency_key=f"appr-{rnd}", require_approval=True)
             s.commit()
         assert pending["journal_status"] == "pending_approval"

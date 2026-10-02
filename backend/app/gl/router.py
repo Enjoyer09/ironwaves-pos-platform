@@ -181,6 +181,8 @@ class CreateBillIn(BaseModel):
 class PayBillIn(BaseModel):
     # Money arrives as strings (decimal-safe) or numbers; documents.pay_bill validates it with engine.money.
     amount: Decimal = Field(gt=Decimal("0"))
+    # cash_drawer passes the schema on purpose: documents.pay_bill rejects it with 400 wallet_not_allowed
+    # and an explanation (bank/safe only), instead of a bare 422.
     paid_from: str = Field(pattern="^(cash_drawer|bank_main|safe)$")
     posting_date: date | None = None
     bank_fee: Decimal = Decimal("0")
