@@ -211,6 +211,19 @@ Hook sites:
   - Maker-checker: bill create and bill pay need approval when the user is not an approver or the amount is ≥ `large_transfer_threshold_azn` (`router._manual_needs_approval`). Void, payment reversal and reclass **always** create a pending journal for a second person. On approval the hooks re-check (payment ≤ open on the locked bill, net allocations 0 for a void, unassigned AP ≥ 0 for a reclass) and a failed check rolls the approval back with 409.
   - Owner decisions: overpaying a bill through the bill-pay API is rejected (**409 `overpayment_not_allowed`**, the message names the open balance); a voided or rejected bill's number is **not reusable** (409 `duplicate_bill`); AR invoices are deferred (AP only).
   - Dual-mode stock rule: a new stock receipt with amount > 0 (`POST /api/v1/catalog/inventory` with opening stock, `/inventory/{id}/restock`) needs a supplier, else **400 `supplier_required`**. Legacy mode keeps the supplier optional.
+  - Lock order: documents before journal. A bill payment (`pay_bill` and its approval hook) locks and allocates to its own bill only. A FIFO allocation (legacy supplier payment) locks the supplier's payable bills in id order **before** posting. The engine locks guarded (non-negative) accounts before inserting journal lines, because the lines' FK checks take KEY SHARE on `gl_accounts`. PG race tests cover two bills of one supplier, approval vs. payment, legacy vs. bill payment, and two plain drawer postings.
+
+#### WP3 known limits (not fixed in PR #39)
+
+- **Legacy wallets do not see bill payments.** Bill and bill-payment journals are GL-only, so legacy wallet balances (bank, safe, POS drawer) and legacy-source reports overstate those wallets by the bill payments until WP4. `reconcile_dual_tenant` explains the gap as `GLOnlyJournal`.
+- **POS drawer bill payments vs. Z-close.** Z-close computes expected cash from the legacy `cash` ledger (`routers/reports._shift_cash_breakdown`). Cash taken out of the drawer through a bill payment (`paid_from=cash_drawer`) therefore shows up as a Z-close shortage. That shortage books a legacy "Kassa Kəsiri" plus a GL `CashCountVariance`, so GL cash is credited twice and P&L shows a phantom shortage. Until this is resolved, pay bills from the bank or safe. If the drawer is used anyway, the operator must not count that cash as a shortage at Z-close.
+- **A legacy supplier payment that settled bills cannot be unwound.** `suppliers.pay_supplier` allocates named-then-FIFO (`source_module="pos"`). `reverse_bill_payment` accepts only `document_payment` journals, a generic reverse of a `pos` journal returns `source_managed`, and a legacy Finance reversal of the `supplier_payment` transaction does not release the allocation. A bill settled this way can be neither voided nor reopened. The supplier's total AP stays correct; only the per-bill split (and due-date aging) can be wrong.
+  - Prevention: in dual mode pay bills from Bills, or pass `document_ids` to the legacy payment.
+  - Correction until a deallocation operation exists: an owner-approved data fix in one transaction, on a fresh backup. Append a negative `gl_document_allocations` row for the legacy journal on the wrong bill, plus a positive one on the right bill (or none, which leaves an advance). Then recompute both bills' status and record the fix in `gl_audit_events`. Never update or delete existing allocation rows.
+- **Shadow-fallback payments stay unallocated.** If `bridge.emit` falls back to the shadow mirror for a legacy supplier payment, the payment is not allocated to bills and a `native_error` run is logged. The amount shows as undocumented AP (aged by posting date) or an advance.
+- **`Supplier.balance` (legacy field) is not changed by GL bills or bill payments.** The legacy supplier screen therefore understates what is owed, while its pay button still settles real bills (FIFO).
+- **F25 deferred:** PostgreSQL immutability triggers for `gl_documents` / `gl_document_allocations` are not in migration `20261001_0001`. Append-only is enforced in code only.
+- **AR invoices are deferred** (AP only; `kind=ar_invoice` → 422).
 
 ---
 
@@ -515,7 +528,7 @@ UI:
 ## 8. Operations cheat-sheet
 
 ```bash
-# Backend tests (on feature/finance-v2-p3b: 939 passed, 16 skipped; the skips include the PG-only integration tests)
+# Backend tests (on feature/finance-v2-p3b: 942 passed, 20 skipped; the skips include the PG-only integration tests)
 cd backend && DATABASE_URL=sqlite:////tmp/iw-test.db JWT_SECRET=test-secret-test-secret-test-secret-123456 \
   SUPERADMIN_PASSWORD=Test-Passw0rd-123 /tmp/iw-venv/bin/python -m pytest tests -p no:cacheprovider -o addopts="" -q
 # Frontend
