@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import get_db
-from app.deps import get_current_user, get_tenant
+from app.deps import get_current_user, get_super_admin, get_tenant
 from app.gl import engine, reports, tax
 from app.gl.engine import GLError, LineIn
 from app.gl.legacy_migration import GL_ONLY_SOURCE_MODULES
@@ -524,6 +524,36 @@ def integrity(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant
         "balances": reports.verify_materialized_balances(db, tenant.id),
         "trial_balance_balanced": reports.trial_balance(db, tenant.id)["balanced"],
     }
+
+
+# ─────────────────────────────── alerts ─────────────────────────────────
+
+
+@router.get("/alerts")
+def list_alerts(status: str | None = Query("open"), db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Reconciliation / native-error alerts for this tenant (default: open only)."""
+    _require(user, GL_CONTROLLER_ROLES | {"auditor"})
+    from app.gl import alerts
+
+    return _read(lambda: alerts.list_alerts(db, tenant.id, status=status))
+
+
+@router.post("/alerts/{alert_id}/acknowledge")
+def acknowledge_alert(alert_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Acknowledge an open alert (audited in the GL chain). Controllers only."""
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl import alerts
+
+    alert = _run(db, lambda: alerts.acknowledge_alert(db, tenant.id, alert_id, actor=user.username))
+    return alerts._serialise(alert)
+
+
+@router.get("/alerts/all")
+def list_alerts_all(status: str | None = Query("open"), db: Session = Depends(get_db), user=Depends(get_super_admin)):
+    """Cross-tenant open alerts for the platform super_admin (platform-domain bound)."""
+    from app.gl import alerts
+
+    return _read(lambda: alerts.list_alerts_all(db, status=status))
 
 
 # ─────────────────────────────── documents (bills & invoices) ───────────

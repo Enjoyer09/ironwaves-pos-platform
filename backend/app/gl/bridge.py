@@ -223,6 +223,14 @@ def emit(db: Session, tenant_id: str, event_or_factory, *, actor: str, event_typ
             db.flush()
         except Exception:  # pragma: no cover
             logger.exception("gl_bridge: could not record native_error")
+        try:  # best-effort admin alert; must never raise and never break the sale
+            from app.gl import alerts
+
+            alerts.raise_alert(db, tenant_id, alert_type="native_error", detail=f"{name}: {exc}"[:4000],
+                               context={"legacy_txn_ids": covered})
+            db.flush()
+        except Exception:  # pragma: no cover
+            logger.exception("gl_bridge: could not raise native_error alert")
         return None
 
 

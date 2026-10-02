@@ -393,6 +393,77 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
+function alertTypeLabel(lang: string, type: string): string {
+  return {
+    reconcile_failed: tx(lang, 'Uzlaşma uğursuz oldu', 'Сверка не прошла', 'Reconciliation failed'),
+    native_error: tx(lang, 'Yazılış xətası', 'Ошибка проводки', 'Posting error'),
+    streak_broken: tx(lang, 'Təmiz seriya pozuldu', 'Серия чистых ночей прервана', 'Clean streak broke'),
+  }[type] || type;
+}
+
+function AlertsCard() {
+  const { lang, caps, notify, bump } = useGL();
+  const { data, loading, error } = useGLLoad(() => glApi.alerts('open'), []);
+  const [busy, setBusy] = React.useState('');
+  const alerts = data || [];
+
+  const acknowledge = async (id: string) => {
+    setBusy(id);
+    try {
+      await glApi.acknowledgeAlert(id);
+      notify('success', tx(lang, 'Bildiriş təsdiqləndi', 'Уведомление подтверждено', 'Alert acknowledged'));
+      bump();
+    } catch (e) {
+      notify('error', errorText(e));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <Card
+      title={tx(lang, 'Həll olunmamış bildirişlər', 'Неподтверждённые уведомления', 'Open alerts')}
+      subtitle={tx(lang,
+        'Gecə uzlaşması uğursuz olduqda və ya canlı yazılış xəta verdikdə burada görünür. Təsdiq audit zəncirinə yazılır.',
+        'Появляются при провале ночной сверки или ошибке живой проводки. Подтверждение пишется в цепочку аудита.',
+        'Shown when a nightly reconcile fails or a live posting errors out. Acknowledging is written to the audit chain.')}
+    >
+      {loading && !data ? <Loading lang={lang} /> : null}
+      {error ? <Empty>{error}</Empty> : null}
+      {data && alerts.length === 0 ? (
+        <Empty>{tx(lang, 'Həll olunmamış bildiriş yoxdur.', 'Неподтверждённых уведомлений нет.', 'No open alerts.')}</Empty>
+      ) : null}
+      {alerts.length ? (
+        <ul className="space-y-2">
+          {alerts.map((a) => (
+            <li key={a.id} className="rounded-2xl border border-rose-400/25 bg-rose-950/30 p-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="rose">{alertTypeLabel(lang, a.alert_type)}</Badge>
+                    {a.occurrences > 1 ? (
+                      <span className="text-xs font-black text-rose-200">×{a.occurrences}</span>
+                    ) : null}
+                  </div>
+                  {a.detail ? <p className="mt-2 text-sm text-rose-100">{a.detail}</p> : null}
+                  <div className="mt-1 text-xs text-rose-200/80">
+                    {tx(lang, 'Son görülmə', 'Последнее', 'Last seen')}: {a.last_seen_at ? formatServerUtcDateTime(a.last_seen_at, lang) : '—'}
+                  </div>
+                </div>
+                {caps.can_control ? (
+                  <button type="button" className={btn.ghost} disabled={busy === a.id} onClick={() => void acknowledge(a.id)}>
+                    {busy === a.id ? tx(lang, 'Təsdiqlənir...', 'Подтверждение...', 'Acknowledging...') : tx(lang, 'Təsdiqlə', 'Подтвердить', 'Acknowledge')}
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
 export function IntegrityTab() {
   const { lang } = useGL();
   const integrity = useGLLoad(() => glApi.integrity(), []);
@@ -401,6 +472,7 @@ export function IntegrityTab() {
   const sh = shadow.data;
   return (
     <div className="space-y-4">
+      <AlertsCard />
       <Card
         title={tx(lang, 'Bütövlük yoxlaması', 'Проверка целостности', 'Integrity check')}
         subtitle={tx(lang, 'Audit zənciri (hash), hesab qalıqları və sınaq balansı.', 'Цепочка аудита (hash), остатки счетов и ОСВ.', 'Audit hash chain, account balances and trial balance.')}

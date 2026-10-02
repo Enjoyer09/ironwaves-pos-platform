@@ -121,3 +121,35 @@ def test_failed_reconciliation_breaks_the_streak(db, monkeypatch):
 def test_scheduler_disabled_by_default(monkeypatch):
     monkeypatch.setattr(settings, "finance_v2_shadow_enabled", False)
     assert shadow.start_shadow_scheduler() is False
+
+
+def _open_alerts(db, tid, alert_type="reconcile_failed"):
+    from app.gl.models import GLAlert
+
+    return db.query(GLAlert).filter(GLAlert.tenant_id == tid, GLAlert.alert_type == alert_type, GLAlert.status == "open").all()
+
+
+def test_failing_reconcile_creates_one_open_alert_and_clean_run_resolves_it(db, monkeypatch):
+    from app.gl.models import GLAlert
+
+    tid = _tenant(db)
+    _sale(db, tid)
+    monkeypatch.setattr(shadow, "reconcile_tenant", lambda s, t: {"ok": False, "checks": [{"check": "x", "ok": False}]})
+    shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR)
+    alerts = _open_alerts(db, tid)
+    assert len(alerts) == 1 and alerts[0].occurrences == 1
+    # First-ever failure is also a streak break.
+    assert len(_open_alerts(db, tid, "streak_broken")) == 1
+
+    # Repeated failures do not create duplicates: the open alert's occurrences grows.
+    shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR.replace(day=2))
+    alerts = _open_alerts(db, tid)
+    assert len(alerts) == 1 and alerts[0].occurrences == 2
+
+    # A later clean reconcile auto-resolves the open alert.
+    monkeypatch.setattr(shadow, "reconcile_tenant", lambda s, t: {"ok": True, "checks": [{"check": "x", "ok": True}]})
+    shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR.replace(day=3))
+    assert _open_alerts(db, tid) == []
+    assert _open_alerts(db, tid, "streak_broken") == []
+    resolved = db.query(GLAlert).filter(GLAlert.tenant_id == tid, GLAlert.alert_type == "reconcile_failed", GLAlert.status == "resolved").all()
+    assert len(resolved) == 1

@@ -75,6 +75,7 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `posting_rules.py` | Business events → compound journals | Events (2.4), `post_event`, `active_sale_journal`, `void_sale`, `correct_sale` |
 | `bridge.py` | Per-tenant ledger mode and the legacy ↔ GL coupling | `get/set_ledger_mode`, `record_legacy_posting`, `emit`, `emit_sale`, `WALLET_CODES` |
 | `shadow.py` | Background mirror of legacy → GL every 300 s, plus the nightly reconcile at 04:00 Baku (advisory lock 7411) | `run_cycle`, `sync_tenant`, `reconcile_tenant_shadow`, `shadow_status`, `start_shadow_scheduler` |
+| `alerts.py` | De-duplicated admin alerts on reconcile failure / native error / streak break (3.1) | `raise_alert`, `resolve_open_alerts`, `acknowledge_alert`, `list_alerts`, `list_alerts_all`, `notify_external` |
 | `legacy_migration.py` | Faithful import of legacy history and reconciliations | `migrate_tenant` (incremental), `reconcile_tenant` (19 checks, legacy/shadow), `reconcile_dual_tenant` (14 checks), `open_items`, `GL_ONLY_SOURCE_MODULES = ("manual","gl")` |
 | `read_model.py` | Serves the legacy-shaped responses from the GL when the tenant's reports source is `gl` | `reports_source`, `set_reports_source`, `catch_up`, `gl_wallet_balances`, `gl_shift_cash_breakdown`, `gl_balance_sheet`, `gl_profit_loss`, `gl_cash_flow`, `gl_sales_payment_totals`, `gl_sale_payment_splits`, `parity_report` |
 | `reports.py` | Statements computed only from posted journals | `trial_balance`, `balance_sheet`, `profit_and_loss` (excludes year-close), `account_ledger`, `verify_materialized_balances`, `periods_overview` |
@@ -102,7 +103,7 @@ Related, outside `gl/`:
   - `finance_v2_ledger_mode` → `{"mode": "dual", "since", "by"}`
   - `finance_v2_reports_source` → `{"source": "gl", ...}`
 
-### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001`; head = `20261001_0001`)
+### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001` → `20261002_0001`; head = `20261002_0001`)
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -118,6 +119,7 @@ Related, outside `gl/`:
 | `gl_audit_events` | Hash-chained, append-only audit log (`seq`, prev hash, hash) | unique (tenant, seq) |
 | `gl_shadow_runs` | Shadow sync / reconcile / native_error runs (the evidence for cut-over) | |
 | `gl_legacy_links` | Which legacy txn is covered by which native journal, plus `wallet_diff` (the explained differences) | unique (tenant, legacy_txn_id) |
+| `gl_alerts` | Admin-visible reconciliation alerts (migration `20261002_0001`): `id`, `tenant_id`, `alert_type` (`reconcile_failed` / `native_error` / `streak_broken`), `status` (`open` / `acknowledged` / `resolved`), `detail`, `context` (JSON text), `first_seen_at`, `last_seen_at`, `occurrences`, `acknowledged_by`/`acknowledged_at`, `resolved_at`. At most one **open** alert per (tenant, alert_type); repeated failures bump `occurrences` instead of inserting rows. Lifecycle enforced in `app/gl/alerts.py` (no PG trigger) | index (tenant, alert_type, status) |
 
 PostgreSQL triggers (migration `20260929_0001`):
 - `gl_journal_guard`:
@@ -264,6 +266,19 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 | GET | `/tax/summary?year&month` | READ | |
 | GET | `/reports/trial-balance` · `/balance-sheet` · `/profit-loss` · `/account-ledger/{id}` | READ | P&L excludes closing entries |
 | GET | `/shadow/status` · `/integrity` | CONTROLLER + auditor | Reconciliation evidence; audit chain + balances + TB |
+| GET | `/alerts?status=` | CONTROLLER + auditor | Reconciliation alerts for this tenant (default `status=open`). Each alert: `{id, tenant_id, alert_type, status, detail, context, first_seen_at, last_seen_at, occurrences, acknowledged_by, acknowledged_at, resolved_at}` |
+| POST | `/alerts/{id}/acknowledge` | CONTROLLER | Flips an open alert to `acknowledged` (`GL_ALERT_ACKNOWLEDGED` in the audit chain). 404 `alert_not_found`, 409 `alert_not_open` |
+| GET | `/alerts/all?status=` | super_admin | Cross-tenant alerts for the platform super_admin (platform-domain bound via `get_super_admin`; default `status=open`) |
+
+### 3.1 Reconciliation alerting (cut-over deliverable 1)
+
+`app/gl/alerts.py` turns a silent reconciliation failure into a visible, de-duplicated signal:
+
+- **Where it fires.** `shadow.reconcile_tenant_shadow` raises `reconcile_failed` (and `streak_broken` when the previous reconcile was clean) on a failed night and `resolve_open_alerts` on a clean night (the shadow session commits its own alert write). `bridge.emit` raises `native_error` in its except-block, wrapped so it can never raise and never breaks a sale.
+- **No spam.** `raise_alert` keeps at most one **open** alert per (tenant, alert_type): a repeat bumps `occurrences` + `last_seen_at` and refreshes `detail`/`context` instead of inserting a row. A later clean run resolves the open alert; a new failure after that starts a fresh one.
+- **Log line.** Every raise logs `logger.error("[gl-alert] tenant=%s type=%s detail=%s", ...)` on `ironwaves.gl_alerts`.
+- **External notify.** `notify_external(alert)` is a safe no-op unless `settings.resend_api_key` is set (**no new secret**) and never raises; delivery is not wired yet.
+- **Commit convention.** Write helpers follow the engine convention (caller owns commit) except the shadow job, which commits itself.
 
 ---
 
@@ -286,7 +301,8 @@ src/components/admin/financev2/
   billsMath.ts        decimal.js helpers: sumMoney, toMoneyString, validateAmount/Payment,
                       newIdempotencyKey (also used by NewJournalDialog)                                 60
   PartnersTab.tsx     AP/AR aging ("Borclar"), not-yet-due bucket + aging basis badge                   139
-  ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab                   448
+  ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab (AlertsCard +
+                      integrity + shadow)
   exporters.ts        buildCsv/exportCsv (BOM, ';', formula-injection guard), exportPdf (print window) 134
   reportExports.ts    report builders: statements, TB, ledger, subledger → ExportReport                 143
 tests/gl_exports.test.mjs                     npm run test:gl (CSV escaping, subledger export)
@@ -317,7 +333,8 @@ Registration (a new module is wired in all of these places):
 │ MALİYYƏ V2 · BAŞ KİTAB           [Canlı yazılış|Kölgə rejimi] [Hesabatlar: GL|köhnə] [⟳] │
 │ Mühasibat uçotu — AMHP, ikili yazılış, audit zənciri                          │
 └──────────────────────────────────────────────────────────────────────────────┘
-[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət* ]
+[ red alert banner — only when open alerts exist (caps.can_audit); "Go to Controls" jumps to Nəzarət ]
+[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət*(n) ]
 ┌ tabpanel ────────────────────────────────────────────────────────────────────┐
 │  Card(title, subtitle, actions=[filters…, Excel, PDF])                        │
 │  Metric grid · tables (overflow-x-auto, min-w) · empty/loading/error states  │
@@ -338,7 +355,7 @@ If capabilities == null → neutral "not enabled for this business / your role" 
 | `bills` | Fakturalar | `documents({kind:'ap_bill',status,overdue_only,search,limit:50,offset})`, `document(id)`, `suppliers()`, `createBill`, `payBill`, `voidDocument`, `reverseBillPayment`, `reclassifyUnassignedAP` | AP bills only. KPIs from `summary` (all pages); filters status (incl. pending approval / rejected), overdue only, search; paging; overdue rows tinted rose. New bill (`can_write`; supplier select, 201 / 721.9 / 721.2 / 721.3). Pay (`can_write`; one idempotency key per open dialog, amount ≤ open checked with decimal.js, 409 message shown). Void request (`can_write`, open bills). Detail: bill journal lines, allocations incl. negative rows, pending void/payment badges, "reverse payment" per allocation. Reclass (`can_control`). Pending results say "Təsdiq gözləyir" |
 | `periods` | Dövrlər və il | `periods()`, `fiscalYear(y)` | Period status buttons (`can_control`, reason dialog); fiscal year card: blockers, close (confirm dialog), request reopen (reason) |
 | `tax` | Vergi | `taxProfile()`, `taxSummary(y,m)` | Regime form (`can_control`; month picker, since the backend requires the 1st), accrue button when not up to date |
-| `integrity` | Nəzarət | `integrity()`, `shadowStatus()` | Audit chain / balances / TB checks; clean-night streak; last runs |
+| `integrity` | Nəzarət | `alerts('open')`, `integrity()`, `shadowStatus()` | Open-alert cards with Acknowledge (`can_control`, `glApi.acknowledgeAlert` → `bump()`); audit chain / balances / TB checks; clean-night streak; last runs. The tab shows a count badge and the header shows a red banner while open alerts exist |
 
 Drawer (`JournalDrawer`):
 - Shows the header facts, the lines (click an account → ledger), and links to the reversal or the original.
