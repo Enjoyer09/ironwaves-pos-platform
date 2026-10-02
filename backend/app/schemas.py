@@ -111,6 +111,7 @@ class InventoryItemCreateIn(BaseModel):
     min_limit: Decimal = Decimal("0")
     payment_source: str | None = "payable"
     supplier: str | None = None
+    supplier_id: str | None = None
     invoice_no: str | None = None
 
 

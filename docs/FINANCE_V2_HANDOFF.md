@@ -15,6 +15,7 @@
 |---|---|
 | `main` / `origin/main` @ `0f63eccb` | **Production.** All Finance v2 code (PRs #31–#37) is merged here. Railway auto-deploys every push to `main`. |
 | `docs/finance-v2-handoff` (PR #38) | **This document** and `docs/finance-v2-handoff.md`. Docs only. If PR #38 is not merged yet, these files exist only on this branch: `git fetch origin && git checkout docs/finance-v2-handoff`, or read with `git show origin/docs/finance-v2-handoff:docs/FINANCE_V2_HANDOFF.md`. After merge they are on `main`. |
+| `feature/finance-v2-p3b` (PR #39) | WP3 AP bills. **In review, not merged, not deployed.** Contains migration `20261001_0001`. |
 | `feature/finance-v2-p2d`, `feature/finance-v2-p3a` (and earlier `feature/finance-v2-*`) | Already merged. Do not reuse them; do not commit on them. |
 | `semantic-review/` (untracked folder in the working tree) | Not part of Finance v2. Leave it alone and do not commit it. |
 
@@ -39,7 +40,7 @@ Rules for new work:
 5. The UI is the "Mühasibat (v2)" admin module. It is visible only when `GET /api/v1/gl/capabilities` succeeds.
 6. Next work, in order:
    - Accountant answers → corrections → Daily Coffee rollout → Gyros rollout.
-   - Bills and invoices (WP3).
+   - AP bills (WP3, in review in PR #39; AR invoices deferred).
    - Stop legacy writes (WP4).
    - UI QA (WP5).
    - Housekeeping (WP6).
@@ -80,6 +81,7 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `tax.py` | Tax profiles, simplified tax accrual, VAT split | `set_tax_profile`, `get_tax_profile`, `accrue_simplified_tax` (posts only the delta, safe to repeat), `tax_summary`, `split_vat` |
 | `year_end.py` | Fiscal year close/reopen | `year_status`, `close_fiscal_year`, `request_reopen_fiscal_year` |
 | `subledger.py` | AP/AR per partner, FIFO settlement, aging | `subledger(db, tid, "ap"\|"ar", as_of)` |
+| `documents.py` | AP bills (AR invoices deferred): bill lifecycle, payment allocations (named first, then FIFO), maker-checker hooks, unassigned-AP reclass | `create_bill`, `pay_bill`, `post_supplier_payment`, `allocate_payment`, `void_document`, `reverse_bill_payment`, `reclassify_unassigned_ap`, `list_documents`, `get_document_detail`, `after_journal_approved` / `after_journal_rejected`, `lock_documents_for_journal`, `DOCUMENT_SOURCE_TYPES = ("document","document_payment")` |
 | `router.py` | HTTP API `/api/v1/gl` | Section 3 |
 
 Scripts:
@@ -100,7 +102,7 @@ Related, outside `gl/`:
   - `finance_v2_ledger_mode` → `{"mode": "dual", "since", "by"}`
   - `finance_v2_reports_source` → `{"source": "gl", ...}`
 
-### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002`; head = `20260930_0002`)
+### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001`; head = `20261001_0001`)
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -109,6 +111,8 @@ Related, outside `gl/`:
 | `gl_journals` | Header: `journal_no` (gapless per tenant/year, e.g. `JV-2026-000021`), type, status, `posting_date`, `period_id`, `source_module`, `source_type`, `source_id`, `idempotency_key`, `legacy_ref`, `reversal_of_id`, `reversed_by_id`, maker/approver fields | unique (tenant, journal_no), unique (tenant, idempotency_key) |
 | `gl_journal_lines` | Lines: account, debit, credit, branch, `partner_type`, `partner_id`, `tax_code`, memo | unique (journal, line_no) |
 | `gl_account_balances` | Materialized debit/credit totals per (account, period, branch). Verified by `verify_materialized_balances` | unique key |
+| `gl_documents` | AP bills (migration `20261001_0001`): `id`, `tenant_id`, `kind` (only `ap_bill` is used; `ar_invoice` is reserved), `partner_type`, `partner_id`, `number`, `issue_date`, `due_date`, `currency`, `total`, `status`, `journal_id` (the bill journal), `created_by`, `note`, `created_at`. Status: `pending_approval`, `open`, `partially_paid`, `paid`, `rejected`, `void` (`String(16)`, no CHECK). There is no stored open balance: open = `total` − Σ allocations, and 0 for `pending_approval` / `rejected` / `void` | unique (tenant, kind, partner_id, number) `uq_gl_documents_partner_number`; indexes (tenant, kind, status), (tenant, partner_id), (tenant, due_date) |
+| `gl_document_allocations` | Append-only payment matching: `id`, `tenant_id`, `document_id`, `journal_id`, `journal_line_no` (the AP line of the payment or storno), `amount`, `created_at`. A reversed payment adds a **negative** row (journal = the storno) | indexes (tenant, document_id), (tenant, journal_id) |
 | `gl_sequences` | Gapless numbering (row lock) | |
 | `gl_tax_profiles` | Regime history per tenant (`effective_from` = 1st of month) | |
 | `gl_audit_events` | Hash-chained, append-only audit log (`seq`, prev hash, hash) | unique (tenant, seq) |
@@ -128,7 +132,7 @@ SQLite (used by tests) has no triggers; the same rules are enforced in `engine.p
 
 Journal types: `sales, purchase, cash, bank, general, adjustment, tax, opening, closing, reversal, migration`. Statuses: `draft, pending_approval, posted, rejected`. "Reversed" is not a status: it is `posted` plus `reversed_by_id`.
 
-`source_module` values: `pos` (native posting rules), `legacy` (mirrored by shadow; `legacy_ref` is set), `manual` (GL UI), `gl` (tax engine, year close).
+`source_module` values: `pos` (native posting rules), `legacy` (mirrored by shadow; `legacy_ref` is set), `manual` (GL UI), `gl` (tax engine, year close, AP bill and bill-payment journals).
 
 ### 2.3 Money flow in dual mode
 
@@ -166,7 +170,8 @@ These events are defined in `posting_rules.py`:
 - Sales and deposits: `SaleCompleted` (compound: payments, revenue/VAT split, card fee, COGS), `SaleRefunded`, `DepositHeld`, `DepositRefunded`, `DepositForfeited`.
 - Shift and cash: `DrawerFunded`, `CashCountVariance` (x/z/handover), `WagePaidFromDrawer`, `WalletTransfer`.
 - Income, expense and financing: `ExpensePaid`, `OtherIncomeReceived`, `FinancingMovement` (investor_in/repay, loan_in/repay, lend_out/back).
-- Stock and suppliers: `StockReceived` (supplier optional, because legacy restocks lack one), `StockWrittenOff`, `SupplierPaid`.
+- Stock and suppliers: `StockReceived` (supplier optional in the rule, because legacy restocks lack one; in **dual** mode the inventory API requires it, see 2.5), `StockWrittenOff`, `SupplierPaid` (`document_ids`, `note`).
+- AP bills reuse the rules: an inventory bill posts `StockReceived(receipt_id="bill:{doc_id}", paid_from=None)` and an expense bill posts `ExpensePaid(expense_id="bill:{doc_id}", paid_from=None)`, both via `post_event(..., source_module="gl", source_type="document", source_id=doc_id)`. A bill payment posts `SupplierPaid(payment_id="bill:{doc_id}:{idempotency_key}")` with `source_type="document_payment"`.
 - Helpers: `void_sale` returns a list of journals; `correct_sale` returns `[storno, new]`; `active_sale_journal` looks up by idempotency key `sale:{id}:v%`.
 
 Hook sites:
@@ -198,6 +203,28 @@ Hook sites:
 - A closed fiscal year rejects postings (`year_closed`), except its own closing entry and that entry's reversal.
 - Idempotency: the same `idempotency_key` returns the original journal. The same key with a different amount returns 409.
 - Every mode or source switch, period change, tax change and year close is written to `gl_audit_events`.
+- AP documents (WP3):
+  - Bill and bill-payment journals are **GL-only** (`source_module="gl"`, `source_type` `document` / `document_payment`), so `reconcile_dual_tenant` explains them as `GLOnlyJournal`. A legacy supplier payment (`suppliers.pay_supplier`) stays `source_module="pos"` with its legacy link and allocates to bills (named `document_ids` first, then FIFO by due date); any excess stays an advance.
+  - `POST /journals/{id}/reverse` on a document journal returns **409 `document_managed`**, because a bare storno would leave the bill open. Use void bill / reverse payment in Bills instead (the JournalDrawer hides storno for them).
+  - Allocations are append-only. open = `total` − Σ allocations (net, negative rows included); 0 for `pending_approval` / `rejected` / `void`.
+  - Sub-ledger link: a supplier with open bills is aged by bill due date; GL balance − Σ open bills (undocumented AP) is aged by posting date, or shown as an advance when negative. When all of a supplier's AP comes from bills, Σ open bills == its sub-ledger balance (tested across pay / partial / void).
+  - Maker-checker: bill create and bill pay need approval when the user is not an approver or the amount is ≥ `large_transfer_threshold_azn` (`router._manual_needs_approval`). Void, payment reversal and reclass **always** create a pending journal for a second person. On approval the hooks re-check (payment ≤ open on the locked bill, net allocations 0 for a void, unassigned AP ≥ 0 for a reclass) and a failed check rolls the approval back with 409.
+  - Owner decisions: overpaying a bill through the bill-pay API is rejected (**409 `overpayment_not_allowed`**, the message names the open balance); a voided or rejected bill's number is **not reusable** (409 `duplicate_bill`); AR invoices are deferred (AP only).
+  - Dual-mode stock rule: a new stock receipt with amount > 0 (`POST /api/v1/catalog/inventory` with opening stock, `/inventory/{id}/restock`) needs a supplier, else **400 `supplier_required`**. Legacy mode keeps the supplier optional.
+  - Lock order: documents before journal. A bill payment (`pay_bill` and its approval hook) locks and allocates to its own bill only. A FIFO allocation (legacy supplier payment) locks the supplier's payable bills in id order **before** posting. The engine locks guarded (non-negative) accounts before inserting journal lines, because the lines' FK checks take KEY SHARE on `gl_accounts`. PG race tests cover two bills of one supplier, approval vs. payment, legacy vs. bill payment, and two plain drawer postings.
+
+#### WP3 known limits (not fixed in PR #39)
+
+- **Legacy wallets do not see bill payments.** Bill and bill-payment journals are GL-only, so legacy wallet balances (bank, safe) and legacy-source reports overstate those wallets by the bill payments until WP4. `reconcile_dual_tenant` explains the gap as `GLOnlyJournal`.
+- **Bills cannot be paid from the POS drawer (owner decision, review R2).** `documents.BILL_PAY_WALLETS = ("bank_main", "safe")`; `paid_from=cash_drawer` (or anything else) → **400 `wallet_not_allowed`**, and nothing posts. PayBillDialog offers only Bank (default) and Safe. Reason: Z-close computes expected cash from the legacy `cash` ledger (`routers/reports._shift_cash_breakdown`), which a GL-only bill payment never reaches. A drawer bill payment would therefore show up as a Z-close shortage (legacy "Kassa Kəsiri" + GL `CashCountVariance`), crediting GL cash twice. For drawer cash, use the legacy supplier payment (`/ops/suppliers/{id}/pay`, source `cash`), which posts in both ledgers and still allocates to bills.
+- **A legacy supplier payment that settled bills cannot be unwound.** `suppliers.pay_supplier` allocates named-then-FIFO (`source_module="pos"`). `reverse_bill_payment` accepts only `document_payment` journals, a generic reverse of a `pos` journal returns `source_managed`, and a legacy Finance reversal of the `supplier_payment` transaction does not release the allocation. A bill settled this way can be neither voided nor reopened. The supplier's total AP stays correct; only the per-bill split (and due-date aging) can be wrong.
+  - Prevention: in dual mode pay bills from Bills, or pass `document_ids` to the legacy payment.
+  - A checker-approved deallocation operation is **deferred** (owner decision; roadmap §7).
+  - Correction until a deallocation operation exists: an owner-approved data fix in one transaction, on a fresh backup. Append a negative `gl_document_allocations` row for the legacy journal on the wrong bill, plus a positive one on the right bill (or none, which leaves an advance). Then recompute both bills' status and record the fix in `gl_audit_events`. Never update or delete existing allocation rows.
+- **Shadow-fallback payments stay unallocated.** If `bridge.emit` falls back to the shadow mirror for a legacy supplier payment, the payment is not allocated to bills and a `native_error` run is logged. The amount shows as undocumented AP (aged by posting date) or an advance.
+- **`Supplier.balance` (legacy field) is not changed by GL bills or bill payments.** The legacy supplier screen therefore understates what is owed, while its pay button still settles real bills (FIFO).
+- **F25 deferred:** PostgreSQL immutability triggers for `gl_documents` / `gl_document_allocations` are not in migration `20261001_0001`. Append-only is enforced in code only.
+- **AR invoices are deferred** (AP only; `kind=ar_invoice` → 422).
 
 ---
 
@@ -220,9 +247,17 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 | POST | `/journals` | WRITE | Manual journal types: general / adjustment / cash / bank / opening; `idempotency_key` recommended |
 | GET | `/journals` | READ | Filters: status, journal_type, date_from, date_to, limit ≤ 500, offset → `{total, items}` |
 | GET | `/journals/{id}` | READ | Includes lines |
-| POST | `/journals/{id}/approve` · `/reject` · `/reverse` | APPROVER · APPROVER · WRITE | Reverse creates a pending storno |
+| POST | `/journals/{id}/approve` · `/reject` · `/reverse` | APPROVER · APPROVER · WRITE | Reverse creates a pending storno. Approve/reject of a bill, bill-payment, void, payment-reversal or reclass journal also runs the document hooks in the same transaction. Reverse of a bill / bill-payment journal → 409 `document_managed` |
 | GET / POST | `/periods` · `/periods/{y}/{m}/status` | READ / CONTROLLER | Status open / soft_closed / closed |
-| GET | `/subledger/{ap\|ar}?as_of=` | READ | Per-partner buckets `0_30 / 31_60 / 61_90 / 90_plus`, advance, `reconciled` |
+| GET | `/subledger/{ap\|ar}?as_of=` | READ | Per-partner buckets `current` (not yet due) / `0_30 / 31_60 / 61_90 / 90_plus`, advance, `aging_basis` (`due_date` / `posting_date` / `mixed`), `reconciled` |
+| GET | `/suppliers` | READ | `[{id, name}]` of the tenant, for the bill/reclass supplier picker (`/api/v1/ops/suppliers` is admin/manager only) |
+| GET | `/documents` | READ | `kind` = `ap_bill` only (anything else 422), `status`, `partner_id`, `due_before`, `due_after`, `overdue_only`, `search` (bill number or supplier name, ≤ 100 chars), `limit` 1–500 (default 50), `offset` → `{total, items, summary: {total_billed, total_open, overdue_open, overdue_count}}`; the summary covers the whole filtered set and `total_billed` excludes void/rejected |
+| POST | `/documents/bills` | WRITE | `{partner_id, number, issue_date, due_date, total, expense_account?, note?, branch_id?}`; **no idempotency key** (the bill number is unique per supplier). Debit = `inventory` / `merchandise` or any active postable expense account (e.g. `general_expense` 721.9, `rent_expense` 721.2, `utilities_expense` 721.3), credit 531. Approval gate → `pending_approval`. Errors: 404 `supplier_not_found`, 400 `invalid_expense_account` / `invalid_amount` / `invalid_due_date`, 409 `duplicate_bill` |
+| GET | `/documents/{id}` | READ | Header + `journal_status`, `lines` (bill journal), `allocations` (with `source_type`, `reversed`; negative rows = reversed payments), `pending_void_journal_id`, `pending_payments`, `pending_payment_reversals` |
+| POST | `/documents/{id}/pay` | WRITE | `{amount, paid_from: bank_main\|safe, posting_date?, bank_fee?, note?, idempotency_key}`; **`idempotency_key` required** (8–80 chars, `[A-Za-z0-9:_-]`; same key replays, same key + other amount → 409 `idempotency_conflict`). Approval gate → `journal_status: pending_approval`, allocated on approval. Errors: 409 `overpayment_not_allowed` / `invalid_status` / `void_pending`, 400 `payment_before_issue` / `invalid_amount` / `wallet_not_allowed` (POS drawer) |
+| POST | `/documents/{id}/void` | WRITE | `{reason}`; creates a **pending storno** of the bill journal (`pending_void_journal_id`); the bill stays open and becomes `void` when another approver approves. Only with net allocations 0 and no pending payment (409 `document_has_allocations` / `payment_pending` / `void_pending` / `invalid_status` / `already_void`) |
+| POST | `/documents/{id}/payments/{journal_id}/reverse` | WRITE | `{reason}`; **pending storno** of a posted bill payment; on approval a negative allocation reopens the bill (409 `reversal_pending` / `already_reversed`, 404 `payment_not_found`) |
+| POST | `/documents/reclassify-unassigned` | CONTROLLER | `{amount, to_supplier_id, reason?, posting_date?}`; moves unassigned 531 balance (no partner) to a supplier, net zero; capped at the unassigned balance minus pending reclasses (409 `reclass_exceeds_unassigned`); **always pending** a second approver |
 | GET / POST / POST | `/years/{y}` · `/years/{y}/close` · `/years/{y}/reopen` | READ / CONTROLLER / CONTROLLER | Status + blockers; close posts the closing journal; reopen creates a pending storno |
 | GET / POST | `/tax-profile` | READ / CONTROLLER | `effective_from` must be the 1st of a month |
 | POST | `/tax/simplified/accrue` | CONTROLLER | Posts the delta only |
@@ -237,20 +272,25 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 ### 4.1 Where it lives
 
 ```
-src/api/gl.ts                                 typed client (glApi.*, getGLCapabilities) — 322 lines
+src/api/gl.ts                                 typed client (glApi.*, getGLCapabilities) — 489 lines
 src/api/client.ts                             apiRequest + formatErrorDetail (object/array error details → text)
-src/components/admin/FinanceV2Panel.tsx       shell: capabilities, tabs, context provider, journal drawer — 186
+src/components/admin/FinanceV2Panel.tsx       shell: capabilities, tabs, context provider, journal drawer — 189
 src/components/admin/financev2/
   context.ts          GLContext + useGL() + useGLLoad(loader, deps) (refetch on panel "version")      46
   FinanceV2Parts.tsx  money(), labels, Badge, Card, Metric, Field, DateRange, Dialog, ReasonDialog,
                       ExportButtons, btn/inputCls style tokens                                          285
   ReportsTabs.tsx     OverviewTab (BS+P&L), TrialBalanceTab, AccountLedgerTab                           294
-  JournalsTabs.tsx    JournalsTab, ApprovalsTab, JournalDrawer, NewJournalDialog                        423
-  PartnersTab.tsx     AP/AR aging ("Borclar")                                                           133
+  JournalsTabs.tsx    JournalsTab, ApprovalsTab, JournalDrawer, NewJournalDialog                        428
+  BillsTab.tsx        BillsTab (AP bills list), NewBillDialog, PayBillDialog, BillDetailDialog,
+                      ReclassifyAPDialog                                                                925
+  billsMath.ts        decimal.js helpers: sumMoney, toMoneyString, validateAmount/Payment,
+                      newIdempotencyKey (also used by NewJournalDialog)                                 60
+  PartnersTab.tsx     AP/AR aging ("Borclar"), not-yet-due bucket + aging basis badge                   139
   ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab                   448
   exporters.ts        buildCsv/exportCsv (BOM, ';', formula-injection guard), exportPdf (print window) 134
-  reportExports.ts    report builders: statements, TB, ledger, subledger → ExportReport                 135
-tests/gl_exports.test.mjs                     npm run test:gl (CSV escaping)
+  reportExports.ts    report builders: statements, TB, ledger, subledger → ExportReport                 143
+tests/gl_exports.test.mjs                     npm run test:gl (CSV escaping, subledger export)
+tests/gl_bills.test.mjs                       npm run test:gl:bills (billsMath)
 ```
 
 Registration (a new module is wired in all of these places):
@@ -277,7 +317,7 @@ Registration (a new module is wired in all of these places):
 │ MALİYYƏ V2 · BAŞ KİTAB           [Canlı yazılış|Kölgə rejimi] [Hesabatlar: GL|köhnə] [⟳] │
 │ Mühasibat uçotu — AMHP, ikili yazılış, audit zənciri                          │
 └──────────────────────────────────────────────────────────────────────────────┘
-[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Dövrlər və il | Vergi | Nəzarət* ]
+[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət* ]
 ┌ tabpanel ────────────────────────────────────────────────────────────────────┐
 │  Card(title, subtitle, actions=[filters…, Excel, PDF])                        │
 │  Metric grid · tables (overflow-x-auto, min-w) · empty/loading/error states  │
@@ -295,13 +335,14 @@ If capabilities == null → neutral "not enabled for this business / your role" 
 | `journals` | Jurnallar | `journals({status,type,from,to,limit:50,offset})` | Filters, paging, "Yeni yazılış" (`can_write`) |
 | `approvals` | Təsdiqlər | `journals({status:'pending_approval'})` | Open → approve/reject in the drawer (`can_approve`); the tab badge shows the count |
 | `partners` | Borclar | `subledger('ap'\|'ar', asOf)` | AP/AR switch (radiogroup), as-of date, bucket KPIs, reconciled badge, unassigned badge, export |
+| `bills` | Fakturalar | `documents({kind:'ap_bill',status,overdue_only,search,limit:50,offset})`, `document(id)`, `suppliers()`, `createBill`, `payBill`, `voidDocument`, `reverseBillPayment`, `reclassifyUnassignedAP` | AP bills only. KPIs from `summary` (all pages); filters status (incl. pending approval / rejected), overdue only, search; paging; overdue rows tinted rose. New bill (`can_write`; supplier select, 201 / 721.9 / 721.2 / 721.3). Pay (`can_write`; one idempotency key per open dialog, amount ≤ open checked with decimal.js, 409 message shown). Void request (`can_write`, open bills). Detail: bill journal lines, allocations incl. negative rows, pending void/payment badges, "reverse payment" per allocation. Reclass (`can_control`). Pending results say "Təsdiq gözləyir" |
 | `periods` | Dövrlər və il | `periods()`, `fiscalYear(y)` | Period status buttons (`can_control`, reason dialog); fiscal year card: blockers, close (confirm dialog), request reopen (reason) |
 | `tax` | Vergi | `taxProfile()`, `taxSummary(y,m)` | Regime form (`can_control`; month picker, since the backend requires the 1st), accrue button when not up to date |
 | `integrity` | Nəzarət | `integrity()`, `shadowStatus()` | Audit chain / balances / TB checks; clean-night streak; last runs |
 
 Drawer (`JournalDrawer`):
 - Shows the header facts, the lines (click an account → ledger), and links to the reversal or the original.
-- Actions: approve/reject for pending journals (approvers), and storno only when `source_module ∈ {manual, gl}`, the journal is not a year close, it is posted, not yet reversed, and the user has `can_write`.
+- Actions: approve/reject for pending journals (approvers), and storno only when `source_module ∈ {manual, gl}`, the journal is not a year close and not a bill / bill-payment journal (`source_type` `document` / `document_payment`; a hint points to the Bills tab), it is posted, not yet reversed, and the user has `can_write`.
 - Nested `ReasonDialog`.
 
 New journal (`NewJournalDialog`):
@@ -348,6 +389,7 @@ New journal (`NewJournalDialog`):
 ### 4.5 How to add a new tab (recipe)
 
 ```tsx
+// Illustrative recipe only (the real BillsTab uses glApi.documents, see 4.2).
 // 1) API: src/api/gl.ts
 export type Bill = { id: string; number: string; partner_id: string; due_date: string; total: Money; open: Money; status: string };
 export const glApi = { /* … */ bills: (p: { status?: string } = {}) => get<{ items: Bill[] }>('/bills', p) };
@@ -367,7 +409,7 @@ export function BillsTab() {
 
 // 3) FinanceV2Panel.tsx: add to `type Tab`, the `tabs` array (label via tx, `show` from caps), and the render switch.
 // 4) Writes: call bump() after success, notify('success'|'error', errorText(e)); open results with openJournal(id).
-// 5) Checks: npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npx vite build
+// 5) Checks: npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npx vite build
 ```
 
 ### 4.6 Known UI gaps
@@ -378,6 +420,7 @@ export function BillsTab() {
 - There are no charts yet (trend of revenue/expenses, cash position). Candidates: a small inline SVG sparkline per KPI, with no new dependency.
 - The chart of accounts can't be edited in the UI (the `POST /accounts` sub-account API exists but has no screen).
 - The period list only shows months that already have journals. Future months appear once they are used.
+- `BillsTab` is checked by `tsc`, the vite build and the `billsMath` unit tests only. It has had no browser pass at 1440 / 390 px yet. The list rows do not carry `pending_void_journal_id`, so a void already pending is only shown in the bill detail (a second void request gets 409 `void_pending`).
 
 ---
 
@@ -427,7 +470,8 @@ Detailed prompts for each package are in `docs/finance-v2-handoff.md`.
 | WP0 | Ship P3a | **Done** (PR #37) | Only follow-up: check the token purge after 2026-10-01 07:13 UTC |
 | WP1 | Platform reports → GL | Waiting | 2-3 clean nights + real activity → `--parity` → owner OK → `--reports gl` |
 | WP2 | Corrections + real-customer rollout | **Blocked on accountant** | Encode the answers; adjusting-journal list for owner approval; Daily Coffee dual → reports gl; Gyros one week later |
-| WP3 | Bills and invoices (P3b) | Next code work | `gl_documents` + `gl_document_allocations`; due-date aging; supplier required for new receipts in dual; reclass tool for unassigned AP; UI (bills list, detail, pay bill) |
+| WP3 | Bills (P3b) | **In review (PR #39) — AP only; AR deferred** (branch `feature/finance-v2-p3b`, not merged, not deployed) | `gl_documents` + `gl_document_allocations` (migration `20261001_0001`); GL-only bill and bill-payment journals; idempotent bill pay, overpayment 409; maker-checker for bills/payments, pending void / payment reversal / reclass; named-then-FIFO allocation of legacy supplier payments; due-date aging in Borclar; supplier required for new stock receipts in dual; bill pay from bank/safe only (no POS drawer); `BillsTab` UI |
+| WP3-def | WP3 deferred items | Not started (owner: later) | Checker-approved **deallocation** of bills settled by a legacy supplier payment (compensating allocations, the payment becomes an advance; manual correction in §2.5 until then); F25 PG immutability triggers for documents; AR invoices |
 | WP4 | P2e, stop legacy writes | After every tenant is on reports gl for ≥ 2 weeks | Ledger mode `gl`; inventory all legacy writers and readers; emit must raise in gl mode; skip shadow; one-way switch with a fresh backup |
 | WP5 | UI QA | Any time | Desktop 1440 / mobile 390 pass; fix layout, a11y and i18n issues |
 | WP6 | Housekeeping | Dated items | 10-04 backup deletion (ask); remove Railway SSH key `macbookair-finance-v2`; **`railway config migrate` before 2026-12-01**; retention for `audit_logs` / `receipt_html` |
@@ -442,6 +486,8 @@ Nice-to-have for "Oracle level", not started and not yet requested:
 - KPI charts.
 
 ### 7.1 WP3 design sketch (code level)
+
+> Original pre-implementation sketch, kept for context. The implemented schema, statuses (incl. `pending_approval` / `rejected`), API and rules are in 2.2, 2.5 and 3 (PR #39).
 
 ```python
 # backend/app/gl/models.py (new; Alembic revision after 20260930_0002)
@@ -484,11 +530,11 @@ UI:
 ## 8. Operations cheat-sheet
 
 ```bash
-# Backend tests (baseline 874 passed, 11 skipped)
+# Backend tests (on feature/finance-v2-p3b: 942 passed, 20 skipped; the skips include the PG-only integration tests)
 cd backend && DATABASE_URL=sqlite:////tmp/iw-test.db JWT_SECRET=test-secret-test-secret-test-secret-123456 \
   SUPERADMIN_PASSWORD=Test-Passw0rd-123 /tmp/iw-venv/bin/python -m pytest tests -p no:cacheprovider -o addopts="" -q
 # Frontend
-npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npx vite build
+npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npx vite build
 # Production script inside the backend container (write the file first, then run; PYTHONPATH is required)
 railway ssh --service ironwaves-pos-backend -- sh -c 'cat > /tmp/x.py && cd /app && PYTHONPATH=/app python /tmp/x.py; rm -f /tmp/x.py' < /tmp/x.py
 # Deploy status

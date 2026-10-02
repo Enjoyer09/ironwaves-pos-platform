@@ -275,6 +275,24 @@ def test_sale_correction_versions(db, tid):
     assert bal(db, tid, "bank_main") == D("0.00") and bal(db, tid, "cash_drawer") == D("108.00")
 
 
+def test_post_event_source_override(db, tid):
+    default = pr.post_event(db, tid, pr.FinancingMovement("m-default", DAY, "investor_in", "cash", "5"), actor="owner")
+    assert default.source_module == "pos" and default.source_type == "financing" and default.source_id == "m-default"
+    owned = pr.post_event(db, tid, pr.FinancingMovement("m-owned", DAY, "investor_in", "cash", "5"), actor="owner",
+                          source_module="gl", source_type="document_payment", source_id="doc-1")
+    assert owned.source_module == "gl" and owned.source_type == "document_payment" and owned.source_id == "doc-1"
+    assert owned.idempotency_key == "financing:m-owned"  # the key still comes from the spec
+
+
+def test_supplier_paid_note_in_description():
+    spec = pr.SupplierPaid("p-1", DAY, "sup-1", "40.00", "cash", note="Mart fakturası").spec(SIMPLIFIED)
+    assert spec.description == "Təchizatçıya ödəniş: Mart fakturası"
+    ap_line = next(l for l in spec.lines if l.account == "accounts_payable")
+    assert "Mart fakturası" in ap_line.memo and ap_line.partner_id == "sup-1"
+    plain = pr.SupplierPaid("p-2", DAY, "sup-1", "40.00", "cash", document_ids=("d-1",)).spec(SIMPLIFIED)
+    assert plain.description == "Təchizatçıya ödəniş"
+
+
 def test_cash_guard_applies_to_rules(db, tid):
     with pytest.raises(GLError) as exc:
         pr.post_event(db, tid, pr.WagePaidFromDrawer("sh1", DAY, "150", "Aysel"), actor="mgr")

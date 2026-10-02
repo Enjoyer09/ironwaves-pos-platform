@@ -228,7 +228,11 @@ export type GLIntegrity = {
   trial_balance_balanced: boolean;
 };
 
-export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus';
+/** 'current' = not yet due (only partners aged by bill due date have it non-zero). */
+export type AgingBucket = 'current' | '0_30' | '31_60' | '61_90' | '90_plus';
+
+/** due_date: open bills by due date; posting_date: FIFO by posting date; mixed: bills + undocumented remainder. */
+export type AgingBasis = 'due_date' | 'posting_date' | 'mixed';
 
 export type SubledgerPartner = {
   partner_type: string | null;
@@ -238,6 +242,7 @@ export type SubledgerPartner = {
   open: Money;
   advance: Money;
   buckets: Record<AgingBucket, Money>;
+  aging_basis: AgingBasis;
   oldest_open_date: string | null;
 };
 
@@ -319,4 +324,167 @@ export const glApi = {
   reopenFiscalYear: (year: number, reason: string) => post<GLJournal>(`/years/${year}/reopen`, { reason }),
   shadowStatus: () => get<ShadowStatus>('/shadow/status'),
   integrity: () => get<GLIntegrity>('/integrity'),
+  /** Supplier picker for bills / reclass (readable by every GL reader). */
+  suppliers: () => get<GLSupplier[]>('/suppliers'),
+  /** AP bills only (AR invoices are deferred); `summary` covers every page of the filtered set. */
+  documents: (params: {
+    kind?: 'ap_bill'; status?: string; partner_id?: string; due_before?: string; due_after?: string;
+    overdue_only?: boolean; search?: string; limit?: number; offset?: number;
+  } = {}) =>
+    get<GLDocumentPage>('/documents', {
+      ...params,
+      overdue_only: params.overdue_only ? 'true' : undefined,
+    }),
+  document: (id: string) => get<GLDocument>(`/documents/${encodeURIComponent(id)}`),
+  createBill: (payload: CreateBillInput) => post<GLDocument>('/documents/bills', payload),
+  payBill: (id: string, payload: PayBillInput) => post<PayBillResult>(`/documents/${encodeURIComponent(id)}/pay`, payload),
+  /** Requests the void: the storno waits for a second person (`pending_void_journal_id`); status stays open. */
+  voidDocument: (id: string, reason: string) => post<GLDocument>(`/documents/${encodeURIComponent(id)}/void`, { reason }),
+  /** Requests the reversal of a posted bill payment (pending storno; the bill reopens on approval). */
+  reverseBillPayment: (id: string, journalId: string, reason: string) =>
+    post<ReverseBillPaymentResult>(
+      `/documents/${encodeURIComponent(id)}/payments/${encodeURIComponent(journalId)}/reverse`,
+      { reason }
+    ),
+  /** Always pending owner approval by a second person. */
+  reclassifyUnassignedAP: (payload: ReclassifyAPInput) => post<ReclassifyAPResult>(`/documents/reclassify-unassigned`, payload),
 };
+
+export type GLSupplier = { id: string; name: string };
+
+export type GLDocumentStatus = 'pending_approval' | 'open' | 'partially_paid' | 'paid' | 'rejected' | 'void' | string;
+
+export type GLDocumentAllocation = {
+  id: string;
+  journal_id: string;
+  journal_no: string | null;
+  posting_date: string;
+  journal_line_no: number;
+  /** Negative rows cancel a reversed payment. */
+  amount: Money;
+  /** 'document_payment' (paid from Bills) | 'supplier_payment' (legacy supplier payment) | ... */
+  source_type: string | null;
+  /** True once the payment journal has a posted storno. */
+  reversed: boolean;
+  created_at: string | null;
+};
+
+export type GLDocumentLine = {
+  line_no: number;
+  account_code: string;
+  account_name: string;
+  debit: Money;
+  credit: Money;
+  memo: string | null;
+};
+
+export type GLPendingBillPayment = {
+  journal_id: string;
+  amount: Money;
+  posting_date: string;
+  created_by: string | null;
+  created_at: string | null;
+};
+
+export type GLPendingPaymentReversal = { journal_id: string; reversal_of_id: string; created_by: string | null };
+
+export type GLDocument = {
+  id: string;
+  kind: 'ap_bill' | 'ar_invoice' | string;
+  partner_type: string;
+  partner_id: string;
+  partner_name: string;
+  number: string;
+  issue_date: string;
+  due_date: string;
+  currency: string;
+  total: Money;
+  open: Money;
+  status: GLDocumentStatus;
+  is_overdue: boolean;
+  days_overdue: number;
+  journal_id: string | null;
+  note: string | null;
+  created_at: string | null;
+  // Detail-only fields (GET /documents/{id}, create and void responses):
+  created_by?: string;
+  /** Status of the bill's own journal (pending_approval while the bill waits for approval). */
+  journal_status?: GLJournalStatus | null;
+  /** Source journal lines of the bill. */
+  lines?: GLDocumentLine[];
+  allocations?: GLDocumentAllocation[];
+  /** Pending storno of the bill journal (void requested, waiting for a second person). */
+  pending_void_journal_id?: string | null;
+  pending_payments?: GLPendingBillPayment[];
+  pending_payment_reversals?: GLPendingPaymentReversal[];
+};
+
+export type GLDocumentSummary = {
+  /** Excludes void and rejected bills. */
+  total_billed: Money;
+  total_open: Money;
+  overdue_open: Money;
+  overdue_count: number;
+};
+
+export type GLDocumentPage = { total: number; items: GLDocument[]; summary: GLDocumentSummary };
+
+export type CreateBillInput = {
+  partner_id: string;
+  number: string;
+  issue_date: string;
+  due_date: string;
+  total: Money;
+  expense_account?: string | null;
+  note?: string | null;
+  branch_id?: string | null;
+};
+
+export type PayBillInput = {
+  amount: Money;
+  /** Bank or safe only: the backend rejects the POS drawer (400 wallet_not_allowed), Z-close would miss it. */
+  paid_from: 'bank_main' | 'safe';
+  posting_date?: string;
+  bank_fee?: Money;
+  note?: string | null;
+  /** Required: one key per open payment dialog; a retry with the same key replays the payment. */
+  idempotency_key: string;
+};
+
+export type PayBillResult = {
+  document_id: string;
+  number: string;
+  status: GLDocumentStatus;
+  paid_amount: Money;
+  remaining_open: Money;
+  journal_no: string | null;
+  journal_id: string;
+  journal_status: GLJournalStatus;
+  allocations_count: number;
+  replayed: boolean;
+};
+
+export type ReverseBillPaymentResult = {
+  document_id: string;
+  journal_id: string;
+  journal_no: string | null;
+  journal_status: GLJournalStatus;
+  reversal_of_id: string;
+};
+
+export type ReclassifyAPInput = {
+  amount: Money;
+  to_supplier_id: string;
+  reason?: string;
+  posting_date?: string;
+};
+
+export type ReclassifyAPResult = {
+  journal_id: string;
+  journal_no: string | null;
+  status: GLJournalStatus;
+  amount: Money;
+  to_supplier_id: string;
+  posting_date: string;
+};
+

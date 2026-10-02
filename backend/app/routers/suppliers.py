@@ -122,6 +122,8 @@ class SupplierPaymentIn(BaseModel):
     amount: Decimal
     payment_source: str
     note: str | None = None
+    # Finance v2 bills to settle first; the rest goes FIFO and any excess stays an advance.
+    document_ids: list[str] = []
 
 
 @router.post("/{supplier_id}/pay")
@@ -159,10 +161,23 @@ def pay_supplier(
         supplier_id=supplier.id,
     )
     # Finance v2 (dual mode only).
-    from app.gl import bridge as _gl_bridge, posting_rules as _gl_rules
+    from app.gl import bridge as _gl_bridge, documents as _gl_documents, posting_rules as _gl_rules
     from app.gl.engine import business_today as _gl_today
 
-    _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.SupplierPaid(legacy_txn.id, _gl_today(), supplier.id, amount, source_code), actor=user.username)
+    _gl_bridge.emit(
+        db,
+        tenant.id,
+        lambda: _gl_documents.post_supplier_payment(
+            db,
+            tenant.id,
+            _gl_rules.SupplierPaid(legacy_txn.id, _gl_today(), supplier.id, amount, source_code,
+                                   document_ids=tuple(payload.document_ids), note=payload.note),
+            actor=user.username,
+            source_module="pos",
+        ),
+        actor=user.username,
+        event_type="SupplierPaid",
+    )
 
     supplier.balance -= amount
     db.commit()

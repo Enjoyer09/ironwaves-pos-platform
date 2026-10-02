@@ -241,6 +241,8 @@ export async function add_inventory_item_live(data: {
   min_limit: Decimal;
   payment_source?: string;
   supplier?: string;
+  /** Required by the backend for receipts with a value when the tenant's ledger mode is dual. */
+  supplier_id?: string;
   invoice_no?: string;
 }, user: string = 'system') {
   if (!isBackendEnabled()) {
@@ -260,6 +262,7 @@ export async function add_inventory_item_live(data: {
         min_limit: new Decimal(data.min_limit).toFixed(3),
         payment_source: String(data.payment_source || 'payable'),
         supplier: String(data.supplier || '').trim() || null,
+        supplier_id: String(data.supplier_id || '').trim() || null,
         invoice_no: String(data.invoice_no || '').trim() || null,
       },
     });
@@ -281,7 +284,7 @@ export async function restock_item_live(
   qty_added: Decimal,
   total_price: Decimal,
   user: string = 'system',
-  options?: { payment_source?: string; supplier?: string; invoice_no?: string },
+  options?: { payment_source?: string; supplier?: string; supplier_id?: string; invoice_no?: string },
 ) {
   if (!isBackendEnabled()) {
     return restock_item(tenant_id, item_id, qty_added, total_price, user);
@@ -295,6 +298,7 @@ export async function restock_item_live(
         total_price: new Decimal(total_price).toFixed(2),
         payment_source: String(options?.payment_source || 'payable'),
         supplier: String(options?.supplier || '').trim() || null,
+        supplier_id: String(options?.supplier_id || '').trim() || null,
         invoice_no: String(options?.invoice_no || '').trim() || null,
       },
     });

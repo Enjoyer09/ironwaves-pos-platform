@@ -429,6 +429,7 @@ class ExpensePaid:
     supplier_id: str | None = None
     bank_fee: Decimal | str = ZERO
     note: str | None = None
+    branch_id: str | None = None
 
     def spec(self, tax: TaxSettings) -> JournalSpec:
         amount = _pos(self.amount, "Amount")
@@ -449,7 +450,7 @@ class ExpensePaid:
             lines.cr(wallet_role(self.paid_from), amount + fee, "Ödəniş")
             lines.dr("bank_fees", fee, "Bank komissiyası")
         return JournalSpec("purchase" if self.paid_from is None else "cash", lines.build(), self.note or "Xərc",
-                           "expense", self.expense_id, f"expense:{self.expense_id}", self.posting_date)
+                           "expense", self.expense_id, f"expense:{self.expense_id}", self.posting_date, self.branch_id)
 
 
 @dataclass(frozen=True)
@@ -522,6 +523,7 @@ class StockReceived:
     supplier_id: str | None = None
     input_vat: Decimal | str = ZERO
     invoice_no: str | None = None
+    branch_id: str | None = None
 
     def spec(self, tax: TaxSettings) -> JournalSpec:
         amount = _pos(self.amount, "Amount")
@@ -541,7 +543,7 @@ class StockReceived:
         else:
             lines.cr(wallet_role(self.paid_from), amount, "Nağd alış")
         return JournalSpec("purchase", lines.build(), f"Mal alışı {self.invoice_no or ''}".strip(), "stock_receipt",
-                           self.receipt_id, f"stock:{self.receipt_id}", self.posting_date)
+                           self.receipt_id, f"stock:{self.receipt_id}", self.posting_date, self.branch_id)
 
 
 @dataclass(frozen=True)
@@ -566,29 +568,51 @@ class StockWrittenOff:
 
 @dataclass(frozen=True)
 class SupplierPaid:
+    """Payment to a supplier. ``document_ids`` names the bills to settle first (then FIFO, see
+    ``documents.post_supplier_payment``); they do not change the journal itself."""
+
     payment_id: str
     posting_date: date
     supplier_id: str
     amount: Decimal | str
     paid_from: str
     bank_fee: Decimal | str = ZERO
+    document_ids: tuple[str, ...] = ()
+    note: str | None = None
 
     def spec(self, tax: TaxSettings) -> JournalSpec:
         amount = _pos(self.amount, "Amount")
         fee = _pos(self.bank_fee, "bank_fee")
+        note = str(self.note or "").strip()
         lines = _Lines()
-        lines.dr("accounts_payable", amount, "Təchizatçı borcu ödənildi", partner_type="supplier", partner_id=self.supplier_id)
+        lines.dr("accounts_payable", amount, "Təchizatçı borcu ödənildi" + (f": {note}" if note else ""),
+                 partner_type="supplier", partner_id=self.supplier_id)
         lines.cr(wallet_role(self.paid_from), amount + fee, "Ödəniş")
         lines.dr("bank_fees", fee, "Bank komissiyası")
-        return JournalSpec("purchase", lines.build(), "Təchizatçıya ödəniş", "supplier_payment", self.payment_id,
-                           f"supplier_payment:{self.payment_id}", self.posting_date)
+        return JournalSpec("purchase", lines.build(), "Təchizatçıya ödəniş" + (f": {note}" if note else ""), "supplier_payment",
+                           self.payment_id, f"supplier_payment:{self.payment_id}", self.posting_date)
 
 
 # ─────────────────────────────── posting ────────────────────────────────
 
 
-def post_event(db: Session, tenant_id: str, event, *, actor: str, require_approval: bool = False) -> GLJournal:
-    """Resolve the tax regime for the event's date, build its spec and post it (idempotent)."""
+def post_event(
+    db: Session,
+    tenant_id: str,
+    event,
+    *,
+    actor: str,
+    require_approval: bool = False,
+    source_module: str = "pos",
+    source_type: str | None = None,
+    source_id: str | None = None,
+) -> GLJournal:
+    """Resolve the tax regime for the event's date, build its spec and post it (idempotent).
+
+    ``source_module``/``source_type``/``source_id`` let an owner other than the POS flows claim the
+    journal (e.g. AP bill payments are GL-only documents: ``source_module="gl"``). ``None`` keeps
+    the spec's own source; the idempotency key always comes from the spec.
+    """
     posting_date = getattr(event, "posting_date", None) or gl.business_today()
     tax = get_tax_profile(db, tenant_id, posting_date)
     spec = event.spec(tax)
@@ -603,9 +627,9 @@ def post_event(db: Session, tenant_id: str, event, *, actor: str, require_approv
         created_by=actor,
         posting_date=spec.posting_date or posting_date,
         description=spec.description,
-        source_module="pos",
-        source_type=spec.source_type,
-        source_id=spec.source_id,
+        source_module=source_module,
+        source_type=source_type if source_type is not None else spec.source_type,
+        source_id=source_id if source_id is not None else spec.source_id,
         idempotency_key=spec.idempotency_key,
         branch_id=spec.branch_id,
         require_approval=require_approval,

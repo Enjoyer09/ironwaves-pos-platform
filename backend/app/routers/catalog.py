@@ -164,6 +164,33 @@ def _convert_recipe_qty_to_inventory_unit(quantity: Decimal, from_unit: str, inv
     return quantity * factor
 
 
+def _require_supplier_for_dual_receipt(db: Session, tenant_id: str, supplier_id: str | None, amount: Decimal) -> Supplier | None:
+    """Resolve the stock receipt's supplier (404 when not in this tenant).
+
+    In dual ledger mode every new receipt with a value needs a real supplier, so the AP line
+    (or the cash purchase) is never left unassigned. Legacy mode keeps the supplier optional.
+    """
+    from app.gl.bridge import get_ledger_mode
+
+    supplier = None
+    if supplier_id:
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.tenant_id == tenant_id).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+    if supplier is None and amount > 0 and get_ledger_mode(db, tenant_id) == "dual":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "supplier_required", "message": "Select a supplier for this stock receipt (required in dual ledger mode)"},
+        )
+    return supplier
+
+
+def _add_supplier_payable(supplier: Supplier | None, payment_source: str | None, amount: Decimal) -> None:
+    """A receipt on credit raises the supplier's operational balance (paid back via suppliers.pay_supplier)."""
+    if supplier is not None and str(payment_source or "payable").strip().lower() == "payable":
+        supplier.balance += amount
+
+
 def _log_inventory_audit(db: Session, tenant_id: str, username: str, action: str, details: dict):
     db.add(
         AuditLog(
@@ -543,6 +570,7 @@ def create_inventory_item(
         incoming_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
         incoming_total_value_exact = incoming_qty * incoming_unit_cost
         incoming_total_value = incoming_total_value_exact.quantize(Decimal("0.01"))
+        supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, incoming_total_value)
         old_total_value = Decimal(str(existing.stock_qty)) * Decimal(str(existing.unit_cost))
         new_total_qty = (Decimal(str(existing.stock_qty)) + incoming_qty).quantize(Decimal("0.001"))
         existing.stock_qty = new_total_qty
@@ -565,6 +593,7 @@ def create_inventory_item(
                 "mode": "merge",
             },
         )
+        _add_supplier_payable(supplier, payload.payment_source, incoming_total_value)
         post_inventory_restock(
             db,
             tenant_id=tenant.id,
@@ -573,7 +602,8 @@ def create_inventory_item(
             payment_source=str(payload.payment_source or "payable"),
             category="Xammal Mədaxili",
             note=f"{existing.name} mədaxili ({incoming_qty} {existing.unit})",
-            reference=str(payload.invoice_no or payload.supplier or existing.id),
+            reference=str(payload.invoice_no or (supplier.name if supplier else payload.supplier) or existing.id),
+            supplier_id=supplier.id if supplier else None,
         )
         db.commit()
         db.refresh(existing)
@@ -582,6 +612,7 @@ def create_inventory_item(
         opening_qty = Decimal(str(payload.stock_qty)).quantize(Decimal("0.001"))
         opening_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
         opening_total_value = (opening_qty * opening_unit_cost).quantize(Decimal("0.01"))
+        supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, opening_total_value)
         row = InventoryItem(
             tenant_id=tenant.id,
             name=name,
@@ -605,6 +636,7 @@ def create_inventory_item(
                 "mode": "create",
             },
         )
+        _add_supplier_payable(supplier, payload.payment_source, opening_total_value)
         post_inventory_restock(
             db,
             tenant_id=tenant.id,
@@ -613,7 +645,8 @@ def create_inventory_item(
             payment_source=str(payload.payment_source or "payable"),
             category="Xammal Mədaxili",
             note=f"{row.name} ilkin mədaxil ({opening_qty} {row.unit})",
-            reference=str(payload.invoice_no or payload.supplier or row.name),
+            reference=str(payload.invoice_no or (supplier.name if supplier else payload.supplier) or row.name),
+            supplier_id=supplier.id if supplier else None,
         )
         db.commit()
         db.refresh(row)
@@ -736,15 +769,8 @@ def restock_inventory_item(
     if total_price < 0:
         raise HTTPException(status_code=400, detail="Total price cannot be negative")
 
-    supplier = None
-    if payload.supplier_id:
-        supplier = db.query(Supplier).filter(Supplier.id == payload.supplier_id, Supplier.tenant_id == tenant.id).first()
-        if not supplier:
-            raise HTTPException(status_code=404, detail="Supplier not found")
-        
-        # Adjust balance if payment source is payable (Accounts Payable)
-        if str(payload.payment_source or "payable").strip().lower() == "payable":
-            supplier.balance += total_price
+    supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, total_price.quantize(Decimal("0.01")))
+    _add_supplier_payable(supplier, payload.payment_source, total_price)
 
     old_total_value = Decimal(str(row.stock_qty)) * Decimal(str(row.unit_cost))
     new_total_qty = Decimal(str(row.stock_qty)) + qty_added
