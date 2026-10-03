@@ -76,6 +76,10 @@ Capacitor wraps the customer loyalty app for iOS/Android (`capacitor.config.ts`,
 - `server.js` is the production static server (not Vite preview): SPA fallback, security headers, path-traversal/`.env`/`.git` blocking, `/healthz`. Railway healthcheck for frontend is `/health`, backend is `/health/deep`.
 - Backend secrets (`JWT_SECRET`, `SUPERADMIN_PASSWORD`, `DATABASE_URL`) are required env vars with no safe defaults; demo seeding is off by default and blocked in production unless explicitly allowed.
 
+## Finance v2 (general ledger) — read before touching finance
+
+A new double-entry GL (`backend/app/gl/`, AMHP chart, `/api/v1/gl`, admin module "Mühasibat (v2)") is being rolled out tenant by tenant next to the legacy finance code. **Start with `docs/FINANCE_V2_START_HERE.md`** (history, production state, in-flight work, risk register, next steps). Hard rules: real customer tenants (Gyros, Daily Coffee, Art Space, SocialBee) stay `legacy` until the blockers listed there are fixed; never change a tenant's ledger mode / reports source or run anything against production without a backup, a PR and the owner's go-ahead where that document says so; pilots run on the Platform (`super`) test tenant; never print secrets; the Railway/CI picture differs from local (CI does not run the PostgreSQL or frontend node tests, so run them yourself).
+
 ## Reference docs
 - `DEPLOYMENT_RUNBOOK.md` — Railway + Neon deploy, required env vars, CORS/wildcard subdomains.
 - `backend/README.md` — API endpoint list and local run.
