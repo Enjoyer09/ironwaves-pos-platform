@@ -1,10 +1,10 @@
 // Finance v2 — general ledger workspace (AMHP chart of accounts, double entry).
 // Visible only when the backend reports the GL API as enabled for this tenant (see /api/v1/gl/capabilities).
 import React from 'react';
-import { BookOpenCheck, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BookOpenCheck, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { getGLCapabilities, glApi, type GLAccount, type GLCapabilities } from '../../api/gl';
+import { getGLCapabilities, glApi, type GLAccount, type GLAlert, type GLCapabilities } from '../../api/gl';
 import { GLContext, type GLPanelContext } from './financev2/context';
 import { Badge, Empty, Loading, btn, errorText, monthStart } from './financev2/FinanceV2Parts';
 import { AccountLedgerTab, OverviewTab, TrialBalanceTab } from './financev2/ReportsTabs';
@@ -22,6 +22,7 @@ export default function FinanceV2Panel() {
   const [tab, setTab] = React.useState<Tab>('overview');
   const [version, setVersion] = React.useState(0);
   const [pendingCount, setPendingCount] = React.useState(0);
+  const [openAlerts, setOpenAlerts] = React.useState<GLAlert[]>([]);
   const [journalId, setJournalId] = React.useState<string | null>(null);
   const [ledgerAccountId, setLedgerAccountId] = React.useState('');
   const [from, setFrom] = React.useState('');
@@ -44,8 +45,14 @@ export default function FinanceV2Panel() {
     let alive = true;
     glApi.accounts().then((rows) => { if (alive) setAccounts(rows); }).catch((e) => notify('error', errorText(e)));
     glApi.journals({ status: 'pending_approval', limit: 1 }).then((page) => { if (alive) setPendingCount(page.total); }).catch(() => {});
+    // Open reconciliation alerts drive the red banner + Nezaret badge (controllers/auditors only).
+    if (caps?.can_audit) {
+      glApi.alerts('open').then((rows) => { if (alive) setOpenAlerts(rows); }).catch(() => {});
+    } else {
+      setOpenAlerts([]);
+    }
     return () => { alive = false; };
-  }, [caps?.chart_ready, version, notify]);
+  }, [caps?.chart_ready, caps?.can_audit, version, notify]);
 
   const ctx = React.useMemo<GLPanelContext | null>(() => {
     if (!caps) return null;
@@ -97,7 +104,7 @@ export default function FinanceV2Panel() {
     { id: 'bills', label: tx(lang, 'Fakturalar', 'Счета', 'Bills'), show: true },
     { id: 'periods', label: tx(lang, 'Dövrlər və il', 'Периоды и год', 'Periods & year'), show: true },
     { id: 'tax', label: tx(lang, 'Vergi', 'Налог', 'Tax'), show: true },
-    { id: 'integrity', label: tx(lang, 'Nəzarət', 'Контроль', 'Controls'), show: caps.can_audit },
+    { id: 'integrity', label: tx(lang, 'Nəzarət', 'Контроль', 'Controls'), show: caps.can_audit, badge: openAlerts.length },
   ];
   const visibleTabs = tabs.filter((t) => t.show);
   const range = { from, to, setFrom, setTo };
@@ -135,6 +142,31 @@ export default function FinanceV2Panel() {
             </div>
           </div>
         </header>
+
+        {openAlerts.length ? (
+          <div role="alert" className="flex flex-col gap-2 rounded-[24px] border border-rose-400/40 bg-rose-950/40 p-4 text-rose-50 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-rose-300" />
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.12em] text-rose-200">
+                  {tx(lang,
+                    'Uzlaşma problemi aşkarlandı',
+                    'Обнаружена проблема сверки',
+                    'Reconciliation problem detected')}
+                </div>
+                <p className="mt-1 text-sm text-rose-100">
+                  {tx(lang,
+                    `${openAlerts.length} həll olunmamış bildiriş var. Təfərrüatlar və təsdiq üçün «Nəzarət» bölməsinə baxın.`,
+                    `${openAlerts.length} неподтверждённых уведомлений. Подробности и подтверждение — во вкладке «Контроль».`,
+                    `${openAlerts.length} unacknowledged alert(s). Open the Controls tab for details and to acknowledge.`)}
+                </p>
+              </div>
+            </div>
+            <button type="button" className="min-h-11 shrink-0 rounded-2xl border border-rose-300/50 px-4 text-sm font-black text-rose-50 hover:bg-rose-900/50" onClick={() => setTab('integrity')}>
+              {tx(lang, 'Nəzarətə keç', 'К контролю', 'Go to Controls')}
+            </button>
+          </div>
+        ) : null}
 
         {!caps.chart_ready ? (
           <Empty>

@@ -19,6 +19,36 @@ def _ensure_supplier_write_access(user: User):
         raise HTTPException(status_code=403, detail="Manager access required")
 
 
+def _supplier_out(supplier: Supplier, *, balance: Decimal | None = None, source: str = "legacy") -> SupplierOut:
+    """Build a SupplierOut response without mutating the ORM row. When ``balance``
+    is given (GL AP subledger balance) it replaces the legacy numeric column."""
+    return SupplierOut(
+        id=supplier.id,
+        tenant_id=supplier.tenant_id,
+        name=supplier.name,
+        contact_person=supplier.contact_person,
+        phone=supplier.phone,
+        email=supplier.email,
+        address=supplier.address,
+        notes=supplier.notes,
+        balance=supplier.balance if balance is None else balance,
+        balance_source=source,
+        created_at=supplier.created_at,
+    )
+
+
+def _ap_balances(db: Session, tenant_id: str) -> dict[str, Decimal]:
+    """Supplier-id -> GL AP subledger balance from a single subledger('ap') call."""
+    from app.gl.subledger import subledger
+
+    ledger = subledger(db, tenant_id, "ap")
+    return {
+        row["partner_id"]: Decimal(str(row["balance"]))
+        for row in ledger["partners"]
+        if row.get("partner_type") == "supplier" and row.get("partner_id")
+    }
+
+
 @router.get("", response_model=list[SupplierOut])
 def get_suppliers(
     db: Session = Depends(get_db),
@@ -26,8 +56,13 @@ def get_suppliers(
     user: User = Depends(get_current_user),
 ):
     _ensure_supplier_write_access(user)
+    from app.gl.read_model import reports_source
+
     suppliers = db.query(Supplier).filter(Supplier.tenant_id == tenant.id).order_by(Supplier.name).all()
-    return suppliers
+    if reports_source(db, tenant.id) == "gl":
+        ap = _ap_balances(db, tenant.id)  # one subledger('ap') call for the whole list
+        return [_supplier_out(s, balance=ap.get(s.id, Decimal("0.00")), source="gl") for s in suppliers]
+    return [_supplier_out(s) for s in suppliers]
 
 
 @router.post("", response_model=SupplierOut)
@@ -64,10 +99,15 @@ def get_supplier(
     user: User = Depends(get_current_user),
 ):
     _ensure_supplier_write_access(user)
+    from app.gl.read_model import reports_source
+
     supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.tenant_id == tenant.id).first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
-    return supplier
+    if reports_source(db, tenant.id) == "gl":
+        ap = _ap_balances(db, tenant.id)
+        return _supplier_out(supplier, balance=ap.get(supplier.id, Decimal("0.00")), source="gl")
+    return _supplier_out(supplier)
 
 
 @router.put("/{supplier_id}", response_model=SupplierOut)

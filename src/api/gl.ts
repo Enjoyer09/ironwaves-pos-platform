@@ -222,6 +222,24 @@ export type ShadowStatus = {
   runs: ShadowRun[];
 };
 
+export type GLAlertType = 'reconcile_failed' | 'native_error' | 'streak_broken' | string;
+export type GLAlertStatus = 'open' | 'acknowledged' | 'resolved' | string;
+
+export type GLAlert = {
+  id: string;
+  tenant_id: string;
+  alert_type: GLAlertType;
+  status: GLAlertStatus;
+  detail: string | null;
+  context: unknown;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  occurrences: number;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+};
+
 export type GLIntegrity = {
   audit_chain: { valid: boolean; [key: string]: unknown };
   balances: { valid: boolean; mismatches: unknown[] };
@@ -324,6 +342,12 @@ export const glApi = {
   reopenFiscalYear: (year: number, reason: string) => post<GLJournal>(`/years/${year}/reopen`, { reason }),
   shadowStatus: () => get<ShadowStatus>('/shadow/status'),
   integrity: () => get<GLIntegrity>('/integrity'),
+  /** Reconciliation / native-error alerts for this tenant (default: open only). */
+  alerts: (status: GLAlertStatus | null = 'open') => get<GLAlert[]>('/alerts', { status }),
+  /** Acknowledge an open alert (audited; controllers only). */
+  acknowledgeAlert: (id: string) => post<GLAlert>(`/alerts/${encodeURIComponent(id)}/acknowledge`),
+  /** Cross-tenant open alerts for the platform super_admin. */
+  alertsAll: (status: GLAlertStatus | null = 'open') => get<GLAlert[]>('/alerts/all', { status }),
   /** Supplier picker for bills / reclass (readable by every GL reader). */
   suppliers: () => get<GLSupplier[]>('/suppliers'),
   /** AP bills only (AR invoices are deferred); `summary` covers every page of the filtered set. */

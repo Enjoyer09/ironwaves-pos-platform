@@ -256,6 +256,34 @@ class GLShadowRun(Base):
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class GLAlert(Base):
+    """Admin-visible operational alert for the Finance v2 cut-over.
+
+    Raised when a nightly reconcile fails, a native posting errors out
+    (``bridge.emit``) or a clean reconciliation streak breaks. At most one
+    *open* alert per ``(tenant_id, alert_type)`` exists until it is acknowledged
+    or auto-resolved by a later clean run, so repeated failures bump
+    ``occurrences`` instead of spamming new rows. Lifecycle is enforced in code
+    (``app.gl.alerts``); no PG trigger is needed.
+    """
+
+    __tablename__ = "gl_alerts"
+    __table_args__ = (Index("ix_gl_alerts_tenant_type_status", "tenant_id", "alert_type", "status"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(32), nullable=False)  # reconcile_failed | native_error | streak_broken
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")  # open | acknowledged | resolved
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class GLLegacyLink(Base):
     """Dual mode: which legacy transactions a native GL journal replaces.
 

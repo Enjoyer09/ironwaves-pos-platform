@@ -217,3 +217,104 @@ def test_concurrent_drawer_postings_do_not_deadlock(Session, tid):
         assert results == ["ok", "ok"], (rnd, results)
     with Session() as s:
         assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == Decimal("90.00")
+
+
+def test_approve_vs_concurrent_posting_on_guarded_account_no_deadlock(Session, tid):
+    """The exact scenario WP3 flagged (2/90 rounds deadlocked): one transaction APPROVES a
+    pending manual journal touching the guarded cash drawer while another transaction POSTS a
+    plain journal on the SAME guarded account. With the canonical lock order on both paths this
+    must never deadlock (SQLSTATE 40P01). >=100 rounds, both sides deposit so no balance guard
+    trips and every round posts cleanly; the final drawer balance must stay consistent.
+    """
+    rounds = 100
+    deadlocks: list[str] = []
+    lock = threading.Lock()
+
+    for rnd in range(rounds):
+        # Fresh pending journal to approve this round: a deposit of 2.00 into the guarded drawer.
+        with Session() as s:
+            pending = gl.create_journal(
+                s, tenant_id=tid, journal_type="cash", created_by="maker", posting_date=DAY,
+                lines=[LineIn("cash_drawer", debit="2.00"), LineIn("share_capital", credit="2.00")],
+                require_approval=True,
+            )
+            pending_id = pending.id
+            s.commit()
+
+        barrier = threading.Barrier(2)
+        results: list[str] = []
+
+        def approver():
+            with Session() as s:
+                try:
+                    barrier.wait()
+                    gl.approve_journal(s, tid, pending_id, approver="checker")
+                    s.commit()
+                    outcome = "ok"
+                except Exception as exc:  # noqa: BLE001 - a deadlock must fail the assertion, not vanish
+                    s.rollback()
+                    outcome = type(exc).__name__
+                    if isinstance(exc, DBAPIError) and str(getattr(getattr(exc, "orig", None), "pgcode", "")) == "40P01":
+                        with lock:
+                            deadlocks.append(f"approve:{rnd}")
+            results.append(outcome)
+
+        def poster():
+            with Session() as s:
+                try:
+                    barrier.wait()
+                    gl.create_journal(
+                        s, tenant_id=tid, journal_type="cash", created_by="cashier", posting_date=DAY,
+                        lines=[LineIn("cash_drawer", debit="1.00"), LineIn("share_capital", credit="1.00")],
+                    )
+                    s.commit()
+                    outcome = "ok"
+                except Exception as exc:  # noqa: BLE001
+                    s.rollback()
+                    outcome = type(exc).__name__
+                    if isinstance(exc, DBAPIError) and str(getattr(getattr(exc, "orig", None), "pgcode", "")) == "40P01":
+                        with lock:
+                            deadlocks.append(f"post:{rnd}")
+            results.append(outcome)
+
+        threads = [threading.Thread(target=approver), threading.Thread(target=poster)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert sorted(results) == ["ok", "ok"], (rnd, results)
+
+    assert deadlocks == [], f"{len(deadlocks)} deadlock(s) over {rounds} rounds: {deadlocks[:5]}"
+    # Opening 100 + (approve 2.00 + post 1.00) per round, both deposits into the drawer.
+    with Session() as s:
+        expected = Decimal("100.00") + Decimal("3.00") * rounds
+        assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == expected
+
+
+def test_failing_native_error_alert_cannot_abort_the_surrounding_transaction(Session, tid, monkeypatch):
+    """On PostgreSQL a failed statement aborts the whole transaction (= the sale being committed).
+    bridge.emit raises its native_error alert inside its own savepoint, so even a broken alert
+    writer leaves the surrounding transaction committable."""
+    from app.gl import alerts, bridge
+    from app.gl.models import GLAlert
+
+    with Session() as s:
+        bridge.set_ledger_mode(s, tid, "dual", actor="it", reason="integration")
+        s.commit()
+
+    def broken_alert(session, *args, **kwargs):
+        session.add(GLAlert(tenant_id=tid, alert_type="x" * 500, status="open", detail="d", occurrences=1))  # VARCHAR overflow
+        session.flush()
+
+    monkeypatch.setattr(alerts, "raise_alert", broken_alert)
+
+    def boom():
+        raise ZeroDivisionError("bug in a hook")
+
+    with Session() as s:
+        s.execute(text("INSERT INTO settings (id, tenant_id, key, value) VALUES (:i, :t, 'it_marker', 'alive')"),
+                  {"i": str(uuid.uuid4()), "t": tid})
+        assert bridge.emit(s, tid, boom, actor="it") is None  # never raises
+        s.commit()  # would raise PendingRollbackError without the savepoint
+    with Session() as s:
+        assert s.execute(text("SELECT value FROM settings WHERE tenant_id=:t AND key='it_marker'"), {"t": tid}).scalar() == "alive"
