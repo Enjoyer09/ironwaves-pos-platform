@@ -218,7 +218,15 @@ def shadow_status(db: Session, tenant_id: str, limit: int = 30) -> dict:
         .limit(limit)
         .all()
     )
-    reconciles = [r for r in rows if r.run_type == "reconcile"]
+    # The streak must come from a reconcile-only query. `rows` mixes sync runs (one per 5 minutes on a busy
+    # tenant), so its 30-row window can hold only a handful of nightly reconciles and understate the streak.
+    reconciles = (
+        db.query(GLShadowRun)
+        .filter(GLShadowRun.tenant_id == tenant_id, GLShadowRun.run_type == "reconcile")
+        .order_by(GLShadowRun.started_at.desc())
+        .limit(365)
+        .all()
+    )
     streak = 0
     for r in reconciles:  # newest first
         if not r.ok:
