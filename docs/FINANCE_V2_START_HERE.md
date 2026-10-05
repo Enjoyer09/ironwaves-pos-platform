@@ -9,7 +9,7 @@ what is broken or risky, and exactly what to do next.
 > sonra `docs/FINANCE_V2_HANDOFF.md` (dərin arxitektura) və `docs/finance-v2-handoff.md` (iş paketləri üçün prompt-lar).
 > **Sahibkar Azərbaycan dilində danışır: ona Azərbaycan dilində, qısa və faktlarla cavab verin.**
 
-- **Snapshot:** 2026-10-02, around midday Asia/Baku. `main` = `371b87c6` (PR #39 merged). Production runs that commit.
+- **Snapshot:** 2026-10-05, ~18:00 Asia/Baku (check `date`: the machine clock advanced three days during the previous session). `main` = `984025cd` (PR #41 merged); PR #42 (streak fix) and PR #40 (this document) may still be open: see `gh pr list`. Production runs `main`.
 - **How to refresh the snapshot:** every fact that can change is marked **[verify]** with the command to re-check it
   (section 9). Facts change fast; never trust this file over a command you just ran.
 - **Companion files** (all in `docs/`):
@@ -36,12 +36,13 @@ what is broken or risky, and exactly what to do next.
 3. A tenant climbs a ladder: `legacy` → **shadow** (GL mirrors legacy every 5 min, automatic for every tenant that has a GL chart) → **`dual`**
    (each business event also posts a native GL journal in the same DB transaction) → **reports source `gl`**
    (finance screens read numbers from the GL) → *(future, irreversible)* **legacy writes stop**.
-4. Code is finished and in production up to and including bills/payables (WP3). A **cut-over readiness package**
-   (alerts, readiness check, supplier balances from GL, deadlock fix, UI QA) is **built but not yet pushed/merged**
-   (section 6).
+4. Code is finished and in production up to and including bills/payables (WP3) **and the cut-over readiness package**
+   (alerts, readiness check, supplier balances from GL, deadlock fix, UI QA; PR #41, section 6). What is missing before a real
+   tenant can move is **WP-A** (section 8, Phase 1), not more infrastructure.
 5. Production today: **Demo** and **Platform (super)** are `dual` + reports `gl` (both are test tenants). The **four real
    customers are still `legacy`/`legacy`** and must stay that way until the blockers in section 7 are fixed.
-6. **Three traps were found in the last hour and are NOT yet fixed** (section 7, R1–R3): switching a real tenant to
+6. **Three traps are NOT yet fixed** (section 7, R1–R3). **The readiness script does not know about them: it already says
+   `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space. Do not treat that YES as permission** (R19): switching a real tenant to
    `dual` would (a) show the new "Mühasibat (v2)" menu to the customer's admins/managers, (b) make stock receipts
    demand a supplier, and (c) cannot be cleanly rolled back to `legacy`. **Do not switch any real tenant before
    work package WP-A (section 8) is done.** An earlier statement that "dual is invisible to the customer" was wrong.
@@ -159,6 +160,9 @@ Everything below is merged to `main` and deployed unless stated otherwise. Verif
 | **P3a** | #37 `0f63eccb` | **Year-end close** (closing journal → 343, `year_closed` guard, reopen via 4-eyes storno); **AP/AR sub-ledger** with FIFO aging; **Excel(CSV)/PDF export**; API refuses to reverse operational journals (`source_managed`); **refresh_tokens purge** (table never cleaned: 253 k dead rows; now hourly batched purge; verified 3 284 rows on 2026-10-01) | 874 backend tests; staging purge 249 645 rows in 4.2 s |
 | **Docs** | #38 `5d5c3a45` | `FINANCE_V2_HANDOFF.md` + prompt pack | — |
 | **WP3 bills (AP)** | #39 `371b87c6` | `gl_documents`, `gl_document_allocations` (Alembic `20261001_0001`); bills via StockReceived/ExpensePaid; payments GL-only (`source_module="gl"`), idempotent, row-locked, overpayment → 409; maker-checker void / payment reversal / reclass of unassigned AP; supplier required for dual stock receipts; due-date aging in "Borclar"; BillsTab | see 4.3; prod pilot on super **26/26**, reconcile 14/14 throughout |
+| **Cut-over readiness** | #41 `984025cd` | `gl_alerts` + alerting (Alembic `20261002_0001`), read-only `gl_readiness.py`, supplier balance from GL AP sub-ledger when reports source = gl, canonical lock order + bounded 40P01 retry (PG probe 100 rounds, 0 deadlocks), UI QA (10 tabs, 2 viewports, no defects). **Found and fixed before merging:** the `native_error` alert in `bridge.emit` ran outside a savepoint, so on PostgreSQL a failing alert insert aborted the sale's own transaction (`PendingRollbackError`); PG regression test fails without the fix | SQLite 975/21, PG integration 21, frontend green; prod check 18/18 (synthetic alert raised, de-duplicated, acknowledged, resolved on super; real tenants have 0 alerts) |
+| **Streak fix** | #42 | `shadow_status` counted reconciles inside the last 30 runs of any type, so frequent syncs truncated the clean streak (Gyros showed 2 after 6 clean nights). Now a reconcile-only query | regression test fails without fix (`0 == 6`); 976/22 |
+| **Docs** | #40 | this file, accountant questions, original design, PR #39 review, CLAUDE.md pointer | — |
 
 ### 4.3 The WP3 story (why reviews matter)
 WP3 was first written by a *different* AI agent (Gemini Flash) from the handoff. Its own tests were green (882 passed) but an
@@ -177,6 +181,10 @@ reconciliation after every money operation, and never write production facts you
   backup attempt was interrupted and left a 0-byte file — it was deleted and redone, always check the size).
   Pilot on super: 26/26. **Super switched to reports `gl`** (parity OK: all 8 wallet balances identical; reconcile 14/14).
   Nightly reconcile: `ok` on 09-30, 10-01, 10-02 for art-space, demo, emalatcoffee, gyros, super; 0 `native_error`.
+- 2026-10-05: PR #41 merged + deployed (backup `railway-prod-2026-10-02-premerge-cutover.dump.enc`, 59.0 MB, **62 tables**; the table count
+  rose from 60 to 62 with the two WP3 tables). Post-deploy check 18/18. Nightly reconcile `ok` every night 09-30 → 10-05 for art-space, demo,
+  emalatcoffee, gyros, super; 0 `native_error` ever; `refresh_tokens` 3 559 rows. The 2026-10-04 backup-deletion date passed without
+  deletion (nobody was asked): the backups and `iw-staging-pg` are all still there.
 
 ---
 
@@ -215,39 +223,33 @@ Scripts: `backend/scripts/gl_ledger_mode.py` (`--list`, `--tenant X --set dual|l
 
 ---
 
-## 6. In-flight work (NOT on `main`)  [verify: C2]
+## 6. Recently landed and still open  [verify: C2]
 
-**Package "cut-over readiness"** — branch `feature/finance-v2-cutover-prep`, git worktree
-`/Users/macbookair/Documents/GitHub/ironwaves-pos-platform/.worktrees/finance-v2-cutover-prep`, launched as Kiro workflow
-`wf_ccdb45a8493a09f8` on 2026-10-02. **Nothing is pushed; no PR exists yet.** When this file was written the commits were:
+**Nothing substantial is in flight as of this snapshot.** Check `gh pr list` and `git worktree list` first.
 
-| Commit | Deliverable |
-|---|---|
-| `f11accff` | **Alerting**: `gl_alerts` table (Alembic `20261002_0001`, after `20261001_0001`), `app/gl/alerts.py` (one open alert per tenant+type, auto-resolve on clean run, audited acknowledge), wired into `shadow.reconcile_tenant_shadow` and `bridge.emit`; `GET /api/v1/gl/alerts`, `POST /alerts/{id}/acknowledge`, `GET /alerts/all` (super_admin); red banner + badge in the panel. `[gl-alert]` ERROR log lines. External channel = no-op (no secrets added). |
-| `a60e2168` | **Readiness check**: `app/gl/readiness.py` (read-only, zero writes) + `backend/scripts/gl_readiness.py --tenant X [--json] [--allow-production]` → verdicts `can_switch_to_dual`, `can_switch_reports_to_gl` with reasons |
-| `29d48ef7` | **Supplier balances from GL**: when a tenant's reports source is `gl`, suppliers list/detail return the GL AP balance under the same `balance` field + new `balance_source` |
-| `6e10767c` | **Deadlock**: canonical lock order documented/enforced in `approve_journal`; bounded SQLSTATE `40P01` retry in router `_run`; PG probe 100 rounds / 0 deadlocks |
+- **PR #41 (cut-over readiness) is merged and deployed.** Contents in the table in 4.2. New production objects: table `gl_alerts`,
+  endpoints `GET /api/v1/gl/alerts`, `POST /alerts/{id}/acknowledge`, `GET /alerts/all` (super_admin only), the red banner / "Nəzarət"
+  badge in the panel, the `[gl-alert]` ERROR log line, `backend/scripts/gl_readiness.py`, and the GL-sourced balance in the Suppliers list.
+- **PR #42 (streak fix) and PR #40 (docs)**: open at the time of writing unless `gh pr list` says otherwise. #42 is a read-only code path
+  (no schema change); merging either triggers the normal Railway redeploy.
+- **A git worktree** `.worktrees/finance-v2-cutover-prep` (branch `feature/finance-v2-cutover-prep`, merged) still exists locally.
+  Remove it: `git worktree remove .worktrees/finance-v2-cutover-prep && git branch -d feature/finance-v2-cutover-prep`.
+  It contains a `node_modules` symlink and an untracked `.agents/` folder: nothing to save there except the QA report
+  (`/Users/macbookair/Documents/GitHub/ironwaves-pos-platform/.agents/qa/finance-v2/QA-REPORT.md` and 20 screenshots, outside git).
+- **What the alerting does and does not do.** A failed nightly reconcile, a broken clean streak or a `native_error` writes one open row per
+  tenant+type to `gl_alerts`, logs `[gl-alert] tenant=… type=… detail=…` at ERROR, shows a red banner to the tenant's finance roles (and to
+  super_admin through `/alerts/all`), and auto-resolves on the next clean nightly run. **It does not notify anyone outside the panel**
+  (`notify_external` is a deliberate no-op; no e-mail/Telegram/SMS secret exists). For the real-tenant rollout somebody has to *look*: check
+  `/alerts/all` as super_admin and `railway logs | grep gl-alert` every morning, or build the external channel first (section 8, Phase 1, WP-A5).
+- **UI QA result:** 10 tabs × (1440×900, 390×844): no console errors, no page-level horizontal overflow, Escape closes nested dialogs one at a
+  time, focus ring visible, az/ru/en switch works. Open observation (not fixed, app-wide, product decision): a global `src/index.css` rule
+  shrinks `rem` on small *mouse* windows, so controls declared `min-h-11` can be below 44 px there; real touch devices (`pointer: coarse`) get 44/48 px.
+  Full WCAG conformance is **not** claimed: it needs manual assistive-technology testing.
 
-Last reported numbers on that branch: SQLite **974 passed / 21 skipped**; PG `tests/integration` **20 passed**; single Alembic head
-`20261002_0001`; frontend tsc clean, smoke 60/60, `test:gl` 4/4.
-
-**Still running when written:** FEAT-005 (browser UI QA with Playwright, screenshots in `.agents/qa/finance-v2/`, fixes), then a
-two-model review loop (max 3 iterations, stops at `review.json` verdict `APPROVED`), then a `finalize-merge` step. **Despite its
-name, `finalize-merge` only re-runs verification and writes a summary: it does not push, open a PR, or merge** (checked in the
-workflow definition). Pushing and opening the PR is a manual step for whoever continues.
-
-How to continue if the workflow died or finished:
-1. `git -C <worktree> log --oneline origin/main..HEAD` and `git -C <worktree> status` — inspect what exists.
-2. Read `<worktree>/.agents/tasks/plan.md`, `<worktree>/.agents/tasks/review.json`, `<worktree>/.agents/task-finance-v2-cutover/*.json`.
-3. Re-run the verification matrix (section 10, V-all) in the worktree. If a FEAT is missing/incomplete, finish it.
-4. Two independent reviews (different models), fix CRITICAL/HIGH, then `git push -u origin feature/finance-v2-cutover-prep`,
-   `gh pr create`, wait for *Backend Checks* + *Frontend Build* (the PR preview deploy always fails: no Postgres there; ignore),
-   backup → merge → wait for both Railway deploys → verify with C-commands → read-only production check of the new endpoints.
-   The migration `20261002_0001` creates one new table only; take the normal pre-merge backup anyway.
-5. After deploy: run `gl_readiness.py` for **every** tenant inside the container (read-only) and keep the output.
-
-Untracked local folders that are **not** part of the repo and must never be committed: `semantic-review/`, `.agents/`, `.worktrees/`.
-(`.agents/` holds review reports and workflow artifacts; `docs/finance-v2/history/` has the important one checked in.)
+How to run a work package through Kiro workflows (what the previous agent did): `run_workflow` with a `workflowPrompt` brief (planner → coder(s) →
+two independent reviewers on different models in parallel → aggregator last → loop while CRITICAL/HIGH remain). Read the generated step prompts
+in `~/.kiro/sessions/*/workflows/<id>/workflow-definition.json` (a step named `finalize-merge` only re-verified; it never merged). Then verify the
+result yourself before shipping: workflow reviews approved a change that could abort a sale's transaction on PostgreSQL (section 11, #17).
 
 ---
 
@@ -268,13 +270,15 @@ Severity: **BLOCKER** = must be fixed before a real tenant changes mode. Facts m
 | R9 | MED | `gl_documents`/allocations have no PG immutability triggers; AR invoices not implemented | review F24/F25 | Deferred |
 | R10 | MED | `_reset_demo_tenant_runtime` (`auth.py:505`) deletes a tenant's **Settings** rows (ledger mode, reports source) on logout from the Demo tenant when `DEMO_TENANT_ENABLED=true`. It is `false` in production ✔ (Railway variable), but turning it on would silently revert Demo to legacy. | ✔ read | Never enable it in production; or exclude `finance_v2_*` keys |
 | R11 | MED | **CI does not run PostgreSQL tests or the frontend node tests.** Job "Backend Integration (PostgreSQL)" shows *skipping* on PRs (needs `INTEGRATION_DATABASE_URL`); `test:smoke`, `test:gl`, `test:gl:bills` are not in `ci.yml`. CI only compiles, runs SQLite pytest, `alembic upgrade head --sql`, `npm run typecheck` and the Vite build. | ✔ `.github/workflows/ci.yml` | Always run PG tests + node tests locally (V-all) before merging |
-| R12 | LOW | Engine approval-vs-posting deadlock (2/90 probe rounds) existed on `main`; fixed on the cut-over branch (not yet merged) | WP3 review v2 | merge the branch |
-| R13 | LOW | No real-browser QA has been done for the panel (in flight: FEAT-005) | — | finish FEAT-005 |
+| R12 | — | ~~Engine approval-vs-posting deadlock~~ | fixed in #41 (lock order + bounded 40P01 retry; PG probe 100 rounds, 0 deadlocks) | done |
+| R13 | — | ~~No browser QA~~ | done in #41 (no defects; WCAG not claimed) | manual assistive-tech test still open |
 | R14 | LOW | SocialBee has no GL chart, so `gl_ledger_mode.py --set dual` would fail (`accounts_by_role`) and `reconcile_tenant` raised `KeyError 'cash_drawer'` | WP3 verification | run `migrate_tenant`/`ensure_chart` for it before any step |
 | R15 | LOW | Railway warns `railway.json`/`railway.toml` Config-as-Code stops working **2026-12-01** | `railway` CLI output | `railway config migrate` on a branch, test, deploy before that date |
 | R16 | LOW | DB size: `audit_logs` ≈ 100 MB, `sales.receipt_html` ≈ 76 MB | earlier size analysis | retention/archiving proposal (owner's call) |
-| R17 | INFO | Backups: 9 encrypted dumps in `~/iw-backups/2026-09-30/` (latest `railway-prod-2026-10-02-premerge-p3b.dump.enc`, 58.2 MB). Owner planned deletion on **2026-10-04**. Staging container `iw-staging-pg` + volume `iw-staging-pgdata`, Keychain key `iw-backup-2026-09-30`. | ✔ `ls` | ASK before deleting; offer to keep the newest dump; new dumps need the same key |
+| R17 | INFO | Backups: **10** encrypted dumps in `~/iw-backups/2026-09-30/` (latest `railway-prod-2026-10-02-premerge-cutover.dump.enc`, 59.0 MB, 62 tables). Owner's planned deletion date **2026-10-04 has passed; nothing was deleted and nobody asked**: ask now. Staging container `iw-staging-pg` + volume `iw-staging-pgdata`, Keychain key `iw-backup-2026-09-30`. | ✔ `ls` | ASK before deleting; offer to keep the newest dump; new dumps need the same key |
 | R18 | INFO | Railway SSH key `macbookair-finance-v2` was registered on the Railway account so scripts can run in the container | — | remove it when the migration is finished (ASK) |
+| **R19** | **HIGH** | **`gl_readiness.py` is necessary, not sufficient.** It does not model R1 (module visible), R2 (supplier required), R3 (no clean rollback) or R5 (numbers shift when reports move to `gl`). On 2026-10-05 it printed `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space. | ✔ post-deploy check | WP-A6: add those four facts as explicit blocking reasons (e.g. `ui_visible` setting absent, `require_supplier` coupled to mode, rollback not verified) so the verdict is `no` until WP-A is done |
+| **R20** | MED | **Alerts are visible only inside the panel and the logs.** No one is paged. `/alerts/all` works only for `super_admin` on the platform domain. With R1's fix the customer's admins would not see the banner either (hidden module), so for a real tenant the only observer is the platform owner | by design (no secrets available) | WP-A5: external channel (owner decides: e-mail via existing SMTP settings if present, or Telegram) or a daily "finance v2 status" line in an existing admin report |
 
 ---
 
@@ -283,7 +287,7 @@ Severity: **BLOCKER** = must be fixed before a real tenant changes mode. Facts m
 Legend: **AUTO** = proceed, then inform the owner briefly. **ASK** = get the owner's explicit yes first. Every production step
 is: backup → PR → CI → merge → deploy SUCCESS → verify (section 9/10). Never skip a step "because it is only docs".
 
-### Phase 0 — land the cut-over readiness branch (AUTO)
+### Phase 0 — land the cut-over readiness branch — **DONE (PR #41, 2026-10-05)**; remaining: merge #42 and #40, remove the worktree (AUTO)
 Finish per section 6. Exit criteria: PR merged; both services SUCCESS on the merge commit; `alembic_version = 20261002_0001`; new
 endpoints return 401 (not 500) for super; `gl_readiness.py` output saved for every tenant.
 
@@ -308,6 +312,10 @@ endpoints return 401 (not 500) for super; `gl_readiness.py` output saved for eve
 - declare dual a one-way door, remove `--set legacy` from the runbooks for tenants with native journals and make the script refuse it
   unless `--i-know-reconcile-will-fail`. Routine rollback is then `--reports legacy` only.
 **WP-A4 — SocialBee/other charts (R14):** make `gl_ledger_mode.py --set dual` and `gl_readiness.py` call `ensure_chart` or fail with a clear message.
+**WP-A5 — someone must be told (R20).** Ask the owner which channel he actually reads; implement `alerts.notify_external` for it without putting new
+secrets in git (Railway variables only), de-duplicated so one alert = one message; test with a fake transport.
+**WP-A6 — make the readiness verdict honest (R19).** Add the blockers R1/R2/R3 as computed facts (ui visibility setting, supplier-requirement setting,
+"rollback verified" flag) so `can_switch_to_dual` is `no` until they are satisfied.
 
 Exit criteria for Phase 1: merged, deployed, pilot on super (hidden ↔ visible toggled; a hidden-mode check as a non-super admin role
 through router functions), reconcile 14/14 on Demo/super, legacy tenants still 404 from outside.
@@ -388,7 +396,7 @@ for t in db.query(Tenant).order_by(Tenant.domain).all():
 - **C3 — deploy status:** `railway deployment list --service ironwaves-pos-backend --json | python3 -c 'import sys,json;d=json.load(sys.stdin)[0];print(d["status"],d["meta"]["commitHash"][:8])'` (same for `ironwaves-pos-frontend`). Note: a docs-only merge may show backend `SKIPPED`.
 - **C4 — gate from outside** (404 = hidden/disabled, 401 = enabled, waiting for auth):
   `curl -s -o /dev/null -w "%{http_code}\n" -H "X-Tenant-Domain: gyrospos.ironwaves.store" https://ironwaves-pos-platform-production.up.railway.app/api/v1/gl/capabilities`
-- **C5 — Alembic/tokens:** `SELECT version_num FROM alembic_version` (expect `20261001_0001` on `main`); `SELECT count(*) FROM refresh_tokens` (thousands, not 250 k).
+- **C5 — Alembic/tokens:** `SELECT version_num FROM alembic_version` (expect `20261002_0001` on `main`); `SELECT count(*) FROM refresh_tokens` (thousands, not 250 k).
 - **C6 — logs:** `railway logs --service ironwaves-pos-backend | grep -iE "traceback|native_error|deadlock|gl-alert"`.
 - **C7 — Railway variable without leaking secrets:** print only named keys, e.g. `d.get("DEMO_TENANT_ENABLED")`. Never print `DATABASE_PUBLIC_URL`, JWT or passwords.
 
@@ -405,7 +413,7 @@ docker run --rm -e PGURL="$URL" postgres:18-alpine sh -c 'pg_dump -Fc --no-owner
   | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "pass:$K" -out "$D/$F" && chmod 600 "$D/$F"
 (cd $D && shasum -a 256 "$F" > "$F.sha256"); ls -la "$D/$F"      # a 0-byte file means it failed — delete and redo
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "pass:$K" -in "$D/$F" > /tmp/t.dump
-docker run --rm -v /tmp/t.dump:/d.dump:ro postgres:18-alpine pg_restore -l /d.dump | grep -c "TABLE DATA"   # expect 60
+docker run --rm -v /tmp/t.dump:/d.dump:ro postgres:18-alpine pg_restore -l /d.dump | grep -c "TABLE DATA"   # expect 62 (60 before the WP3 tables)
 rm -f /tmp/t.dump
 ```
 A long foreground command can be interrupted by the tool; put it in a script and run it as a background process (that is how the last one succeeded).
@@ -433,7 +441,7 @@ INTEGRATION_DATABASE_URL=postgresql://postgres:staging@127.0.0.1:55433/<copy> /t
 /tmp/iw-venv/bin/alembic heads          # exactly one head
 npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npx vite build
 ```
-Baselines: `main` 944 passed / 20 skipped (SQLite), smoke 60/60, gl 4/4, gl:bills 18/18; cut-over branch 974 / 21.
+Baselines (2026-10-05): `main` 975 passed / 21 skipped (SQLite; 976 / 22 once #42 is merged), PG `tests/integration` 21 passed, smoke 60/60, gl 4/4, gl:bills 18/18.
 
 ### P — production pilot (super tenant)
 Write a script that drives the real router functions (not HTTP) as `system:gl-pilot`, with the checker `system:gl-pilot-checker` for second-person
@@ -471,6 +479,13 @@ Remove the script afterwards.
 14. The `semantic-review/` folder in the working tree is unrelated and untracked: never `git add .`.
 15. The module reads capabilities with a 404 → "feature off" convention. Do not turn 404s into user-visible errors.
 16. Do not write production facts in docs unless you ran the command that shows them (the Gemini run invented a reconciliation result).
+17. **A workflow's "APPROVED" is not a merge gate.** Two-model review and 975 green tests approved #41, yet a failing alert insert inside `bridge.emit`
+    could abort the sale's own PostgreSQL transaction. SQLite cannot show this (a failed statement does not poison the transaction); only a PG test does.
+    Anything that runs *inside a business transaction* and may fail needs its own savepoint, and a PG test that fails without it.
+18. A probe that "passes" on both the fixed and the broken code proves nothing. Make it fail on the broken version first (two probes of mine passed
+    both ways because the error I thought I was causing never happened).
+19. A metric computed from a window of mixed row types will drift (the streak). Query the type you count.
+20. Check `date` at the start of a session; the clock can jump days between sessions, which changes which deadlines have already passed.
 
 ---
 
@@ -478,10 +493,10 @@ Remove the script afterwards.
 
 - Backend GL package `backend/app/gl/`: `models.py`, `coa_az.py`, `engine.py`, `posting_rules.py`, `bridge.py`, `shadow.py`,
   `legacy_migration.py`, `read_model.py`, `reports.py`, `tax.py`, `year_end.py`, `subledger.py`, `documents.py`, `router.py`
-  (+ on the cut-over branch: `alerts.py`, `readiness.py`). Hooks live in `routers/{pos,restaurant,operations,integrations,reports,analytics_api,finance,suppliers,catalog}.py`
+  `alerts.py`, `readiness.py`. Hooks live in `routers/{pos,restaurant,operations,integrations,reports,analytics_api,finance,suppliers,catalog}.py`
   and `services/finance_service.py`. Token retention: `services/token_retention.py`.
 - Alembic chain: `20260905_0002` → `20260929_0001` (GL core + triggers) → `20260930_0001` (shadow runs) → `20260930_0002` (legacy links) →
-  `20261001_0001` (documents) → *(cut-over branch)* `20261002_0001` (alerts).
+  `20261001_0001` (documents) → `20261002_0001` (alerts).
 - Frontend: `src/api/gl.ts`, `src/components/admin/FinanceV2Panel.tsx`, `src/components/admin/financev2/*`
   (`ReportsTabs`, `JournalsTabs`, `PartnersTab`, `BillsTab`, `ControlTabs`, `FinanceV2Parts`, `context`, `exporters`, `reportExports`).
   Registered in `src/lib/navigation.ts`, `src/App.tsx`, `src/components/AdminPanel.tsx`, `src/i18n.ts`.
