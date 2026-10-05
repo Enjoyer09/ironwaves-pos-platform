@@ -289,3 +289,32 @@ def test_approve_vs_concurrent_posting_on_guarded_account_no_deadlock(Session, t
     with Session() as s:
         expected = Decimal("100.00") + Decimal("3.00") * rounds
         assert gl.account_balance(s, tid, gl.accounts_by_role(s, tid)["cash_drawer"]) == expected
+
+
+def test_failing_native_error_alert_cannot_abort_the_surrounding_transaction(Session, tid, monkeypatch):
+    """On PostgreSQL a failed statement aborts the whole transaction (= the sale being committed).
+    bridge.emit raises its native_error alert inside its own savepoint, so even a broken alert
+    writer leaves the surrounding transaction committable."""
+    from app.gl import alerts, bridge
+    from app.gl.models import GLAlert
+
+    with Session() as s:
+        bridge.set_ledger_mode(s, tid, "dual", actor="it", reason="integration")
+        s.commit()
+
+    def broken_alert(session, *args, **kwargs):
+        session.add(GLAlert(tenant_id=tid, alert_type="x" * 500, status="open", detail="d", occurrences=1))  # VARCHAR overflow
+        session.flush()
+
+    monkeypatch.setattr(alerts, "raise_alert", broken_alert)
+
+    def boom():
+        raise ZeroDivisionError("bug in a hook")
+
+    with Session() as s:
+        s.execute(text("INSERT INTO settings (id, tenant_id, key, value) VALUES (:i, :t, 'it_marker', 'alive')"),
+                  {"i": str(uuid.uuid4()), "t": tid})
+        assert bridge.emit(s, tid, boom, actor="it") is None  # never raises
+        s.commit()  # would raise PendingRollbackError without the savepoint
+    with Session() as s:
+        assert s.execute(text("SELECT value FROM settings WHERE tenant_id=:t AND key='it_marker'"), {"t": tid}).scalar() == "alive"

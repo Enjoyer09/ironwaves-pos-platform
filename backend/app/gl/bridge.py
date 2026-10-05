@@ -226,9 +226,11 @@ def emit(db: Session, tenant_id: str, event_or_factory, *, actor: str, event_typ
         try:  # best-effort admin alert; must never raise and never break the sale
             from app.gl import alerts
 
-            alerts.raise_alert(db, tenant_id, alert_type="native_error", detail=f"{name}: {exc}"[:4000],
-                               context={"legacy_txn_ids": covered})
-            db.flush()
+            # Own savepoint: on PostgreSQL a failed statement aborts the whole transaction, i.e. the
+            # sale that is being committed. Rolling back only this savepoint keeps the sale alive.
+            with db.begin_nested():
+                alerts.raise_alert(db, tenant_id, alert_type="native_error", detail=f"{name}: {exc}"[:4000],
+                                   context={"legacy_txn_ids": covered})
         except Exception:  # pragma: no cover
             logger.exception("gl_bridge: could not raise native_error alert")
         return None
