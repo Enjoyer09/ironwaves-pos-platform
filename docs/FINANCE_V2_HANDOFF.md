@@ -436,7 +436,8 @@ export function BillsTab() {
 
 ### 4.6 Known UI gaps
 
-- There has been **no visual browser pass yet** (WP5). The layout was built to be responsive, but it has not been checked at 390 px.
+- **WP5 UI QA pass done (2026-10-05).** All 10 tabs were driven with Playwright on the `demo` tenant (dual + reports GL) at desktop 1440×900 and mobile 390×844. Result: no console errors, no horizontal page overflow, Escape closes dialogs (nested one at a time), keyboard focus shows an on-theme yellow `:focus-visible` ring, no clipped text, and az/ru/en switching works. No real UI defect was found in `src/components/admin/financev2/*`, so no code changes were needed. Screenshots + full report live outside the repo at `.agents/qa/finance-v2/` (untracked). Full WCAG compliance is **not** claimed — manual assistive-tech testing is still required.
+  - Touch-target note: Finance v2 controls use the `min-h-11` (44px) / `min-h-12` (48px) tokens. A **global** rule in `src/index.css` (`@media (max-width:1440px) and (max-height:820px){ html{ font-size:78% } }`) scales rem-based sizes down on small **mouse** windows, so those tokens render ~34–37px there; `@media (pointer: coarse){ html{ font-size:100% } }` restores 16px (→ 44/48px) on real touch devices. This is pre-existing app-wide behaviour, not a Finance v2 defect, and was left unchanged (changing the global root size is an app-wide product decision).
 - The account ledger export covers only the loaded page (200 rows). A full export would need to fetch all pages (backend `limit` ≤ 1000).
 - The PDF path uses the browser print dialog. A pop-up blocker shows a warning toast.
 - There are no charts yet (trend of revenue/expenses, cash position). Candidates: a small inline SVG sparkline per KPI, with no new dependency.
@@ -495,7 +496,7 @@ Detailed prompts for each package are in `docs/finance-v2-handoff.md`.
 | WP3 | Bills (P3b) | **In review (PR #39) — AP only; AR deferred** (branch `feature/finance-v2-p3b`, not merged, not deployed) | `gl_documents` + `gl_document_allocations` (migration `20261001_0001`); GL-only bill and bill-payment journals; idempotent bill pay, overpayment 409; maker-checker for bills/payments, pending void / payment reversal / reclass; named-then-FIFO allocation of legacy supplier payments; due-date aging in Borclar; supplier required for new stock receipts in dual; bill pay from bank/safe only (no POS drawer); `BillsTab` UI |
 | WP3-def | WP3 deferred items | Not started (owner: later) | Checker-approved **deallocation** of bills settled by a legacy supplier payment (compensating allocations, the payment becomes an advance; manual correction in §2.5 until then); F25 PG immutability triggers for documents; AR invoices |
 | WP4 | P2e, stop legacy writes | After every tenant is on reports gl for ≥ 2 weeks | Ledger mode `gl`; inventory all legacy writers and readers; emit must raise in gl mode; skip shadow; one-way switch with a fresh backup |
-| WP5 | UI QA | Any time | Desktop 1440 / mobile 390 pass; fix layout, a11y and i18n issues |
+| WP5 | UI QA | **Done (2026-10-05)** | Desktop 1440 / mobile 390 Playwright pass on the demo tenant: no console errors, no page overflow, Escape closes dialogs, visible keyboard focus, az/ru/en switching; no financev2 defects found (no code changes). Screenshots + report at `.agents/qa/finance-v2/` (untracked). WCAG not claimed — manual assistive-tech testing still required. See §4.6. |
 | WP6 | Housekeeping | Dated items | 10-04 backup deletion (ask); remove Railway SSH key `macbookair-finance-v2`; **`railway config migrate` before 2026-12-01**; retention for `audit_logs` / `receipt_html` |
 
 Nice-to-have for "Oracle level", not started and not yet requested:
