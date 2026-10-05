@@ -153,3 +153,23 @@ def test_failing_reconcile_creates_one_open_alert_and_clean_run_resolves_it(db, 
     assert _open_alerts(db, tid, "streak_broken") == []
     resolved = db.query(GLAlert).filter(GLAlert.tenant_id == tid, GLAlert.alert_type == "reconcile_failed", GLAlert.status == "resolved").all()
     assert len(resolved) == 1
+
+
+def test_clean_streak_is_not_truncated_by_frequent_sync_runs(db):
+    """Sync runs happen every 5 minutes; they must not push nightly reconciles out of the streak window."""
+    from datetime import timedelta
+
+    tid = _tenant(db)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for night in range(6):  # six clean nights
+        shadow._record(db, tenant_id=tid, run_type="reconcile", started_at=now - timedelta(days=night, hours=1),
+                       finished_at=now - timedelta(days=night), imported=0, ok=True, details=None)
+    for n in range(200):  # ...buried under a few hours of frequent syncs, newer than every reconcile
+        shadow._record(db, tenant_id=tid, run_type="sync", started_at=now - timedelta(minutes=n),
+                       finished_at=now - timedelta(minutes=n), imported=0, ok=True, details=None)
+    db.commit()
+    assert shadow.shadow_status(db, tid)["clean_reconciliation_streak"] == 6
+    shadow._record(db, tenant_id=tid, run_type="reconcile", started_at=now + timedelta(minutes=1),
+                   finished_at=now + timedelta(minutes=1), imported=0, ok=False, details=None)
+    db.commit()
+    assert shadow.shadow_status(db, tid)["clean_reconciliation_streak"] == 0
