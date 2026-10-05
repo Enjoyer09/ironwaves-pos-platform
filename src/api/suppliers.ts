@@ -13,6 +13,7 @@ export type Supplier = {
   address?: string;
   notes?: string;
   balance: string; // Stored as Decimal string
+  balance_source?: 'legacy' | 'gl'; // 'gl' when the backend serves the GL AP subledger balance
   created_at: string;
 };
 

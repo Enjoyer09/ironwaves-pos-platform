@@ -85,6 +85,10 @@ def reconcile_tenant_shadow(db: Session, tenant_id: str, *, started: datetime | 
         mode = get_ledger_mode(db, tenant_id)
         return reconcile_dual_tenant(db, tenant_id) if mode == "dual" else reconcile_tenant(db, tenant_id)
 
+    # Was the previous reconcile clean? Used to tell a fresh failure (streak break)
+    # from an ongoing one. Read before this run is recorded.
+    prev_was_clean = _last_reconcile_ok(db, tenant_id)
+
     sync_tenant(db, tenant_id)
     report = run()
     db.rollback()  # reconciliation is read-only; end the snapshot
@@ -97,7 +101,39 @@ def reconcile_tenant_shadow(db: Session, tenant_id: str, *, started: datetime | 
         logger.error("gl_shadow reconciliation FAILED tenant=%s checks=%s", tenant_id, failed)
     _record(db, tenant_id=tenant_id, run_type="reconcile", started_at=started, finished_at=_utcnow(), imported=0,
             ok=report["ok"], details=json.dumps({"failed_checks": failed, "checks": len(report["checks"])}, ensure_ascii=False))
+    # Alerting: a failure raises a de-duplicated open alert; a clean run resolves it.
+    try:
+        from app.gl import alerts
+
+        if not report["ok"]:
+            alerts.raise_alert(db, tenant_id, alert_type="reconcile_failed",
+                               detail=f"Nightly reconciliation failed ({len(failed)} check(s))",
+                               context={"failed_checks": failed})
+            if prev_was_clean:
+                alerts.raise_alert(db, tenant_id, alert_type="streak_broken",
+                                   detail="Clean reconciliation streak broke",
+                                   context={"failed_checks": failed})
+        else:
+            alerts.resolve_open_alerts(db, tenant_id, "reconcile_failed")
+            alerts.resolve_open_alerts(db, tenant_id, "streak_broken")
+        db.commit()
+    except Exception:  # alerting must never break the shadow job
+        db.rollback()
+        logger.error("gl_shadow alerting failed tenant=%s", tenant_id, exc_info=True)
     return report
+
+
+def _last_reconcile_ok(db: Session, tenant_id: str) -> bool:
+    """True when the most recent recorded reconcile run for this tenant was clean.
+
+    No prior reconcile counts as clean (a first-ever failure is still a streak break)."""
+    last = (
+        db.query(GLShadowRun.ok)
+        .filter(GLShadowRun.tenant_id == tenant_id, GLShadowRun.run_type == "reconcile")
+        .order_by(GLShadowRun.started_at.desc())
+        .first()
+    )
+    return True if last is None else bool(last[0])
 
 
 def _reconciled_on(db: Session, tenant_id: str, day_start_utc: datetime, day_end_utc: datetime) -> bool:

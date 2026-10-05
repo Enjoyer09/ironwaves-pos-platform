@@ -5,16 +5,19 @@ finance flows calls into this module yet; wiring happens in P1 (shadow mode).
 """
 from __future__ import annotations
 
+import random
+import time
 from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import get_db
-from app.deps import get_current_user, get_tenant
+from app.deps import get_current_user, get_super_admin, get_tenant
 from app.gl import engine, reports, tax
 from app.gl.engine import GLError, LineIn
 from app.gl.legacy_migration import GL_ONLY_SOURCE_MODULES
@@ -58,18 +61,46 @@ def _require(user, roles: set[str]) -> None:
         raise HTTPException(status_code=403, detail="Insufficient finance permissions")
 
 
+# PostgreSQL raises SQLSTATE 40P01 (deadlock_detected) when it breaks a lock cycle by
+# aborting one transaction. The GL engine locks in a canonical order (see engine.py) so this
+# is rare, but concurrent approve-vs-post on the same guarded account can still trip it. GL
+# writes through _run are safe to replay (idempotency keys + maker-checker re-checks on the
+# fresh snapshot), so we retry a bounded number of times before giving up.
+_DEADLOCK_SQLSTATE = "40P01"
+_MAX_WRITE_ATTEMPTS = 3
+
+
+def _is_deadlock(exc: Exception) -> bool:
+    """True only for a PostgreSQL deadlock (SQLSTATE 40P01); never for other DB errors."""
+    if not isinstance(exc, (OperationalError, DBAPIError)):
+        return False
+    sqlstate = getattr(getattr(exc, "orig", None), "pgcode", None)
+    if sqlstate is None:
+        sqlstate = getattr(exc, "code", None)
+    return str(sqlstate) == _DEADLOCK_SQLSTATE
+
+
 def _run(db: Session, fn):
-    """Execute a write, commit on success, rollback and map GLError otherwise."""
-    try:
-        result = fn()
-        db.commit()
-        return result
-    except GLError as exc:
-        db.rollback()
-        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
-    except Exception:
-        db.rollback()
-        raise
+    """Execute a write, commit on success, rollback and map GLError otherwise.
+
+    A PostgreSQL deadlock (40P01) is retried up to ``_MAX_WRITE_ATTEMPTS`` times with a tiny
+    jitter; the final attempt re-raises. GLError and every non-deadlock exception are never
+    retried — they roll back and propagate on the first occurrence.
+    """
+    for attempt in range(1, _MAX_WRITE_ATTEMPTS + 1):
+        try:
+            result = fn()
+            db.commit()
+            return result
+        except GLError as exc:
+            db.rollback()
+            raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
+        except Exception as exc:
+            db.rollback()
+            if _is_deadlock(exc) and attempt < _MAX_WRITE_ATTEMPTS:
+                time.sleep(random.uniform(0.01, 0.05))  # brief jitter so retries don't resynchronise
+                continue
+            raise
 
 
 def _read(fn):
@@ -524,6 +555,36 @@ def integrity(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant
         "balances": reports.verify_materialized_balances(db, tenant.id),
         "trial_balance_balanced": reports.trial_balance(db, tenant.id)["balanced"],
     }
+
+
+# ─────────────────────────────── alerts ─────────────────────────────────
+
+
+@router.get("/alerts")
+def list_alerts(status: str | None = Query("open"), db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Reconciliation / native-error alerts for this tenant (default: open only)."""
+    _require(user, GL_CONTROLLER_ROLES | {"auditor"})
+    from app.gl import alerts
+
+    return _read(lambda: alerts.list_alerts(db, tenant.id, status=status))
+
+
+@router.post("/alerts/{alert_id}/acknowledge")
+def acknowledge_alert(alert_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    """Acknowledge an open alert (audited in the GL chain). Controllers only."""
+    _require(user, GL_CONTROLLER_ROLES)
+    from app.gl import alerts
+
+    alert = _run(db, lambda: alerts.acknowledge_alert(db, tenant.id, alert_id, actor=user.username))
+    return alerts._serialise(alert)
+
+
+@router.get("/alerts/all")
+def list_alerts_all(status: str | None = Query("open"), db: Session = Depends(get_db), user=Depends(get_super_admin)):
+    """Cross-tenant open alerts for the platform super_admin (platform-domain bound)."""
+    from app.gl import alerts
+
+    return _read(lambda: alerts.list_alerts_all(db, status=status))
 
 
 # ─────────────────────────────── documents (bills & invoices) ───────────

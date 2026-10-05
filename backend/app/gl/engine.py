@@ -3,6 +3,33 @@
 Every function here runs inside the caller's DB transaction and never commits.
 The caller (router / domain service) owns commit/rollback, so a sale and its
 journal are persisted atomically or not at all.
+
+Canonical lock-acquisition order
+---------------------------------
+Every path that posts a journal (``create_journal -> _post`` on immediate
+posting, and ``approve_journal -> _post`` on maker-checker approval) MUST take
+its row locks in exactly this order so two concurrent transactions can never
+hold locks in the opposite order and deadlock (PostgreSQL SQLSTATE 40P01):
+
+  1. journal row (``_locked_journal``, FOR UPDATE) — only on the approval path,
+     which loads an existing pending journal.
+  2. guarded accounts (``_lock_guarded_account_ids``, FOR UPDATE, gl_accounts in
+     ascending id order) — taken BEFORE any journal line is inserted/validated,
+     because inserting a line takes a KEY SHARE FK lock on gl_accounts; a second
+     posting that already holds KEY SHARE and then asks for FOR UPDATE would
+     deadlock with the first. Locking guarded accounts first makes the second
+     posting wait instead.
+  3. period row (``_post`` -> FOR UPDATE read on gl_fiscal_periods).
+  4. account balances (``_apply_balances``, FOR UPDATE, gl_account_balances in
+     sorted ``(account_id, branch_key)`` order).
+  5. sequence allocation last (``_next_journal_no`` / ``append_audit`` ->
+     ``_locked_sequence``, FOR UPDATE on gl_sequences).
+
+The create path pre-locks guarded accounts just before inserting its lines; the
+approval path pre-locks them in ``approve_journal`` just before ``_post`` so both
+paths lock guarded accounts ahead of the period/balance/sequence locks. The
+re-lock inside ``_post`` is idempotent (same rows, same order) and keeps ``_post``
+correct when called directly in tests.
 """
 from __future__ import annotations
 
@@ -698,6 +725,12 @@ def approve_journal(db: Session, tenant_id: str, journal_id: str, *, approver: s
         raise GLError("You cannot approve a journal you created", "self_approval", 403)
     journal.approved_by = approver
     journal.approved_at = _now()
+    # Follow the canonical lock order (see module docstring): take the guarded-account
+    # locks before _post reaches the period/balance/sequence locks, so an approval and a
+    # concurrent plain posting on the same guarded account can never acquire locks in the
+    # opposite order and deadlock. The lines already exist (inserted at submit time), so we
+    # lock from them; _post re-locks the same rows in the same order (idempotent).
+    _lock_guarded_account_ids(db, tenant_id, [line.account_id for line in _journal_lines(db, journal)])
     append_audit(db, tenant_id, event_type="JOURNAL_APPROVED", entity_type="journal", entity_id=journal.id, actor=approver, payload={})
     _post(db, journal, actor=approver, allow_soft_closed=allow_soft_closed)
     link_reversal_on_approval(db, journal)

@@ -159,6 +159,37 @@ def test_factory_exceptions_are_contained(db, tid):
     assert db.query(GLShadowRun).filter(GLShadowRun.run_type == "native_error").count() == 1
 
 
+def test_native_error_records_an_alert_and_a_failing_alert_cannot_break_the_sale(db, tid, monkeypatch):
+    from app.gl import alerts
+    from app.gl.models import GLAlert
+
+    _dual(db, tid)
+    fs.post_finance_transaction(db, tenant_id=tid, transaction_type="expense", amount=D("5"), source_code="cash",
+                                destination_code="expense", created_by="k", category="Digər Xərc")
+
+    def boom():
+        raise ZeroDivisionError("bug in a hook")
+
+    assert bridge.emit(db, tid, boom, actor="k") is None
+    db.commit()
+    alert = db.query(GLAlert).filter(GLAlert.tenant_id == tid, GLAlert.alert_type == "native_error").one()
+    assert alert.status == "open" and "bug in a hook" in alert.detail
+
+    # The alert writer itself blows up after touching the session: the surrounding transaction must survive.
+    def broken_alert(session, *args, **kwargs):
+        session.add(GLAlert(tenant_id=tid, alert_type="not-null-violation", status="open", detail=None,
+                            first_seen_at=None, last_seen_at=None, occurrences=1))
+        session.flush()
+
+    monkeypatch.setattr(alerts, "raise_alert", broken_alert)
+    sale_marker = fs.post_finance_transaction(db, tenant_id=tid, transaction_type="expense", amount=D("7"), source_code="cash",
+                                              destination_code="expense", created_by="k", category="Digər Xərc")
+    assert bridge.emit(db, tid, boom, actor="k") is None  # must not raise
+    db.commit()  # the legacy transaction of the "sale" is still committable
+    assert db.query(FinanceTransaction).filter(FinanceTransaction.id == sale_marker.id).count() == 1
+    assert db.query(GLShadowRun).filter(GLShadowRun.run_type == "native_error").count() == 2
+
+
 def test_cash_guard_failure_falls_back(db, tid):
     _dual(db, tid)
     fs.post_finance_transaction(db, tenant_id=tid, transaction_type="expense", amount=D("150"), source_code="cash",

@@ -75,18 +75,24 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `posting_rules.py` | Business events → compound journals | Events (2.4), `post_event`, `active_sale_journal`, `void_sale`, `correct_sale` |
 | `bridge.py` | Per-tenant ledger mode and the legacy ↔ GL coupling | `get/set_ledger_mode`, `record_legacy_posting`, `emit`, `emit_sale`, `WALLET_CODES` |
 | `shadow.py` | Background mirror of legacy → GL every 300 s, plus the nightly reconcile at 04:00 Baku (advisory lock 7411) | `run_cycle`, `sync_tenant`, `reconcile_tenant_shadow`, `shadow_status`, `start_shadow_scheduler` |
+| `alerts.py` | De-duplicated admin alerts on reconcile failure / native error / streak break (3.1) | `raise_alert`, `resolve_open_alerts`, `acknowledge_alert`, `list_alerts`, `list_alerts_all`, `notify_external` |
 | `legacy_migration.py` | Faithful import of legacy history and reconciliations | `migrate_tenant` (incremental), `reconcile_tenant` (19 checks, legacy/shadow), `reconcile_dual_tenant` (14 checks), `open_items`, `GL_ONLY_SOURCE_MODULES = ("manual","gl")` |
 | `read_model.py` | Serves the legacy-shaped responses from the GL when the tenant's reports source is `gl` | `reports_source`, `set_reports_source`, `catch_up`, `gl_wallet_balances`, `gl_shift_cash_breakdown`, `gl_balance_sheet`, `gl_profit_loss`, `gl_cash_flow`, `gl_sales_payment_totals`, `gl_sale_payment_splits`, `parity_report` |
 | `reports.py` | Statements computed only from posted journals | `trial_balance`, `balance_sheet`, `profit_and_loss` (excludes year-close), `account_ledger`, `verify_materialized_balances`, `periods_overview` |
 | `tax.py` | Tax profiles, simplified tax accrual, VAT split | `set_tax_profile`, `get_tax_profile`, `accrue_simplified_tax` (posts only the delta, safe to repeat), `tax_summary`, `split_vat` |
 | `year_end.py` | Fiscal year close/reopen | `year_status`, `close_fiscal_year`, `request_reopen_fiscal_year` |
 | `subledger.py` | AP/AR per partner, FIFO settlement, aging | `subledger(db, tid, "ap"\|"ar", as_of)` |
+| `readiness.py` | Read-only cut-over gate: posture + the two go/no-go verdicts with reasons (surfaced by `scripts/gl_readiness.py`). Zero DB writes | `readiness(db, tenant_id)` → `{ledger_mode, reports_source, chart_present, clean_reconciliation_streak, native_error_count_7d, current_reconcile, parity, open_items, pending_journals, unassigned_ap, negative_wallets, shadow, shadow_sync_lag_seconds, can_switch_to_dual, can_switch_reports_to_gl}` |
 | `documents.py` | AP bills (AR invoices deferred): bill lifecycle, payment allocations (named first, then FIFO), maker-checker hooks, unassigned-AP reclass | `create_bill`, `pay_bill`, `post_supplier_payment`, `allocate_payment`, `void_document`, `reverse_bill_payment`, `reclassify_unassigned_ap`, `list_documents`, `get_document_detail`, `after_journal_approved` / `after_journal_rejected`, `lock_documents_for_journal`, `DOCUMENT_SOURCE_TYPES = ("document","document_payment")` |
 | `router.py` | HTTP API `/api/v1/gl` | Section 3 |
 
 Scripts:
 - `backend/scripts/gl_ledger_mode.py`: `--list`, `--tenant X --set dual|legacy --reason`, `--reconcile`, `--parity`, `--reports gl|legacy`. It refuses production hosts unless `--allow-production` is passed.
 - `backend/scripts/gl_migrate_legacy.py`: `--all --dry-run --allow-production`.
+- `backend/scripts/gl_readiness.py`: the cut-over **gate** tool. `--tenant X [--json] [--allow-production]`. Reports a tenant's migration posture and the two go/no-go verdicts and prints their failing reasons:
+  - `can_switch_to_dual` — chart present, current reconcile ok, clean reconcile streak >= 2, zero native-posting errors in the last 7 days.
+  - `can_switch_reports_to_gl` — ledger mode `dual`, clean reconcile streak >= 2, parity ok with no unexplained differences.
+  It is strictly **read-only** (zero DB writes; it rolls back any shadow catch-up a reused reader performs) and refuses Railway/production hosts unless `--allow-production` is passed (same message / exit code 2 as `gl_ledger_mode.py`). Exit code 0 only when both verdicts resolve without error. The verdict logic lives in `app/gl/readiness.py` (`readiness(db, tenant_id)`), composed from the existing `bridge`/`read_model`/`shadow`/`subledger`/`legacy_migration` readers. Run it (against a throwaway PG copy, never `railway`) before `gl_ledger_mode.py --set dual` or `--reports gl`.
 
 Related, outside `gl/`:
 - `app/services/finance_service.py`:
@@ -102,7 +108,7 @@ Related, outside `gl/`:
   - `finance_v2_ledger_mode` → `{"mode": "dual", "since", "by"}`
   - `finance_v2_reports_source` → `{"source": "gl", ...}`
 
-### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001`; head = `20261001_0001`)
+### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001` → `20261002_0001`; head = `20261002_0001`)
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -118,6 +124,7 @@ Related, outside `gl/`:
 | `gl_audit_events` | Hash-chained, append-only audit log (`seq`, prev hash, hash) | unique (tenant, seq) |
 | `gl_shadow_runs` | Shadow sync / reconcile / native_error runs (the evidence for cut-over) | |
 | `gl_legacy_links` | Which legacy txn is covered by which native journal, plus `wallet_diff` (the explained differences) | unique (tenant, legacy_txn_id) |
+| `gl_alerts` | Admin-visible reconciliation alerts (migration `20261002_0001`): `id`, `tenant_id`, `alert_type` (`reconcile_failed` / `native_error` / `streak_broken`), `status` (`open` / `acknowledged` / `resolved`), `detail`, `context` (JSON text), `first_seen_at`, `last_seen_at`, `occurrences`, `acknowledged_by`/`acknowledged_at`, `resolved_at`. At most one **open** alert per (tenant, alert_type); repeated failures bump `occurrences` instead of inserting rows. Lifecycle enforced in `app/gl/alerts.py` (no PG trigger) | index (tenant, alert_type, status) |
 
 PostgreSQL triggers (migration `20260929_0001`):
 - `gl_journal_guard`:
@@ -222,7 +229,7 @@ Hook sites:
   - A checker-approved deallocation operation is **deferred** (owner decision; roadmap §7).
   - Correction until a deallocation operation exists: an owner-approved data fix in one transaction, on a fresh backup. Append a negative `gl_document_allocations` row for the legacy journal on the wrong bill, plus a positive one on the right bill (or none, which leaves an advance). Then recompute both bills' status and record the fix in `gl_audit_events`. Never update or delete existing allocation rows.
 - **Shadow-fallback payments stay unallocated.** If `bridge.emit` falls back to the shadow mirror for a legacy supplier payment, the payment is not allocated to bills and a `native_error` run is logged. The amount shows as undocumented AP (aged by posting date) or an advance.
-- **`Supplier.balance` (legacy field) is not changed by GL bills or bill payments.** The legacy supplier screen therefore understates what is owed, while its pay button still settles real bills (FIFO).
+- **`Supplier.balance` (legacy field) is not changed by GL bills or bill payments.** The legacy numeric column is still never written by the GL. **Mitigated for the READ path (FEAT-003):** when a tenant's reports source is `gl`, the suppliers API (`GET /ops/suppliers` and `/ops/suppliers/{id}`) serves each supplier's GL AP subledger balance (`subledger(db, tid, 'ap')`) under the **same** `balance` field and adds `balance_source` (`'legacy'` | `'gl'`), so the supplier screen shows what the GL says is owed with no frontend behaviour change. The list path makes one `subledger('ap')` call. Legacy-source tenants are unchanged (`balance_source='legacy'`, legacy column as before). The pay button still settles real bills (FIFO) in both ledgers.
 - **F25 deferred:** PostgreSQL immutability triggers for `gl_documents` / `gl_document_allocations` are not in migration `20261001_0001`. Append-only is enforced in code only.
 - **AR invoices are deferred** (AP only; `kind=ar_invoice` → 422).
 
@@ -264,6 +271,19 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 | GET | `/tax/summary?year&month` | READ | |
 | GET | `/reports/trial-balance` · `/balance-sheet` · `/profit-loss` · `/account-ledger/{id}` | READ | P&L excludes closing entries |
 | GET | `/shadow/status` · `/integrity` | CONTROLLER + auditor | Reconciliation evidence; audit chain + balances + TB |
+| GET | `/alerts?status=` | CONTROLLER + auditor | Reconciliation alerts for this tenant (default `status=open`). Each alert: `{id, tenant_id, alert_type, status, detail, context, first_seen_at, last_seen_at, occurrences, acknowledged_by, acknowledged_at, resolved_at}` |
+| POST | `/alerts/{id}/acknowledge` | CONTROLLER | Flips an open alert to `acknowledged` (`GL_ALERT_ACKNOWLEDGED` in the audit chain). 404 `alert_not_found`, 409 `alert_not_open` |
+| GET | `/alerts/all?status=` | super_admin | Cross-tenant alerts for the platform super_admin (platform-domain bound via `get_super_admin`; default `status=open`) |
+
+### 3.1 Reconciliation alerting (cut-over deliverable 1)
+
+`app/gl/alerts.py` turns a silent reconciliation failure into a visible, de-duplicated signal:
+
+- **Where it fires.** `shadow.reconcile_tenant_shadow` raises `reconcile_failed` (and `streak_broken` when the previous reconcile was clean) on a failed night and `resolve_open_alerts` on a clean night (the shadow session commits its own alert write). `bridge.emit` raises `native_error` in its except-block, wrapped so it can never raise and never breaks a sale.
+- **No spam.** `raise_alert` keeps at most one **open** alert per (tenant, alert_type): a repeat bumps `occurrences` + `last_seen_at` and refreshes `detail`/`context` instead of inserting a row. A later clean run resolves the open alert; a new failure after that starts a fresh one.
+- **Log line.** Every raise logs `logger.error("[gl-alert] tenant=%s type=%s detail=%s", ...)` on `ironwaves.gl_alerts`.
+- **External notify.** `notify_external(alert)` is a safe no-op unless `settings.resend_api_key` is set (**no new secret**) and never raises; delivery is not wired yet.
+- **Commit convention.** Write helpers follow the engine convention (caller owns commit) except the shadow job, which commits itself.
 
 ---
 
@@ -286,7 +306,8 @@ src/components/admin/financev2/
   billsMath.ts        decimal.js helpers: sumMoney, toMoneyString, validateAmount/Payment,
                       newIdempotencyKey (also used by NewJournalDialog)                                 60
   PartnersTab.tsx     AP/AR aging ("Borclar"), not-yet-due bucket + aging basis badge                   139
-  ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab                   448
+  ControlTabs.tsx     PeriodsTab (PeriodsCard + FiscalYearCard), TaxTab, IntegrityTab (AlertsCard +
+                      integrity + shadow)
   exporters.ts        buildCsv/exportCsv (BOM, ';', formula-injection guard), exportPdf (print window) 134
   reportExports.ts    report builders: statements, TB, ledger, subledger → ExportReport                 143
 tests/gl_exports.test.mjs                     npm run test:gl (CSV escaping, subledger export)
@@ -317,7 +338,8 @@ Registration (a new module is wired in all of these places):
 │ MALİYYƏ V2 · BAŞ KİTAB           [Canlı yazılış|Kölgə rejimi] [Hesabatlar: GL|köhnə] [⟳] │
 │ Mühasibat uçotu — AMHP, ikili yazılış, audit zənciri                          │
 └──────────────────────────────────────────────────────────────────────────────┘
-[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət* ]
+[ red alert banner — only when open alerts exist (caps.can_audit); "Go to Controls" jumps to Nəzarət ]
+[ Baxış | Sınaq balansı | Hesab kartı | Jurnallar | Təsdiqlər (n) | Borclar | Fakturalar | Dövrlər və il | Vergi | Nəzarət*(n) ]
 ┌ tabpanel ────────────────────────────────────────────────────────────────────┐
 │  Card(title, subtitle, actions=[filters…, Excel, PDF])                        │
 │  Metric grid · tables (overflow-x-auto, min-w) · empty/loading/error states  │
@@ -338,7 +360,7 @@ If capabilities == null → neutral "not enabled for this business / your role" 
 | `bills` | Fakturalar | `documents({kind:'ap_bill',status,overdue_only,search,limit:50,offset})`, `document(id)`, `suppliers()`, `createBill`, `payBill`, `voidDocument`, `reverseBillPayment`, `reclassifyUnassignedAP` | AP bills only. KPIs from `summary` (all pages); filters status (incl. pending approval / rejected), overdue only, search; paging; overdue rows tinted rose. New bill (`can_write`; supplier select, 201 / 721.9 / 721.2 / 721.3). Pay (`can_write`; one idempotency key per open dialog, amount ≤ open checked with decimal.js, 409 message shown). Void request (`can_write`, open bills). Detail: bill journal lines, allocations incl. negative rows, pending void/payment badges, "reverse payment" per allocation. Reclass (`can_control`). Pending results say "Təsdiq gözləyir" |
 | `periods` | Dövrlər və il | `periods()`, `fiscalYear(y)` | Period status buttons (`can_control`, reason dialog); fiscal year card: blockers, close (confirm dialog), request reopen (reason) |
 | `tax` | Vergi | `taxProfile()`, `taxSummary(y,m)` | Regime form (`can_control`; month picker, since the backend requires the 1st), accrue button when not up to date |
-| `integrity` | Nəzarət | `integrity()`, `shadowStatus()` | Audit chain / balances / TB checks; clean-night streak; last runs |
+| `integrity` | Nəzarət | `alerts('open')`, `integrity()`, `shadowStatus()` | Open-alert cards with Acknowledge (`can_control`, `glApi.acknowledgeAlert` → `bump()`); audit chain / balances / TB checks; clean-night streak; last runs. The tab shows a count badge and the header shows a red banner while open alerts exist |
 
 Drawer (`JournalDrawer`):
 - Shows the header facts, the lines (click an account → ledger), and links to the reversal or the original.
@@ -414,7 +436,8 @@ export function BillsTab() {
 
 ### 4.6 Known UI gaps
 
-- There has been **no visual browser pass yet** (WP5). The layout was built to be responsive, but it has not been checked at 390 px.
+- **WP5 UI QA pass done (2026-10-05).** All 10 tabs were driven with Playwright on the `demo` tenant (dual + reports GL) at desktop 1440×900 and mobile 390×844. Result: no console errors, no horizontal page overflow, Escape closes dialogs (nested one at a time), keyboard focus shows an on-theme yellow `:focus-visible` ring, no clipped text, and az/ru/en switching works. No real UI defect was found in `src/components/admin/financev2/*`, so no code changes were needed. Screenshots + full report live outside the repo at `.agents/qa/finance-v2/` (untracked). Full WCAG compliance is **not** claimed — manual assistive-tech testing is still required.
+  - Touch-target note: Finance v2 controls use the `min-h-11` (44px) / `min-h-12` (48px) tokens. A **global** rule in `src/index.css` (`@media (max-width:1440px) and (max-height:820px){ html{ font-size:78% } }`) scales rem-based sizes down on small **mouse** windows, so those tokens render ~34–37px there; `@media (pointer: coarse){ html{ font-size:100% } }` restores 16px (→ 44/48px) on real touch devices. This is pre-existing app-wide behaviour, not a Finance v2 defect, and was left unchanged (changing the global root size is an app-wide product decision).
 - The account ledger export covers only the loaded page (200 rows). A full export would need to fetch all pages (backend `limit` ≤ 1000).
 - The PDF path uses the browser print dialog. A pop-up blocker shows a warning toast.
 - There are no charts yet (trend of revenue/expenses, cash position). Candidates: a small inline SVG sparkline per KPI, with no new dependency.
@@ -473,7 +496,7 @@ Detailed prompts for each package are in `docs/finance-v2-handoff.md`.
 | WP3 | Bills (P3b) | **In review (PR #39) — AP only; AR deferred** (branch `feature/finance-v2-p3b`, not merged, not deployed) | `gl_documents` + `gl_document_allocations` (migration `20261001_0001`); GL-only bill and bill-payment journals; idempotent bill pay, overpayment 409; maker-checker for bills/payments, pending void / payment reversal / reclass; named-then-FIFO allocation of legacy supplier payments; due-date aging in Borclar; supplier required for new stock receipts in dual; bill pay from bank/safe only (no POS drawer); `BillsTab` UI |
 | WP3-def | WP3 deferred items | Not started (owner: later) | Checker-approved **deallocation** of bills settled by a legacy supplier payment (compensating allocations, the payment becomes an advance; manual correction in §2.5 until then); F25 PG immutability triggers for documents; AR invoices |
 | WP4 | P2e, stop legacy writes | After every tenant is on reports gl for ≥ 2 weeks | Ledger mode `gl`; inventory all legacy writers and readers; emit must raise in gl mode; skip shadow; one-way switch with a fresh backup |
-| WP5 | UI QA | Any time | Desktop 1440 / mobile 390 pass; fix layout, a11y and i18n issues |
+| WP5 | UI QA | **Done (2026-10-05)** | Desktop 1440 / mobile 390 Playwright pass on the demo tenant: no console errors, no page overflow, Escape closes dialogs, visible keyboard focus, az/ru/en switching; no financev2 defects found (no code changes). Screenshots + report at `.agents/qa/finance-v2/` (untracked). WCAG not claimed — manual assistive-tech testing still required. See §4.6. |
 | WP6 | Housekeeping | Dated items | 10-04 backup deletion (ask); remove Railway SSH key `macbookair-finance-v2`; **`railway config migrate` before 2026-12-01**; retention for `audit_logs` / `receipt_html` |
 
 Nice-to-have for "Oracle level", not started and not yet requested:

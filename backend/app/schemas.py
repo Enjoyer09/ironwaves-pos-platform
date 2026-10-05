@@ -447,4 +447,5 @@ class SupplierOut(SupplierBase):
     id: str
     tenant_id: str
     balance: Decimal
+    balance_source: str = "legacy"
     created_at: datetime
