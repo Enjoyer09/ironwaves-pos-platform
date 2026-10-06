@@ -216,7 +216,7 @@ def test_repay_investor_direct(db, tenant):
 
 
 def test_restock_on_credit_without_supplier_and_loss(db, tenant):
-    # finance_service is below the API: the dual-mode "supplier required" rule is enforced in
+    # finance_service is below the API: the "supplier required" rule (per-tenant setting) is enforced in
     # routers/catalog.py (see test_dual_restock_without_supplier_rejected), not here.
     fs.post_inventory_restock(db, tenant_id=tenant.id, amount=D("80"), created_by="k", payment_source="payable", reference="INV-1")
     fs.post_inventory_restock(db, tenant_id=tenant.id, amount=D("30"), created_by="k", payment_source="cash")
@@ -365,7 +365,18 @@ def test_all_hooks_are_noops_in_legacy_mode(db, tenant):
     assert db.query(GLJournal).count() == before and db.query(GLLegacyLink).count() == 0
 
 
-# ─────────────── stock receipts need a supplier in dual mode (FEAT-003, F7) ───────────────
+# ─────────────── stock receipts need a supplier when the TENANT SETTING says so (WP-A2) ───────────────
+#
+# The rule used to be "dual ledger mode => supplier required". It is now its own per-tenant setting
+# (finance_v2_require_supplier, default off), independent of the ledger mode. Probes write the raw row.
+
+
+def _supplier_setting(db, tid, required=None):
+    """Write the raw setting row (documented JSON shape); ``None`` leaves it absent."""
+    if required is not None:
+        db.add(Setting(tenant_id=tid, key="finance_v2_require_supplier",
+                       value=json.dumps({"required": required, "since": "2026-10-01T00:00:00", "by": "test"})))
+        db.commit()
 
 
 def _item(db, tid, name="Un"):
@@ -396,6 +407,8 @@ def _stock_ap_lines(db, tid):
 def test_dual_restock_without_supplier_rejected(db, tenant):
     from fastapi import HTTPException
 
+    bridge.set_require_supplier(db, tenant.id, True, actor="owner", reason="test")
+    db.commit()
     item = _item(db, tenant.id)
     for source in ("payable", "cash"):
         with pytest.raises(HTTPException) as exc:
@@ -410,6 +423,7 @@ def test_dual_restock_without_supplier_rejected(db, tenant):
 
 
 def test_dual_restock_with_supplier_tags_partner(db, tenant):
+    bridge.set_require_supplier(db, tenant.id, True, actor="owner", reason="test")
     sup = _supplier(db, tenant.id, "Un Dəyirmanı")
     db.commit()
     item = _item(db, tenant.id)
@@ -421,7 +435,7 @@ def test_dual_restock_with_supplier_tags_partner(db, tenant):
     ok(db, tenant.id)
 
 
-def test_legacy_restock_without_supplier_still_allowed(db, tenant):
+def test_legacy_restock_without_supplier_still_allowed(db, tenant):  # no setting recorded
     from app.models import FinanceTransaction
 
     bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
@@ -438,6 +452,9 @@ def test_dual_create_item_with_stock_requires_supplier(db, tenant):
     from app.models import InventoryItem
     from app.routers import catalog
     from app.schemas import InventoryItemCreateIn
+
+    bridge.set_require_supplier(db, tenant.id, True, actor="owner", reason="test")
+    db.commit()
 
     def create(name, **kw):
         payload = InventoryItemCreateIn(name=name, stock_qty=D("2"), unit="kg", unit_cost=D("5"), **kw)
@@ -468,3 +485,89 @@ def test_dual_create_item_with_stock_requires_supplier(db, tenant):
     assert [(ln.partner_id, D(str(ln.credit))) for ln in lines] == [(sup.id, D("10.00")), (sup.id, D("10.00"))]
     assert _partner_balance(db, tenant.id, sup.id) == D("20.00")
     ok(db, tenant.id)
+
+
+# ── WP-A2: the setting decides, not the ledger mode ──
+
+
+@pytest.mark.parametrize("state", ["off", "absent"])
+def test_dual_tenant_without_the_setting_needs_no_supplier(db, tenant, state):
+    from app.models import InventoryItem
+    from app.routers import catalog
+    from app.schemas import InventoryItemCreateIn
+
+    _supplier_setting(db, tenant.id, False if state == "off" else None)
+    item = _item(db, tenant.id)
+    out = _restock(db, tenant, item.id, payment_source="payable")  # no supplier
+    assert D(out["stock_qty"]) == D("10")
+    assert [ln.partner_id for ln in _stock_ap_lines(db, tenant.id)] == [None]  # the AP line is simply unassigned
+    # create-with-stock: new-item branch and merge branch
+    payload = InventoryItemCreateIn(name="Sugar", stock_qty=D("2"), unit="kg", unit_cost=D("5"), payment_source="cash")
+    catalog.create_inventory_item(payload, db=db, tenant=tenant, user=ADMIN)
+    catalog.create_inventory_item(payload, db=db, tenant=tenant, user=ADMIN)
+    assert D(str(db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id, InventoryItem.name == "Sugar").one().stock_qty)) == D("4")
+    ok(db, tenant.id)  # dual reconciliation stays green with unassigned AP
+
+
+def test_setting_on_requires_supplier_on_every_receipt_path(db, tenant):
+    from fastapi import HTTPException
+    from app.models import InventoryItem
+    from app.routers import catalog
+    from app.schemas import InventoryItemCreateIn
+
+    _supplier_setting(db, tenant.id, True)
+    item = _item(db, tenant.id)
+    sup = _supplier(db, tenant.id, "Şirin MMC")
+    db.commit()
+    stock_before = db.get(InventoryItem, item.id).stock_qty
+    with pytest.raises(HTTPException) as exc:
+        _restock(db, tenant, item.id)
+    assert exc.value.status_code == 400 and exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+    with pytest.raises(HTTPException) as exc:
+        _restock(db, tenant, item.id, supplier_id="no-such-supplier")
+    assert exc.value.status_code == 404
+    db.rollback()
+    assert db.get(InventoryItem, item.id).stock_qty == stock_before and not _stock_ap_lines(db, tenant.id)  # nothing half-written
+
+    def create(**kw):
+        return catalog.create_inventory_item(InventoryItemCreateIn(name="Çay", stock_qty=D("2"), unit="kg", unit_cost=D("5"), **kw),
+                                             db=db, tenant=tenant, user=ADMIN)
+
+    with pytest.raises(HTTPException) as exc:  # new-item branch
+        create()
+    assert exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+    create(supplier_id=sup.id)
+    with pytest.raises(HTTPException) as exc:  # merge branch
+        create()
+    assert exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+    _restock(db, tenant, item.id, supplier_id=sup.id)
+    ok(db, tenant.id)
+
+
+def test_legacy_tenant_follows_the_setting_too(db, tenant):
+    from fastapi import HTTPException
+
+    bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
+    db.commit()
+    item = _item(db, tenant.id)
+    _restock(db, tenant, item.id, payment_source="payable")  # legacy, nothing recorded: optional (today's behaviour)
+    _supplier_setting(db, tenant.id, True)
+    with pytest.raises(HTTPException) as exc:  # legacy + ON: decoupled from the ledger mode
+        _restock(db, tenant, item.id, payment_source="payable")
+    assert exc.value.detail["code"] == "supplier_required"
+    db.rollback()
+
+
+def test_inventory_policy_endpoint(db, tenant):
+    from app.routers import catalog
+
+    staff = SimpleNamespace(username="kassir", role="staff")
+    assert catalog.get_inventory_policy(db=db, tenant=tenant, user=staff) == {"require_supplier": False}  # default, dual tenant too
+    _supplier_setting(db, tenant.id, True)
+    assert catalog.get_inventory_policy(db=db, tenant=tenant, user=staff) == {"require_supplier": True}
+    bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
+    db.commit()
+    assert catalog.get_inventory_policy(db=db, tenant=tenant, user=ADMIN) == {"require_supplier": True}  # follows the setting only

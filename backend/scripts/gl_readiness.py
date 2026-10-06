@@ -2,7 +2,9 @@
 
 Read-only. Reports a tenant's migration posture and the two go/no-go verdicts
 (``can_switch_to_dual`` / ``can_switch_reports_to_gl``) with the reasons any
-failed condition contributes. Writes nothing to the database.
+failed condition contributes. Writes nothing to the database, so it cannot create a
+missing chart of accounts: it says NO and names the command that does
+(``gl_ledger_mode.py --set dual``).
 
 Usage (from backend/):
     python scripts/gl_readiness.py --tenant <id>
@@ -35,12 +37,21 @@ def _verdict_line(name: str, verdict: dict) -> str:
     return head + "".join(f"\n    - {reason}" for reason in verdict["reasons"])
 
 
+def _setting_label(record: dict | None, field: str, on: str, off: str) -> str:
+    if record is None:
+        return "NOT RECORDED"
+    return on if record.get(field) is True else off
+
+
 def _human(report: dict) -> str:
     lines = [
         f"Tenant:                 {report['tenant_id']}",
         f"Ledger mode:            {report['ledger_mode']}",
         f"Reports source:         {report['reports_source']}",
         f"Chart present:          {report['chart_present']}",
+        f"UI visible:             {_setting_label(report.get('ui_visible_setting'), 'visible', 'visible', 'hidden')}",
+        f"Require supplier:       {_setting_label(report.get('require_supplier_setting'), 'required', 'on', 'off')}",
+        f"Reconciler:             {report.get('reconciler')} (ever dual: {report.get('ever_dual')})",
         f"Clean reconcile streak: {report['clean_reconciliation_streak']}",
         f"Native errors (7d):     {report['native_error_count_7d']}",
         f"Pending journals:       {report['pending_journals']}",
@@ -60,6 +71,13 @@ def _human(report: dict) -> str:
     lines.append("")
     lines.append(_verdict_line("can_switch_to_dual     ", report["can_switch_to_dual"]))
     lines.append(_verdict_line("can_switch_reports_to_gl", report["can_switch_reports_to_gl"]))
+    lines.append("")
+    lines.append("explained difference review (R5, informational, never blocks):")
+    review = report["can_switch_reports_to_gl"].get("explained_diff_review") or []
+    if not review:
+        lines.append("  none")
+    for entry in review:
+        lines.append(f"  {entry['code']}: {entry['explained_diff']} (legacy {entry['legacy']}, gl {entry['gl']})")
     return "\n".join(lines)
 
 

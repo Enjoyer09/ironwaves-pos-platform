@@ -439,6 +439,23 @@ def reconcile_dual_tenant(db: Session, tenant_id: str) -> dict:
     }
 
 
+def reconcile_for_tenant(db: Session, tenant_id: str) -> dict:
+    """Pick the reconciler from the tenant's HISTORY, not only its current ledger mode.
+
+    A tenant that is dual now or ever was (legacy links, or an audit record of a switch to dual) owns native journals
+    that the 1:1 ``reconcile_tenant`` cannot explain, so flipping it back to legacy must not change the judge.
+    Never-dual tenants keep ``reconcile_tenant`` unchanged. The report gains ``reconciler`` ("dual"|"single") and
+    ``ever_dual``. Single selection point for the nightly shadow job, readiness and ``scripts/gl_ledger_mode.py``.
+    """
+    from app.gl.bridge import had_dual_history
+
+    ever_dual = had_dual_history(db, tenant_id)
+    report = reconcile_dual_tenant(db, tenant_id) if ever_dual else reconcile_tenant(db, tenant_id)
+    report["reconciler"] = "dual" if ever_dual else "single"
+    report["ever_dual"] = ever_dual
+    return report
+
+
 def open_items(db: Session, tenant_id: str) -> dict:
     """Things that were deliberately *not* migrated and need a human decision."""
     not_posted = (

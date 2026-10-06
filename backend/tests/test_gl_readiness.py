@@ -13,8 +13,8 @@ import app.gl.models  # noqa: F401
 import app.models  # noqa: F401
 from app.db import Base
 from app.gl import bridge, readiness, shadow
-from app.gl.models import GLAccount, GLJournal, GLJournalLine, GLShadowRun
-from app.models import Tenant
+from app.gl.models import GLAccount, GLAuditEvent, GLJournal, GLJournalLine, GLShadowRun
+from app.models import Sale, Setting, Tenant
 from app.services import finance_service as fs
 
 # Two cycle clocks on different Baku days so each produces its own reconcile run.
@@ -60,8 +60,23 @@ def _clean_streak(db, tid, n: int = 2):
         shadow.run_cycle(db, now=clock)
 
 
+def _record_settings(db, tid, *, ui=False, supplier=False):
+    """Record the two WP-A per-tenant settings explicitly (hidden / supplier off are valid decisions)."""
+    bridge.set_ui_visible(db, tid, ui, actor="test", reason="test")
+    bridge.set_require_supplier(db, tid, supplier, actor="test", reason="test")
+    db.commit()
+def _ready_tenant(db, sales=("10.00", "25.00")):
+    tid = _tenant(db)
+    for amount in sales:
+        _sale(db, tid, amount)
+    _clean_streak(db, tid, n=2)
+    return tid
+def _settings_reason(report, key):
+    return [r for r in report["can_switch_to_dual"]["reasons"] if key in r]
 def _row_counts(db, tid) -> dict:
     return {
+        "settings": db.query(func.count(Setting.id)).filter(Setting.tenant_id == tid).scalar(),
+        "audit_events": db.query(func.count(GLAuditEvent.id)).filter(GLAuditEvent.tenant_id == tid).scalar(),
         "journals": db.query(func.count(GLJournal.id)).filter(GLJournal.tenant_id == tid).scalar(),
         "lines": db.query(func.count(GLJournalLine.id)).filter(GLJournalLine.tenant_id == tid).scalar(),
         "accounts": db.query(func.count(GLAccount.id)).filter(GLAccount.tenant_id == tid).scalar(),
@@ -108,6 +123,7 @@ def test_can_switch_to_dual_true_on_happy_path(db):
     _sale(db, tid)
     _sale(db, tid, "25.00")
     _clean_streak(db, tid, n=2)
+    _record_settings(db, tid)
     report = readiness.readiness(db, tid)
     verdict = report["can_switch_to_dual"]
     assert verdict["ok"] is True, verdict["reasons"]
@@ -160,3 +176,119 @@ def test_readiness_performs_no_writes(db):
     assert before == after
     # Sanity: the call still returned a full report with both verdicts.
     assert set(report).issuperset({"can_switch_to_dual", "can_switch_reports_to_gl", "current_reconcile"})
+
+# ───────────────────────────── WP-A6: recorded settings are blockers ─────────────────────────────
+def test_unrecorded_settings_are_the_only_blockers_on_an_otherwise_ready_tenant(db):
+    """The four real tenants in miniature: legacy, chart, clean streak, nothing recorded => NO, and exactly why."""
+    tid = _ready_tenant(db)
+    report = readiness.readiness(db, tid)
+    verdict = report["can_switch_to_dual"]
+    assert verdict["ok"] is False
+    assert len(verdict["reasons"]) == 2
+    assert len(_settings_reason(report, "finance_v2_ui_visible is not recorded")) == 1
+    assert len(_settings_reason(report, "finance_v2_require_supplier is not recorded")) == 1
+    assert f"--tenant {tid} --ui hidden" in verdict["reasons"][0] and f"--tenant {tid} --require-supplier off" in verdict["reasons"][1]
+    assert report["ui_visible_setting"] is None and report["require_supplier_setting"] is None
+def test_only_the_missing_setting_is_reported(db):
+    tid = _ready_tenant(db)
+    bridge.set_ui_visible(db, tid, False, actor="test", reason="test")
+    db.commit()
+    report = readiness.readiness(db, tid)
+    assert len(report["can_switch_to_dual"]["reasons"]) == 1 and _settings_reason(report, "finance_v2_require_supplier is not recorded")
+    bridge.set_require_supplier(db, tid, False, actor="test", reason="test")
+    db.commit()
+    assert readiness.readiness(db, tid)["can_switch_to_dual"]["ok"] is True
+@pytest.mark.parametrize("ui,supplier", [(False, False), (True, False), (False, True), (True, True)])
+def test_any_explicit_value_satisfies_the_requirement(db, ui, supplier):
+    tid = _ready_tenant(db)
+    _record_settings(db, tid, ui=ui, supplier=supplier)
+    verdict = readiness.readiness(db, tid)["can_switch_to_dual"]
+    assert verdict["ok"] is True, verdict["reasons"]
+@pytest.mark.parametrize("raw", ["", "nope", "[]", '{"visible": "true"}', '{"required": 1}', "{}"])
+def test_malformed_setting_rows_count_as_not_recorded(db, raw):
+    tid = _ready_tenant(db)
+    db.add(Setting(tenant_id=tid, key="finance_v2_ui_visible", value=raw))
+    db.add(Setting(tenant_id=tid, key="finance_v2_require_supplier", value=raw))
+    db.commit()
+    report = readiness.readiness(db, tid)
+    assert report["ui_visible_setting"] is None and report["require_supplier_setting"] is None
+    assert report["can_switch_to_dual"]["ok"] is False
+def test_chartless_tenant_gets_a_clear_fix_and_does_not_raise(db):
+    tid = _tenant(db)  # legacy sales exist but nothing was ever mirrored: no chart
+    _sale(db, tid, "5.00")
+    db.rollback()
+    report = readiness.readiness(db, tid)
+    assert report["chart_present"] is False and report["current_reconcile"] is None
+    reason = report["can_switch_to_dual"]["reasons"][0]
+    assert "Chart of accounts is not initialised" in reason and "--set dual" in reason and tid in reason
+    assert report["rollback_reconciler_verified"] is None
+    assert not [r for r in report["can_switch_to_dual"]["reasons"] if "Rollback reconciler" in r]
+# ───────────────────────────── WP-A3 in readiness: history-aware reconciler ─────────────────────────────
+def test_flipped_back_tenant_is_judged_by_the_dual_reconciler(db):
+    tid = _tenant(db)
+    _sale(db, tid)
+    shadow.sync_tenant(db, tid)
+    bridge.set_ledger_mode(db, tid, "dual", actor="test", reason="pilot")
+    db.commit()
+    bridge.set_ledger_mode(db, tid, "legacy", actor="test", reason="back")
+    db.commit()
+    _sale(db, tid, "7.00")
+    shadow.sync_tenant(db, tid)  # the shadow job mirrors new legacy activity (readiness itself never writes)
+    report = readiness.readiness(db, tid)
+    assert report["ledger_mode"] == "legacy" and report["ever_dual"] is True and report["reconciler"] == "dual"
+    assert report["current_reconcile"]["ok"] is True, [c for c in report["current_reconcile"]["checks"] if not c["ok"]]
+    assert report["current_reconcile"]["reconciler"] == "dual"
+    assert report["rollback_reconciler_verified"] is True
+def test_rollback_blocker_text_when_the_selection_is_not_wired(db, monkeypatch):
+    tid = _ready_tenant(db)
+    _record_settings(db, tid)
+    bridge.set_ledger_mode(db, tid, "dual", actor="test", reason="pilot")
+    db.commit()
+    real = readiness.legacy_migration.reconcile_for_tenant
+    monkeypatch.setattr(readiness.legacy_migration, "reconcile_for_tenant", lambda d, t: dict(real(d, t), reconciler="single"))
+    report = readiness.readiness(db, tid)
+    assert report["rollback_reconciler_verified"] is False
+    for verdict in ("can_switch_to_dual", "can_switch_reports_to_gl"):
+        assert any("Rollback reconciler not verified" in r for r in report[verdict]["reasons"]), verdict
+# ───────────────────────────── WP-A6: explained_diff_review ─────────────────────────────
+def _dual_tenant_with_card_fee_gap(db):
+    tid = _tenant(db)
+    _sale(db, tid)
+    shadow.sync_tenant(db, tid)
+    bridge.set_ledger_mode(db, tid, "dual", actor="test", reason="pilot")
+    db.commit()
+    sale = Sale(id="s-gap", tenant_id=tid, cashier="k", payment_method="Kart", total=Decimal("50.00"), discount_amount=Decimal("0"),
+                cogs=Decimal("12.00"), items_json="[]", status="COMPLETED")
+    db.add(sale)
+    db.flush()
+    # Legacy books no card fee here, native does (2%): a 1.00 explained difference on the card wallet.
+    fs.post_sale_payment(db, tenant_id=tid, sale_id=sale.id, amount=Decimal("50.00"), payment_source="card", created_by="k", card_fee_percent=Decimal("0"))
+    fs.post_sale_cogs(db, tenant_id=tid, sale_id=sale.id, amount=Decimal("12.00"), created_by="k")
+    bridge.emit_sale(db, tid, sale=sale, payments=[("card", sale.total)], actor="k", card_fee_percent=Decimal("2"))
+    db.commit()
+    return tid
+def test_explained_diff_review_lists_each_non_zero_difference_and_never_blocks(db):
+    tid = _dual_tenant_with_card_fee_gap(db)
+    _clean_streak(db, tid, n=2)
+    report = readiness.readiness(db, tid)
+    verdict = report["can_switch_reports_to_gl"]
+    review = verdict["explained_diff_review"]
+    assert [entry["code"] for entry in review] == ["card"]
+    assert Decimal(review[0]["explained_diff"]) == Decimal("-1.00")
+    assert set(review[0]) == {"code", "explained_diff", "legacy", "gl"}
+    assert verdict["ok"] is True, verdict["reasons"]  # informational: the review does not change the verdict
+    assert "explained_diff_review" not in report["can_switch_to_dual"]
+def test_explained_diff_review_is_empty_without_differences_or_parity(db):
+    tid = _ready_tenant(db)
+    assert readiness.readiness(db, tid)["can_switch_reports_to_gl"]["explained_diff_review"] == []  # legacy: no parity report
+    shadow.sync_tenant(db, tid)
+    bridge.set_ledger_mode(db, tid, "dual", actor="test", reason="pilot")
+    db.commit()
+    assert readiness.readiness(db, tid)["can_switch_reports_to_gl"]["explained_diff_review"] == []  # dual, nothing explained
+def test_readiness_performs_no_writes_even_with_settings_absent(db):
+    tid = _ready_tenant(db)
+    before = _row_counts(db, tid)
+    report = readiness.readiness(db, tid)
+    db.rollback()
+    assert before == _row_counts(db, tid)
+    assert report["ui_visible_setting"] is None

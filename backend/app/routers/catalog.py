@@ -164,23 +164,24 @@ def _convert_recipe_qty_to_inventory_unit(quantity: Decimal, from_unit: str, inv
     return quantity * factor
 
 
-def _require_supplier_for_dual_receipt(db: Session, tenant_id: str, supplier_id: str | None, amount: Decimal) -> Supplier | None:
+def _resolve_receipt_supplier(db: Session, tenant_id: str, supplier_id: str | None, amount: Decimal) -> Supplier | None:
     """Resolve the stock receipt's supplier (404 when not in this tenant).
 
-    In dual ledger mode every new receipt with a value needs a real supplier, so the AP line
-    (or the cash purchase) is never left unassigned. Legacy mode keeps the supplier optional.
+    When the tenant's ``finance_v2_require_supplier`` setting is on (default off, independent of the ledger
+    mode) every receipt with a value needs a real supplier, so the AP line (or the cash purchase) is never
+    left unassigned. Otherwise the supplier stays optional.
     """
-    from app.gl.bridge import get_ledger_mode
+    from app.gl.bridge import require_supplier
 
     supplier = None
     if supplier_id:
         supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.tenant_id == tenant_id).first()
         if not supplier:
             raise HTTPException(status_code=404, detail="Supplier not found")
-    if supplier is None and amount > 0 and get_ledger_mode(db, tenant_id) == "dual":
+    if supplier is None and amount > 0 and require_supplier(db, tenant_id):
         raise HTTPException(
             status_code=400,
-            detail={"code": "supplier_required", "message": "Select a supplier for this stock receipt (required in dual ledger mode)"},
+            detail={"code": "supplier_required", "message": "Select a supplier for this stock receipt (required for this business)"},
         )
     return supplier
 
@@ -517,6 +518,18 @@ def update_menu_item(
     }
 
 
+@router.get("/inventory/policy")
+def get_inventory_policy(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Receipt rules the Inventory panel must follow. Any authenticated role of the tenant may read it (like the list)."""
+    from app.gl.bridge import require_supplier
+
+    return {"require_supplier": require_supplier(db, tenant.id)}
+
+
 @router.get("/inventory", response_model=list[InventoryItemOut])
 def list_inventory_items(
     db: Session = Depends(get_db),
@@ -570,7 +583,7 @@ def create_inventory_item(
         incoming_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
         incoming_total_value_exact = incoming_qty * incoming_unit_cost
         incoming_total_value = incoming_total_value_exact.quantize(Decimal("0.01"))
-        supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, incoming_total_value)
+        supplier = _resolve_receipt_supplier(db, tenant.id, payload.supplier_id, incoming_total_value)
         old_total_value = Decimal(str(existing.stock_qty)) * Decimal(str(existing.unit_cost))
         new_total_qty = (Decimal(str(existing.stock_qty)) + incoming_qty).quantize(Decimal("0.001"))
         existing.stock_qty = new_total_qty
@@ -612,7 +625,7 @@ def create_inventory_item(
         opening_qty = Decimal(str(payload.stock_qty)).quantize(Decimal("0.001"))
         opening_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
         opening_total_value = (opening_qty * opening_unit_cost).quantize(Decimal("0.01"))
-        supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, opening_total_value)
+        supplier = _resolve_receipt_supplier(db, tenant.id, payload.supplier_id, opening_total_value)
         row = InventoryItem(
             tenant_id=tenant.id,
             name=name,
@@ -769,7 +782,7 @@ def restock_inventory_item(
     if total_price < 0:
         raise HTTPException(status_code=400, detail="Total price cannot be negative")
 
-    supplier = _require_supplier_for_dual_receipt(db, tenant.id, payload.supplier_id, total_price.quantize(Decimal("0.01")))
+    supplier = _resolve_receipt_supplier(db, tenant.id, payload.supplier_id, total_price.quantize(Decimal("0.01")))
     _add_supplier_payable(supplier, payload.payment_source, total_price)
 
     old_total_value = Decimal(str(row.stock_qty)) * Decimal(str(row.unit_cost))

@@ -108,7 +108,7 @@ def test_failed_reconciliation_breaks_the_streak(db, monkeypatch):
     tid = _tenant(db)
     _sale(db, tid)
     shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR)
-    monkeypatch.setattr(shadow, "reconcile_tenant", lambda s, t: {"ok": False, "checks": [{"check": "x", "ok": False}]})
+    monkeypatch.setattr(shadow, "reconcile_for_tenant", lambda s, t: {"ok": False, "checks": [{"check": "x", "ok": False}]})
     shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR.replace(day=2))
     status = shadow.shadow_status(db, tid)
     assert status["clean_reconciliation_streak"] == 0
@@ -134,7 +134,7 @@ def test_failing_reconcile_creates_one_open_alert_and_clean_run_resolves_it(db, 
 
     tid = _tenant(db)
     _sale(db, tid)
-    monkeypatch.setattr(shadow, "reconcile_tenant", lambda s, t: {"ok": False, "checks": [{"check": "x", "ok": False}]})
+    monkeypatch.setattr(shadow, "reconcile_for_tenant", lambda s, t: {"ok": False, "checks": [{"check": "x", "ok": False}]})
     shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR)
     alerts = _open_alerts(db, tid)
     assert len(alerts) == 1 and alerts[0].occurrences == 1
@@ -147,7 +147,7 @@ def test_failing_reconcile_creates_one_open_alert_and_clean_run_resolves_it(db, 
     assert len(alerts) == 1 and alerts[0].occurrences == 2
 
     # A later clean reconcile auto-resolves the open alert.
-    monkeypatch.setattr(shadow, "reconcile_tenant", lambda s, t: {"ok": True, "checks": [{"check": "x", "ok": True}]})
+    monkeypatch.setattr(shadow, "reconcile_for_tenant", lambda s, t: {"ok": True, "checks": [{"check": "x", "ok": True}]})
     shadow.run_cycle(db, now=AFTER_RECONCILE_HOUR.replace(day=3))
     assert _open_alerts(db, tid) == []
     assert _open_alerts(db, tid, "streak_broken") == []
