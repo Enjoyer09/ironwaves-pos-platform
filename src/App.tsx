@@ -23,6 +23,7 @@ import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
 import { apiRequest, isBackendEnabled, setClientAuthSession } from './api/client';
 import { getGLCapabilities } from './api/gl';
+import { isFinanceV2Available } from './lib/financeV2Gate';
 
 
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
@@ -1108,7 +1109,8 @@ export default function App() {
   const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
   const moduleTenantKey = `${selectedTenantId}:${String(user?.username || 'guest')}`;
 
-  // Finance v2 (GL) is rolled out per tenant; the backend answers 404 where it is off.
+  // Finance v2 (GL) is rolled out per tenant; the backend answers 404 where it is off or hidden (default hidden).
+  // The module shows only when the tenant made it visible, or for super_admin (see lib/financeV2Gate).
   const [glAvailable, setGlAvailable] = useState(false);
   useEffect(() => {
     const glRoles = ['admin', 'super_admin', 'finance_admin', 'manager', 'accountant', 'auditor'];
@@ -1118,7 +1120,7 @@ export default function App() {
     }
     let alive = true;
     void getGLCapabilities().then((caps) => {
-      if (alive) setGlAvailable(Boolean(caps?.enabled));
+      if (alive) setGlAvailable(isFinanceV2Available(caps, sessionRole));
     });
     return () => { alive = false; };
   }, [hasValidUser, backendMode, user?.tenant_id, sessionRole]);

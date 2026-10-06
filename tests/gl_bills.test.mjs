@@ -120,11 +120,11 @@ test('D4: JournalDrawer offers no generic storno for document journals', () => {
   assert.match(s, /glOwned = [^\n]*!documentOwned/);
 });
 
-test('F7: restock sends supplier_id and the panel requires a supplier in dual mode', () => {
+test('F7: restock sends supplier_id and the panel requires a supplier when the tenant setting says so', () => {
   const api = source('src/api/inventory.ts');
   const restock = api.slice(api.indexOf('export async function restock_item_live'), api.indexOf('export async function update_inventory_item_live'));
   assert.match(restock, /supplier_id: String\(options\?\.supplier_id/);
-  assert.match(source('src/components/admin/InventoryPanel.tsx'), /ledger_mode === 'dual'/);
+  assert.match(source('src/components/admin/InventoryPanel.tsx'), /get_inventory_policy_live/);
 });
 
 test('F12: handoff keeps the unverified token purge flagged and drops the unverified reconcile claim', () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
-import { get_inventory_items_live, add_inventory_item_live, update_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
+import { get_inventory_items_live, get_inventory_policy_live, add_inventory_item_live, update_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_suppliers_live, adjust_local_supplier_balance_on_restock } from '../../api/suppliers';
 import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
@@ -9,7 +9,6 @@ import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { tx } from '../../i18n';
 import { apiRequest, getApiBaseUrl, isBackendEnabled } from '../../api/client';
-import { getGLCapabilities } from '../../api/gl';
 import { verifyLocalCredential } from '../../lib/local_auth';
 import { getDB } from '../../lib/db_sim';
 
@@ -46,10 +45,10 @@ export default function InventoryPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    setLedgerDual(false);
+    setRequireSupplier(false);
     if (isBackendEnabled()) {
-      void getGLCapabilities().then((caps) => {
-        if (!cancelled) setLedgerDual(caps?.ledger_mode === 'dual');
+      void get_inventory_policy_live().then((policy) => {
+        if (!cancelled) setRequireSupplier(policy.require_supplier);
       });
     }
     return () => {
@@ -149,9 +148,9 @@ export default function InventoryPanel() {
   const [restockSupplierId, setRestockSupplierId] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
-  // Dual ledger mode: every stock receipt with a value needs a supplier (the backend enforces it too).
-  // No GL API / no access (null) = legacy rules.
-  const [ledgerDual, setLedgerDual] = useState(false);
+  // Per-tenant setting (finance_v2_require_supplier, default off): every stock receipt with a value needs a supplier
+  // (the backend enforces it too). Read from the catalog policy endpoint, so every role of the tenant gets it.
+  const [requireSupplier, setRequireSupplier] = useState(false);
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: string; unit: string; min_limit: string } | null>(null);
   const [editCustomType, setEditCustomType] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
@@ -266,15 +265,15 @@ export default function InventoryPanel() {
     }
   };
 
-  // Legacy: payable restocks need a supplier (unchanged). Dual: any receipt with a value does.
+  // Payable restocks always need a supplier (unchanged). When the business requires it, any receipt with a value does.
   const supplierRequiredMessage = tx(lang,
-    'İkili mühasibat rejimində hər mədaxil üçün təchizatçı seçilməlidir',
-    'В двойном режиме учёта для каждого поступления нужно выбрать поставщика',
-    'In dual ledger mode every stock receipt needs a supplier');
+    'Bu müəssisədə hər mədaxil üçün təchizatçı seçilməlidir',
+    'В этом заведении для каждого поступления нужно выбрать поставщика',
+    'This business requires a supplier for every stock receipt');
   const restockSupplierMissing = !restockSupplierId
-    && (restockPaymentSource === 'payable' || (ledgerDual && isPositiveDecimalInput(restockTotalPrice)));
+    && (restockPaymentSource === 'payable' || (requireSupplier && isPositiveDecimalInput(restockTotalPrice)));
   const restockValid = isPositiveDecimalInput(restockQty) && isNonNegativeDecimalInput(restockTotalPrice) && !restockSupplierMissing;
-  const addSupplierMissing = ledgerDual && !newSupplierId && isPositiveDecimalInput(newCost);
+  const addSupplierMissing = requireSupplier && !newSupplierId && isPositiveDecimalInput(newCost);
 
   const inventoryTypeOptions = useMemo(
     () => Array.from(
@@ -296,7 +295,7 @@ export default function InventoryPanel() {
       notify('error', supplierRequiredMessage);
       return;
     }
-    const selectedSupplier = ledgerDual ? suppliers.find((s) => s.id === newSupplierId) : null;
+    const selectedSupplier = requireSupplier ? suppliers.find((s) => s.id === newSupplierId) : null;
     try {
       const qty = parseDecimalInput(newQty);
       const totalPrice = parseDecimalInput(newCost);
@@ -350,7 +349,7 @@ export default function InventoryPanel() {
     if (qty.lte(0) || totalPrice.lt(0)) return;
 
     if (restockSupplierMissing) {
-      notify('error', ledgerDual
+      notify('error', requireSupplier
         ? supplierRequiredMessage
         : tx(lang, 'Öhdəlik (AP) üçün təchizatçı seçilməlidir', 'Для кредиторки (AP) необходимо выбрать поставщика', 'Supplier must be selected for payable (AP)'));
       return;
@@ -614,9 +613,9 @@ export default function InventoryPanel() {
                 className="neon-input"
                 value={restockSupplierId}
                 aria-label={tx(lang, 'Təchizatçı', 'Поставщик', 'Supplier')}
-                aria-required={ledgerDual || restockPaymentSource === 'payable'}
-                aria-invalid={ledgerDual && restockSupplierMissing}
-                aria-describedby={ledgerDual && restockSupplierMissing ? 'inv-restock-supplier-hint' : undefined}
+                aria-required={requireSupplier || restockPaymentSource === 'payable'}
+                aria-invalid={requireSupplier && restockSupplierMissing}
+                aria-describedby={requireSupplier && restockSupplierMissing ? 'inv-restock-supplier-hint' : undefined}
                 onChange={(e) => {
                   const selectedId = e.target.value;
                   setRestockSupplierId(selectedId);
@@ -631,13 +630,13 @@ export default function InventoryPanel() {
               </select>
               <input className="neon-input col-span-2 animate-fade-in" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
             </div>
-            {ledgerDual && restockSupplierMissing ? (
+            {requireSupplier && restockSupplierMissing ? (
               <p id="inv-restock-supplier-hint" className="mt-2 text-sm text-amber-200" aria-live="polite">{supplierRequiredMessage}</p>
             ) : null}
             <div className="mt-4 flex gap-2">
               <button
                 className="glossy-gold min-h-11 rounded-lg px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={ledgerDual && !restockValid}
+                disabled={requireSupplier && !restockValid}
                 onClick={() => { void handleRestock(restockModal.id); }}
               >
                 {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
@@ -855,7 +854,7 @@ export default function InventoryPanel() {
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
           </select>
           <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
-          {ledgerDual ? (
+          {requireSupplier ? (
             <select
               className="neon-input min-h-13"
               value={newSupplierId}
