@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import SessionLocal
 from app.gl.engine import BUSINESS_TZ
-from app.gl.legacy_migration import migrate_tenant, reconcile_tenant
+from app.gl.legacy_migration import migrate_tenant, reconcile_for_tenant
 from app.gl.models import GLShadowRun
 from app.models import FinanceTransaction
 
@@ -76,14 +76,14 @@ def reconcile_tenant_shadow(db: Session, tenant_id: str, *, started: datetime | 
     """Sync then reconcile. A legacy posting that lands between the two steps can
     cause a transient mismatch, so a failure is retried once after a fresh sync.
 
+    The reconciler follows the tenant's HISTORY (``reconcile_for_tenant``): a tenant that is dual now or ever was keeps
+    the dual reconciler after a flip back to legacy, because its native journals are not 1:1 with legacy.
+
     ``started`` is the cycle's clock (UTC, naive); the once-per-day guard relies on it."""
     started = started or _utcnow()
-    from app.gl.bridge import get_ledger_mode
-    from app.gl.legacy_migration import reconcile_dual_tenant
 
     def run():
-        mode = get_ledger_mode(db, tenant_id)
-        return reconcile_dual_tenant(db, tenant_id) if mode == "dual" else reconcile_tenant(db, tenant_id)
+        return reconcile_for_tenant(db, tenant_id)
 
     # Was the previous reconcile clean? Used to tell a fresh failure (streak break)
     # from an ongoing one. Read before this run is recorded.

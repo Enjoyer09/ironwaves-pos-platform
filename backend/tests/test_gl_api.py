@@ -71,7 +71,7 @@ def test_api_is_hidden_when_flag_off(env, monkeypatch):
 
 def test_api_is_enabled_per_tenant_in_dual_mode(env, monkeypatch):
     from app.gl import engine as gl_engine
-    from app.gl.bridge import set_ledger_mode
+    from app.gl.bridge import set_ledger_mode, set_ui_visible
 
     monkeypatch.setattr(settings, "finance_v2_enabled", False)
     with env.Session() as s:
@@ -82,10 +82,21 @@ def test_api_is_enabled_per_tenant_in_dual_mode(env, monkeypatch):
         set_ledger_mode(s, env.tenant_id, "dual", actor="test", reason="pilot")
         s.commit()
 
+    # Dual but not visible (the default): the admin still gets a plain 404, only super_admin gets in.
+    assert env.client.get("/api/v1/gl/capabilities").status_code == 404
+    assert env.client.get("/api/v1/gl/accounts").status_code == 404
+    _as(env, "root", "super_admin")
+    assert env.client.get("/api/v1/gl/capabilities").json()["ui_visible"] is False
+    _as(env, "owner", "admin")
+    with env.Session() as s:
+        set_ui_visible(s, env.tenant_id, True, actor="test", reason="pilot")
+        s.commit()
+
     caps = env.client.get("/api/v1/gl/capabilities")
     assert caps.status_code == 200
     body = caps.json()
-    assert body["enabled"] and body["ledger_mode"] == "dual" and body["reports_source"] == "legacy"
+    assert body["enabled"] and body["ui_visible"] is True
+    assert body["ledger_mode"] == "dual" and body["reports_source"] == "legacy"
     assert body["chart_ready"] and body["can_control"] and body["can_approve"]
     assert env.client.get("/api/v1/gl/accounts").status_code == 200
 

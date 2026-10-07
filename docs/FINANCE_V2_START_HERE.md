@@ -10,6 +10,7 @@ what is broken or risky, and exactly what to do next.
 > **Sahibkar Azərbaycan dilində danışır: ona Azərbaycan dilində, qısa və faktlarla cavab verin.**
 
 - **Snapshot:** 2026-10-05, ~18:00 Asia/Baku (check `date`: the machine clock advanced three days during the previous session). `main` = `984025cd` (PR #41 merged); PR #42 (streak fix) and PR #40 (this document) may still be open: see `gh pr list`. Production runs `main`.
+- **WP-A (Phase 1) status:** WP-A1, A2, A3, A4, A6 are implemented on branch `feature/finance-v2-wp-a` (**PR #TBD**, awaiting review, merge and deploy). WP-A5 (external alerts) is still open. Nothing in that PR changes a real tenant; the post-deploy commands in section 8 (Phase 1) are **not** run automatically.
 - **How to refresh the snapshot:** every fact that can change is marked **[verify]** with the command to re-check it
   (section 9). Facts change fast; never trust this file over a command you just ran.
 - **Companion files** (all in `docs/`):
@@ -38,14 +39,18 @@ what is broken or risky, and exactly what to do next.
    (finance screens read numbers from the GL) → *(future, irreversible)* **legacy writes stop**.
 4. Code is finished and in production up to and including bills/payables (WP3) **and the cut-over readiness package**
    (alerts, readiness check, supplier balances from GL, deadlock fix, UI QA; PR #41, section 6). What is missing before a real
-   tenant can move is **WP-A** (section 8, Phase 1), not more infrastructure.
+   tenant can move is **WP-A** (section 8, Phase 1), not more infrastructure. WP-A1/A2/A3/A4/A6 are now implemented in **PR #TBD**
+   (awaiting deploy); WP-A5 is open.
 5. Production today: **Demo** and **Platform (super)** are `dual` + reports `gl` (both are test tenants). The **four real
    customers are still `legacy`/`legacy`** and must stay that way until the blockers in section 7 are fixed.
-6. **Three traps are NOT yet fixed** (section 7, R1–R3). **The readiness script does not know about them: it already says
-   `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space. Do not treat that YES as permission** (R19): switching a real tenant to
-   `dual` would (a) show the new "Mühasibat (v2)" menu to the customer's admins/managers, (b) make stock receipts
-   demand a supplier, and (c) cannot be cleanly rolled back to `legacy`. **Do not switch any real tenant before
-   work package WP-A (section 8) is done.** An earlier statement that "dual is invisible to the customer" was wrong.
+6. **The three traps (section 7, R1–R3) are fixed in code by PR #TBD, but fixed code is not a decision to move a tenant.** Before that PR
+   the readiness script said `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space (R19) and `dual` would have (a) shown the new
+   "Mühasibat (v2)" menu to the customer's admins/managers, (b) made stock receipts demand a supplier, and (c) not rolled back cleanly.
+   With the PR, (a) the module is hidden by default (`finance_v2_ui_visible`), (b) the supplier rule is its own setting
+   (`finance_v2_require_supplier`, default off) and (c) a tenant that was ever dual is judged by the dual reconciler. The readiness verdict is
+   **NO** for every tenant until an operator has explicitly recorded both settings (`--ui`, `--require-supplier`), and it lists what is missing.
+   Even a YES is not permission: the owner-approved steps in section 8 still apply. **Do not switch any real tenant before the PR is merged and
+   deployed and Phase 1's exit criteria are met.** An earlier statement that "dual is invisible to the customer" was wrong.
 7. Waiting on the owner's accountant: tax base rules and correction entries. Not blocking the technical migration.
 
 ---
@@ -218,8 +223,12 @@ Non-negotiable invariants (full list in `FINANCE_V2_HANDOFF.md` §2.5):
 
 GL API surface and roles: `FINANCE_V2_HANDOFF.md` §3. Frontend structure and the "how to add a tab" recipe: §4.
 Scripts: `backend/scripts/gl_ledger_mode.py` (`--list`, `--tenant X --set dual|legacy --reason`, `--reconcile`, `--parity`,
-`--reports gl|legacy`; refuses production hosts without `--allow-production`), `gl_migrate_legacy.py`
-(`--all --dry-run --allow-production`), and `gl_readiness.py` (read-only tenant go/no-go, see R19).
+`--reports gl|legacy`, `--ui visible|hidden`, `--require-supplier on|off`; refuses production hosts without `--allow-production`;
+`--set dual` creates the chart and the first mirror in one transaction and rolls everything back if the reconcile fails; `--set legacy` prints a
+WARNING when the tenant owns native journals), `gl_migrate_legacy.py` (`--all --dry-run --allow-production`), and `gl_readiness.py`
+(read-only tenant go/no-go, see R19; it cannot create a chart, it says NO and names `--set dual`).
+Per-tenant settings (table `settings`, same storage pattern as the ledger mode): `finance_v2_ledger_mode`, `finance_v2_reports_source`,
+`finance_v2_ui_visible` (default hidden), `finance_v2_require_supplier` (default off). The reconciler is picked from the tenant's history.
 
 ---
 
@@ -259,25 +268,25 @@ Severity: **BLOCKER** = must be fixed before a real tenant changes mode. Facts m
 
 | ID | Sev | Issue | Evidence | Resolution |
 |---|---|---|---|---|
-| **R1** | **BLOCKER** | **Dual mode makes the new module visible to the customer.** `_tenant_enabled()` opens `/api/v1/gl/*` for any `dual` tenant, `capabilities.enabled=true`, and `App.tsx` `canAccess('financev2')` is true for admin/super_admin and for managers who can see Finance. So the day Daily Coffee goes dual its admins see "Mühasibat (v2)" and can post manual journals/pay bills. | ✔ `backend/app/gl/router.py:34-48`, `src/App.tsx` ~1205 | WP-A1: per-tenant UI/API visibility switch, default **hidden**, super_admin always allowed |
-| **R2** | **BLOCKER** | **Dual mode changes stock receipts.** `catalog._resolve_supplier` returns 400 `supplier_required` whenever `get_ledger_mode()=="dual"` and the receipt has an amount. Customers currently restock without a supplier (that is why ~8 720 ₼ / 428 ₼ of AP is "unassigned" on Art Space / Daily Coffee). The customer's staff would hit an error on day 1. `InventoryPanel.tsx` reads `caps.ledger_mode` for the UI side. | ✔ `backend/app/routers/catalog.py:175-185`, `InventoryPanel.tsx:52` | WP-A2: decouple from ledger mode into its own per-tenant setting, default **off** for migrated tenants |
-| **R3** | **BLOCKER (for the rollback promise)** | **`dual → legacy` is not a clean rollback.** After dual activity, `reconcile_tenant` (used when mode is `legacy`) fails: on the Demo staging copy it scores **9/19** (`transaction_count 55 vs 10`, wallet balances, P&L, `reversal_links`) because native compound journals replace per-transaction mirrors. The nightly job would then raise `reconcile_failed` alerts. | ✔ run on 2026-10-02: `reconcile_dual_tenant` 14/14 but `reconcile_tenant` 9/19 | WP-A3: either make reconcile mode-history-aware, or treat `dual` as a one-way door and use **`--reports legacy`** as the only routine rollback. Until fixed, **never promise "one command back"** for the mode itself. |
+| **R1** | **BLOCKER** (fixed in PR #TBD) | **Dual mode makes the new module visible to the customer.** `_tenant_enabled()` opens `/api/v1/gl/*` for any `dual` tenant, `capabilities.enabled=true`, and `App.tsx` `canAccess('financev2')` is true for admin/super_admin and for managers who can see Finance. So the day Daily Coffee goes dual its admins see "Mühasibat (v2)" and can post manual journals/pay bills. | ✔ `backend/app/gl/router.py:34-48`, `src/App.tsx` ~1205 | **Fixed in PR #TBD (WP-A1).** Setting `finance_v2_ui_visible`, default **hidden**: a dual-but-hidden tenant gets 404 on every `/api/v1/gl/*` route for every authenticated role except `super_admin` (second router dependency after `get_current_user`; the old before-auth 404 for non-dual tenants is unchanged); `capabilities.ui_visible`; `App.tsx` uses `isFinanceV2Available`. Tested: all 37 routes × 6 roles, visible/hidden toggle, malformed values, jobs unaffected, node test for the gate. |
+| **R2** | **BLOCKER** (fixed in PR #TBD) | **Dual mode changes stock receipts.** `catalog._resolve_supplier` returns 400 `supplier_required` whenever `get_ledger_mode()=="dual"` and the receipt has an amount. Customers currently restock without a supplier (that is why ~8 720 ₼ / 428 ₼ of AP is "unassigned" on Art Space / Daily Coffee). The customer's staff would hit an error on day 1. `InventoryPanel.tsx` reads `caps.ledger_mode` for the UI side. | ✔ `backend/app/routers/catalog.py:175-185`, `InventoryPanel.tsx:52` | **Fixed in PR #TBD (WP-A2).** The function is really `catalog._require_supplier_for_dual_receipt` (now `_resolve_receipt_supplier`); it reads the per-tenant setting `finance_v2_require_supplier` (default **off**) at the 3 call sites. `InventoryPanel` reads `GET /api/v1/catalog/inventory/policy` (any tenant role) instead of `/gl/capabilities`. Set it **on** for Demo/super by the post-deploy command to keep that behaviour covered. |
+| **R3** | **BLOCKER (for the rollback promise)** (fixed in PR #TBD) | **`dual → legacy` is not a clean rollback.** After dual activity, `reconcile_tenant` (used when mode is `legacy`) fails: on the Demo staging copy it scores **9/19** (`transaction_count 55 vs 10`, wallet balances, P&L, `reversal_links`) because native compound journals replace per-transaction mirrors. The nightly job would then raise `reconcile_failed` alerts. | ✔ run on 2026-10-02: `reconcile_dual_tenant` 14/14 but `reconcile_tenant` 9/19 | WP-A3: either make reconcile mode-history-aware, or treat `dual` as a one-way door and use **`--reports legacy`** as the only routine rollback. Until fixed, **never promise "one command back"** for the mode itself. **Fixed in PR #TBD (WP-A3, first option):** `legacy_migration.reconcile_for_tenant` picks `reconcile_dual_tenant` for any tenant that is dual or ever was (link row or audit `to=dual`); used by the nightly job, readiness and `gl_ledger_mode.py`. Proven dual→legacy→dual with sales (and a void) in every phase, SQLite and PG: nothing is mirrored twice. **Honest limit:** `--set legacy` does not remove native journals; it prints a WARNING and the nightly check keeps using the dual reconciler. |
 | **R4** | HIGH | **Bill payments are GL-only**, so legacy wallet screens overstate bank/safe by the amount paid, and `Supplier.balance` ignores bills. Mitigated only for tenants whose reports source is `gl` (and, since #41, for the Suppliers screen: it shows the GL AP balance when reports source is `gl`). A real tenant must not use bills before its reports source is `gl`. | documented in `FINANCE_V2_HANDOFF.md` §2.5 | Keep the bills feature off for legacy-reports tenants (WP-A1 hides the whole module); WP4 removes the issue |
 | **R5** | HIGH | **Switching reports to `gl` can change numbers the customer sees** by the recorded explained differences (e.g. Demo: card −3.92, cash +4.00 on sales; legacy forgot bank fees). This is correct but visible, and the accountant/owner should know first. | ✔ `--reconcile` output on Demo copy | Review `parity_report.explained_diff` per tenant; tell the owner the magnitude before the switch |
 | R6 | MED | Accountant has not answered 8 questions. The simplified-tax base currently = net credit turnover of all revenue accounts incl. 611.1 cash overage, 611.9 other income and staff-meal sales value (Q1/Q2). | `accountant-review-az.md` §5 | Do not activate tax accrual for real tenants until answered |
 | R7 | MED | Known data problems (Gyros: 27 039.35 ₼ pending X-report difference since 2026-08-22, safe −2 400, suspense 538.9 = 1 319.30. Daily Coffee: safe −847.40, inventory −2 830.68, receivable −43.00, suspense 384.70, "Borc Alındı" 40 ₼ booked as income) | `accountant-review-az.md` §6 | Correct **after** migration via owner-approved adjusting journals (ASK) |
 | R8 | MED | A legacy supplier payment that settled bills can't be unwound in-app; a legacy payment made via shadow-fallback stays unallocated | PR #39 body | Deferred (`WP3-def`) |
 | R9 | MED | `gl_documents`/allocations have no PG immutability triggers; AR invoices not implemented | review F24/F25 | Deferred |
-| R10 | MED | `_reset_demo_tenant_runtime` (`auth.py:505`) deletes a tenant's **Settings** rows (ledger mode, reports source) on logout from the Demo tenant when `DEMO_TENANT_ENABLED=true`. It is `false` in production ✔ (Railway variable), but turning it on would silently revert Demo to legacy. | ✔ read | Never enable it in production; or exclude `finance_v2_*` keys |
+| R10 | MED | `_reset_demo_tenant_runtime` (`auth.py:505`) deletes a tenant's **Settings** rows (ledger mode, reports source) on logout from the Demo tenant when `DEMO_TENANT_ENABLED=true`. It is `false` in production ✔ (Railway variable), but turning it on would silently revert Demo to legacy. | ✔ read | Never enable it in production; or exclude `finance_v2_*` keys (this also wipes `finance_v2_ui_visible` and `finance_v2_require_supplier`, i.e. Demo would silently become hidden/optional again) |
 | R11 | MED | **CI does not run PostgreSQL tests or the frontend node tests.** Job "Backend Integration (PostgreSQL)" shows *skipping* on PRs (needs `INTEGRATION_DATABASE_URL`); `test:smoke`, `test:gl`, `test:gl:bills` are not in `ci.yml`. CI only compiles, runs SQLite pytest, `alembic upgrade head --sql`, `npm run typecheck` and the Vite build. | ✔ `.github/workflows/ci.yml` | Always run PG tests + node tests locally (V-all) before merging |
 | R12 | — | ~~Engine approval-vs-posting deadlock~~ | fixed in #41 (lock order + bounded 40P01 retry; PG probe 100 rounds, 0 deadlocks) | done |
 | R13 | — | ~~No browser QA~~ | done in #41 (no defects; WCAG not claimed) | manual assistive-tech test still open |
-| R14 | LOW | SocialBee has no GL chart, so `gl_ledger_mode.py --set dual` would fail (`accounts_by_role`) and `reconcile_tenant` raised `KeyError 'cash_drawer'` | WP3 verification | run `migrate_tenant`/`ensure_chart` for it before any step |
+| R14 | LOW (fixed in PR #TBD) | SocialBee has no GL chart, so `gl_ledger_mode.py --set dual` would fail (`accounts_by_role`) and `reconcile_tenant` raised `KeyError 'cash_drawer'` | WP3 verification | **Fixed in PR #TBD (WP-A4), with a correction:** on the original code `--set dual` on a chartless tenant already worked (its `sync_tenant` ran `migrate_tenant`, which calls `ensure_chart`); what crashed was `--reconcile` (`KeyError 'cash_drawer'`), and a failed reconcile left the chart and mirror committed. Now `--set dual` is one transaction (chart, mirror, mode, reconcile) and rolls back as a whole; `--reconcile` and readiness print a clear "no chart" message. |
 | R15 | LOW | Railway warns `railway.json`/`railway.toml` Config-as-Code stops working **2026-12-01** | `railway` CLI output | `railway config migrate` on a branch, test, deploy before that date |
 | R16 | LOW | DB size: `audit_logs` ≈ 100 MB, `sales.receipt_html` ≈ 76 MB | earlier size analysis | retention/archiving proposal (owner's call) |
 | R17 | INFO | Backups: **10** encrypted dumps in `~/iw-backups/2026-09-30/` (latest `railway-prod-2026-10-02-premerge-cutover.dump.enc`, 59.0 MB, 62 tables). Owner's planned deletion date **2026-10-04 has passed; nothing was deleted and nobody asked**: ask now. Staging container `iw-staging-pg` + volume `iw-staging-pgdata`, Keychain key `iw-backup-2026-09-30`. | ✔ `ls` | ASK before deleting; offer to keep the newest dump; new dumps need the same key |
 | R18 | INFO | Railway SSH key `macbookair-finance-v2` was registered on the Railway account so scripts can run in the container | — | remove it when the migration is finished (ASK) |
-| **R19** | **HIGH** | **`gl_readiness.py` is necessary, not sufficient.** It does not model R1 (module visible), R2 (supplier required), R3 (no clean rollback) or R5 (numbers shift when reports move to `gl`). On 2026-10-05 it printed `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space. | ✔ post-deploy check | WP-A6: add those four facts as explicit blocking reasons (e.g. `ui_visible` setting absent, `require_supplier` coupled to mode, rollback not verified) so the verdict is `no` until WP-A is done |
+| **R19** | **HIGH** (fixed in PR #TBD) | **`gl_readiness.py` is necessary, not sufficient.** It does not model R1 (module visible), R2 (supplier required), R3 (no clean rollback) or R5 (numbers shift when reports move to `gl`). On 2026-10-05 it printed `can_switch_to_dual = YES` for Gyros, Daily Coffee and Art Space. | ✔ post-deploy check | **Fixed in PR #TBD (WP-A6).** `can_switch_to_dual` now also needs: `finance_v2_ui_visible` explicitly recorded, `finance_v2_require_supplier` explicitly recorded (hidden/visible and off/on are both fine, absent is not), and the history-aware reconciler selected (structural check; it proves the wiring, not a future clean flip). The reports verdict prints `explained_diff_review` (every non-zero explained difference with its amount; informational, R5 stays a human decision). |
 | **R20** | MED | **Alerts are visible only inside the panel and the logs.** No one is paged. `/alerts/all` works only for `super_admin` on the platform domain. With R1's fix the customer's admins would not see the banner either (hidden module), so for a real tenant the only observer is the platform owner | by design (no secrets available) | WP-A5: external channel (owner decides: e-mail via existing SMTP settings if present, or Telegram) or a daily "finance v2 status" line in an existing admin report |
 
 ---
@@ -292,6 +301,20 @@ Finish per section 6. Exit criteria: PR merged; both services SUCCESS on the mer
 endpoints return 401 (not 500) for super; `gl_readiness.py` output saved for every tenant.
 
 ### Phase 1 — fix the blockers before any real tenant moves (AUTO; one PR, maybe two)
+**Status:** WP-A1, WP-A2, WP-A3, WP-A4, WP-A6 implemented in PR #TBD (awaiting deploy); **WP-A5 open.** The descriptions below are the original brief; the
+implementation notes are in section 7 (R1, R2, R3, R14, R19).
+**Post-deploy commands (run by the orchestrator, NOT auto-run on deploy).** Until they run, "Mühasibat (v2)" is hidden for Demo's and Platform's
+non-super users (super_admin keeps access by role). Both are test tenants. Pattern from section 9 (`< /dev/null`):
+```bash
+# make Demo and Platform visible
+railway ssh --service ironwaves-pos-backend -- sh -c 'cd /app && PYTHONPATH=/app python scripts/gl_ledger_mode.py --tenant 5dcc537d-7905-4080-ad35-e6a05432dc83 --ui visible --reason "WP-A1: Demo is a test tenant, keep the panel" --allow-production' < /dev/null
+railway ssh --service ironwaves-pos-backend -- sh -c 'cd /app && PYTHONPATH=/app python scripts/gl_ledger_mode.py --tenant b3442582-fd16-40bc-bb6c-605c34ca3d48 --ui visible --reason "WP-A1: Platform is a test tenant, keep the panel" --allow-production' < /dev/null
+# keep "supplier required" on the two test tenants (otherwise their receipts stop requiring a supplier)
+railway ssh --service ironwaves-pos-backend -- sh -c 'cd /app && PYTHONPATH=/app python scripts/gl_ledger_mode.py --tenant 5dcc537d-7905-4080-ad35-e6a05432dc83 --require-supplier on --reason "WP-A2: keep supplier required on test tenant" --allow-production' < /dev/null
+railway ssh --service ironwaves-pos-backend -- sh -c 'cd /app && PYTHONPATH=/app python scripts/gl_ledger_mode.py --tenant b3442582-fd16-40bc-bb6c-605c34ca3d48 --require-supplier on --reason "WP-A2: keep supplier required on test tenant" --allow-production' < /dev/null
+# verify: gl_ledger_mode.py --list --allow-production now prints ui=... require_supplier=... per tenant
+```
+Nothing is run for the four real tenants. For a real tenant the settings are recorded explicitly (as `hidden` / `off`) in Phase 2 step 2.
 **WP-A1 — per-tenant visibility of Finance v2 (fixes R1).**
 - New per-tenant setting (table `settings`, JSON like the mode) e.g. key `finance_v2_ui_visible` → `{"visible": false}`; default hidden.
 - Backend: `capabilities` returns `ui_visible`. API gate: if the tenant is dual **and** not `ui_visible`, every `/api/v1/gl/*` call
@@ -324,7 +347,8 @@ through router functions), reconcile 14/14 on Demo/super, legacy tenants still 4
 Why first: smaller than Gyros, real but low volume. Steps:
 1. Prep: fresh backup; refresh staging from it (B3); on the throwaway copy run `gl_readiness.py --tenant 6e2c0d4c-… --json`.
    Required: chart present, `reconcile_tenant` 19/19, clean streak ≥ 2, 0 native errors in 7 days, shadow lag small.
-2. Set `ui_visible=false` and `require_supplier=false` explicitly (even if default) and write it in the audit reason.
+2. Record both settings explicitly (the readiness verdict stays NO until you do; defaults alone are not enough):
+   `gl_ledger_mode.py --tenant 6e2c0d4c-… --ui hidden --reason "..." --allow-production` and `--require-supplier off --reason "..." --allow-production`.
 3. Send the owner a 2-line heads-up ("Daily Coffee → dual tonight, customer sees no change").
 4. `gl_ledger_mode.py --tenant 6e2c0d4c-… --set dual --reason "..." --allow-production` (inside the container), then `--reconcile` → **14/14**.
    Confirm from outside: `/api/v1/gl/capabilities` as a non-super admin → 404 (hidden).
@@ -333,7 +357,7 @@ Why first: smaller than Gyros, real but low volume. Steps:
 6. After ≥ 3 clean nights: `--parity`. Read every `explained_diff`. Tell the owner the expected visible shifts (R5) and get a yes (**ASK**) for the
    reports switch on the real customer, because numbers will change slightly.
 7. `--reports gl` → reconcile → next morning compare Z-report totals/cash flow with the cashier's count. Watch 7 days.
-8. Rollback ladder: (a) `--reports legacy` (safe, instant), (b) only if WP-A3 was done: `--set legacy`. Otherwise call the owner.
+8. Rollback ladder: (a) `--reports legacy` (safe, instant), (b) `--set legacy` (WP-A3 is done: the nightly check keeps using the dual reconciler; native journals stay in the GL and the script warns; it is not a full rewind). Otherwise call the owner.
 9. Do **not** enable bills, tax accrual or corrections yet.
 
 ### Phase 3 — Gyros (`01e69c82-…`) (same as Phase 2, start ≥ 7 days after Daily Coffee is stable)
@@ -394,7 +418,7 @@ for t in db.query(Tenant).order_by(Tenant.domain).all():
 - **C2 — git state:** `git fetch --prune; git log --oneline origin/main -10; gh pr list --state all --limit 10; git worktree list;`
   `git -C .worktrees/finance-v2-cutover-prep log --oneline origin/main..HEAD`.
 - **C3 — deploy status:** `railway deployment list --service ironwaves-pos-backend --json | python3 -c 'import sys,json;d=json.load(sys.stdin)[0];print(d["status"],d["meta"]["commitHash"][:8])'` (same for `ironwaves-pos-frontend`). Note: a docs-only merge may show backend `SKIPPED`.
-- **C4 — gate from outside** (404 = hidden/disabled, 401 = enabled, waiting for auth):
+- **C4 — gate from outside** (404 = disabled, or not a dual tenant; 401 = dual, waiting for auth. A dual tenant whose UI is hidden also answers 401 to an anonymous caller, because the hidden check runs after auth; an authenticated non-super role gets 404 there, super_admin gets 200):
   `curl -s -o /dev/null -w "%{http_code}\n" -H "X-Tenant-Domain: gyrospos.ironwaves.store" https://ironwaves-pos-platform-production.up.railway.app/api/v1/gl/capabilities`
 - **C5 — Alembic/tokens:** `SELECT version_num FROM alembic_version` (expect `20261002_0001` on `main`); `SELECT count(*) FROM refresh_tokens` (thousands, not 250 k).
 - **C6 — logs:** `railway logs --service ironwaves-pos-backend | grep -iE "traceback|native_error|deadlock|gl-alert"`.
@@ -439,9 +463,10 @@ cd backend && DATABASE_URL=sqlite:////tmp/iw-test.db JWT_SECRET=test-secret-test
 # PG tests on a throwaway copy:
 INTEGRATION_DATABASE_URL=postgresql://postgres:staging@127.0.0.1:55433/<copy> /tmp/iw-venv/bin/python -m pytest tests/integration -p no:cacheprovider -o addopts="" -q -m integration
 /tmp/iw-venv/bin/alembic heads          # exactly one head
-npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npx vite build
+npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npm run -s test:gl:gate && npx vite build
 ```
-Baselines (2026-10-05): `main` 975 passed / 21 skipped (SQLite; 976 / 22 once #42 is merged), PG `tests/integration` 21 passed, smoke 60/60, gl 4/4, gl:bills 18/18.
+Baselines: before WP-A (`main` at `323b5cd6`): SQLite 976 passed / 22 skipped, PG `tests/integration` 21 passed, smoke 60/60, gl 4/4, gl:bills 18/18.
+With WP-A (PR #TBD, measured locally): SQLite **1076 passed / 28 skipped** (the 6 new PG tests skip without `INTEGRATION_DATABASE_URL`, hence 22 + 6), PG `tests/integration` **27 passed**, smoke 60/60, gl 4/4, gl:bills 18/18, gl:gate **9/9**.
 
 ### P — production pilot (super tenant)
 Write a script that drives the real router functions (not HTTP) as `system:gl-pilot`, with the checker `system:gl-pilot-checker` for second-person
@@ -452,7 +477,8 @@ Remove the script afterwards.
 
 ### Mode / source switches (production, inside the container, with `--allow-production`)
 `gl_ledger_mode.py --list` · `--tenant ID --reconcile` · `--tenant ID --parity` · `--tenant ID --set dual --reason "..."` ·
-`--tenant ID --reports gl|legacy --reason "..."`. Every switch is audited in the GL hash chain. Routine rollback = `--reports legacy` (see R3).
+`--tenant ID --reports gl|legacy --reason "..."` · `--tenant ID --ui visible|hidden --reason "..."` · `--tenant ID --require-supplier on|off --reason "..."`.
+Every switch is audited in the GL hash chain. Routine rollback = `--reports legacy`; `--set legacy` works but is not a full rewind (see R3).
 
 ### Reviewing another agent's work (what worked)
 1. Read the spec and the diff; 2. run the suites; 3. rehearse the money paths on a **throwaway Postgres copy** incl. concurrency and

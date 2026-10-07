@@ -14,6 +14,7 @@
     "test:smoke": "esbuild tests/crm_local_smoke.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/crm_local_smoke.test.mjs --log-level=warning && node --test tests/.build/crm_local_smoke.test.mjs",
     "test:gl": "esbuild tests/gl_exports.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/gl_exports.test.mjs --log-level=warning && node --test tests/.build/gl_exports.test.mjs",
     "test:gl:bills": "esbuild tests/gl_bills.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/gl_bills.test.mjs --log-level=warning && node --test tests/.build/gl_bills.test.mjs",
+    "test:gl:gate": "esbuild tests/gl_gate.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/gl_gate.test.mjs --log-level=warning && node --test tests/.build/gl_gate.test.mjs",
     "test:parity": "esbuild tests/push_parity.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/push_parity.test.mjs --log-level=warning && node --test tests/.build/push_parity.test.mjs",
     "preview": "vite preview",
     "start": "node server.js",

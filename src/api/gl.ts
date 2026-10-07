@@ -9,6 +9,8 @@ export type Money = string;
 
 export type GLCapabilities = {
   enabled: boolean;
+  /** Effective visibility of the module for this tenant (per-tenant setting, default hidden). */
+  ui_visible: boolean;
   ledger_mode: 'legacy' | 'dual';
   reports_source: 'legacy' | 'gl';
   chart_ready: boolean;

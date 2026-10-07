@@ -1,7 +1,11 @@
 """Finance v2 GL API — /api/v1/gl
 
-Gated by ``settings.finance_v2_enabled`` or, per tenant, by dual ledger mode (404 otherwise). Nothing in the legacy
-finance flows calls into this module yet; wiring happens in P1 (shadow mode).
+Two gates, both answering a plain 404 so a closed API looks like a missing one:
+
+1. ``_enabled`` (before auth): ``settings.finance_v2_enabled`` or, per tenant, dual ledger mode.
+2. ``_ui_gate`` (after ``get_current_user``): a dual tenant is only served once its ``finance_v2_ui_visible`` setting
+   is ``visible: true`` (default hidden); super_admin always passes. ``settings.finance_v2_enabled`` bypasses it (the
+   global dev/test flag, off in production). In-process jobs (shadow, reconcile, alerts) never use this router.
 """
 from __future__ import annotations
 
@@ -48,12 +52,26 @@ def _enabled(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)
         raise HTTPException(status_code=404, detail="Not Found")
 
 
-# Router-level dependency runs before auth, so a disabled API is indistinguishable from a missing one.
-router = APIRouter(prefix="/api/v1/gl", tags=["finance-v2"], dependencies=[Depends(_enabled)])
-
-
 def _role(user) -> str:
     return str(getattr(user, "role", "") or "").strip().lower()
+
+
+def _ui_gate(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)) -> None:
+    """Second gate, listed AFTER ``_enabled``: a dual tenant whose Finance v2 UI is not visible answers 404 to everybody
+    except super_admin. The role is the authenticated DB user's, never a token claim. Anonymous callers get the usual 401
+    from ``get_current_user``, non-dual tenants never get here (``_enabled`` answered first)."""
+    if settings.finance_v2_enabled:
+        return
+    from app.gl.bridge import is_ui_visible
+
+    if is_ui_visible(db, tenant.id):
+        return
+    if _role(user) != "super_admin":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+# ``_enabled`` runs before auth, so a disabled API is indistinguishable from a missing one; ``_ui_gate`` needs the user.
+router = APIRouter(prefix="/api/v1/gl", tags=["finance-v2"], dependencies=[Depends(_enabled), Depends(_ui_gate)])
 
 
 def _require(user, roles: set[str]) -> None:
@@ -236,13 +254,14 @@ class ReclassifyAPIn(BaseModel):
 def capabilities(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     """What the UI may show for this tenant/user. Reaching this endpoint at all means the API is enabled."""
     _require(user, GL_READ_ROLES)
-    from app.gl.bridge import get_ledger_mode
+    from app.gl.bridge import get_ledger_mode, is_ui_visible
     from app.gl.read_model import reports_source
 
     role = _role(user)
     chart_ready = db.query(GLAccount.id).filter(GLAccount.tenant_id == tenant.id).first() is not None
     return {
         "enabled": True,
+        "ui_visible": bool(settings.finance_v2_enabled or is_ui_visible(db, tenant.id)),
         "ledger_mode": get_ledger_mode(db, tenant.id),
         "reports_source": reports_source(db, tenant.id),
         "chart_ready": chart_ready,

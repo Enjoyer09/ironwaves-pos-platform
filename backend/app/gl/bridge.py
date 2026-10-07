@@ -29,12 +29,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Callable
 
-from sqlalchemy import event as sa_event
+from sqlalchemy import event as sa_event, func
 from sqlalchemy.orm import Session
 
 from app.gl import engine as gl
 from app.gl.coa_az import LEGACY_CODE_TO_ROLE
-from app.gl.models import GLAccount, GLJournal, GLJournalLine, GLLegacyLink, GLShadowRun
+from app.gl.models import GLAccount, GLAuditEvent, GLJournal, GLJournalLine, GLLegacyLink, GLShadowRun
 from app.gl.posting_rules import post_event
 from app.models import FinanceAccount, FinanceLedgerEntry, Setting
 
@@ -42,6 +42,8 @@ logger = logging.getLogger("ironwaves.gl_bridge")
 
 MODE_SETTING_KEY = "finance_v2_ledger_mode"
 LEDGER_MODES = ("legacy", "dual")
+UI_VISIBLE_SETTING_KEY = "finance_v2_ui_visible"
+REQUIRE_SUPPLIER_SETTING_KEY = "finance_v2_require_supplier"
 PENDING_KEY = "gl_pending_legacy_txn_ids"
 # Legacy wallet/balance-sheet codes whose balances must reconcile (with explained diffs).
 WALLET_CODES = ("cash", "card", "safe", "deposit", "investor", "payable", "debt", "inventory_asset")
@@ -84,6 +86,117 @@ def set_ledger_mode(db: Session, tenant_id: str, mode: str, *, actor: str, reaso
                     payload={"from": previous, "to": mode, "reason": reason})
     db.flush()
     return {"tenant_id": tenant_id, "from": previous, "to": mode}
+
+
+# ─────────────────────── per-tenant flags (WP-A) ────────────────────────
+#
+# Two independent switches, stored like the ledger mode (one JSON row per tenant in ``settings``):
+#
+# * ``finance_v2_ui_visible``      {"visible": bool, "since", "by"} — default HIDDEN. A dual tenant whose UI is hidden
+#   gets 404 on /api/v1/gl/* for everybody except super_admin. In-process jobs (shadow, reconcile, alerts) ignore it.
+# * ``finance_v2_require_supplier`` {"required": bool, "since", "by"} — default OFF. Whether a stock receipt must name a
+#   supplier. It no longer depends on the ledger mode.
+#
+# A missing / blank / malformed / non-boolean value is "not recorded" and reads as the safe default. Only a strict
+# JSON ``true`` counts. Setters need a reason, are audited in the GL hash chain and do NOT need a chart.
+
+
+def _read_setting_json(db: Session, tenant_id: str, key: str) -> dict | None:
+    row = db.query(Setting.value).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or not row[0]:
+        return None
+    try:
+        data = json.loads(row[0])
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _upsert_setting(db: Session, tenant_id: str, key: str, value: str) -> None:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if row:
+        row.value = value
+    else:
+        db.add(Setting(tenant_id=tenant_id, key=key, value=value))
+
+
+def _flag_record(db: Session, tenant_id: str, key: str, field: str) -> dict | None:
+    """The stored record, or None when it is absent or its flag is not a real boolean."""
+    data = _read_setting_json(db, tenant_id, key)
+    if data is None or not isinstance(data.get(field), bool):
+        return None
+    return data
+
+
+def _set_flag(db: Session, tenant_id: str, *, key: str, field: str, value: bool, event_type: str, actor: str, reason: str) -> dict:
+    if not str(reason or "").strip():
+        raise gl.GLError("A reason is required to change this setting", "reason_required")
+    previous_record = _flag_record(db, tenant_id, key, field)
+    previous = previous_record[field] if previous_record else None
+    _upsert_setting(db, tenant_id, key, json.dumps({field: bool(value), "since": _utcnow().isoformat(), "by": actor}, ensure_ascii=False))
+    gl.append_audit(db, tenant_id, event_type=event_type, entity_type="tenant", entity_id=tenant_id, actor=actor,
+                    payload={"from": previous, "to": bool(value), "reason": reason})
+    db.flush()
+    return {"tenant_id": tenant_id, "from": previous, "to": bool(value)}
+
+
+def get_ui_visible_record(db: Session, tenant_id: str) -> dict | None:
+    return _flag_record(db, tenant_id, UI_VISIBLE_SETTING_KEY, "visible")
+
+
+def is_ui_visible(db: Session, tenant_id: str) -> bool:
+    record = get_ui_visible_record(db, tenant_id)
+    return bool(record and record["visible"] is True)
+
+
+def set_ui_visible(db: Session, tenant_id: str, visible: bool, *, actor: str, reason: str) -> dict:
+    """Show or hide the Finance v2 module of a tenant. Audited in the GL chain (UI_VISIBILITY_CHANGED)."""
+    return _set_flag(db, tenant_id, key=UI_VISIBLE_SETTING_KEY, field="visible", value=visible,
+                     event_type="UI_VISIBILITY_CHANGED", actor=actor, reason=reason)
+
+
+def get_require_supplier_record(db: Session, tenant_id: str) -> dict | None:
+    return _flag_record(db, tenant_id, REQUIRE_SUPPLIER_SETTING_KEY, "required")
+
+
+def require_supplier(db: Session, tenant_id: str) -> bool:
+    """True when stock receipts of this tenant must name a supplier. Plain read, safe inside a business transaction."""
+    record = get_require_supplier_record(db, tenant_id)
+    return bool(record and record["required"] is True)
+
+
+def set_require_supplier(db: Session, tenant_id: str, required: bool, *, actor: str, reason: str) -> dict:
+    """Require (or stop requiring) a supplier on stock receipts. Audited (REQUIRE_SUPPLIER_CHANGED)."""
+    return _set_flag(db, tenant_id, key=REQUIRE_SUPPLIER_SETTING_KEY, field="required", value=required,
+                     event_type="REQUIRE_SUPPLIER_CHANGED", actor=actor, reason=reason)
+
+
+# ─────────────────────────── dual history (WP-A3) ───────────────────────
+
+
+def had_dual_history(db: Session, tenant_id: str) -> bool:
+    """True when the tenant is dual now or ever was: a legacy link exists or the audit trail records a switch to dual.
+
+    Such a tenant owns native journals and legacy links, so only the dual reconciler can judge it, whatever its
+    current mode says.
+    """
+    if get_ledger_mode(db, tenant_id) == "dual":
+        return True
+    if db.query(GLLegacyLink.id).filter(GLLegacyLink.tenant_id == tenant_id).first():
+        return True
+    rows = db.query(GLAuditEvent.payload).filter(GLAuditEvent.tenant_id == tenant_id, GLAuditEvent.event_type == "LEDGER_MODE_CHANGED").all()
+    for (payload,) in rows:
+        try:
+            if json.loads(payload).get("to") == "dual":
+                return True
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return False
+
+
+def native_journal_count(db: Session, tenant_id: str) -> int:
+    """Journals that are NOT shadow mirrors of a legacy transaction (``legacy_ref`` is empty)."""
+    return int(db.query(func.count(GLJournal.id)).filter(GLJournal.tenant_id == tenant_id, GLJournal.legacy_ref.is_(None)).scalar() or 0)
 
 
 # ─────────────────────────────── capture ────────────────────────────────

@@ -230,6 +230,23 @@ export async function get_inventory_items_live(tenant_id: string = 'tenant_defau
   }
 }
 
+/**
+ * Receipt rules of this business. `require_supplier` is a per-tenant setting (default off) read from the catalog API, which
+ * every tenant role may call. Backend off or any error: supplier stays optional (today's behaviour); the backend still enforces.
+ */
+export async function get_inventory_policy_live(): Promise<{ require_supplier: boolean }> {
+  if (!isBackendEnabled()) return { require_supplier: false };
+  try {
+    const policy = await apiRequest<{ require_supplier?: boolean }>('/api/v1/catalog/inventory/policy', {
+      tenantId: null,
+      timeoutMs: 12000,
+      suspendOnNetworkError: false,
+    });
+    return { require_supplier: policy?.require_supplier === true };
+  } catch {
+    return { require_supplier: false };
+  }
+}
 export async function add_inventory_item_live(data: {
   tenant_id?: string;
   name: string;

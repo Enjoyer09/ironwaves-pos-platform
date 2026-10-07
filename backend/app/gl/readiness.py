@@ -4,9 +4,12 @@ Reports a tenant's migration posture and computes the two go/no-go verdicts a
 human (or ``scripts/gl_readiness.py``) uses to decide a cut-over step:
 
 * ``can_switch_to_dual`` — safe to turn the native GL on alongside legacy
-  (``bridge.set_ledger_mode(..., "dual")``).
+  (``bridge.set_ledger_mode(..., "dual")``). Besides the data checks it needs the two per-tenant WP-A settings to be
+  *explicitly recorded* (``finance_v2_ui_visible``, ``finance_v2_require_supplier``): an operator must have decided,
+  "absent" is not a decision. It also needs the history-aware reconciler selection to be wired for the tenant.
 * ``can_switch_reports_to_gl`` — safe to serve the finance screens from the GL
-  (``read_model.set_reports_source(..., "gl")``).
+  (``read_model.set_reports_source(..., "gl")``). It also prints ``explained_diff_review``: every non-zero explained
+  parity difference with its amount, for a human to review (informational, never blocks).
 
 Strictly **read-only**: it never writes to the DB. Some readers it reuses
 (``read_model.gl_wallet_balances`` / ``parity_report``, the reconcilers) perform
@@ -104,6 +107,7 @@ def _collect(db: Session, tenant_id: str) -> dict:
     is_dual = ledger_mode == "dual"
     reports_src = read_model.reports_source(db, tenant_id)
     chart_present = _chart_present(db, tenant_id)
+    ever_dual = bridge.had_dual_history(db, tenant_id)
 
     shadow_status = shadow.shadow_status(db, tenant_id)
     clean_streak = int(shadow_status.get("clean_reconciliation_streak", 0))
@@ -111,17 +115,18 @@ def _collect(db: Session, tenant_id: str) -> dict:
 
     # Current independent reconciliation (dual vs single picked by ledger mode). Read-only.
     current_reconcile = None
+    rollback_reconciler_verified = None  # None = nothing to verify (no chart, no reconciliation)
     parity = None
     open_items = None
     unassigned_ap = "0.00"
     negative_wallets: list[dict] = []
     pending_journals = 0
     if chart_present:
-        current_reconcile = (
-            legacy_migration.reconcile_dual_tenant(db, tenant_id)
-            if is_dual
-            else legacy_migration.reconcile_tenant(db, tenant_id)
-        )
+        # History-aware: a tenant that is dual now or ever was is judged by the dual reconciler (see legacy_migration).
+        current_reconcile = legacy_migration.reconcile_for_tenant(db, tenant_id)
+        # STRUCTURAL check: the reconciler the selection used is the one the tenant's history requires. It proves the
+        # selection is wired, not that a future flip-back will be clean (the PG flip test covers that).
+        rollback_reconciler_verified = (current_reconcile.get("reconciler") == "dual") == ever_dual
         if is_dual:
             parity = read_model.parity_report(db, tenant_id)
         open_items = legacy_migration.open_items(db, tenant_id)
@@ -138,6 +143,11 @@ def _collect(db: Session, tenant_id: str) -> dict:
         "clean_reconciliation_streak": clean_streak,
         "native_error_count_7d": native_errors_7d,
         "current_reconcile": current_reconcile,
+        "ui_visible_setting": bridge.get_ui_visible_record(db, tenant_id),
+        "require_supplier_setting": bridge.get_require_supplier_record(db, tenant_id),
+        "ever_dual": ever_dual,
+        "reconciler": "dual" if ever_dual else "single",
+        "rollback_reconciler_verified": rollback_reconciler_verified,
         "parity": parity,
         "open_items": open_items,
         "pending_journals": pending_journals,
@@ -149,10 +159,15 @@ def _collect(db: Session, tenant_id: str) -> dict:
 
 
 def _verdict_can_switch_to_dual(facts: dict) -> dict:
-    """chart + current reconcile ok + clean streak >= 2 + zero native errors (7d)."""
+    """chart + current reconcile ok + clean streak >= 2 + zero native errors (7d) + both WP-A settings recorded
+    + the history-aware reconciler selection verified."""
     reasons: list[str] = []
+    tenant = facts["tenant_id"]
     if not facts["chart_present"]:
-        reasons.append("Chart of accounts is not initialised for this tenant")
+        reasons.append(
+            "Chart of accounts is not initialised for this tenant. Run scripts/gl_ledger_mode.py --tenant "
+            f"{tenant} --set dual (creates the chart and the first mirror) or scripts/gl_migrate_legacy.py --tenant {tenant}"
+        )
     recon = facts["current_reconcile"]
     if recon is None:
         reasons.append("No reconciliation could be run (chart missing)")
@@ -165,11 +180,36 @@ def _verdict_can_switch_to_dual(facts: dict) -> dict:
         )
     if facts["native_error_count_7d"] != 0:
         reasons.append(f"{facts['native_error_count_7d']} native posting error(s) in the last {NATIVE_ERROR_WINDOW_DAYS} days")
+    if facts["ui_visible_setting"] is None:
+        reasons.append(
+            "finance_v2_ui_visible is not recorded for this tenant (hidden or visible are both fine, absent is not). "
+            f'Run: python scripts/gl_ledger_mode.py --tenant {tenant} --ui hidden --reason "..."'
+        )
+    if facts["require_supplier_setting"] is None:
+        reasons.append(
+            "finance_v2_require_supplier is not recorded for this tenant (off is fine, absent is not). "
+            f'Run: python scripts/gl_ledger_mode.py --tenant {tenant} --require-supplier off --reason "..."'
+        )
+    if facts["rollback_reconciler_verified"] is False:
+        reasons.append("Rollback reconciler not verified: tenant has dual history but the dual reconciler is not selected")
     return {"ok": not reasons, "reasons": reasons}
 
 
+def _explained_diff_review(parity: dict | None) -> list[dict]:
+    """Every parity balance row with a non-zero explained difference, amount included. Informational (R5)."""
+    if not parity:
+        return []
+    return [
+        {"code": row["code"], "explained_diff": row["explained_diff"], "legacy": row["legacy"], "gl": row["gl"]}
+        for row in parity.get("balances", [])
+        if Decimal(str(row.get("explained_diff", "0"))) != ZERO
+    ]
+
+
 def _verdict_can_switch_reports_to_gl(facts: dict) -> dict:
-    """dual mode + clean streak >= 2 + parity ok + no unexplained parity differences."""
+    """dual mode + clean streak >= 2 + parity ok + no unexplained parity differences + rollback reconciler verified.
+
+    ``explained_diff_review`` lists each explained (non-zero) difference with its amount for a human; it never blocks."""
     reasons: list[str] = []
     if facts["ledger_mode"] != "dual":
         reasons.append(f"Ledger mode is '{facts['ledger_mode']}', must be 'dual' before reports can come from the GL")
@@ -187,7 +227,9 @@ def _verdict_can_switch_reports_to_gl(facts: dict) -> dict:
         unexplained = parity.get("unexplained") or []
         if unexplained:
             reasons.append(f"Unexplained parity differences: {', '.join(unexplained)}")
-    return {"ok": not reasons, "reasons": reasons}
+    if facts["rollback_reconciler_verified"] is False:
+        reasons.append("Rollback reconciler not verified: tenant has dual history but the dual reconciler is not selected")
+    return {"ok": not reasons, "reasons": reasons, "explained_diff_review": _explained_diff_review(parity)}
 
 
 def readiness(db: Session, tenant_id: str) -> dict:

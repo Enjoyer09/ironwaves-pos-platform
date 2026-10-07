@@ -36,8 +36,8 @@ Rules for new work:
    - Demo is in dual mode with reports from the GL.
    - Platform (super) is in dual mode with reports still from legacy.
    - **Real customers (Gyros, Daily Coffee, Art Space, SocialBee) are legacy/legacy and must not notice anything.**
-4. The GL API is `/api/v1/gl/*`. It returns 404 unless the tenant is in dual mode (or the global flag is on; it is off in production).
-5. The UI is the "Mühasibat (v2)" admin module. It is visible only when `GET /api/v1/gl/capabilities` succeeds.
+4. The GL API is `/api/v1/gl/*`. It returns 404 unless the tenant is in dual mode (or the global flag is on; it is off in production) **and**, for everyone except `super_admin`, the tenant's `finance_v2_ui_visible` setting is `visible: true` (default hidden; WP-A1, PR #TBD, see section 3).
+5. The UI is the "Mühasibat (v2)" admin module. It is visible only when `GET /api/v1/gl/capabilities` succeeds and `ui_visible` is true (or the user is `super_admin`). After the WP-A deploy the production defaults change: Demo and Platform are hidden for non-super users until the post-deploy `--ui visible` commands in START_HERE section 8 are run. Real tenants are unchanged (legacy, so 404 anyway).
 6. Next work, in order:
    - Accountant answers → corrections → Daily Coffee rollout → Gyros rollout.
    - AP bills (WP3, in review in PR #39; AR invoices deferred).
@@ -73,25 +73,29 @@ The legacy finance module had 30+ defects found in an audit (approval bypass, in
 | `coa_az.py` | AMHP chart (60 `AccountDef`s), `system_role` per account, `LEGACY_CODE_TO_ROLE` | `AMHP_ACCOUNTS`, `REQUIRED_ROLES` |
 | `engine.py` | The ledger kernel. It never commits; the caller owns the transaction | `create_journal`, `approve_journal`, `reject_journal`, `reverse_journal`, `set_period_status`, `ensure_chart`, `accounts_by_role`, `account_balance`, `append_audit`, `verify_audit_chain`, `business_today` (Asia/Baku), `YEAR_CLOSE_SOURCE`, `not_year_close()`, `active_year_close()` |
 | `posting_rules.py` | Business events → compound journals | Events (2.4), `post_event`, `active_sale_journal`, `void_sale`, `correct_sale` |
-| `bridge.py` | Per-tenant ledger mode and the legacy ↔ GL coupling | `get/set_ledger_mode`, `record_legacy_posting`, `emit`, `emit_sale`, `WALLET_CODES` |
+| `bridge.py` | Per-tenant ledger mode, the two WP-A flags and the legacy ↔ GL coupling | `get/set_ledger_mode`, `is_ui_visible` / `get_ui_visible_record` / `set_ui_visible`, `require_supplier` / `get_require_supplier_record` / `set_require_supplier`, `had_dual_history`, `native_journal_count`, `record_legacy_posting`, `emit`, `emit_sale`, `WALLET_CODES` |
 | `shadow.py` | Background mirror of legacy → GL every 300 s, plus the nightly reconcile at 04:00 Baku (advisory lock 7411) | `run_cycle`, `sync_tenant`, `reconcile_tenant_shadow`, `shadow_status`, `start_shadow_scheduler` |
 | `alerts.py` | De-duplicated admin alerts on reconcile failure / native error / streak break (3.1) | `raise_alert`, `resolve_open_alerts`, `acknowledge_alert`, `list_alerts`, `list_alerts_all`, `notify_external` |
-| `legacy_migration.py` | Faithful import of legacy history and reconciliations | `migrate_tenant` (incremental), `reconcile_tenant` (19 checks, legacy/shadow), `reconcile_dual_tenant` (14 checks), `open_items`, `GL_ONLY_SOURCE_MODULES = ("manual","gl")` |
+| `legacy_migration.py` | Faithful import of legacy history and reconciliations | `migrate_tenant` (incremental), `reconcile_tenant` (19 checks, never-dual tenants), `reconcile_dual_tenant` (14 checks), `reconcile_for_tenant` (the single selection point: dual reconciler for a tenant that is dual or ever was, else the 19-check one; adds `reconciler` and `ever_dual` to the report), `open_items`, `GL_ONLY_SOURCE_MODULES = ("manual","gl")` |
 | `read_model.py` | Serves the legacy-shaped responses from the GL when the tenant's reports source is `gl` | `reports_source`, `set_reports_source`, `catch_up`, `gl_wallet_balances`, `gl_shift_cash_breakdown`, `gl_balance_sheet`, `gl_profit_loss`, `gl_cash_flow`, `gl_sales_payment_totals`, `gl_sale_payment_splits`, `parity_report` |
 | `reports.py` | Statements computed only from posted journals | `trial_balance`, `balance_sheet`, `profit_and_loss` (excludes year-close), `account_ledger`, `verify_materialized_balances`, `periods_overview` |
 | `tax.py` | Tax profiles, simplified tax accrual, VAT split | `set_tax_profile`, `get_tax_profile`, `accrue_simplified_tax` (posts only the delta, safe to repeat), `tax_summary`, `split_vat` |
 | `year_end.py` | Fiscal year close/reopen | `year_status`, `close_fiscal_year`, `request_reopen_fiscal_year` |
 | `subledger.py` | AP/AR per partner, FIFO settlement, aging | `subledger(db, tid, "ap"\|"ar", as_of)` |
-| `readiness.py` | Read-only cut-over gate: posture + the two go/no-go verdicts with reasons (surfaced by `scripts/gl_readiness.py`). Zero DB writes | `readiness(db, tenant_id)` → `{ledger_mode, reports_source, chart_present, clean_reconciliation_streak, native_error_count_7d, current_reconcile, parity, open_items, pending_journals, unassigned_ap, negative_wallets, shadow, shadow_sync_lag_seconds, can_switch_to_dual, can_switch_reports_to_gl}` |
+| `readiness.py` | Read-only cut-over gate: posture + the two go/no-go verdicts with reasons (surfaced by `scripts/gl_readiness.py`). Zero DB writes | `readiness(db, tenant_id)` → `{ledger_mode, reports_source, chart_present, ui_visible_setting, require_supplier_setting, ever_dual, reconciler, rollback_reconciler_verified, clean_reconciliation_streak, native_error_count_7d, current_reconcile, parity, open_items, pending_journals, unassigned_ap, negative_wallets, shadow, shadow_sync_lag_seconds, can_switch_to_dual, can_switch_reports_to_gl}` |
 | `documents.py` | AP bills (AR invoices deferred): bill lifecycle, payment allocations (named first, then FIFO), maker-checker hooks, unassigned-AP reclass | `create_bill`, `pay_bill`, `post_supplier_payment`, `allocate_payment`, `void_document`, `reverse_bill_payment`, `reclassify_unassigned_ap`, `list_documents`, `get_document_detail`, `after_journal_approved` / `after_journal_rejected`, `lock_documents_for_journal`, `DOCUMENT_SOURCE_TYPES = ("document","document_payment")` |
 | `router.py` | HTTP API `/api/v1/gl` | Section 3 |
 
 Scripts:
-- `backend/scripts/gl_ledger_mode.py`: `--list`, `--tenant X --set dual|legacy --reason`, `--reconcile`, `--parity`, `--reports gl|legacy`. It refuses production hosts unless `--allow-production` is passed.
+- `backend/scripts/gl_ledger_mode.py`: `--list` (also prints `ui=` and `require_supplier=`), `--tenant X --set dual|legacy --reason`, `--reconcile` (prints `reconciler=` and `ever_dual=`), `--parity`, `--reports gl|legacy`, `--ui visible|hidden --reason`, `--require-supplier on|off --reason`. It refuses production hosts unless `--allow-production` is passed (for `--set`, `--reports`, `--ui`, `--require-supplier`).
+  - `--set dual` runs in **one transaction**: `ensure_chart` (so a tenant without a chart gets one), incremental mirror, mode switch, then the reconcile chosen by history; if the reconcile fails, the chart, the mirror and the mode are all rolled back.
+  - `--set legacy` prints a WARNING when the tenant has native journals (journals with no `legacy_ref`). They stay in the GL; the GL screens keep showing them; the nightly check keeps using the dual reconciler. It is not a full rewind; `--reports legacy` is the routine rollback.
+  - `--ui` and `--require-supplier` need a non-blank `--reason`, do not need a chart, and are audited in the GL hash chain (`UI_VISIBILITY_CHANGED`, `REQUIRE_SUPPLIER_CHANGED`, payload `{from, to, reason}`).
 - `backend/scripts/gl_migrate_legacy.py`: `--all --dry-run --allow-production`.
 - `backend/scripts/gl_readiness.py`: the cut-over **gate** tool. `--tenant X [--json] [--allow-production]`. Reports a tenant's migration posture and the two go/no-go verdicts and prints their failing reasons:
-  - `can_switch_to_dual` — chart present, current reconcile ok, clean reconcile streak >= 2, zero native-posting errors in the last 7 days.
-  - `can_switch_reports_to_gl` — ledger mode `dual`, clean reconcile streak >= 2, parity ok with no unexplained differences.
+  - `can_switch_to_dual` — chart present, current reconcile ok, clean reconcile streak >= 2, zero native-posting errors in the last 7 days, **`finance_v2_ui_visible` explicitly recorded, `finance_v2_require_supplier` explicitly recorded** (hidden/visible and off/on are both fine, absent is not; the reason text contains the exact command) and the rollback reconciler verified. Without a chart it says NO and names `gl_ledger_mode.py --set dual` (the script is read-only, it cannot create the chart).
+  - `can_switch_reports_to_gl` — ledger mode `dual`, clean reconcile streak >= 2, parity ok with no unexplained differences, rollback reconciler verified. It also carries `explained_diff_review`: every parity balance with a non-zero explained difference and its amount (`[{code, explained_diff, legacy, gl}]`). Informational: it never changes `ok`; a human reads it before the reports switch (R5).
+  - "Rollback reconciler verified" is **structural**: it checks that the reconciler the selection used is the one the tenant's history requires. It proves the wiring, not that a future flip-back will be clean (the PG flip test covers that).
   It is strictly **read-only** (zero DB writes; it rolls back any shadow catch-up a reused reader performs) and refuses Railway/production hosts unless `--allow-production` is passed (same message / exit code 2 as `gl_ledger_mode.py`). Exit code 0 only when both verdicts resolve without error. The verdict logic lives in `app/gl/readiness.py` (`readiness(db, tenant_id)`), composed from the existing `bridge`/`read_model`/`shadow`/`subledger`/`legacy_migration` readers. Run it (against a throwaway PG copy, never `railway`) before `gl_ledger_mode.py --set dual` or `--reports gl`.
 
 Related, outside `gl/`:
@@ -107,6 +111,9 @@ Related, outside `gl/`:
 - Per-tenant settings live in the `settings` table as JSON:
   - `finance_v2_ledger_mode` → `{"mode": "dual", "since", "by"}`
   - `finance_v2_reports_source` → `{"source": "gl", ...}`
+  - `finance_v2_ui_visible` → `{"visible": false, "since", "by"}`; **default hidden**. Only a strict JSON `true` counts; a missing, blank, malformed or non-boolean value reads as hidden and as "not recorded" for readiness.
+  - `finance_v2_require_supplier` → `{"required": false, "since", "by"}`; **default off**, same reading rules.
+  - Note (R10): `auth._reset_demo_tenant_runtime` deletes all Settings rows of Demo when `DEMO_TENANT_ENABLED=true` (false in production), which would also reset these two keys.
 
 ### 2.2 Data model (Alembic: `20260929_0001` → `20260930_0001` → `20260930_0002` → `20261001_0001` → `20261002_0001`; head = `20261002_0001`)
 
@@ -142,6 +149,7 @@ Journal types: `sales, purchase, cash, bank, general, adjustment, tax, opening, 
 `source_module` values: `pos` (native posting rules), `legacy` (mirrored by shadow; `legacy_ref` is set), `manual` (GL UI), `gl` (tax engine, year close, AP bill and bill-payment journals).
 
 ### 2.3 Money flow in dual mode
+Reconcile selection (WP-A3): the nightly job (`shadow.reconcile_tenant_shadow`), `readiness` and `gl_ledger_mode.py` all call `legacy_migration.reconcile_for_tenant`. `bridge.had_dual_history` is true when the tenant is dual now, has any `gl_legacy_links` row, or has an audit event `LEDGER_MODE_CHANGED` with `to == "dual"`; such a tenant is reconciled with `reconcile_dual_tenant` even while its mode is `legacy`. Reason: its native compound journals are not 1:1 with legacy, so the 19-check `reconcile_tenant` scored about 9/19 after a flip back and the nightly job raised false `reconcile_failed` alerts. Never-dual tenants (all four real ones) keep the 19 checks unchanged. Double mirroring after dual→legacy→dual is excluded by `_legacy_rows` (it skips covered and already-mirrored transactions) and is proven by `tests/test_gl_rollback_reconcile.py` and the PG flip test.
 
 ```mermaid
 sequenceDiagram
@@ -217,7 +225,7 @@ Hook sites:
   - Sub-ledger link: a supplier with open bills is aged by bill due date; GL balance − Σ open bills (undocumented AP) is aged by posting date, or shown as an advance when negative. When all of a supplier's AP comes from bills, Σ open bills == its sub-ledger balance (tested across pay / partial / void).
   - Maker-checker: bill create and bill pay need approval when the user is not an approver or the amount is ≥ `large_transfer_threshold_azn` (`router._manual_needs_approval`). Void, payment reversal and reclass **always** create a pending journal for a second person. On approval the hooks re-check (payment ≤ open on the locked bill, net allocations 0 for a void, unassigned AP ≥ 0 for a reclass) and a failed check rolls the approval back with 409.
   - Owner decisions: overpaying a bill through the bill-pay API is rejected (**409 `overpayment_not_allowed`**, the message names the open balance); a voided or rejected bill's number is **not reusable** (409 `duplicate_bill`); AR invoices are deferred (AP only).
-  - Dual-mode stock rule: a new stock receipt with amount > 0 (`POST /api/v1/catalog/inventory` with opening stock, `/inventory/{id}/restock`) needs a supplier, else **400 `supplier_required`**. Legacy mode keeps the supplier optional.
+  - Stock-receipt supplier rule (WP-A2): a new stock receipt with amount > 0 (`POST /api/v1/catalog/inventory` with opening stock, both branches, and `/inventory/{id}/restock`) needs a supplier, else **400 `supplier_required`**, **only when the tenant's `finance_v2_require_supplier` setting is on**. The rule is independent of the ledger mode (default off, also in dual mode); `catalog._resolve_receipt_supplier` reads it. `GET /api/v1/catalog/inventory/policy` → `{"require_supplier": bool}` serves the Inventory panel for every tenant role (outside `/api/v1/gl`, never gated). The other `supplier_required` code in `documents.py` (reclass without a target supplier) is unrelated.
   - Lock order: documents before journal. A bill payment (`pay_bill` and its approval hook) locks and allocates to its own bill only. A FIFO allocation (legacy supplier payment) locks the supplier's payable bills in id order **before** posting. The engine locks guarded (non-negative) accounts before inserting journal lines, because the lines' FK checks take KEY SHARE on `gl_accounts`. PG race tests cover two bills of one supplier, approval vs. payment, legacy vs. bill payment, and two plain drawer postings.
 
 #### WP3 known limits (not fixed in PR #39)
@@ -237,7 +245,9 @@ Hook sites:
 
 ## 3. HTTP API (`/api/v1/gl`)
 
-Gate: `_enabled` is a router-level dependency. It lets a request through if `settings.finance_v2_enabled` is on OR the tenant's ledger mode is `dual`; otherwise it returns **404** before auth runs.
+Gate, two router-level dependencies in this order:
+1. `_enabled` (runs **before auth**): lets a request through if `settings.finance_v2_enabled` is on OR the tenant's ledger mode is `dual`; otherwise **404**. A non-dual tenant is therefore indistinguishable from a missing API, for every caller, super_admin included.
+2. `_ui_gate` (runs **after `get_current_user`**, WP-A1): if the tenant's `finance_v2_ui_visible` is not `visible: true`, the answer is **404 for every authenticated role except `super_admin`**. The role is the authenticated DB user's, never a token claim. `settings.finance_v2_enabled` bypasses it (the global dev/test flag; off in production). Consequences: an anonymous call to a dual-but-hidden tenant gets **401** (auth runs first), an authenticated non-super role gets **404**, super_admin gets through. In-process jobs (shadow sync/reconcile, alerts, `bridge.emit`) never use the router and are unaffected. `tests/test_gl_ui_gate.py` walks every route of the router with six roles.
 
 Roles:
 - READ: admin, super_admin, finance_admin, manager, accountant, auditor
@@ -248,7 +258,7 @@ Errors: business errors come back as `{"detail": {"code", "message"}}` with stat
 
 | Method | Path | Role | Notes |
 |---|---|---|---|
-| GET | `/capabilities` | READ | `{enabled, ledger_mode, reports_source, chart_ready, role, can_read/write/approve/control/audit, business_today}` |
+| GET | `/capabilities` | READ | `{enabled, ui_visible, ledger_mode, reports_source, chart_ready, role, can_read/write/approve/control/audit, business_today}`; `ui_visible` is the effective value (`finance_v2_enabled` or the per-tenant setting) |
 | POST | `/setup` | CONTROLLER | Seed the AMHP chart (idempotent) |
 | GET / POST | `/accounts` | READ / CONTROLLER | POST creates a sub-account |
 | POST | `/journals` | WRITE | Manual journal types: general / adjustment / cash / bank / opening; `idempotency_key` recommended |
@@ -323,7 +333,8 @@ Registration (a new module is wired in all of these places):
   - `MANAGEMENT_KEYS` (the nav group);
   - `allowedTargets` (the `navigate-module` event);
   - `canAccess('financev2')`: requires `glAvailable`, and a manager additionally needs access to `'finance'`;
-  - `glAvailable` state, set by an effect that calls `getGLCapabilities()` for GL roles only.
+  - `glAvailable` state, set by an effect that calls `getGLCapabilities()` for GL roles only and stores `isFinanceV2Available(caps, sessionRole)` from `src/lib/financeV2Gate.ts` (pure, import-free): `caps.enabled && (caps.ui_visible === true || role === 'super_admin')`, fail closed on a missing `ui_visible`. `tests/gl_gate.test.mjs` (`npm run -s test:gl:gate`) proves a hidden-dual tenant's admin/manager/accountant/finance_admin/auditor do not get the module and super_admin does.
+  - `InventoryPanel.tsx` no longer reads `/gl/capabilities`; it calls `get_inventory_policy_live()` (`src/api/inventory.ts`) for `require_supplier`.
 - `src/components/AdminPanel.tsx`:
   - `lazy(() => import('./admin/FinanceV2Panel'))`;
   - the `AdminTab` union;
@@ -557,12 +568,12 @@ UI:
 cd backend && DATABASE_URL=sqlite:////tmp/iw-test.db JWT_SECRET=test-secret-test-secret-test-secret-123456 \
   SUPERADMIN_PASSWORD=Test-Passw0rd-123 /tmp/iw-venv/bin/python -m pytest tests -p no:cacheprovider -o addopts="" -q
 # Frontend
-npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npx vite build
+npx tsc --noEmit -p . && npm run -s test:smoke && npm run -s test:gl && npm run -s test:gl:bills && npm run -s test:gl:gate && npx vite build
 # Production script inside the backend container (write the file first, then run; PYTHONPATH is required)
 railway ssh --service ironwaves-pos-backend -- sh -c 'cat > /tmp/x.py && cd /app && PYTHONPATH=/app python /tmp/x.py; rm -f /tmp/x.py' < /tmp/x.py
 # Deploy status
 railway deployment list --service ironwaves-pos-backend --json | python3 -c 'import sys,json;d=json.load(sys.stdin)[0];print(d["status"],d["meta"]["commitHash"][:8])'
-# Gate check from outside (404 = hidden, 401 = enabled and waiting for auth)
+# Gate check from outside (404 = disabled / not a dual tenant, 401 = dual and waiting for auth; a dual-but-hidden tenant also answers 401 to anonymous callers)
 curl -s -o /dev/null -w "%{http_code}\n" -H "X-Tenant-Domain: gyrospos.ironwaves.store" https://ironwaves-pos-platform-production.up.railway.app/api/v1/gl/capabilities
 ```
 
