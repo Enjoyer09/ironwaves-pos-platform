@@ -26,11 +26,15 @@ import {
   normalizePushSettings,
   pushAudienceSummary,
   pushSettingsResponse,
+  quietWindowState,
   resolveClientAppId,
   resolvePushAudience,
   resolvePushConfig,
   sanitizePushText,
+  buildFunnel,
+  summarizeFunnels,
 } from '../src/lib/push';
+import { validateScheduleWindow } from '../src/api/push_admin';
 
 const TIERS = DATA.tiers;
 const NOW = DATA.now;
@@ -156,6 +160,76 @@ test('resolvePushAudience parity (say pillələri ayrı)', () => {
 test('pushAudienceSummary açar dəsti Python `as_dict` ilə eynidir', () => {
   const summary = pushAudienceSummary(resolvePushAudience([], { segment: 'all' }, { now: NOW }));
   assert.deepEqual(Object.keys(summary).sort(), [
-    'capped', 'label', 'matched', 'note', 'recipients', 'total', 'undeliverable', 'with_token',
+    'capped', 'label', 'matched', 'no_consent', 'note', 'recipients', 'total', 'undeliverable', 'with_token',
   ]);
+});
+
+/* P4.3 — sükut saatları və planlanmış vaxt pəncərəsi.
+   Qərarı iki yer verir (paneldən dərhal göndərmə + scheduler), ona görə riyaziyyat
+   iki tərəfdə hərfi eyni olmalıdır — biri bloklayıb digəri gecə oyadardı. */
+
+test('sükut saatı pariteti (pəncərə, sərhəd, xarab dəyər)', () => {
+  for (const c of DATA.quiet.cases) {
+    const state = quietWindowState(c.settings, c.minute);
+    for (const [key, expected] of Object.entries(c.expect)) {
+      assert.equal(state[key], expected, `${label(c)} → ${key}`);
+    }
+  }
+});
+
+test('planlanmış vaxt pəncərəsi pariteti (səbəb mətni hərfi eynidir)', () => {
+  const block = DATA.schedule_window;
+  const nowMs = Date.parse(block.now);
+  for (const c of block.cases) {
+    const reason = validateScheduleWindow(c.scheduled_at, nowMs);
+    const expected = c.expect_key ? block.reasons[c.expect_key] : c.expect;
+    assert.equal(reason, expected, label(c));
+  }
+});
+
+/* P4.4/P4.5 — göndərmə → istifadə hunisi. Yuvarlaqlaşdırma hərfi haldır: Python
+   `round()` bankirdir (0.125 → 0.12), JS `Math.round()` yuxarıdır (0.13).
+   İkisi də `floor(v*100+0.5)/100` işlədilir ki, eyni rəqəm çıxsın. */
+
+test('huninin pariteti (yuvarlaqlaşdırma, sıfıra bölmə, zibil giriş)', () => {
+  for (const c of DATA.funnel.cases) {
+    const funnel = buildFunnel(c.input);
+    for (const [key, expected] of Object.entries(c.expect)) {
+      assert.equal(funnel[key], expected, `${label(c)} → ${key}`);
+    }
+  }
+});
+
+test('huni cəmində yüzdələr cəmdən yenidən hesablanır (ortalaması alınmır)', () => {
+  for (const c of DATA.funnel.summary_cases) {
+    const total = summarizeFunnels(c.funnels);
+    for (const [key, expected] of Object.entries(c.expect)) {
+      assert.equal(total[key], expected, `${label(c)} → ${key}`);
+    }
+  }
+});
+
+test('izləmə bayrağı verilməyəndə huni açılma iddia etmir', () => {
+  // `conversion_rate` yazsaydıq panel sübutsuz "bildiriş satış gətirdi" deyərdi.
+  const funnel = buildFunnel({ recipients: 100, accepted: 100, orders: 5, revenue: 50 });
+  assert.equal('conversion_rate' in funnel, false);
+  assert.equal(funnel.attribution, 'redemption');
+  assert.equal(funnel.open_tracking, false);
+  // `open_tracking` false olanda `opened`/`open_rate` sıfırdır — bu "izlənmir"
+  // deməkdir, "0 açılma" deyil; panel mətni buna görə bayrağa baxmalıdır.
+  assert.equal(funnel.opened, 0);
+  assert.equal(funnel.open_rate, 0);
+});
+
+test('cəmdə təkrarsız sayı çıxmayan sahələr uydurulmur', () => {
+  // `customers` — aparıcı `null`: "neçə müştəri" cəmdən düzgün çıxmır.
+  // `openers` — cəmə heç salınmır (Python tərəfi də vermir), yoxsa iki fərqli
+  // açan eyni sayılıb "daha çox adam" yalanı olardı.
+  const total = summarizeFunnels([
+    { recipients: 100, accepted: 100, opened: 20, openers: 18, open_tracking: true },
+  ]);
+  assert.equal(total.customers, null);
+  assert.equal('openers' in total, false);
+  assert.equal(total.opened, 20);
+  assert.equal(total.open_tracking, true);
 });

@@ -20,6 +20,7 @@ import {
   get_customer_app_session_live,
   update_customer_name_live,
   update_customer_birthday_live,
+  update_customer_preferences_live,
   writeCustomerSessionCache,
   readCustomerSessionCache,
   clearCustomerSessionCache,
@@ -168,6 +169,37 @@ test('local name + birth date update roundtrip', async () => {
   await assert.rejects(() => update_customer_birthday_live('QR-NAME1', 'wrong-token', '1995-05-10', 't1'), /invalid/i);
   // empty name rejected
   await assert.rejects(() => update_customer_name_live('QR-NAME1', 'tok-1', '   ', 't1'), /invalid/i);
+});
+
+// P4.1 — kanal razılığı. Backend güzgüsü: `push_opt_in` default true (sütun
+// yoxdursa da razılıq verilmiş sayılır), email/sms default false.
+test('local channel consent roundtrip + defaults', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-PREF1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+
+  // Sütunlar yoxdur → push açıq, email/sms bağlı (backend server_default ilə eyni).
+  const fresh = await get_customer_app_session_live('QR-PREF1', 'tok-1', 't1');
+  assert.deepEqual(fresh.customer.push_prefs, { push: true, email: false, sms: false });
+
+  // Yalnız göndərilən sahə dəyişir (PATCH semantikası).
+  const off = await update_customer_preferences_live('QR-PREF1', 'tok-1', { push: false }, 't1');
+  assert.deepEqual(off.prefs, { push: false, email: false, sms: false });
+
+  const on = await update_customer_preferences_live('QR-PREF1', 'tok-1', { email: true, sms: true }, 't1');
+  assert.deepEqual(on.prefs, { push: false, email: true, sms: true });
+
+  // Sessiya da yeni razılığı göstərir (tətbiq yenidən açıldıqda köhnə seçim görünməsin).
+  const after = await get_customer_app_session_live('QR-PREF1', 'tok-1', 't1');
+  assert.deepEqual(after.customer.push_prefs, { push: false, email: true, sms: true });
+
+  // Yanlış token → sessiya etibarsız.
+  await assert.rejects(() => update_customer_preferences_live('QR-PREF1', 'bad', { push: true }, 't1'), /invalid/i);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -992,4 +1024,228 @@ test('readCustomerSessionCache roundtrip keeps stores array for offline retry', 
   assert.equal(cached.session.stores.length, 1);
   assert.equal(cached.session.stores[0].id, 's1');
   clearCustomerSessionCache('QR-X', 'tok');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P4.2 — kampaniya ↔ bildiriş əlaqəsi (lokal rejim)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('campaign push stats aggregate only attributed deliveries', async () => {
+  const { get_push_campaign_stats, get_push_history } = await import('../src/api/push_admin');
+  clearDBCache();
+  const rows = [
+    { id: 'd1', tenant_id: 't1', kind: 'broadcast', campaign_id: 'c1', status: 'sent', recipients: 10, accepted: 9, failed: 1, created_at: '2026-10-01T10:00:00Z' },
+    { id: 'd2', tenant_id: 't1', kind: 'broadcast', campaign_id: 'c1', status: 'sent', recipients: 5, accepted: 5, failed: 0, created_at: '2026-10-02T10:00:00Z' },
+    // kampaniyasız ümumi bildiriş — heç bir kampaniyaya yazılmamalıdır
+    { id: 'd3', tenant_id: 't1', kind: 'broadcast', campaign_id: null, status: 'sent', recipients: 99, accepted: 99, failed: 0, created_at: '2026-10-03T10:00:00Z' },
+    { id: 'd4', tenant_id: 't2', kind: 'broadcast', campaign_id: 'c1', status: 'sent', recipients: 77, accepted: 77, failed: 0, created_at: '2026-10-04T10:00:00Z' },
+  ];
+  setDB('push_deliveries', rows);
+
+  const stats = get_push_campaign_stats('t1');
+  assert.deepEqual(Object.keys(stats), ['c1']);
+  assert.equal(stats.c1.sends, 2);
+  assert.equal(stats.c1.recipients, 15);
+  assert.equal(stats.c1.accepted, 14);
+  assert.equal(stats.c1.failed, 1);
+  assert.equal(stats.c1.last_sent_at, '2026-10-02T10:00:00Z');
+
+  // Kampaniya süzgəci: yalnız c1 sətirləri (t2-nin sətri tenant sərhədini keçmir).
+  const filtered = get_push_history(50, '', 't1', 'c1');
+  assert.deepEqual(filtered.items.map((r) => r.id), ['d2', 'd1']);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P4.3 — planlanmış bildiriş və sükut saatı (lokal rejim)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('scheduled push plan is stored locally and cancel flips it once', async () => {
+  const {
+    create_push_schedule,
+    get_push_schedules,
+    cancel_push_schedule,
+    validateScheduleWindow,
+  } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('push_schedules', []);
+
+  const future = new Date(Date.now() + 3600_000).toISOString();
+  const row = create_push_schedule(
+    {
+      title: 'Cümə endirimi',
+      body: 'Bu gün 20% endirim!',
+      scheduled_at: future,
+      audience: { segment: 'dormant', days: 45 },
+      campaign_id: 'c1',
+    },
+    't1',
+  );
+
+  assert.equal(row.status, 'pending');
+  // Seqment **dondurulur** (göndərmə anında yenidən hesablanmır).
+  assert.equal(row.audience.segment, 'dormant');
+  assert.equal(row.audience.days, 45);
+  assert.equal(row.campaign_id, 'c1');
+
+  assert.equal(get_push_schedules(50, undefined, 't1').count, 1);
+
+  const canceled = cancel_push_schedule(row.id, 't1');
+  assert.equal(canceled.status, 'canceled');
+  // İkinci ləğv atılır: göndərilmiş/ləğv edilmiş plan geri alınmır.
+  assert.throws(() => cancel_push_schedule(row.id, 't1'), /canceled/);
+
+  // Vaxt pəncərəsi: keçmiş və uzaq gələcək rədd olunur, səbəb mətni hərfidir.
+  assert.match(validateScheduleWindow(new Date(Date.now() - 60000).toISOString()), /1 dəqiqə/);
+  assert.equal(validateScheduleWindow('sabah'), 'Planlanmış vaxt düzgün deyil (ISO 8601 formatı gözlənilir).');
+  assert.equal(validateScheduleWindow(future), '');
+});
+
+// Regressiya: `<input type="datetime-local">` ofsetsiz sətir verir ("2026-10-11T18:30").
+// Backend naive sətri UTC sayır, brauzer isə yerli vaxt kimi oxuyur — çevrilmə
+// olmasaydı Bakıda (UTC+4) plan 4 saat gec göndərilərdi. `create_push_schedule`
+// saxlanılan dəyəri ISO UTC-yə çevirməlidir.
+test('local schedule stores scheduled_at as ISO UTC, not the raw local string', async () => {
+  const { create_push_schedule } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('push_schedules', []);
+
+  const localWall = new Date(Date.now() + 7200_000);
+  const offsetMs = localWall.getTimezoneOffset() * 60_000;
+  const typed = new Date(localWall.getTime() - offsetMs).toISOString().slice(0, 16);
+
+  const row = create_push_schedule({ body: 'test', scheduled_at: typed }, 't1');
+  assert.match(String(row.scheduled_at), /Z$/);
+  // Yerli divar saatı GMT ofseti ilə eyni ana düşür.
+  assert.equal(new Date(String(row.scheduled_at)).getTime(), new Date(typed).getTime());
+  assert.notEqual(String(row.scheduled_at).slice(0, 16), typed);
+});
+
+test('local schedule creation rejects a non-https link before storing', async () => {
+  const { create_push_schedule, get_push_schedules } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('push_schedules', []);
+  const future = new Date(Date.now() + 3600_000).toISOString();
+
+  assert.throws(
+    () => create_push_schedule({ body: 'Salam', url: 'http://x.az', scheduled_at: future }, 't1'),
+    /https:\/\//,
+  );
+  // Uğursuz cəhd siyahıya sətir yazmamalıdır.
+  assert.equal(get_push_schedules(50, undefined, 't1').count, 0);
+});
+
+test('push status exposes quiet hours and cooldown, defaults are off', async () => {
+  const { get_push_status } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('tenants', [{ id: 't1', name: 'T1', slug: 't1', domain: 't1.test', status: 'active' }]);
+  setDB('settings', []);
+
+  const status = get_push_status('t1');
+  assert.equal(status.settings.quiet_enabled, false);
+  assert.equal(status.settings.quiet_start, '22:00');
+  assert.equal(status.settings.quiet_end, '09:00');
+  assert.equal(status.settings.broadcast_cooldown_minutes, 0);
+  assert.equal(status.broadcast.cooldown_remaining_minutes, 0);
+  assert.equal(status.broadcast.quiet.inside, false);
+});
+
+/* P4.4/P4.5 — ölçmə hunisi (lokal). Ən vacib iddia: panel açılma izləməsini
+   UYDURMUR. Açılma hadisəsi serverdəki `push_engagement` cədvəlinə yazılır —
+   lokal (brauzer) bazada qeydi yoxdur, ona görə `open_tracking` burada həmişə
+   false qalır və panel "izlənmir" yazır, "0 açılma" yox. */
+test('local funnel joins deliveries with campaign sales and skips voided ones', async () => {
+  const { get_push_funnel } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('tenants', [{ id: 't1', name: 'T1', slug: 't1', domain: 't1.test', status: 'active' }]);
+  const recent = new Date(Date.now() - 3600_000).toISOString();
+  setDB('push_deliveries', [
+    { id: 'd1', tenant_id: 't1', kind: 'broadcast', campaign_id: 'c1', status: 'sent',
+      recipients: 400, accepted: 386, failed: 14, created_at: recent },
+  ]);
+  setDB('sales', [
+    { id: 's1', tenant_id: 't1', campaign_id: 'c1', customer_card_id: 'QR-1',
+      total: 20, discount_amount: 5, status: 'COMPLETED', created_at: recent },
+    // Eyni müştəri → təkrarsız say 1 qalmalıdır.
+    { id: 's2', tenant_id: 't1', campaign_id: 'c1', customer_card_id: 'QR-1',
+      total: 40, discount_amount: 10, status: 'COMPLETED', created_at: recent },
+    // Ləğv edilmiş çek sayılmamalıdır.
+    { id: 's3', tenant_id: 't1', campaign_id: 'c1', customer_card_id: 'QR-2',
+      total: 99, discount_amount: 9, status: 'VOIDED', created_at: recent },
+    // Kampaniyasız satış huniyə düşməməlidir.
+    { id: 's4', tenant_id: 't1', campaign_id: null, customer_card_id: 'QR-3',
+      total: 55, discount_amount: 0, status: 'COMPLETED', created_at: recent },
+  ]);
+  setDB('happy_hours', [
+    { id: 'c1', tenant_id: 't1', name: 'Cümə endirimi', discount_percent: 20, is_active: true },
+  ]);
+
+  const res = get_push_funnel(90, 't1');
+  assert.equal(res.funnels.length, 1);
+  const row = res.funnels[0];
+  assert.equal(row.campaign_name, 'Cümə endirimi');
+  assert.equal(row.recipients, 400);
+  assert.equal(row.accepted, 386);
+  assert.equal(row.orders, 2);
+  assert.equal(row.customers, 1);
+  assert.equal(row.revenue, 60);
+  assert.equal(row.discount, 15);
+  assert.equal(row.redemption_rate, 0.5);
+  assert.equal(res.summary.open_tracking, false);
+  // Açılma lokal rejimdə izlənmir: sahə var, dəyər sıfır, bayraq false.
+  assert.equal(row.opened, 0);
+  assert.equal(row.open_rate, 0);
+});
+
+test('local funnel never claims opens or "conversion"', async () => {
+  const { get_push_funnel } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('tenants', [{ id: 't1', name: 'T1', slug: 't1', domain: 't1.test', status: 'active' }]);
+  setDB('push_deliveries', []);
+  setDB('sales', []);
+
+  const res = get_push_funnel(90, 't1');
+  assert.equal(res.summary.open_tracking, false);
+  assert.equal(res.summary.attribution, 'no_redemption');
+  // Təkrarsız müştəri sayı cəmdən çıxmır — uydurma 0 yox, `null`.
+  assert.equal(res.summary.customers, null);
+  // Sübutsuz iddia olardı: sahə ümumiyyətlə olmamalıdır.
+  assert.equal('conversion_rate' in res.summary, false);
+});
+
+test('local funnel excludes sales outside the requested window', async () => {
+  const { get_push_funnel } = await import('../src/api/push_admin');
+  clearDBCache();
+  setDB('tenants', [{ id: 't1', name: 'T1', slug: 't1', domain: 't1.test', status: 'active' }]);
+  const recent = new Date(Date.now() - 3600_000).toISOString();
+  const old = new Date(Date.now() - 200 * 86400_000).toISOString();
+  setDB('push_deliveries', [
+    { id: 'd1', tenant_id: 't1', kind: 'broadcast', campaign_id: 'c1', status: 'sent',
+      recipients: 100, accepted: 100, failed: 0, created_at: recent },
+  ]);
+  setDB('sales', [
+    { id: 's1', tenant_id: 't1', campaign_id: 'c1', customer_card_id: 'QR-1',
+      total: 10, discount_amount: 1, status: 'COMPLETED', created_at: recent },
+    { id: 's2', tenant_id: 't1', campaign_id: 'c1', customer_card_id: 'QR-2',
+      total: 500, discount_amount: 50, status: 'COMPLETED', created_at: old },
+  ]);
+
+  assert.equal(get_push_funnel(90, 't1').funnels[0].orders, 1);
+  // Pəncərə açılanda köhnə çek də sayılır.
+  assert.equal(get_push_funnel(365, 't1').funnels[0].orders, 2);
+});
+
+test('local mode does not pretend to record a push open', async () => {
+  const { record_push_engagement_live } = await import('../src/api/crm');
+  clearDBCache();
+  setDB('tenants', [{ id: 't1', name: 'T1', slug: 't1', domain: 't1.test', status: 'active' }]);
+
+  // Lokal rejimdə açılma qeydi YOXDUR (`push_engagement` server cədvəlidir).
+  // Uydurma uğur qaytarsaydıq panel izləməni real sayardı.
+  const res = await record_push_engagement_live('QR-1', 'tok', 'd-1', 'opened');
+  assert.equal(res.success, false);
+  assert.equal(res.recorded, false);
+
+  // Boş parametrlər də səssizcə rədd olunur (telemetriya tətbiqi pozmamalıdır).
+  assert.equal((await record_push_engagement_live('', 'tok', 'd-1')).success, false);
+  assert.equal((await record_push_engagement_live('QR-1', 'tok', '  ')).success, false);
 });

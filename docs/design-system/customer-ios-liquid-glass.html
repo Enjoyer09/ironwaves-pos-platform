@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#faf6f1">
+<title>Emalat Coffee — Liquid Glass / Customer iOS Concept</title>
+<style>
+/* ============================================================
+   Liquid Glass v3 — proposed customer design system.
+   Research-backed: Apple Liquid Glass (iOS 26) + 2026 volumetric
+   glassmorphism practice. Design proposal only — not imported by
+   the live app. Scoped to .customer-design-system (same element
+   carries data-customer-theme). No global :root overrides.
+   CORE RULE (Apple HIG): glass floats on NAVIGATION and CONTROLS;
+   content stays solid underneath.
+   ============================================================ */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;color:#221610;background:#faf6f1;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #a94708;outline-offset:3px}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+a{color:#8a3d05;text-decoration:none}
+a:hover{text-decoration:underline}
+code,.mono{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:.86em}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+[hidden]{display:none!important}
+section{scroll-margin-top:88px}
+
+/* --- ambient background the glass refracts ------------------- */
+.ambient{position:fixed;inset:0;z-index:-2;background:
+  radial-gradient(52rem 36rem at 12% -8%, #ffd9b0 0%, transparent 60%),
+  radial-gradient(44rem 30rem at 92% 12%, #ffc9c0 0%, transparent 55%),
+  radial-gradient(40rem 34rem at 70% 96%, #f6e3c8 0%, transparent 60%),
+  #faf6f1}
+body[data-doc-theme="dark"] .ambient{background:
+  radial-gradient(52rem 36rem at 12% -8%, #4a2410 0%, transparent 58%),
+  radial-gradient(44rem 30rem at 92% 12%, #3a1420 0%, transparent 55%),
+  radial-gradient(40rem 34rem at 70% 96%, #2a1a0c 0%, transparent 60%),
+  #14100d}
+
+/* --- frosted documentation chrome --------------------------- */
+.glass{background:rgba(255,255,255,.62);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.75);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 10px 34px rgba(60,30,8,.10)}
+body[data-doc-theme="dark"] .glass{background:rgba(34,26,21,.60);border-color:rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 10px 34px rgba(0,0,0,.45)}
+body[data-doc-theme="dark"]{color:#f3ece5}
+
+.sidebar{position:fixed;top:14px;left:14px;bottom:14px;width:214px;border-radius:24px;padding:22px 16px;display:flex;flex-direction:column;z-index:30}
+.wordmark{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:750;letter-spacing:-.4px;color:inherit}
+.wordmark .mark{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:18px;font-weight:800;color:#fff;background:linear-gradient(135deg,#ff9a3c,#e05f10);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 6px 16px rgba(224,95,16,.35)}
+.subbrand{margin:6px 0 26px 42px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.6}
+.nav-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;opacity:.55;padding:0 10px;margin-bottom:10px}
+.side-nav{display:grid;gap:4px}
+.side-nav a{padding:10px 12px;border-radius:12px;display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:550;color:inherit;opacity:.72}
+.side-nav a svg{width:16px;height:16px}
+.side-nav a.active{background:rgba(255,255,255,.85);opacity:1;box-shadow:inset 0 1px 0 #fff,0 4px 14px rgba(60,30,8,.10)}
+body[data-doc-theme="dark"] .side-nav a.active{background:rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.side-nav a:hover{opacity:1}
+.sidebar-bottom{margin-top:auto;font-size:11.5px;line-height:1.7;opacity:.65;padding:14px 10px 0;border-top:1px solid rgba(120,80,40,.16)}
+.sidebar-bottom b{display:block;font-weight:650;opacity:.95}
+.status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#e07018;margin-right:6px;box-shadow:0 0 6px #e07018}
+
+.main{margin-left:254px;padding:0 34px 70px}
+.topbar{position:sticky;top:14px;z-index:20;margin:14px 0 0;height:60px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;padding:0 22px}
+.breadcrumb{font-size:13px;opacity:.65}
+.breadcrumb strong{font-weight:600;opacity:1}
+.top-actions{display:flex;gap:10px;align-items:center}
+.pill-toggle{display:flex;gap:3px;padding:3px;border-radius:999px;background:rgba(120,80,40,.10)}
+body[data-doc-theme="dark"] .pill-toggle{background:rgba(255,255,255,.08)}
+.pill-toggle button{font-size:12px;font-weight:600;padding:7px 13px;border-radius:999px;min-height:32px;opacity:.6}
+.pill-toggle button.on{background:rgba(255,255,255,.92);opacity:1;box-shadow:0 3px 10px rgba(60,30,8,.16);color:#221610}
+body[data-doc-theme="dark"] .pill-toggle button.on{background:#f3ece5;color:#221610}
+.rt-toggle{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:7px 13px;border-radius:999px;background:rgba(120,80,40,.10);min-height:38px}
+body[data-doc-theme="dark"] .rt-toggle{background:rgba(255,255,255,.08)}
+.rt-toggle .dot{width:9px;height:9px;border-radius:50%;background:#b9b2aa;transition:background .2s}
+.rt-toggle.on .dot{background:#e07018;box-shadow:0 0 6px #e07018}
+
+.doc{max-width:1360px;margin:0 auto}
+.kicker{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#a05716;margin-top:52px}
+body[data-doc-theme="dark"] .kicker{color:#ffb077}
+.heading h1{font-size:clamp(38px,5vw,64px);letter-spacing:-.03em;line-height:1.02;margin-top:12px;font-weight:780}
+.heading h1 .grad{background:linear-gradient(100deg,#ff9a3c 5%,#e05f10 55%,#b03a10 95%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.heading .lede{max-width:64ch;font-size:17px;line-height:1.55;opacity:.75;margin-top:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font-size:12px;font-weight:600;padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 #fff,0 4px 12px rgba(60,30,8,.08);backdrop-filter:blur(12px)}
+body[data-doc-theme="dark"] .chip{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.chip b{color:#c1520d}
+body[data-doc-theme="dark"] .chip b{color:#ffb077}
+
+.section-title{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:64px 0 22px}
+.section-title h2{font-size:clamp(24px,3vw,34px);letter-spacing:-.02em;font-weight:730}
+.section-title p{max-width:62ch;font-size:14.5px;line-height:1.55;opacity:.7;margin-top:8px}
+.section-index{font-size:10.5px;letter-spacing:.16em;opacity:.5;white-space:nowrap}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.grid-4{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.panel{border-radius:22px;padding:22px}
+.panel h3{font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+.panel .desc{font-size:13.5px;line-height:1.55;opacity:.7;margin-top:6px}
+.rule-list{list-style:none;padding:0;margin-top:14px;display:grid;gap:9px;font-size:13.5px;line-height:1.5}
+.rule-list li{display:flex;gap:9px;align-items:flex-start}
+.rule-list .mk{flex:0 0 auto;width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:800;margin-top:1px}
+.mk.yes{background:#eaf7ee;color:#1c6b3c}
+.mk.no{background:#fff0f1;color:#a51f2b}
+body[data-doc-theme="dark"] .mk.yes{background:#193424;color:#74d394}
+body[data-doc-theme="dark"] .mk.no{background:#3b1e22;color:#ff9198}
+.rule-list b{font-weight:680}
+.panel-note{font-size:12px;line-height:1.55;opacity:.6;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(120,80,40,.25)}
+.src{font-size:12px;margin-top:12px;display:grid;gap:5px}
+.src a{word-break:break-all}
+
+/* --- phone stage --------------------------------------------- */
+.stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px;margin-top:8px}
+.phone-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.preview-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+.device{padding:11px;border-radius:52px;background:linear-gradient(160deg,#3c3c40,#17171a 60%);box-shadow:0 30px 70px rgba(30,14,2,.30),inset 0 1px 0 rgba(255,255,255,.25)}
+.phone{position:relative;width:300px;height:640px;border-radius:42px;overflow:hidden;color:#221610;background:#fdf8f2;font-size:14px}
+.phone[data-customer-theme="dark"]{color:#f5efe8;background:#17120e}
+.phone-caption{font-size:12.5px;text-align:center}
+.phone-caption b{display:block;font-size:13.5px}
+.phone-caption span{opacity:.6}
+.callout{font-size:11.5px;text-align:center;opacity:.6;max-width:300px;line-height:1.5}
+
+/* phone background (refraction source) */
+.phone-bg{position:absolute;inset:0;z-index:0;background:
+  radial-gradient(16rem 12rem at 82% 6%, #ffc98f 0%, transparent 62%),
+  radial-gradient(14rem 12rem at 4% 34%, #ffd6c4 0%, transparent 60%),
+  radial-gradient(18rem 16rem at 60% 106%, #f8ddae 0%, transparent 62%),
+  linear-gradient(178deg,#fffaf3,#fdf1e4)}
+.phone[data-customer-theme="dark"] .phone-bg{background:
+  radial-gradient(16rem 12rem at 82% 6%, #7a3b12 0%, transparent 60%),
+  radial-gradient(14rem 12rem at 4% 34%, #5c1e2e 0%, transparent 60%),
+  radial-gradient(18rem 16rem at 60% 106%, #4a3208 0%, transparent 62%),
+  linear-gradient(178deg,#1a130e,#120d0a)}
+/* faux content BEHIND glass for lensing (blurred shapes) */
+.phone-bg::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(5rem 5rem at 24% 74%, rgba(240,140,36,.35), transparent 70%),
+  radial-gradient(6rem 4rem at 88% 52%, rgba(214,84,40,.28), transparent 70%);
+  filter:blur(6px)}
+
+.statusbar{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:14px 22px 4px;font-size:12.5px;font-weight:650}
+.island{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:86px;height:24px;border-radius:999px;background:#000}
+.phone[data-customer-theme="dark"] .island{background:#000}
+.status-right{display:flex;gap:5px;align-items:center}
+.status-right svg{width:15px;height:12px;stroke-width:2}
+
+.screen-scroll{position:relative;z-index:2;height:calc(100% - 40px);overflow-y:auto;padding:10px 18px 108px;scrollbar-width:none}
+.screen-scroll::-webkit-scrollbar{display:none}
+
+.screen-head{display:flex;align-items:flex-end;justify-content:space-between;padding:10px 0 14px}
+.greeting{font-size:13px;opacity:.65;font-weight:550}
+.screen-head h2{font-size:30px;letter-spacing:-.02em;font-weight:780;margin-top:2px}
+.g-avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700;color:#221610;
+  background:rgba(255,255,255,.62);backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 6px 16px rgba(60,30,8,.16)}
+.phone[data-customer-theme="dark"] .g-avatar{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.20);color:#f5efe8;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 6px 16px rgba(0,0,0,.4)}
+
+/* SOLID content cards (Apple rule: content is the foundation) */
+.card{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.95);border-radius:24px;padding:18px;
+  box-shadow:0 8px 24px rgba(60,30,8,.10);backdrop-filter:blur(2px)}
+.phone[data-customer-theme="dark"] .card{background:rgba(32,25,20,.92);border-color:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.card + .card{margin-top:12px}
+.loyalty-hero{position:relative;overflow:hidden;color:#fff8ef;background:linear-gradient(135deg,#8a3d05,#c1520d 48%,#7a2f06);
+  border:1px solid rgba(255,255,255,.28);border-radius:26px;padding:20px;box-shadow:0 14px 34px rgba(122,47,6,.38),inset 0 1px 0 rgba(255,255,255,.35)}
+.loyalty-hero::before{content:"";position:absolute;right:-40px;top:-56px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(255,214,150,.55),transparent 68%)}
+.loyalty-top{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:650;position:relative}
+.tier{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35)}
+.tier svg{width:12px;height:12px}
+.star-value{font-size:52px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:12px;position:relative}
+.star-value small{font-size:14px;font-weight:650;opacity:.75;margin-left:7px;letter-spacing:0}
+.loyalty-hero p{font-size:12.5px;opacity:.82;margin-top:4px;position:relative}
+.hero-cta{margin-top:16px;position:relative;width:100%;min-height:48px;border-radius:16px;font-size:15px;font-weight:700;color:#3a1b02;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  background:linear-gradient(180deg,#ffe3c0,#ffcb93);box-shadow:inset 0 1px 0 #fff,0 8px 18px rgba(58,27,2,.30)}
+.hero-cta:active{transform:scale(.985)}
+
+.section-row{display:flex;justify-content:space-between;align-items:center;margin:20px 2px 10px}
+.section-row h3{font-size:16px;font-weight:730;letter-spacing:-.01em}
+.section-row button{font-size:13px;font-weight:650;color:#a05716;min-height:36px;padding:0 4px}
+.phone[data-customer-theme="dark"] .section-row button{color:#ffb077}
+
+/* stamps */
+.stamps{display:grid;grid-template-columns:repeat(8,1fr);gap:7px;margin-top:4px}
+.stamp{aspect-ratio:1;border-radius:50%;display:grid;place-items:center;border:1.5px dashed rgba(120,80,40,.35);color:rgba(120,80,40,.4)}
+.stamp svg{width:14px;height:14px}
+.stamp.filled{background:linear-gradient(140deg,#ff9a3c,#e05f10);border:1px solid rgba(255,255,255,.5);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 10px rgba(224,95,16,.35)}
+.phone[data-customer-theme="dark"] .stamp{border-color:rgba(255,176,119,.35);color:rgba(255,176,119,.5)}
+.stamp-copy{font-size:12.5px;line-height:1.5;opacity:.75;margin-top:12px}
+
+/* product rows (solid) */
+.item{display:flex;gap:13px;align-items:center;padding:12px}
+.item-art{flex:0 0 auto;width:58px;height:58px;border-radius:16px;background:linear-gradient(150deg,#fff3e2,#ffe4c4);display:grid;place-items:center;overflow:hidden}
+.phone[data-customer-theme="dark"] .item-art{background:linear-gradient(150deg,#3d2c1c,#2a1d12)}
+.item-art svg{width:52px;height:52px;stroke:none}
+.item-copy{flex:1;min-width:0}
+.item-copy h4{font-size:14.5px;font-weight:680}
+.item-copy p{font-size:12px;opacity:.62;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-copy strong{display:block;font-size:13.5px;margin-top:5px;color:#a05716}
+.phone[data-customer-theme="dark"] .item-copy strong{color:#ffb077}
+.add{flex:0 0 auto;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.60);backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.75);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 5px 14px rgba(60,30,8,.18);color:#7a3d08}
+.phone[data-customer-theme="dark"] .add{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.18);color:#ffb077;box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 5px 14px rgba(0,0,0,.4)}
+.add:active{transform:scale(.92)}
+
+/* GLASS controls */
+.g-search{display:flex;align-items:center;gap:9px;min-height:48px;border-radius:16px;padding:0 15px;font-size:15px;
+  background:rgba(255,255,255,.52);backdrop-filter:blur(22px) saturate(1.7);-webkit-backdrop-filter:blur(22px) saturate(1.7);
+  border:1px solid rgba(255,255,255,.72);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 8px 20px rgba(60,30,8,.12)}
+.g-search svg{flex:0 0 auto;opacity:.55}
+.g-search input{flex:1;border:0;background:none;outline:none;font-size:15px;min-width:0}
+.g-search input::placeholder{color:rgba(60,40,20,.5)}
+.phone[data-customer-theme="dark"] .g-search{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 8px 20px rgba(0,0,0,.4)}
+.phone[data-customer-theme="dark"] .g-search input{color:#f5efe8}
+.phone[data-customer-theme="dark"] .g-search input::placeholder{color:rgba(245,239,232,.45)}
+
+.chips-row{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips-row::-webkit-scrollbar{display:none}
+.g-chip{flex:0 0 auto;min-height:40px;padding:0 16px;border-radius:999px;font-size:13px;font-weight:650;display:flex;align-items:center;
+  background:rgba(255,255,255,.50);backdrop-filter:blur(18px) saturate(1.7);-webkit-backdrop-filter:blur(18px) saturate(1.7);
+  border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 4px 12px rgba(60,30,8,.10);color:#4a3420}
+.g-chip.on{background:linear-gradient(180deg,#ff9a3c,#e77217);color:#fff;border-color:rgba(255,255,255,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 6px 16px rgba(224,95,16,.4)}
+.phone[data-customer-theme="dark"] .g-chip{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16);color:#f0e6dc;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.phone[data-customer-theme="dark"] .g-chip.on{background:linear-gradient(180deg,#ff9a3c,#e77217);color:#2b1503}
+
+.branch{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;opacity:.72;margin:2px 2px 12px}
+.branch svg{width:14px;height:14px}
+
+/* floating glass cart bar + tab bar */
+.g-cart{position:absolute;left:16px;right:16px;bottom:104px;z-index:5;min-height:52px;border-radius:20px;display:none;align-items:center;gap:10px;padding:0 18px;
+  font-size:14.5px;font-weight:700;color:#2b1503;
+  background:linear-gradient(180deg,rgba(255,214,160,.92),rgba(255,178,110,.92));backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 14px 30px rgba(122,47,6,.35)}
+.g-cart.show{display:flex}
+.g-cart .total{margin-left:auto}
+
+.g-nav{position:absolute;left:14px;right:14px;bottom:16px;z-index:6;height:74px;border-radius:28px;display:flex;align-items:stretch;padding:8px;
+  background:rgba(255,255,255,.55);backdrop-filter:blur(26px) saturate(1.8);-webkit-backdrop-filter:blur(26px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -0.5px 0 rgba(255,255,255,.4),0 16px 36px rgba(50,25,5,.22)}
+.phone[data-customer-theme="dark"] .g-nav{background:rgba(26,20,16,.62);border-color:rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 16px 36px rgba(0,0,0,.55)}
+.g-nav button{flex:1;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:650;opacity:.6;min-height:56px}
+.g-nav button svg{width:21px;height:21px}
+.g-nav button.on{opacity:1;color:#a05716;background:rgba(255,255,255,.75);box-shadow:inset 0 1px 0 #fff,0 4px 12px rgba(60,30,8,.14)}
+.phone[data-customer-theme="dark"] .g-nav button.on{color:#ffb077;background:rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
+.home-ind{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:110px;height:4.5px;border-radius:3px;background:rgba(30,20,10,.4);z-index:7}
+.phone[data-customer-theme="dark"] .home-ind{background:rgba(255,255,255,.5)}
+
+/* profile rows */
+.group{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.95);border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(60,30,8,.10)}
+.phone[data-customer-theme="dark"] .group{background:rgba(32,25,20,.92);border-color:rgba(255,255,255,.08)}
+.row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:12px 16px;font-size:14.5px;font-weight:560;text-align:left}
+.row + .row{border-top:1px solid rgba(120,80,40,.13)}
+.phone[data-customer-theme="dark"] .row + .row{border-top-color:rgba(255,255,255,.08)}
+.row svg.chev{margin-left:auto;width:16px;height:16px;opacity:.4}
+.row .val{margin-left:auto;font-size:13px;opacity:.55}
+.profile-id{display:flex;gap:14px;align-items:center;padding:16px 18px}
+.profile-id .ava{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:750;font-size:17px;color:#fff;
+  background:linear-gradient(140deg,#ff9a3c,#d4570f);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 18px rgba(212,87,15,.4)}
+.profile-id h4{font-size:16.5px;font-weight:730}
+.profile-id p{font-size:12.5px;opacity:.62;margin-top:2px}
+.switch{margin-left:auto;width:50px;height:30px;border-radius:999px;background:rgba(120,80,40,.22);position:relative;transition:background .2s;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.25);transition:transform .2s}
+.switch[aria-checked="true"]{background:linear-gradient(180deg,#ff9a3c,#e05f10)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+
+/* toast + sheet */
+.toast{position:absolute;left:18px;right:18px;bottom:178px;z-index:9;display:flex;gap:9px;align-items:center;padding:13px 16px;border-radius:16px;font-size:13px;font-weight:600;
+  background:rgba(30,20,12,.88);color:#fff5ea;backdrop-filter:blur(18px);box-shadow:0 12px 30px rgba(0,0,0,.35);animation:toast-in .25s cubic-bezier(.2,0,0,1)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.sheet-backdrop{position:absolute;inset:0;z-index:11;background:rgba(20,12,6,.35);backdrop-filter:blur(3px);display:flex;align-items:flex-end}
+.sheet{width:100%;border-radius:28px 28px 0 0;padding:14px 20px 24px;max-height:86%;overflow-y:auto;
+  background:rgba(255,252,248,.94);backdrop-filter:blur(30px) saturate(1.6);-webkit-backdrop-filter:blur(30px) saturate(1.6);
+  border-top:1px solid rgba(255,255,255,.95);box-shadow:0 -18px 50px rgba(30,14,2,.35),inset 0 1px 0 rgba(255,255,255,.9);color:#221610;animation:sheet-in .3s cubic-bezier(.2,0,0,1)}
+.phone[data-customer-theme="dark"] .sheet{background:rgba(30,23,18,.96);color:#f5efe8;border-top-color:rgba(255,255,255,.14)}
+@keyframes sheet-in{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+.grabber{width:40px;height:4.5px;border-radius:3px;background:rgba(120,80,40,.35);margin:0 auto 12px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sheet-head h3{font-size:17.5px;font-weight:730}
+.sheet .close{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(120,80,40,.12);margin:-8px -8px 0 0}
+.sheet p{font-size:13.5px;line-height:1.55;opacity:.78}
+.qr-art{display:block;margin:16px auto 8px;width:170px;height:170px;border-radius:18px;background:#fff;padding:10px;box-shadow:0 10px 26px rgba(0,0,0,.18)}
+.qr-note{text-align:center;font-size:11px!important;letter-spacing:.06em;opacity:.55!important;margin-top:6px}
+.btn-solid{width:100%;min-height:50px;border-radius:16px;font-size:15px;font-weight:720;color:#fff;margin-top:14px;
+  background:linear-gradient(180deg,#f08a2c,#cf5c0e);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 10px 22px rgba(160,70,10,.4)}
+.btn-quiet{width:100%;min-height:48px;border-radius:16px;font-size:14.5px;font-weight:650;margin-top:9px;background:rgba(120,80,40,.10)}
+
+/* --- token exhibition ---------------------------------------- */
+.token-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.tok{border-radius:18px;padding:16px;font-size:12.5px}
+.tok b{display:block;font-size:13px;margin-bottom:8px}
+.tok code{display:block;background:rgba(120,80,40,.09);border-radius:9px;padding:8px 10px;line-height:1.6;word-break:break-all;font-size:11.5px}
+body[data-doc-theme="dark"] .tok code{background:rgba(255,255,255,.07)}
+.blur-demo{height:64px;border-radius:14px;position:relative;overflow:hidden;margin-bottom:10px;border:1px solid rgba(255,255,255,.6)}
+.blur-demo i{position:absolute;inset:0;background:linear-gradient(90deg,#e05f10 0 30%,#ffd9a0 30% 55%,#7a2f06 55% 80%,#ffc9c0 80%)}
+.blur-demo span{position:absolute;inset:8px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:12px;color:#2b1503;background:rgba(255,255,255,.4);backdrop-filter:blur(var(--demo-blur)) saturate(1.7);border:1px solid rgba(255,255,255,.7)}
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.swatch{border-radius:16px;overflow:hidden;font-size:12px}
+.swatch .col{height:56px}
+.swatch .meta{padding:10px 12px}
+.swatch .meta b{display:block;font-size:12.5px}
+.swatch .meta code{opacity:.65;font-size:11px}
+
+/* research stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.stat{border-radius:18px;padding:16px;text-align:left}
+.stat b{display:block;font-size:26px;letter-spacing:-.02em;background:linear-gradient(120deg,#e05f10,#a0430c);-webkit-background-clip:text;background-clip:text;color:transparent}
+body[data-doc-theme="dark"] .stat b{background:linear-gradient(120deg,#ffb077,#ff8a3c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{font-size:11.5px;opacity:.65;line-height:1.45;display:block;margin-top:4px}
+
+/* reduce-transparency fallback (accessibility layer) */
+[data-rt="on"] .g-nav,[data-rt="on"] .g-search,[data-rt="on"] .g-chip,[data-rt="on"] .add,[data-rt="on"] .g-avatar,[data-rt="on"] .g-cart{
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+[data-rt="on"] .g-nav{background:#fffdf9!important;border:1.5px solid rgba(60,40,20,.45)}
+[data-rt="on"] .phone[data-customer-theme="dark"] .g-nav{background:#241c16!important;border-color:rgba(255,255,255,.5)}
+[data-rt="on"] .g-search{background:#fffdf9!important;border:1.5px solid rgba(60,40,20,.45)}
+[data-rt="on"] .phone[data-customer-theme="dark"] .g-search{background:#241c16!important;border-color:rgba(255,255,255,.5)}
+[data-rt="on"] .g-chip{background:#fffdf9!important;border:1.5px solid rgba(60,40,20,.45)}
+[data-rt="on"] .phone[data-customer-theme="dark"] .g-chip{background:#241c16!important;border-color:rgba(255,255,255,.5)}
+[data-rt="on"] .add,[data-rt="on"] .g-avatar{background:#fffdf9!important;border:1.5px solid rgba(60,40,20,.45)}
+[data-rt="on"] .phone[data-customer-theme="dark"] .add,[data-rt="on"] .phone[data-customer-theme="dark"] .g-avatar{background:#241c16!important;border-color:rgba(255,255,255,.5)}
+[data-rt="on"] .g-cart{background:#ffd9a0!important;border:1.5px solid rgba(60,40,20,.5)}
+[data-rt="on"] .phone-bg::after{display:none}
+.rt-badge{position:absolute;top:44px;right:14px;z-index:8;font-size:9.5px;font-weight:750;letter-spacing:.08em;padding:5px 9px;border-radius:8px;background:#a94708;color:#fff;box-shadow:0 4px 10px rgba(169,71,8,.4)}
+[data-rt="off"] .rt-badge{display:none}
+
+.footer{margin-top:70px;padding-top:26px;border-top:1px solid rgba(120,80,40,.18);display:flex;justify-content:space-between;gap:20px;font-size:12.5px;line-height:1.7;opacity:.7}
+@media (max-width:1100px){.sidebar{display:none}.main{margin-left:0;padding:0 22px 60px}}
+@media (max-width:640px){.main{padding:0 14px 50px}.topbar{padding:0 14px}.rt-toggle span.lbl{display:none}.section-title{flex-direction:column;align-items:flex-start}.footer{flex-direction:column}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:0ms!important}}
+</style>
+</head>
+<body data-doc-theme="light">
+<div class="ambient" aria-hidden="true"></div>
+
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></symbol>
+<symbol id="i-cup" viewBox="0 0 24 24"><path d="M4 8h12v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM16 9h2a3 3 0 0 1 0 6h-2M8 3v2M12 2v3"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24"><path d="M3 8h18v4H3zM5 12v9h14v-9M12 8v13"/><path d="M12 8S5 8 5 4s7 0 7 4c0-4 7-8 7 4-4-4-7 4-7 4Z"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h4v4h-6zM21 13v2M13 3v2M3 12h3M10 12h2v3M12 19v2"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9z"/></symbol>
+<symbol id="i-bag" viewBox="0 0 24 24"><path d="M4 7h16l1 14H3zM8 7V5a4 4 0 0 1 8 0v2"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6h15v14H4zM4 6l12-3v3M15 10h6v6h-6z"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 6-3 7-3 7h18s-3-1-3-7M9 20h6"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10Z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 10 6-10 6L2 9zM2 13l10 6 10-6M2 17l10 6 10-6"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5.5 9A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7.5 15h9"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m7 6-6 6 6 6M17 6l6 6-6 6M14 3l-4 18"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4M11 19h2"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v.5"/></symbol>
+</defs></svg>
+
+<aside class="sidebar glass" aria-label="Concept navigation">
+  <a class="wordmark" href="#overview"><span class="mark">E</span>Emalat Coffee</a>
+  <div class="subbrand">Liquid Glass · v3</div>
+  <div class="nav-label">Concept</div>
+  <nav class="side-nav">
+    <a class="active" href="#overview"><svg><use href="#i-grid"/></svg>Overview</a>
+    <a href="#research"><svg><use href="#i-flask"/></svg>Research</a>
+    <a href="#screens"><svg><use href="#i-phone"/></svg>Screens</a>
+    <a href="#tokens"><svg><use href="#i-layers"/></svg>Glass tokens</a>
+    <a href="#rules"><svg><use href="#i-shield"/></svg>Rules &amp; a11y</a>
+    <a href="#handoff"><svg><use href="#i-code"/></svg>Handoff</a>
+  </nav>
+  <div class="sidebar-bottom"><b><span class="status-dot"></span>Liquid Glass · Concept 3.0</b>Customer app / iOS<br>Proposal · not deployed</div>
+</aside>
+
+<div class="main">
+<header class="topbar glass">
+  <div class="breadcrumb">Design systems &nbsp;/&nbsp; <strong>Customer iOS — Liquid Glass</strong></div>
+  <div class="top-actions">
+    <div class="pill-toggle" role="group" aria-label="Preview theme">
+      <button id="t-light" class="on" aria-pressed="true">Light</button>
+      <button id="t-dark" aria-pressed="false">Dark</button>
+    </div>
+    <button class="rt-toggle" id="rt-btn" aria-pressed="false" title="Simulate the iOS accessibility setting"><span class="dot"></span><span class="lbl">Reduce Transparency</span></button>
+  </div>
+</header>
+
+<main class="doc">
+<section id="overview">
+  <div class="kicker">Emalat Coffee / Customer mobile app — design proposal</div>
+  <div class="heading">
+    <h1>Coffee, served<br><span class="grad">in liquid glass.</span></h1>
+    <p class="lede">A complete redesign of the customer experience in Apple's Liquid Glass language (iOS 26) — grounded in a survey of 2026 world practice. Glass floats on navigation and controls; content stays solid and readable underneath.</p>
+  </div>
+  <div class="chips">
+    <span class="chip"><b>Apple Liquid Glass</b> — iOS 26 design language</span>
+    <span class="chip"><b>2026 volumetric glassmorphism</b> — blur &amp; edge tokens</span>
+    <span class="chip"><b>WCAG-safe</b> — Reduce Transparency fallback built in</span>
+    <span class="chip"><b>Supersedes</b> Quiet UI v2 (proposal, not deployed)</span>
+  </div>
+</section>
+
+<section id="research">
+  <div class="section-title"><div><h2>What the world is doing.</h2><p>Four research sources distilled into the decisions this concept is built on.</p></div><span class="section-index">01 / RESEARCH</span></div>
+  <div class="grid grid-4">
+    <article class="panel glass">
+      <h3>1 · Apple Liquid Glass</h3>
+      <p class="desc">Apple's iOS 26 language is not "more blur" — it is a hierarchy system.</p>
+      <ul class="rule-list">
+        <li><span class="mk yes">✓</span><span><b>Core rule:</b> glass belongs on toolbars, tab bars and controls — never covering the content itself.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Five traits:</b> translucency, refraction (lensing), specular highlights, background-adaptive color, state morphing.</span></li>
+        <li><span class="mk no">✕</span><span><b>Never mix</b> regular glass and clear glass in the same view; never stack glass on glass.</span></li>
+        <li><span class="mk yes">✓</span><span>System honors <b>Reduce Transparency / Increase Contrast / Reduce Motion</b> by default.</span></li>
+      </ul>
+      <div class="src"><a href="https://developer.apple.com/design/human-interface-guidelines/materials">developer.apple.com/design/human-interface-guidelines/materials</a><a href="https://itbug.shop/blog/ios-26-liquid-glass-design-guide">iOS 26 Liquid Glass practice guide (2026)</a></div>
+    </article>
+    <article class="panel glass">
+      <h3>2 · 2026 glassmorphism practice</h3>
+      <p class="desc">"Volumetric glass" matured from a trend into a token-driven system.</p>
+      <ul class="rule-list">
+        <li><span class="mk yes">✓</span><span><b>Blur tokens, not vibes:</b> 4px context → 16px bars → 24px sheets → 40px modal isolation.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Specular edge:</b> 0.5–1px light stroke defines the glass "thickness".</span></li>
+        <li><span class="mk no">✕</span><span><b>Three horsemen of failure:</b> low contrast, text over busy backgrounds, distracting layers.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Semantic border:</b> ≥4.5:1 against both the glass fill and what's underneath.</span></li>
+      </ul>
+      <div class="src"><a href="https://timgraf.com/ui/the-glass-cube-evolution-mastering-glassmorphism-ux-in-2026/">Timothy Graf — Mastering Glassmorphism UX in 2026</a></div>
+    </article>
+    <article class="panel glass">
+      <h3>3 · Who uses it well</h3>
+      <p class="desc">Glass now dominates fintech, SaaS dashboards and premium consumer apps.</p>
+      <ul class="rule-list">
+        <li><span class="mk yes">✓</span><span><b>Fintech</b> (Revolut-class): floating glass balance cards and controls over vivid gradients.</span></li>
+        <li><span class="mk yes">✓</span><span><b>SaaS</b> (Linear/Vercel-class): frosted rails and command palettes over dark canvases.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Consumer/loyalty:</b> glass reserved for scan buttons, tab bars, filters — content rows stay solid.</span></li>
+        <li><span class="mk yes">✓</span><span>Reported effect: <b>+42% visual recall, +31% perceived quality</b> (2026 industry study).</span></li>
+      </ul>
+      <div class="src"><a href="https://hidezign.com/blog/glassmorphism-design">Glassmorphism: The Definitive Guide (2026)</a></div>
+    </article>
+    <article class="panel glass">
+      <h3>4 · Accessibility is the gate</h3>
+      <p class="desc">Glass without fallbacks is a usability bug, not a style.</p>
+      <ul class="rule-list">
+        <li><span class="mk yes">✓</span><span><b>Reduce Transparency ON</b> → glass solidifies to opaque high-contrast surfaces instantly.</span></li>
+        <li><span class="mk yes">✓</span><span>Text on glass must clear <b>4.5:1</b> against the worst-case background beneath.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Reduce Motion</b> → morphing and refraction animations switch off.</span></li>
+        <li><span class="mk yes">✓</span><span>Try the toggle in the top bar — every glass surface here has an opaque twin.</span></li>
+      </ul>
+      <div class="src"><a href="https://www.nngroup.com/articles/glassmorphism/">NN/g — Glassmorphism in User Interfaces</a></div>
+    </article>
+  </div>
+  <div class="stats">
+    <div class="stat glass"><b>4 → 40px</b><span>blur scale, from inline chip to modal isolation</span></div>
+    <div class="stat glass"><b>0.5–1px</b><span>specular edge stroke on every glass surface</span></div>
+    <div class="stat glass"><b>4.5:1</b><span>contrast floor against glass AND background</span></div>
+    <div class="stat glass"><b>3 layers</b><span>background → solid content → floating glass controls</span></div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="section-title"><div><h2>The redesign, screen by screen.</h2><p>Three interactive phones. Switch tabs, search the menu, open the scan sheet — and flip Light/Dark and Reduce Transparency up top to see the accessibility layer.</p></div><span class="section-index">02 / SCREENS</span></div>
+  <div class="stage">
+    <div class="phone-wrap">
+      <span class="preview-label">01 / Loyalty home</span>
+      <div class="device"><div class="phone customer-app" id="p-home" data-customer-theme="light" data-rt="off"></div></div>
+      <div class="phone-caption"><b>Home</b><span>Glass tab bar · solid loyalty card · glass scan avatar</span></div>
+    </div>
+    <div class="phone-wrap">
+      <span class="preview-label">02 / Ordering</span>
+      <div class="device"><div class="phone customer-app" id="p-menu" data-customer-theme="light" data-rt="off"></div></div>
+      <div class="phone-caption"><b>Menu</b><span>Glass search + category pills + floating cart · solid product rows</span></div>
+    </div>
+    <div class="phone-wrap">
+      <span class="preview-label">03 / Account</span>
+      <div class="device"><div class="phone customer-app" id="p-profile" data-customer-theme="light" data-rt="off"></div></div>
+      <div class="phone-caption"><b>Profile</b><span>Glass identity avatar · grouped solid rows · glass tab bar</span></div>
+    </div>
+  </div>
+  <p class="callout">Sample data only — no real orders, rewards or account changes. QR artwork is intentionally non-scannable.</p>
+</section>
+
+<section id="tokens">
+  <div class="section-title"><div><h2>Glass is a token system.</h2><p>Four blur levels, one edge treatment, one tint law. Scoped to the customer root — POS/admin untouched.</p></div><span class="section-index">03 / TOKENS</span></div>
+  <div class="token-grid">
+    <div class="tok glass"><b>--g-blur-xs · 4px</b><div class="blur-demo" style="--demo-blur:4px"><i></i><span>inline chips</span></div><code>backdrop-filter: blur(4px)</code></div>
+    <div class="tok glass"><b>--g-blur-sm · 16px</b><div class="blur-demo" style="--demo-blur:16px"><i></i><span>search / pills</span></div><code>backdrop-filter: blur(16px)</code></div>
+    <div class="tok glass"><b>--g-blur-md · 24px</b><div class="blur-demo" style="--demo-blur:24px"><i></i><span>tab bar / cart</span></div><code>backdrop-filter: blur(24px)</code></div>
+    <div class="tok glass"><b>--g-blur-lg · 40px</b><div class="blur-demo" style="--demo-blur:40px"><i></i><span>sheets / modals</span></div><code>backdrop-filter: blur(40px)</code></div>
+    <div class="tok glass"><b>--g-edge · specular</b><code>box-shadow:
+  inset 0 1px 0 rgba(255,255,255,.9),
+  inset 0 -0.5px 0 rgba(255,255,255,.35);
+border: 1px solid rgba(255,255,255,.7)</code></div>
+    <div class="tok glass"><b>--g-tint · adaptive</b><code>/* light */ rgba(255,255,255,.55)
+/* dark  */ rgba(26,20,16,.62)
+/* + saturate(1.8) on blur */</code></div>
+  </div>
+  <div class="swatches" style="margin-top:14px">
+    <div class="swatch glass"><div class="col" style="background:linear-gradient(135deg,#ff9a3c,#e05f10)"></div><div class="meta"><b>Brand gradient</b><code>#ff9a3c → #e05f10</code></div></div>
+    <div class="swatch glass"><div class="col" style="background:linear-gradient(135deg,#8a3d05,#c1520d)"></div><div class="meta"><b>Espresso hero</b><code>#8a3d05 → #c1520d</code></div></div>
+    <div class="swatch glass"><div class="col" style="background:linear-gradient(135deg,#faf6f1,#fdeede)"></div><div class="meta"><b>Cream canvas (light)</b><code>#faf6f1 / #fdeede</code></div></div>
+    <div class="swatch glass"><div class="col" style="background:linear-gradient(135deg,#14100d,#2a1a0c)"></div><div class="meta"><b>Espresso canvas (dark)</b><code>#14100d / #1a130e</code></div></div>
+    <div class="swatch glass"><div class="col" style="background:#fffdf9"></div><div class="meta"><b>Solid content card</b><code>rgba(255,255,255,.88)</code></div></div>
+    <div class="swatch glass"><div class="col" style="background:#a94708"></div><div class="meta"><b>Accessible action</b><code>#a94708 (text-safe)</code></div></div>
+  </div>
+  <p class="panel-note" style="max-width:80ch">Typography and spacing carry over from Quiet UI v2 (system font, 4px grid, 48px touch minimum) — the glass layer replaces surfaces, not foundations.</p>
+</section>
+
+<section id="rules">
+  <div class="section-title"><div><h2>Rules that keep it honest.</h2><p>Every do/don't below comes straight from the research — this is the review checklist for the build.</p></div><span class="section-index">04 / RULES &amp; A11Y</span></div>
+  <div class="grid grid-2">
+    <article class="panel glass">
+      <h3>Do</h3>
+      <ul class="rule-list">
+        <li><span class="mk yes">✓</span><span><b>Glass only on navigation &amp; controls:</b> tab bar, cart bar, search, chips, add buttons, avatar, sheets.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Content stays solid:</b> loyalty card, product rows, settings groups — opaque ≥88% with real shadows.</span></li>
+        <li><span class="mk yes">✓</span><span><b>One vivid background</b> behind glass (warm gradients) so refraction has something to bend.</span></li>
+        <li><span class="mk yes">✓</span><span><b>Specular edge on every glass surface</b> — the 1px light stroke is what makes it read as "thick".</span></li>
+        <li><span class="mk yes">✓</span><span><b>Fallback layer:</b> Reduce Transparency swaps every glass surface to an opaque, bordered twin.</span></li>
+        <li><span class="mk yes">✓</span><span><b>48px minimum targets</b>, visible focus ring, reduced-motion honored (carried from v2).</span></li>
+      </ul>
+    </article>
+    <article class="panel glass">
+      <h3>Don't</h3>
+      <ul class="rule-list">
+        <li><span class="mk no">✕</span><span><b>No glass content cards</b> — list bodies and long text on blur is the #1 readability failure.</span></li>
+        <li><span class="mk no">✕</span><span><b>No glass-on-glass stacking</b> (a chip inside a glass card inside a glass sheet).</span></li>
+        <li><span class="mk no">✕</span><span><b>No mixed glass opacities</b> in one view (regular + clear side by side breaks hierarchy).</span></li>
+        <li><span class="mk no">✕</span><span><b>No small text directly on the gradient</b> — always a glass or solid surface beneath.</span></li>
+        <li><span class="mk no">✕</span><span><b>No unbounded blur</b> — blur amount comes from the token scale, never ad-hoc per card.</span></li>
+        <li><span class="mk no">✕</span><span><b>No decoration loops</b> — motion only for state changes; stop under Reduce Motion.</span></li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<section id="handoff">
+  <div class="section-title"><div><h2>From concept to build.</h2><p>How this replaces Quiet UI v2 when you give the go-ahead.</p></div><span class="section-index">05 / HANDOFF</span></div>
+  <div class="grid grid-2">
+    <article class="panel glass">
+      <h3>Integration path</h3>
+      <p class="desc">Scoped, gradual, reversible. Customer root only — POS/admin tokens never change.</p>
+      <pre class="code-box mono" style="margin-top:12px;background:rgba(120,80,40,.09);border-radius:14px;padding:14px;font-size:12px;line-height:1.6;overflow-x:auto">1. New src/theme/glass-tokens.css (scoped
+   .customer-design-system + data-customer-theme)
+2. Glass components: TabBar, SearchBar,
+   ChipRow, CartBar, Sheet, IconButton
+3. Solid restyle: loyalty card, product rows,
+   settings groups (keep v2 type/spacing)
+4. prefers-reduced-transparency fallback
+   wired to the same tokens
+5. Migrate screen by screen: Home → Menu →
+   Offers → Profile → Auth</pre>
+      <p class="panel-note">Status: design proposal only. Nothing is imported by the live app; the Quiet UI v2 preview remains available until you choose one.</p>
+    </article>
+    <article class="panel glass">
+      <h3>Open decisions</h3>
+      <ul class="rule-list">
+        <li><span class="mk yes">?</span><span><b>Dark default?</b> Glass reads strongest on the espresso canvas — propose system-preference with warm-dark default.</span></li>
+        <li><span class="mk yes">?</span><span><b>Vividness of background:</b> shown at high saturation; can be toned down per screen if content density grows.</span></li>
+        <li><span class="mk yes">?</span><span><b>iOS 26 only?</b> Native <code>glassEffect()</code> needs iOS 26; the CSS layer degrades to frosted blur on iOS 18 — decide minimum OS for the app.</span></li>
+        <li><span class="mk yes">?</span><span><b>Scope:</b> customer app confirmed; POS/admin restyle can reuse the same token file later.</span></li>
+      </ul>
+      <p class="panel-note">Say the word and I start phase 1 (tokens + TabBar + Home) with tests, build and on-device verification as usual.</p>
+    </article>
+  </div>
+</section>
+
+<footer class="footer">
+  <div><strong>Emalat Coffee / Liquid Glass</strong><br>Customer iOS redesign concept · Version 3.0</div>
+  <div>Research: Apple HIG · 2026 glassmorphism practice · NN/g<br>Interactive proposal — not a production build.</div>
+</footer>
+</main>
+</div>
+
+<script>
+'use strict';
+const ic=(n,c='')=>`<svg aria-hidden="true" class="${c}"><use href="#i-${n}"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'AZN',currencyDisplay:'narrowSymbol'}).format(v);
+
+const menu=[
+  {id:'cap',name:'Cappuccino',desc:'Espresso, steamed milk · 240ml',price:4.50,kind:'Coffee'},
+  {id:'flat',name:'Flat white',desc:'Double espresso, smooth milk',price:4.20,kind:'Coffee'},
+  {id:'iced',name:'Iced latte',desc:'Chilled espresso & milk · 350ml',price:5.00,kind:'Cold'},
+  {id:'croissant',name:'Butter croissant',desc:'Baked fresh every morning',price:3.20,kind:'Bakery'}];
+
+function art(id){
+  if(id==='croissant')return `<svg viewBox="0 0 120 120" aria-hidden="true"><path d="M19 77c-6-19 2-39 17-44l4 10c14-9 29-8 40 1l5-10c19 8 24 26 17 43-3 7-13 10-21 0-13 8-28 7-41 0-7 10-17 10-21 0Z" fill="#d6a166"/><path d="M41 43c-8 9-8 23-1 34M57 39c-7 13-7 30-2 41M70 40c6 12 7 27 2 40M80 44c8 9 8 22 1 33" stroke="#ae783e" stroke-width="4" fill="none"/></svg>`;
+  if(id==='iced')return `<svg viewBox="0 0 120 120" aria-hidden="true"><path d="m74 12-13 76" stroke="#897f73" stroke-width="4"/><path d="m35 34 5 62q20 10 40 0l5-62Z" fill="#c7b49a"/><path d="m38 51 4 40q18 9 36 0l4-40Z" fill="#b0835b"/><path d="m41 72 2 18q17 9 34 0l2-18Z" fill="#eee4d4"/><ellipse cx="60" cy="35" rx="25" ry="7" fill="#d2b591"/></svg>`;
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><ellipse cx="60" cy="87" rx="39" ry="7" fill="#e1dcd4"/><path d="M79 43h13c18 0 16 32-5 34H76" fill="none" stroke="#d0c8bd" stroke-width="7"/><path d="M28 40h55v30c0 25-55 25-55 0Z" fill="#e8e3da"/><ellipse cx="55.5" cy="41" rx="27.5" ry="9.5" fill="#c6b5a0"/><ellipse cx="55.5" cy="41" rx="23" ry="7.5" fill="#a5744d"/></svg>`;
+}
+
+const states={'p-home':{tab:'home',cart:{}},'p-menu':{tab:'menu',cart:{},filter:'All',search:''},'p-profile':{tab:'profile',cart:{}}};
+
+function statusbar(){return `<div class="statusbar" aria-hidden="true"><span>9:41</span><div class="island"></div><span class="status-right"><svg viewBox="0 0 20 16"><path d="M2 13v-2M6 13V8M10 13V5M14 13V2" stroke-width="2.4"/></svg><svg viewBox="0 0 20 16"><path d="M2 5a12 12 0 0 1 16 0M5 8a8 8 0 0 1 10 0M8 11a4 4 0 0 1 4 0"/><circle cx="10" cy="14" r=".5"/></svg><svg viewBox="0 0 22 14"><rect x="1" y="2" width="17" height="10" rx="2"/><path d="M21 5v4"/><rect x="3" y="4" width="13" height="6" rx="1" fill="currentColor" stroke="none"/></svg></span></div>`;}
+
+function nav(tab,id){return `<nav class="g-nav" aria-label="App tabs">${[['home','Home','home'],['menu','Menu','cup'],['offers','Offers','gift'],['profile','Profile','user']].map(([k,l,g])=>`<button data-a="tab" data-tab="${k}" data-id="${id}" class="${k===tab?'on':''}" aria-current="${k===tab?'page':'false'}">${ic(g)}${l}</button>`).join('')}</nav><div class="home-ind" aria-hidden="true"></div>`;}
+
+function homeScreen(id){return `
+<div class="screen-head"><div><p class="greeting">Good evening,</p><h2>Aygün.</h2></div><button class="g-avatar" data-a="tab" data-tab="profile" data-id="${id}" aria-label="Open profile">AM</button></div>
+<div class="loyalty-hero">
+  <div class="loyalty-top"><strong>Emalat Club</strong><span class="tier">${ic('star')}Gold</span></div>
+  <div class="star-value">140<small>stars</small></div>
+  <p>Your usual, waiting for tomorrow morning.</p>
+  <button class="hero-cta" data-a="scan" data-id="${id}">${ic('qr')}Scan your card</button>
+</div>
+<div class="section-row"><h3>Your next reward</h3><button data-a="reward" data-id="${id}">Details</button></div>
+<div class="card">
+  <div class="stamps" role="img" aria-label="6 of 8 coffee stamps collected">${Array.from({length:8},(_,i)=>`<span class="stamp ${i<6?'filled':''}">${ic(i<6?'check':'cup')}</span>`).join('')}</div>
+  <p class="stamp-copy"><b>Two coffees to go.</b> Then the next one is on us.</p>
+</div>
+<div class="section-row"><h3>Your usual</h3><button data-a="tab" data-tab="menu" data-id="${id}">Menu</button></div>
+<div class="card item" style="padding:12px">
+  <div class="item-art">${art('cap')}</div>
+  <div class="item-copy"><h4>Cappuccino</h4><p>Espresso, steamed milk · 240ml</p><strong>${money(4.5)}</strong></div>
+  <button class="add" data-a="add" data-p="cap" data-id="${id}" aria-label="Add Cappuccino">${ic('plus')}</button>
+</div>`;}
+
+function menuScreen(id){const s=states[id];return `
+<div class="screen-head" style="padding-bottom:8px"><div><p class="greeting">Made for your day</p><h2>Menu.</h2></div><button class="g-avatar" data-a="bag" data-id="${id}" aria-label="Open bag">${ic('bag')}</button></div>
+<p class="branch">${ic('pin')}Pickup at Nizami · sample location</p>
+<label class="g-search">${ic('search')}<input type="search" data-search="${id}" placeholder="Find your favourite" value="${esc(s.search)}" aria-label="Search menu"></label>
+<div class="chips-row" role="group" aria-label="Categories">${['All','Coffee','Cold','Bakery'].map(f=>`<button class="g-chip ${s.filter===f?'on':''}" data-a="filter" data-f="${f}" data-id="${id}" aria-pressed="${s.filter===f}">${f}</button>`).join('')}</div>
+<div id="rows-${id}" style="margin-top:14px;display:grid;gap:12px"></div>`;}
+
+function offersScreen(id){return `
+<div class="screen-head"><div><p class="greeting">A little something extra</p><h2>Offers.</h2></div></div>
+<div class="loyalty-hero" style="background:linear-gradient(135deg,#7a1f2e,#c1453f 55%,#7a1f2e)">
+  <div class="loyalty-top"><strong>MEMBER EXCLUSIVE</strong><span class="tier">20% OFF</span></div>
+  <div class="star-value" style="font-size:34px;margin-top:14px">Afternoon<br>upgrade.</div>
+  <p>20% off a second coffee · sample offer, ends 31 October.</p>
+  <button class="hero-cta" data-a="offer" data-id="${id}">See this offer${ic('chevron')}</button>
+</div>
+<div class="section-row"><h3>Everyday rewards</h3></div>
+<div class="card"><p class="stamp-copy" style="margin-top:0"><b>Eight eligible coffees. One on us.</b><br>Your progress: 6 of 8 stamps.</p><button class="btn-quiet" data-a="reward" data-id="${id}" style="background:rgba(120,80,40,.10)">View reward details</button></div>`;}
+
+function profileScreen(id){return `
+<div class="screen-head"><div><p class="greeting">Your account, your way</p><h2>Profile.</h2></div></div>
+<div class="group"><div class="profile-id"><div class="ava">AM</div><div><h4>Aygün M.</h4><p>Gold member · sample account</p></div></div></div>
+<div class="group" style="margin-top:12px">
+  <button class="row" data-a="account" data-id="${id}">${ic('user')}Account details${ic('chevron','chev')}</button>
+  <button class="row" data-a="wallet" data-id="${id}">${ic('wallet')}Add card to Wallet${ic('chevron','chev')}</button>
+  <button class="row" data-a="history" data-id="${id}">${ic('bag')}Order history${ic('chevron','chev')}</button>
+</div>
+<div class="section-row"><h3>Preferences</h3></div>
+<div class="group">
+  <div class="row">${ic('bell')}Notifications<button class="switch" data-a="notif" data-id="${id}" role="switch" aria-checked="true" aria-label="Notifications"></button></div>
+  <div class="row">${ic('moon')}Appearance<span class="val" id="theme-val-${id}">Light</span></div>
+</div>
+<p class="stamp-copy">Preview settings are local to this demo. No account or device permissions change.</p>`;}
+
+function rows(id){const s=states[id];const f=menu.filter(p=>(s.filter==='All'||p.kind===s.filter)&&p.name.toLowerCase().includes(s.search.toLowerCase()));return f.length?f.map(p=>`<div class="card item"><div class="item-art">${art(p.id)}</div><div class="item-copy"><h4>${p.name}</h4><p>${p.desc}</p><strong>${money(p.price)}</strong></div><button class="add" data-a="add" data-p="${p.id}" data-id="${id}" aria-label="Add ${p.name}">${ic('plus')}</button></div>`).join(''):`<div class="card" style="text-align:center;padding:28px 18px">${ic('search')}<p class="stamp-copy" style="margin-top:8px">Nothing matches “${esc(s.search)}”.<br>Try another name or choose All.</p></div>`;}
+
+function cartBar(id){const s=states[id];const q=Object.values(s.cart).reduce((a,b)=>a+b,0);if(!q)return '';const t=menu.reduce((sum,p)=>sum+p.price*(s.cart[p.id]||0),0);return `<button class="g-cart show" data-a="bag" data-id="${id}">${ic('bag')}View bag (${q})<span class="total">${money(t)}</span></button>`;}
+
+function render(id){const el=document.getElementById(id),s=states[id];el.innerHTML=`<div class="phone-bg"></div><span class="rt-badge">OPAQUE</span>`+statusbar()+`<div class="screen-scroll">${({home:homeScreen,menu:menuScreen,offers:offersScreen,profile:profileScreen})[s.tab](id)}</div>`+(s.tab==='menu'?`<div id="cartwrap-${id}">${cartBar(id)}</div>`:'')+nav(s.tab,id);if(s.tab==='menu')document.getElementById(`rows-${id}`).innerHTML=rows(id);const tv=document.getElementById(`theme-val-${id}`);if(tv)tv.textContent=document.body.dataset.docTheme==='dark'?'Dark':'Light';}
+
+let timers={};
+function toast(id,msg){const el=document.getElementById(id);el.querySelector('.toast')?.remove();const d=document.createElement('div');d.className='toast';d.setAttribute('role','status');d.innerHTML=ic('check')+`<span>${esc(msg)}</span>`;el.appendChild(d);clearTimeout(timers[id]);timers[id]=setTimeout(()=>d.remove(),3200);}
+
+function sheet(id,title,body){const el=document.getElementById(id);closeSheet(id);const wrap=document.createElement('div');wrap.className='sheet-backdrop';wrap.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grabber"></div><div class="sheet-head"><h3>${esc(title)}</h3><button class="close" data-a="close" data-id="${id}" aria-label="Close">${ic('close')}</button></div>${body}</div>`;el.appendChild(wrap);wrap.querySelector('.close').focus();wrap.addEventListener('click',e=>{if(e.target===wrap)closeSheet(id);});}
+function closeSheet(id){document.getElementById(id)?.querySelector('.sheet-backdrop')?.remove();}
+function qrArt(){return `<svg class="qr-art" viewBox="0 0 160 160" role="img" aria-label="Non-scannable preview QR artwork"><g fill="#1c1c1e">${[[5,5],[105,5],[5,105]].map(([x,y])=>`<rect x="${x}" y="${y}" width="50" height="50"/><rect x="${x+8}" y="${y+8}" width="34" height="34" fill="#fff"/><rect x="${x+16}" y="${y+16}" width="18" height="18"/>`).join('')}${Array.from({length:36},(_,i)=>{const x=65+(i%9)*10,y=65+Math.floor(i/9)*20;return i%3===0?'':`<rect x="${x}" y="${y}" width="7" height="7"/>`;}).join('')}</g></svg>`;}
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;const{a,id,p,tab,f}=b.dataset;const s=states[id];if(!s)return;
+  if(a==='tab'){closeSheet(id);s.tab=tab;render(id);document.querySelector(`#${id} .g-nav [data-tab="${tab}"]`)?.focus();}
+  else if(a==='filter'){s.filter=f;render(id);document.querySelector(`#${id} .g-chip.on`)?.focus();}
+  else if(a==='add'){s.cart[p]=(s.cart[p]||0)+1;render(id);toast(id,`${menu.find(m=>m.id===p).name} added to bag (demo).`);}
+  else if(a==='scan')sheet(id,'Your membership card',`<p>Show this to the barista when paying in store.</p>${qrArt()}<p class="qr-note">PREVIEW ONLY · CANNOT BE SCANNED</p><button class="btn-quiet" data-a="wallet" data-id="${id}">Add to Wallet</button>`);
+  else if(a==='bag'){const items=menu.filter(m=>s.cart[m.id]);const body=items.length?`<p>Pickup at Nizami · demo bag.</p>${items.map(m=>`<div class="row" style="border-top:1px solid rgba(120,80,40,.15);padding:12px 0"><span>${m.name}<br><small style="opacity:.6">${money(m.price)} × ${s.cart[m.id]}</small></span><span style="margin-left:auto;font-weight:700">${money(m.price*s.cart[m.id])}</span></div>`).join('')}<button class="btn-solid" data-a="confirm" data-id="${id}">Confirm demo bag</button>`:`<p>Your demo bag is empty.</p><button class="btn-quiet" data-a="close" data-id="${id}">Back to menu</button>`;sheet(id,'Your bag',body);}
+  else if(a==='confirm'){closeSheet(id);s.cart={};render(id);toast(id,'Demo bag confirmed. No real order was sent.');}
+  else if(a==='reward')sheet(id,'Your next reward',`<p>Collect 8 eligible coffee stamps to unlock one regular coffee. You have <b>6 of 8</b>.</p><p style="margin-top:10px">Two more stamps needed. Sample eligibility — real terms come from the loyalty service.</p><button class="btn-quiet" data-a="close" data-id="${id}">Got it</button>`);
+  else if(a==='offer')sheet(id,'20% off a second coffee',`<p>Sample member offer with a full-priced coffee, participating locations, ends 31 October 2026.</p><p style="margin-top:10px">Design preview only — redemption requires server verification.</p><button class="btn-quiet" data-a="close" data-id="${id}">Got it</button>`);
+  else if(a==='wallet'){closeSheet(id);toast(id,'Wallet handoff preview only.');}
+  else if(a==='history')sheet(id,'Order history',`<p>No orders in this demo. Real history is not connected.</p><button class="btn-quiet" data-a="close" data-id="${id}">Done</button>`);
+  else if(a==='account')sheet(id,'Account details',`<p>Aygün M. · sample Gold member. This preview is not connected to a real account.</p><button class="btn-quiet" data-a="close" data-id="${id}">Done</button>`);
+  else if(a==='notif'){const on=b.getAttribute('aria-checked')!=='true';b.setAttribute('aria-checked',String(on));toast(id,`Demo notifications ${on?'on':'off'}. Device settings unchanged.`);}
+  else if(a==='close')closeSheet(id);
+});
+
+document.addEventListener('input',e=>{if(e.target.dataset.search){const id=e.target.dataset.search;states[id].search=e.target.value;document.getElementById(`rows-${id}`).innerHTML=rows(id);}});
+
+function setTheme(t){document.body.dataset.docTheme=t;document.querySelectorAll('.phone').forEach(el=>el.dataset.customerTheme=t);document.getElementById('t-light').classList.toggle('on',t==='light');document.getElementById('t-dark').classList.toggle('on',t==='dark');document.getElementById('t-light').setAttribute('aria-pressed',String(t==='light'));document.getElementById('t-dark').setAttribute('aria-pressed',String(t==='dark'));Object.keys(states).forEach(render);}
+document.getElementById('t-light').addEventListener('click',()=>setTheme('light'));
+document.getElementById('t-dark').addEventListener('click',()=>setTheme('dark'));
+const rtBtn=document.getElementById('rt-btn');
+rtBtn.addEventListener('click',()=>{const on=rtBtn.getAttribute('aria-pressed')!=='true';rtBtn.setAttribute('aria-pressed',String(on));rtBtn.classList.toggle('on',on);document.querySelectorAll('.phone').forEach(el=>el.dataset.rt=on?'on':'off');});
+
+Object.keys(states).forEach(render);
+
+const links=[...document.querySelectorAll('.side-nav a')];
+const obs=new IntersectionObserver(es=>es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>{const act=a.hash==='#'+en.target.id;a.classList.toggle('active',act);});}}),{rootMargin:'-15% 0px -70% 0px'});
+document.querySelectorAll('main.doc > section').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

@@ -14,7 +14,10 @@ import etmir və testlər onu birbaşa import edə bilir.
 
 Sətir sxemi (hamısı optional, tipi səhv olsa da funksiya atmır):
 
-    {"card_id", "push_token", "created_at", "last_sale_at", "stars", "lifetime_stars"}
+    {"card_id", "push_token", "created_at", "last_sale_at", "stars", "lifetime_stars", "push_opt_in"}
+
+`push_opt_in` P4.1 kanal razılığıdır: `False` (və ya açıq-aşkar ötürülməyən)
+sətir **hədəfə düşmür** — marketinq push-u yalnız razılığı olana göndərilir.
 
 Bu modul **heç vaxt exception atmır**.
 """
@@ -155,6 +158,8 @@ class PushAudience:
     with_token: int = 0
     #: OneSignal abunəlik id-si olmayan tokenlər (native APNs/FCM cihaz tokeni).
     undeliverable: int = 0
+    #: P4.1 — seqmentə uyğun amma push razılığı olmayan müştərilər.
+    no_consent: int = 0
     #: `MAX_BROADCAST_RECIPIENTS` həddi işə düşdü?
     capped: bool = False
     #: Verilən bütün sətir sayı — panelin "X müştəridən Y" mətni üçün.
@@ -173,6 +178,7 @@ class PushAudience:
             "matched": self.matched,
             "with_token": self.with_token,
             "undeliverable": self.undeliverable,
+            "no_consent": self.no_consent,
             "capped": self.capped,
             "total": self.total,
             "label": self.label,
@@ -266,6 +272,7 @@ def resolve_push_audience(
 
     total = 0
     matched = 0
+    no_consent = 0
     tokens: list[Any] = []
     for row in rows or ():
         total += 1
@@ -276,6 +283,12 @@ def resolve_push_audience(
         except Exception:  # pragma: no cover - süzgəc heç vaxt göndərməni dayandırmır
             hit = False
         if not hit:
+            continue
+        # P4.1 — kanal razılığı: marketinq push-u yalnız açıq razılığı olana.
+        # `push_opt_in` sütunu yoxdursa (köhnə sətir) razılıq verilmiş sayılır
+        # ki, miqrasiya dövründə heç kim itməsin; açıq `false` hər zaman atılır.
+        if row.get("push_opt_in") is False:
+            no_consent += 1
             continue
         matched += 1
         token = str(row.get("push_token") or "").strip()
@@ -289,6 +302,7 @@ def resolve_push_audience(
         matched=matched,
         with_token=len(deliverable) + len(undeliverable),
         undeliverable=len(undeliverable),
+        no_consent=no_consent,
         capped=capped,
         total=total,
         label=audience_label(normalized, tiers),
@@ -300,6 +314,8 @@ def resolve_push_audience(
             f"{result.undeliverable} token OneSignal abunəliyi deyil (mobil tətbiqin cihaz tokeni) — "
             "onlara çatdırılma mümkün deyil."
         )
+    if result.no_consent:
+        notes.append(f"{result.no_consent} müştəri bildiriş razılığını geri götürüb.")
     if capped:
         notes.append(f"Alıcı sayı {cap} həddinə qədər kəsildi.")
     result.note = " ".join(notes)

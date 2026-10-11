@@ -34,10 +34,18 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from app.services.push_schedule import DEFAULT_QUIET_HOURS, normalize_quiet_hours
+
 logger = logging.getLogger(__name__)
 
 ONESIGNAL_URL = "https://onesignal.com/api/v1/notifications"
+#: F5.4 — native cihaz tokenini abunəliyə çevirən köhnə (lakin işlək) endpoint.
+ONESIGNAL_PLAYERS_URL = "https://onesignal.com/api/v1/players"
 ONESIGNAL_TIMEOUT_SEC = 10
+
+#: Native token → OneSignal abunəliyi yaddaşı (proses daxili). Eyni cihaz
+#: hər tətbiq açılışında yenidən POST atmasın deyə.
+_NATIVE_SUBSCRIPTION_CACHE: dict[str, str] = {}
 
 #: Bir sorğuda OneSignal-a göndərilən maksimum abunəlik id-si. Provayderin
 #: `include_subscription_ids` limiti 2000-dir; biz onun altında qalırıq.
@@ -56,16 +64,28 @@ MAX_PUSH_BODY = 240
 DEFAULT_BROADCAST_DAILY_LIMIT = 3
 MAX_BROADCAST_DAILY_LIMIT = 50
 
+#: P4.3 — iki kütləvi bildiriş arasında minimum fasilə (dəqiqə). `0` = söndürülüb.
+#: Gündəlik hədd "neçə dəfə" sualına cavab verir, bu isə "nə qədər tez-tez":
+#: 5 bildirişi 10 dəqiqə içində göndərmək həddi keçməz, amma müştərilər üçün spamdır.
+DEFAULT_BROADCAST_COOLDOWN_MINUTES = 0
+MAX_BROADCAST_COOLDOWN_MINUTES = 1440
+
 #: `push_settings` (Setting açarı) defaultları. Hamısı **köhnə davranışı
 #: saxlayır**: `enabled` və `event_push_enabled` açıqdır, çünki hadisə push-ları
 #: (checkout, sifariş hazır, hədiyyə kodu, ad günü) P1.4-dən əvvəl də gedirdi —
 #: onları söndürülü başlatmaq mövcud tenant-larda işləyən bildirişi kəsərdi.
+#: Sükut saatları da **söndürülü** başlayır — miqrasiya heç bir tenant-ın
+#: göndərməsini səssizcə kəsməməlidir (`push_schedule.py`).
 DEFAULT_PUSH_SETTINGS: dict[str, Any] = {
     "enabled": True,
     "event_push_enabled": True,
     "broadcast_enabled": False,
     "onesignal_rest_api_key": "",
     "broadcast_daily_limit": DEFAULT_BROADCAST_DAILY_LIMIT,
+    "broadcast_cooldown_minutes": DEFAULT_BROADCAST_COOLDOWN_MINUTES,
+    "quiet_enabled": DEFAULT_QUIET_HOURS["quiet_enabled"],
+    "quiet_start": DEFAULT_QUIET_HOURS["quiet_start"],
+    "quiet_end": DEFAULT_QUIET_HOURS["quiet_end"],
 }
 
 #: Maskalananda müştəriyə/manager-ə boş gedən açarlar.
@@ -128,6 +148,10 @@ def normalize_push_settings(value: Mapping[str, Any] | None, *, current: Mapping
     else:
         rest_key = str(incoming_key or "").strip()
 
+    # P4.3 — sükut saatları ayrı modulda validasiya olunur (`push_schedule.py`),
+    # çünki qərarı həm endpoint, həm scheduler, həm JS güzgüsü verir.
+    quiet = normalize_quiet_hours({**prev, **raw})
+
     return {
         "enabled": bool(raw.get("enabled", d["enabled"])),
         "event_push_enabled": bool(raw.get("event_push_enabled", d["event_push_enabled"])),
@@ -136,6 +160,13 @@ def normalize_push_settings(value: Mapping[str, Any] | None, *, current: Mapping
         "broadcast_daily_limit": _norm_int(
             raw.get("broadcast_daily_limit"), d["broadcast_daily_limit"], 0, MAX_BROADCAST_DAILY_LIMIT
         ),
+        "broadcast_cooldown_minutes": _norm_int(
+            raw.get("broadcast_cooldown_minutes"),
+            d["broadcast_cooldown_minutes"],
+            0,
+            MAX_BROADCAST_COOLDOWN_MINUTES,
+        ),
+        **quiet,
     }
 
 
@@ -312,6 +343,76 @@ def split_deliverable_tokens(tokens: Sequence[Any] | None) -> tuple[list[str], l
     for token in dedupe_tokens(tokens):
         (deliverable if is_onesignal_subscription_id(token) else undeliverable).append(token)
     return deliverable, undeliverable
+
+
+def native_device_type(token: Any) -> int | None:
+    """Native cihaz tokeninin OneSignal `device_type`-i? None = tanınmır.
+
+    APNs tokeni = ən azı 32 simvol saf hex; müasir FCM tokeni ":" daşıyır.
+    Tanınmayan token olduğu kimi qalır (audience dürüst şəkildə "çatdırıla
+    bilməyən" sayır) — pis təxminlə platforma səhvi yaratmaqdansa susur.
+    """
+    raw = str(token or "").strip()
+    if not raw or is_onesignal_subscription_id(raw):
+        return None
+    if len(raw) >= 32 and all(c in "0123456789abcdefABCDEF" for c in raw):
+        return 0  # iOS (APNs)
+    if ":" in raw:
+        return 1  # Android (FCM)
+    return None
+
+
+def register_native_token(
+    config: PushConfig,
+    device_token: Any,
+    *,
+    transport: Any = None,
+) -> str:
+    """Native APNs/FCM tokenini OneSignal abunəliyinə çevirir və onu qaytarır.
+
+    F5.4 — `Customer.push_token` native cihaz tokeni saxlayanda seqment süzgəci
+    onu atırdı, yəni tətbiqdən qeydiyyatdan keçən müştərilər bildiriş ala
+    bilmirdi (bərabər çatdırılma yox idi). Token `POST /api/v1/players` ilə
+    OneSignal-a qeydiyyatdan keçirilir; qayıdan abunəlik id-si saxlanır və
+    göndərmə artıq ona gedir. Uğursuzsa token olduğu kimi qalır — heç nə
+    susmur, heç nə itmir (audience eyni dürüst siyahını göstərir).
+
+    `transport` testlər üçün inyeksiya olunandır (şəbəkəyə çıxmır).
+    """
+    raw = str(device_token or "").strip()
+    if not raw or is_onesignal_subscription_id(raw) or not config.ok:
+        return raw
+    device_type = native_device_type(raw)
+    if device_type is None:
+        return raw
+    cached = _NATIVE_SUBSCRIPTION_CACHE.get(raw)
+    if cached:
+        return cached
+    send = transport or _urllib_transport
+    body = json.dumps(
+        {
+            "app_id": config.app_id,
+            "device_type": device_type,
+            "identifier": raw,
+            "sdk": "ironwaves-capacitor",
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    headers = {
+        "Authorization": f"Basic {config.rest_api_key}",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    try:
+        status, response = send(ONESIGNAL_PLAYERS_URL, body, headers, ONESIGNAL_TIMEOUT_SEC)
+    except Exception as exc:  # şəbəkə xətası tokeni itirməməlidir
+        logger.warning("[PUSH] native token qeydiyyatı alınmadı: %s", exc)
+        return raw
+    sub_id = str((response or {}).get("id") or "").strip()
+    if int(status or 0) in (200, 201) and sub_id:
+        _NATIVE_SUBSCRIPTION_CACHE[raw] = sub_id
+        return sub_id
+    logger.warning("[PUSH] native token qeydiyyatı rədd edildi (%s): %s", status, str(response)[:300])
+    return raw
 
 
 # ---------------------------------------------------------------------------

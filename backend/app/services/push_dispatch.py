@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any, Iterable, Mapping, Sequence
 
 from sqlalchemy.orm import Session
@@ -166,8 +167,10 @@ def record_delivery(
     card_id: str | None = None,
     segment: str | None = None,
     segment_value: str | None = None,
+    campaign_id: str | None = None,
     created_by: str | None = None,
     config: PushConfig | None = None,
+    delivery_id: str | None = None,
     commit: bool = False,
 ) -> PushDelivery | None:
     """`push_deliveries` sətri yazır. Jurnal xətası göndərməni pozmur.
@@ -175,9 +178,16 @@ def record_delivery(
     `commit=False` (default) — çağıran onsuz da `db.commit()` edir (checkout,
     sifariş statusu, hədiyyə kodu, ad günü skanı hamısı elə edir). Sətir orada
     birlikdə yazılır, yəni push jurnalı üçün ayrıca tranzaksiya açılmır.
+
+    `delivery_id` — P4.5. Göndərmə **əvvəl** yaradılan id. Lazımdır, çünki bu
+    id OneSignal `data`-sına qoyulur və tətbiq bildirişə toxunanda onu geri
+    göndərir; sətri göndərmədən SONRA yaratsaq payload-da heç bir id olmazdı və
+    açılma hadisəsini hansı göndərməyə bağlamaq mümkün olmazdı. Verilməzsə
+    `PushDelivery` öz default-unu işlədir.
     """
     try:
         row = PushDelivery(
+            **({"id": str(delivery_id)[:36]} if delivery_id else {}),
             tenant_id=tenant_id,
             kind=str(kind or "event")[:16],
             event=(str(event)[:40] if event else None),
@@ -186,6 +196,7 @@ def record_delivery(
             segment=(str(segment)[:40] if segment else None),
             segment_value=(str(segment_value)[:80] if segment_value else None),
             card_id=(str(card_id)[:80] if card_id else None),
+            campaign_id=(str(campaign_id)[:36] if campaign_id else None),
             status=str(result.status or "skipped")[:16],
             config_source=str((config.source if config else "none") or "none")[:16],
             recipients=int(result.attempted or 0),
@@ -243,6 +254,11 @@ def send_event_push(
                 .filter(Customer.tenant_id == tenant_id, Customer.card_id == card_id)
                 .first()
             )
+        # P4.1 — kanal razılığı. Müştəri push bildirişlərini söndürübsə, hadisə
+        # push-u da göndərilmir (sifariş statusu kimi əməliyyat bildirişləri
+        # istisna deyil — istifadəçi bütün kanalı bağlayıb).
+        if target is not None and not bool(getattr(target, "push_opt_in", True)):
+            return PushResult(status="skipped", error="Müştəri push razılığını söndürüb.")
         push_token = str(token or (target.push_token if target else "") or "").strip()
         if not push_token:
             return PushResult(status="skipped", error="Müştəridə abunəlik id-si yoxdur.")
@@ -289,6 +305,7 @@ def send_bulk_push(
     kind: str = "broadcast",
     segment: str | None = None,
     segment_value: str | None = None,
+    campaign_id: str | None = None,
     created_by: str | None = None,
     url: str | None = None,
     commit: bool = True,
@@ -302,6 +319,11 @@ def send_bulk_push(
     recipients = dedupe_tokens(list(tokens or ()))[:MAX_BROADCAST_RECIPIENTS]
     clean_title, clean_body = sanitize_push_text(title, body)
 
+    # P4.5 — id göndərmədən ƏVVƏL yaradılır: payload-a düşür və tətbiq
+    # bildirişə toxunanda onu geri göndərir. Sonra yaratsaq açılma hadisəsini
+    # heç bir göndərməyə bağlamaq mümkün olmazdı.
+    delivery_id = str(uuid.uuid4())
+
     if not bool(push_settings.get("enabled", True)):
         result = PushResult(status="skipped", attempted=len(recipients), error="Push bildirişləri söndürülüb.")
     elif kind == "broadcast" and not bool(push_settings.get("broadcast_enabled", False)):
@@ -311,7 +333,14 @@ def send_bulk_push(
             error="Kütləvi bildiriş söndürülüb (Ayarlar → Bildirişlər).",
         )
     else:
-        result = send_onesignal(config, recipients, clean_title, clean_body, url=url)
+        result = send_onesignal(
+            config,
+            recipients,
+            clean_title,
+            clean_body,
+            url=url,
+            data={"delivery_id": delivery_id},
+        )
 
     record_delivery(
         db,
@@ -323,8 +352,10 @@ def send_bulk_push(
         body=clean_body,
         segment=segment,
         segment_value=segment_value,
+        campaign_id=campaign_id,
         created_by=created_by,
         config=config,
+        delivery_id=delivery_id,
         commit=commit,
     )
     return result, config
@@ -387,6 +418,7 @@ def load_audience_rows(db: Session, tenant_id: str, *, limit: int = MAX_AUDIENCE
                 Customer.stars,
                 Customer.lifetime_stars,
                 last_sale.c.last_sale_at,
+                Customer.push_opt_in,
             )
             .outerjoin(last_sale, last_sale.c.card_id == Customer.card_id)
             .filter(Customer.tenant_id == tenant_id)
@@ -405,6 +437,7 @@ def load_audience_rows(db: Session, tenant_id: str, *, limit: int = MAX_AUDIENCE
             "stars": row[3],
             "lifetime_stars": row[4],
             "last_sale_at": row[5],
+            "push_opt_in": row[6],
         }
         for row in rows
     ]
@@ -429,6 +462,34 @@ def resolve_audience_for_tenant(
         now=now,
         tiers=tiers,
     )
+
+
+def last_broadcast_at(db: Session, tenant_id: str) -> Any:
+    """Son uğurlu/cəhd edilmiş broadcast-ın vaxtı (P4.3 fasilə qapısı üçün).
+
+    `skipped` sətirlər nəzərə alınmır — söndürülmüş ayar ucbatından baş tutmayan
+    cəhd fasiləni yeməməlidir (gündəlik sayğacla eyni qayda).
+    """
+    from datetime import datetime
+
+    try:
+        row = (
+            db.query(PushDelivery.created_at)
+            .filter(
+                PushDelivery.tenant_id == tenant_id,
+                PushDelivery.kind == "broadcast",
+                PushDelivery.status.in_(("sent", "partial", "failed")),
+            )
+            .order_by(PushDelivery.created_at.desc())
+            .first()
+        )
+    except Exception as exc:  # pragma: no cover - cədvəl hələ yoxdursa
+        logger.warning("[PUSH] son broadcast vaxtı oxunmadı: %s", exc)
+        return None
+    if not row:
+        return None
+    value = row[0]
+    return value if isinstance(value, datetime) else None
 
 
 def count_broadcasts_today(db: Session, tenant_id: str, *, now=None) -> int:

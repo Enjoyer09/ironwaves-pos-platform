@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { save_push_token_live } from './api/crm';
+import { save_push_token_live, record_push_engagement_live } from './api/crm';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
@@ -217,8 +217,26 @@ export default function App() {
           console.log('Push notification received:', notification);
         });
 
-        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          console.log('Push notification action performed:', notification);
+        // P4.5 — bildirişə toxunma = huninin açılma pilləsi. Korrelyasiya id
+        // göndərmə zamanı `data.delivery_id` kimi qoyulur (push_dispatch), burada
+        // onu oxuyub serverə bildiririk. `notification` (yuxarı səviyyə) köhnəlmiş
+        // sahədir və qaytarılmır — id `notification.data` içindədir.
+        await PushNotifications.addListener('pushNotificationActionPerformed', async (action) => {
+          try {
+            const data = (action as any)?.notification?.data;
+            const deliveryId = String(data?.delivery_id || '').trim();
+            if (!deliveryId) return;
+
+            const { cardId: savedCardId, token: savedToken } = Capacitor.isNativePlatform()
+              ? await readCustomerSessionAsync()
+              : readCustomerSession();
+            if (!savedCardId || !savedToken) return;
+
+            await record_push_engagement_live(savedCardId, savedToken, deliveryId, 'opened');
+          } catch (err) {
+            // Telemetriya tətbiqi pozmamalıdır — uduruq.
+            console.warn('Push engagement not recorded:', err);
+          }
         });
 
       } catch (e) {

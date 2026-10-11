@@ -21,7 +21,7 @@ except Exception:  # pragma: no cover
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, text
@@ -39,6 +39,7 @@ from app.models import (
     Customer,
     CustomerConsent,
     DonerBatch,
+    EpointPayment,
     FeedbackCoupon,
     FeedbackEntry,
     FinanceAccount,
@@ -59,6 +60,8 @@ from app.models import (
     OrderRound,
     Payment,
     PushDelivery,
+    PushEngagement,
+    PushSchedule,
     Recipe,
     Reservation,
     RewardClaim,
@@ -115,10 +118,14 @@ from app.services.loyalty_accrual import (
     resolve_double_days as _resolve_double_days,
 )
 from app.core.config import settings as app_settings
+# F3/F6 — epoint.az ödəniş xidməti: yaratmaq / status / callback imzası.
+from app.services import epoint_service
 # P1.4 — push: saf normalizer/göndərici + DB tərəfi (konfiqurasiya, jurnal).
 from app.services.push_dispatch import (
+    _void_sale_statuses,
     client_app_id_for_tenant,
     count_broadcasts_today,
+    last_broadcast_at,
     load_push_settings,
     resolve_audience_for_tenant,
     resolve_tenant_push_config,
@@ -143,7 +150,24 @@ from app.services.push_service import (
     PUSH_SECRET_SENTINEL,
     normalize_push_settings,
     push_settings_response,
+    register_native_token,
     sanitize_push_text,
+)
+# P4.3 — sükut saatları (saf) və planlanmış göndərmə cədvəli.
+from app.services.push_schedule import quiet_block_message, quiet_window_state
+# P4.4 — göndərmə → istifadə hunisi (saf hesablama).
+from app.services.push_attribution import (
+    PUSH_ENGAGEMENT_KINDS,
+    build_funnel,
+    summarize,
+)
+from app.services.push_schedules import (
+    CANCELED,
+    PENDING,
+    SCHEDULE_STATUSES,
+    create_schedule,
+    parse_scheduled_at,
+    validate_schedule_window,
 )
 from app.security import hash_password, hash_token, verify_password
 import logging
@@ -458,6 +482,21 @@ def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift
         )
         raise HTTPException(status_code=400, detail=f"Declared cash does not match expected cash ({expected} ₼)")
     return declared
+
+
+def _campaign_days(raw: str | None) -> list[int]:
+    """HappyHour.days_of_week_json → sadə gün siyahısı (1=Bazar ertəsi … 7=Bazar).
+
+    Yalnız vitrin (customer app "Günün təklifi") oxuyur; korlanmış JSON səssizcə
+    boş siyahı qaytarır — satışa təsiri yoxdur (pos.py eyni yanaşmanı işlədir).
+    """
+    try:
+        parsed = json.loads(raw or "[]")
+    except Exception:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [d for d in parsed if isinstance(d, int) and 1 <= d <= 7]
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
@@ -1138,9 +1177,27 @@ class PushSettingsIn(BaseModel):
     #: maskalayıb boş qaytarır, yəni sadə round-trip PATCH onu udardı.
     clear_onesignal_rest_api_key: bool = False
     broadcast_daily_limit: int | None = None
+    #: P4.3 — iki kütləvi bildiriş arasında minimum fasilə (dəqiqə). `0` = söndürülüb.
+    broadcast_cooldown_minutes: int | None = None
+    #: P4.3 — sükut saatları. Açarlar `push_settings` blobunda saxlanılır.
+    quiet_enabled: bool | None = None
+    quiet_start: str | None = None
+    quiet_end: str | None = None
     #: `customer_app_settings.onesignal_app_id` ilə eyni sahə — panel push blokunda
     #: bir yerdə redaktə edə bilsin deyə burada da qəbul olunur və müvafiq bloba yazılır.
     onesignal_app_id: str | None = None
+
+
+class PushScheduleIn(BaseModel):
+    """P4.3 — planlanmış kütləvi bildiriş. `scheduled_at` ISO 8601 (ofset olarsa UTC-yə çevrilir)."""
+
+    title: str = ""
+    body: str
+    url: str | None = None
+    scheduled_at: str
+    audience: PushAudienceIn | None = None
+    #: P4.2 — hansı kampaniya üçün elan (atribusiya). Göndərməni dəyişmir.
+    campaign_id: str | None = None
 
 
 class PushAudienceIn(BaseModel):
@@ -1155,6 +1212,9 @@ class PushBroadcastIn(BaseModel):
     body: str
     url: str | None = None
     audience: PushAudienceIn | None = None
+    #: P4.2 — bildiriş kampaniyaya (happy hour) bağlanırsa onun id-si. Boş = ümumi
+    #: kütləvi bildiriş. Yalnız jurnalda atribusiya üçündür, göndərməni dəyişmir.
+    campaign_id: str | None = None
 
 
 class PushTestIn(BaseModel):
@@ -1204,6 +1264,14 @@ class ShiftHandoverCreateIn(BaseModel):
 class ShiftHandoverAcceptPayload(BaseModel):
     actual_cash: Decimal
 
+
+def _customer_prefs(customer: Customer) -> dict:
+    """Kanal razılıqları — sessiya payload-ı və prefs endpointi eyni formanı işlədir."""
+    return {
+        "push": bool(customer.push_opt_in),
+        "email": bool(customer.email_opt_in),
+        "sms": bool(customer.sms_opt_in),
+    }
 
 def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: str) -> Customer:
     safe_card = str(card_id or "").strip()
@@ -3630,6 +3698,18 @@ def _push_config_public(config) -> dict:
     }
 
 
+def _tenant_minute_of_day(db: Session, tenant_id: str) -> int:
+    """Tenant-ın vaxt qurşağında günün dəqiqəsi (0..1439).
+
+    `push_scheduler.tenant_minute_of_day` ilə **eyni** funksiyadır və ona deleqasiya
+    olunur: iki nüsxə saxlasaq endpoint "sükut deyil" deyib göndərər, scheduler isə
+    planı təxirə salardı — admin eyni saatda iki fərqli cavab alardı.
+    """
+    from app.services.push_scheduler import tenant_minute_of_day
+
+    return tenant_minute_of_day(db, tenant_id)
+
+
 def _push_tiers(db: Session, tenant_id: str) -> list[dict]:
     """Seqment üçün normalizasiya olunmuş tier nərdivanı (`tier` seqmenti onu işlədir)."""
     blob = _setting_value(db, tenant_id, "customer_app_settings", {})
@@ -3637,15 +3717,37 @@ def _push_tiers(db: Session, tenant_id: str) -> list[dict]:
 
 
 def _push_broadcast_state(db: Session, tenant_id: str, push_settings: dict) -> dict:
-    """Gündəlik hədd vəziyyəti. `daily_limit=0` **bloklanıb** deməkdir (limitsiz deyil)."""
+    """Gündəlik hədd VƏ fasilə vəziyyəti. `daily_limit=0` **bloklanıb** (limitsiz deyil).
+
+    P4.3 — `cooldown_minutes` "nə qədər tez-tez" sualına cavab verir: gündəlik hədd
+    beş bildirişi 10 dəqiqə içində göndərməyə icazə verir, bu isə spamdır.
+    `last_broadcast_at`/`next_allowed_at` panelə **nə vaxt** göndərə biləcəyini
+    deyir; `cooldown_remaining_minutes` düymənin yanındaki geri sayımdır.
+    """
     limit = int(push_settings.get("broadcast_daily_limit") or 0)
     used = count_broadcasts_today(db, tenant_id)
+    cooldown = int(push_settings.get("broadcast_cooldown_minutes") or 0)
+    last_at = last_broadcast_at(db, tenant_id)
+    remaining = 0
+    next_allowed_at = None
+    if cooldown > 0 and last_at is not None:
+        next_allowed = last_at + timedelta(minutes=cooldown)
+        if next_allowed > _utcnow():
+            remaining = int((next_allowed - _utcnow()).total_seconds() // 60) + 1
+            next_allowed_at = next_allowed.isoformat()
+    quiet = quiet_window_state(push_settings, _tenant_minute_of_day(db, tenant_id))
     return {
         "enabled": bool(push_settings.get("broadcast_enabled")),
         "daily_limit": limit,
         "used_today": used,
         "remaining": max(0, limit - used),
         "max_daily_limit": MAX_BROADCAST_DAILY_LIMIT,
+        "cooldown_minutes": cooldown,
+        "cooldown_remaining_minutes": remaining,
+        "next_allowed_at": next_allowed_at,
+        # P4.3 — sükut saatı vəziyyəti. `inside=True` olanda **dərhal** göndərmə
+        # 400 ilə bloklanır (planlama isə icazəlidir və scheduler vaxtı sürüşdürür).
+        "quiet": quiet,
     }
 
 
@@ -3672,6 +3774,10 @@ def update_push_settings(
             ("broadcast_enabled", payload.broadcast_enabled),
             ("onesignal_rest_api_key", payload.onesignal_rest_api_key),
             ("broadcast_daily_limit", payload.broadcast_daily_limit),
+            ("broadcast_cooldown_minutes", payload.broadcast_cooldown_minutes),
+            ("quiet_enabled", payload.quiet_enabled),
+            ("quiet_start", payload.quiet_start),
+            ("quiet_end", payload.quiet_end),
         )
         if value is not None
     }
@@ -3899,6 +4005,37 @@ def send_push_broadcast(
             ),
         )
 
+    # P4.3 — sükut saatı. **Dərhal** göndərmə bloklanır (400, səbəb + növbəti
+    # icazəli vaxt), çünki admin indi basır və müştəriləri gecə oyatmaq onun
+    # qərarı deyil. Planlama isə icazəlidir: `/push/schedule` bu qapıdan keçmir,
+    # scheduler vaxtı sükut bitən ana sürüşdürür.
+    #
+    # Vəziyyət `_push_broadcast_state`-dən götürülür — orada artıq hesablanıb.
+    # Yenidən hesablasaq panelə göstərilən "sükut yoxdur" ilə qapının qərarı
+    # nəzəri olaraq ayrıla bilərdi (iki ayrı oxunuş, iki ayrı dəqiqə).
+    # Vəziyyət `_push_broadcast_state`-dən götürülür — orada artıq hesablanıb.
+    # Yenidən hesablasaq panelə göstərilən "sükut yoxdur" ilə qapının qərarı
+    # nəzəri olaraq ayrıla bilərdi (iki ayrı oxunuş, iki ayrı dəqiqə).
+    # `.get` qoruyucusu yalnız köhnə/mock vəziyyət üçündür; production həmişə doldurur.
+    quiet = state.get("quiet") or quiet_window_state(
+        push_settings, _tenant_minute_of_day(db, tenant.id)
+    )
+    if quiet["inside"]:
+        raise HTTPException(status_code=400, detail=quiet_block_message(quiet))
+
+    # P4.3 — fasilə. Gündəlik hədd "neçə dəfə", bu isə "nə qədər tez-tez".
+    # `.get` qoruyucusu köhnə/mock vəziyyət üçündür; production həmişə doldurur.
+    cooldown_left = int(state.get("cooldown_remaining_minutes") or 0)
+    if cooldown_left > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"İki kütləvi bildiriş arasında fasilə gözlənilir "
+                f"({state.get('cooldown_minutes') or 0} dəqiqə). Yenidən cəhd: "
+                f"{cooldown_left} dəqiqə sonra."
+            ),
+        )
+
     config, _ = resolve_tenant_push_config(db, tenant.id)
     if not config.ok:
         raise HTTPException(status_code=400, detail=config.reason or "Push konfiqurasiyası tamamlanmayıb.")
@@ -3915,6 +4052,22 @@ def send_push_broadcast(
     tiers = _push_tiers(db, tenant.id)
     spec = _push_audience_spec(payload.audience)
     audience = resolve_audience_for_tenant(db, tenant.id, spec, tiers=tiers)
+
+    # P4.2 — kampaniya bağlantısı. Yoxlanılır ki, panel səhv id (başqa tenant-ın
+    # kampaniyası, silinmiş sətir) ilə tarixçəni korlamasın: yanlış atribusiya
+    # sonradan "bu kampaniya işlədi" hesabatını yalana çevirərdi.
+    campaign_id = str(payload.campaign_id or "").strip() or None
+    campaign_name: str | None = None
+    if campaign_id:
+        campaign = (
+            db.query(HappyHour)
+            .filter(HappyHour.id == campaign_id, HappyHour.tenant_id == tenant.id)
+            .first()
+        )
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Kampaniya tapılmadı")
+        campaign_name = campaign.name
+
     if not audience.tokens:
         # Boş göndərmə jurnalda "failed" sətri yaratmasın — bu, seqmentin nəticəsidir,
         # provayderin xətası deyil. Səbəb hər pillənin sayı ilə qaytarılır.
@@ -3936,6 +4089,7 @@ def send_push_broadcast(
         kind="broadcast",
         segment=spec["segment"],
         segment_value=audience.label,
+        campaign_id=campaign_id,
         created_by=user.username,
         url=(url or None),
     )
@@ -3953,6 +4107,8 @@ def send_push_broadcast(
                     "accepted": result.accepted,
                     "failed": result.failed,
                     "title": title,
+                    "campaign_id": campaign_id,
+                    "campaign_name": campaign_name,
                 },
                 ensure_ascii=False,
             )[:2000],
@@ -3965,6 +4121,8 @@ def send_push_broadcast(
         "audience": audience.as_dict(),
         "config": _push_config_public(config),
         "broadcast": _push_broadcast_state(db, tenant.id, push_settings),
+        "campaign_id": campaign_id,
+        "campaign_name": campaign_name,
     }
 
 
@@ -3972,6 +4130,7 @@ def send_push_broadcast(
 def get_push_history(
     limit: int = Query(PUSH_HISTORY_LIMIT, ge=1, le=MAX_PUSH_HISTORY_LIMIT),
     kind: str | None = Query(None),
+    campaign_id: str | None = Query(None),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -3980,12 +4139,16 @@ def get_push_history(
 
     `details` qaytarılmır: içindəki `provider_ids` panelə heç nə demir və sətri
     lüzumsuz ağırlaşdırır. `error` isə qalır — "niyə çatmadı" sualının cavabıdır.
+    `campaign_id` verilərsə yalnız o kampaniyanın bildirişləri qaytarılır (P4.2).
     """
     _ensure_manager(user)
     query = db.query(PushDelivery).filter(PushDelivery.tenant_id == tenant.id)
     clean_kind = str(kind or "").strip().lower()
     if clean_kind in PUSH_KINDS:
         query = query.filter(PushDelivery.kind == clean_kind)
+    clean_campaign = str(campaign_id or "").strip()
+    if clean_campaign:
+        query = query.filter(PushDelivery.campaign_id == clean_campaign)
     rows = query.order_by(PushDelivery.created_at.desc()).limit(int(limit)).all()
     return {
         "items": [
@@ -3999,6 +4162,7 @@ def get_push_history(
                 "segment": row.segment,
                 "segment_value": row.segment_value,
                 "card_id": row.card_id,
+                "campaign_id": row.campaign_id,
                 "status": row.status,
                 "config_source": row.config_source,
                 "recipients": int(row.recipients or 0),
@@ -4012,6 +4176,445 @@ def get_push_history(
         "count": len(rows),
         "kinds": list(PUSH_KINDS),
     }
+
+
+@router.get("/push/campaign-stats")
+def get_push_campaign_stats(
+    days: int = Query(90, ge=1, le=3650),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """P4.2 — kampaniya üzrə göndərmə xülasəsi (panel siyahısı üçün).
+
+    Niyə ayrı endpoint: panelin tarixçə səhifəsi `limit` ilə kəsilir (50/200), ona
+    görə oradan say çıxarmaq səssizcə yanlış rəqəm verərdi — "3 bildiriş" yazıb
+    əslində 12 göndərmiş olardıq. Say `GROUP BY` ilə serverdə hesablanır.
+
+    Yalnız `campaign_id`-si olan sətirlər sayılır; ümumi kütləvi bildirişlər
+    heç bir kampaniyaya yazılmır.
+    """
+    _ensure_manager(user)
+    since = _utcnow() - timedelta(days=int(days))
+    rows = (
+        db.query(
+            PushDelivery.campaign_id,
+            func.count(PushDelivery.id),
+            func.sum(PushDelivery.recipients),
+            func.sum(PushDelivery.accepted),
+            func.sum(PushDelivery.failed),
+            func.max(PushDelivery.created_at),
+        )
+        .filter(
+            PushDelivery.tenant_id == tenant.id,
+            PushDelivery.campaign_id.isnot(None),
+            PushDelivery.created_at >= since,
+        )
+        .group_by(PushDelivery.campaign_id)
+        .all()
+    )
+    stats: dict[str, dict] = {}
+    for campaign_id, sends, recipients, accepted, failed, last_at in rows:
+        key = str(campaign_id or "")
+        if not key:
+            continue
+        stats[key] = {
+            "campaign_id": key,
+            "sends": int(sends or 0),
+            "recipients": int(recipients or 0),
+            "accepted": int(accepted or 0),
+            "failed": int(failed or 0),
+            # Son göndərmənin **statusu** panelə "çatdı / çatmadı" konteksti verir;
+            # yalnız tarix göstərmək "göndərdik" təəssüratı yaradardı.
+            "last_sent_at": last_at.isoformat() if last_at else None,
+        }
+    return {"days": int(days), "stats": stats}
+
+
+# --- P4.4 — ölçmə və atribusiya ------------------------------------------------
+# **Dürüstlük qeydi (P0.4).** Repoda bildirişin açılması (open/click) haqqında
+# HEÇ BİR siqnal yoxdur: OneSignal payload-ına korrelyasiya id qoyulmur
+# (`build_onesignal_payload` yalnız `app_id`/`contents`/`headings`/`url` yazır),
+# webhook qəbuledicisi yoxdur, tətbiqdə `pushNotificationActionPerformed` sadəcə
+# `console.log` edir. Ona görə huni **"göndərildi → provayder qəbul etdi → kassa
+# kampaniya endirimini tətbiq etdi"** kimi qurulur və son pillə
+# `redemption_rate` adlanır (`conversion_rate` DEYİL).
+#
+# Son pillə atribusiya deyil: `Sale.campaign_id` kassada endirim *tətbiq
+# olunanda* yazılır. Müştəri bildirişi görüb gəldi, yoxsa onsuz da gələcəkdi —
+# satış sətrindən bilinmir. Ona görə cavabda `attribution="redemption"` və
+# `open_tracking=False` sahələri var; panel bunları sözü ilə göstərir.
+#
+# Pəncərə məntiqi: `Sale.campaign_id` yalnız kampaniya endirimi tətbiq olunanda
+# yazılır. Kampaniya **cədvəli** yoxdur — `HappyHour`-da yalnız günün saatı
+# (`start_time`/`end_time`) və həftənin günləri var, başlama/bitmə TARİXİ yoxdur.
+# Ona görə ölçmə pəncərəsi `days` parametri ilə verilir və bu, panelə açıq yazılır:
+# "son N gün" — kampaniyanın "keçdiyi dövr" deyil.
+
+
+@router.get("/push/funnel")
+def get_push_funnel(
+    days: int = Query(90, ge=1, le=3650),
+    campaign_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """P4.4 — kampaniya üzrə göndərmə → istifadə hunisi.
+
+    İki aqreqat birləşdirilir: göndərmə (`push_deliveries`, kampaniyaya bağlı
+    sətirlər) və istifadə (`sales`, həmin kampaniyanın endirimini tətbiq edən
+    çeklər). Saylar serverdə `GROUP BY` ilə hesablanır — panelin tarixçə siyahısı
+    `limit` ilə kəsilir və oradan say çıxarmaq səssizcə yanlış rəqəm verərdi.
+
+    Ləğv edilmiş çeklər (VOID/CANCELLED) **çıxılır**: qaytarılmış satışı
+    "kampaniya işlədi" kimi saymaq saxta nəticə olardı.
+    """
+    _ensure_manager(user)
+    since = _utcnow() - timedelta(days=int(days))
+    void_statuses = [str(s).upper() for s in _void_sale_statuses()]
+
+    delivery_query = (
+        db.query(
+            PushDelivery.campaign_id,
+            func.count(PushDelivery.id),
+            func.sum(PushDelivery.recipients),
+            func.sum(PushDelivery.accepted),
+            func.sum(PushDelivery.failed),
+        )
+        .filter(
+            PushDelivery.tenant_id == tenant.id,
+            PushDelivery.campaign_id.isnot(None),
+            PushDelivery.created_at >= since,
+        )
+        .group_by(PushDelivery.campaign_id)
+    )
+    if campaign_id:
+        delivery_query = delivery_query.filter(PushDelivery.campaign_id == campaign_id)
+
+    sends_by_campaign: dict[str, dict] = {}
+    for row_campaign_id, sends, recipients, accepted, failed in delivery_query.all():
+        key = str(row_campaign_id or "")
+        if not key:
+            continue
+        sends_by_campaign[key] = {
+            "sends": int(sends or 0),
+            "recipients": int(recipients or 0),
+            "accepted": int(accepted or 0),
+            "failed": int(failed or 0),
+        }
+
+    # İstifadə: kampaniya endirimini tətbiq edən, ləğv olunmayan satışlar.
+    # `func.count(func.distinct(...))` ilə təkrarsız müştəri sayı da çıxır —
+    # bir müştəri iki dəfə alıbsa bu, "iki müştəri" deyil.
+    sale_query = (
+        db.query(
+            Sale.campaign_id,
+            func.count(Sale.id),
+            func.count(func.distinct(Sale.customer_card_id)),
+            func.sum(Sale.total),
+            func.sum(Sale.discount_amount),
+        )
+        .filter(
+            Sale.tenant_id == tenant.id,
+            Sale.campaign_id.isnot(None),
+            Sale.created_at >= since,
+        )
+        .group_by(Sale.campaign_id)
+    )
+    if void_statuses:
+        sale_query = sale_query.filter(func.upper(Sale.status).notin_(void_statuses))
+    if campaign_id:
+        sale_query = sale_query.filter(Sale.campaign_id == campaign_id)
+
+    usage_by_campaign: dict[str, dict] = {}
+    for row_campaign_id, orders, customers, revenue, discount in sale_query.all():
+        key = str(row_campaign_id or "")
+        if not key:
+            continue
+        usage_by_campaign[key] = {
+            "orders": int(orders or 0),
+            # `None` → 0: kassada `customer_card_id` həmişə doldurulmur
+            # (qonaq çeki), ona görə təkrarsız say 0 ola bilər. Bu, "müştəri
+            # yoxdur" demək deyil — panel `orders`-i əsas götürür.
+            "customers": int(customers or 0),
+            "revenue": float(revenue or 0),
+            "discount": float(discount or 0),
+        }
+
+    # P4.5 — tətbiqdən gələn toxunma hadisələri. `push_engagement` `delivery_id`
+    # ilə bağlıdır (kampaniya deyil), ona görə əvvəlcə kampaniyaya bağlı
+    # göndərmələrin id-ləri lazımdır. `provider_id`-yə görə yox, öz id-mizlə
+    # işləyirik: payload-a qoyduğumuz korrelyasiya id-si elə budur.
+    engagement_by_campaign: dict[str, dict] = {}
+    delivery_to_campaign: dict[str, str] = {}
+    if sends_by_campaign:
+        for delivery_row in (
+            db.query(PushDelivery.id, PushDelivery.campaign_id)
+            .filter(
+                PushDelivery.tenant_id == tenant.id,
+                PushDelivery.campaign_id.isnot(None),
+                PushDelivery.created_at >= since,
+            )
+            .all()
+        ):
+            delivery_to_campaign[str(delivery_row.id)] = str(delivery_row.campaign_id or "")
+
+        if delivery_to_campaign:
+            # Toxunma **sayı** və **təkrarsız abunəlik sayı** ayrı-ayrı lazımdır:
+            # "40 açılma, 12 adam" ilə "40 açılma, 40 adam" fərqli hekayədir.
+            opened_rows = (
+                db.query(
+                    PushEngagement.delivery_id,
+                    func.count(PushEngagement.id),
+                    func.count(func.distinct(PushEngagement.subscription_id)),
+                )
+                .filter(
+                    PushEngagement.tenant_id == tenant.id,
+                    PushEngagement.kind == "opened",
+                    PushEngagement.created_at >= since,
+                    PushEngagement.delivery_id.in_(list(delivery_to_campaign)),
+                )
+                .group_by(PushEngagement.delivery_id)
+                .all()
+            )
+            for row_delivery_id, opened, openers in opened_rows:
+                key = delivery_to_campaign.get(str(row_delivery_id), "")
+                if not key:
+                    continue
+                bucket = engagement_by_campaign.setdefault(
+                    key, {"opened": 0, "openers": 0, "open_tracking": False}
+                )
+                bucket["opened"] += int(opened or 0)
+                # Abunəliklər kampaniyalar arası təkrarsız burada sayılmır —
+                # eyni adam iki bildirişi açıbsa bu, iki açan adamdır. Cəmdə
+                # `openers` göstərilmir (bax `summarize`).
+                bucket["openers"] += int(openers or 0)
+                bucket["open_tracking"] = True
+
+    # Birləşmə **hər üç tərəfin** açarı üzərində gedir: göndərilib istifadə
+    # olunmayan kampaniya da, (köhnə sətirlərdən) istifadə olunub göndərilməyən
+    # kampaniya da görünməlidir. Yalnız bir tərəfi gəzsək yarısı itərdi.
+    keys = sorted(set(sends_by_campaign) | set(usage_by_campaign) | set(engagement_by_campaign))
+    funnels: list[dict] = []
+    for key in keys:
+        merged = {
+            **sends_by_campaign.get(key, {}),
+            **usage_by_campaign.get(key, {}),
+            **engagement_by_campaign.get(key, {}),
+        }
+        funnel = build_funnel(**merged)
+        funnel["campaign_id"] = key
+        funnels.append(funnel)
+
+    # Panel siyahıda kampaniya ADINI göstərir — ayrı sorğu ilə (id-lər azdır).
+    names: dict[str, str] = {}
+    if keys:
+        for campaign in (
+            db.query(HappyHour.id, HappyHour.name)
+            .filter(HappyHour.tenant_id == tenant.id, HappyHour.id.in_(keys))
+            .all()
+        ):
+            names[str(campaign.id)] = str(campaign.name or "")
+    for funnel in funnels:
+        funnel["campaign_name"] = names.get(funnel["campaign_id"], "")
+
+    # Ən çox istifadə olunan əvvəldə — panelin ilk gördüyü rəqəm işlək olmalıdır.
+    funnels.sort(key=lambda f: (-int(f["orders"]), -int(f["recipients"])))
+    return {
+        "days": int(days),
+        "since": since.isoformat(),
+        "funnels": funnels,
+        "summary": summarize(funnels),
+    }
+
+
+# --- P4.3 — planlanmış kütləvi bildiriş ------------------------------------------
+# Rol bölgüsü broadcast ilə eynidir: **oxuma** manager-ə, **yazma** admine.
+# Planlama göndərmədən fərqli olaraq **sükut saatı ilə bloklanmır**: niyyət
+# "sükut bitəndə göndər"dir və scheduler vaxtı avtomatik sürüşdürür. Əks davranış
+# admini gecə 02:00-da paneldə gözləməyə məcbur edərdi.
+
+
+@router.get("/push/schedule")
+def list_push_schedules(
+    limit: int = Query(50, ge=1, le=200),
+    status: str | None = Query(None),
+    campaign_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Planlanmış bildirişlər, ən yaxın vaxt əvvəldə (gözləyənlər üçün).
+
+    Sıra qəsdəndir: panel "növbəti nə göndəriləcək" sualına cavab verir. Terminal
+    statuslar (`sent`/`canceled`/`failed`) eyni sorğuda gəlir, amma panel onları
+    ayrı blokda göstərir, yoxsa "sabah 09:00" planı keçmiş sətirlər arasında itərdi.
+    """
+    _ensure_manager(user)
+    query = db.query(PushSchedule).filter(PushSchedule.tenant_id == tenant.id)
+    clean_status = str(status or "").strip().lower()
+    if clean_status in SCHEDULE_STATUSES:
+        query = query.filter(PushSchedule.status == clean_status)
+    clean_campaign = str(campaign_id or "").strip()
+    if clean_campaign:
+        query = query.filter(PushSchedule.campaign_id == clean_campaign)
+    rows = query.order_by(PushSchedule.scheduled_at.asc()).limit(int(limit)).all()
+    return {
+        "items": [_push_schedule_public(row) for row in rows],
+        "count": len(rows),
+        "statuses": list(SCHEDULE_STATUSES),
+    }
+
+
+def _push_schedule_public(row: PushSchedule) -> dict:
+    """Plan sətrinin panelə gedən şəkli. `spec_json` **obyekt** kimi açılır.
+
+    Xarab JSON `spec_from_json`-dan keçir — panel həmişə eyni sxemi alır və
+    "seqment oxunmadı" halı üçün ayrı kod yazmaq lazım gəlmir.
+    """
+    from app.services.push_schedules import spec_from_json
+
+    return {
+        "id": row.id,
+        "title": row.title,
+        "body": row.body,
+        "url": row.url,
+        "audience": spec_from_json(row.spec_json),
+        "campaign_id": row.campaign_id,
+        "status": row.status,
+        "scheduled_at": row.scheduled_at.isoformat() if row.scheduled_at else None,
+        "executed_at": row.executed_at.isoformat() if row.executed_at else None,
+        "error": row.error,
+        "delivery_id": row.delivery_id,
+        "created_by": row.created_by,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+@router.post("/push/schedule")
+def create_push_schedule(
+    payload: PushScheduleIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Planlanmış bildiriş yaradır (göndərmir).
+
+    Şərtlər: mətn boş olmamalı, keçid `https://` olmalı, vaxt 1 dəqiqə–365 gün
+    aralığında olmalı. Konfiqurasiya (`config.ok`) **indi yoxlanılmır** — plan
+    3 gün sonraya ola bilər və konfiqurasiya o vaxta qədər düzəldilə bilər; onsuz
+    da yoxlama var, çünki göndərmə anında `send_bulk_push` konfiqurasiyasız
+    göndərmir və plan `failed` yazılır (səbəb `error`-da görünür).
+    """
+    _ensure_admin(user)
+
+    now = _utcnow()
+    scheduled_at = parse_scheduled_at(payload.scheduled_at)
+    reason = validate_schedule_window(scheduled_at, now)
+    if reason:
+        raise HTTPException(status_code=400, detail=reason)
+
+    title, body = sanitize_push_text(payload.title, payload.body)
+    if not body:
+        raise HTTPException(status_code=400, detail="Bildiriş mətni boşdur.")
+    url = str(payload.url or "").strip()
+    if url and not url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Keçid ünvanı https:// ilə başlamalıdır.")
+
+    campaign_id = str(payload.campaign_id or "").strip() or None
+    if campaign_id:
+        campaign = (
+            db.query(HappyHour)
+            .filter(HappyHour.id == campaign_id, HappyHour.tenant_id == tenant.id)
+            .first()
+        )
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Kampaniya tapılmadı")
+
+    spec = _push_audience_spec(payload.audience)
+    row = create_schedule(
+        db,
+        tenant.id,
+        title=title,
+        body=body,
+        scheduled_at=scheduled_at,
+        spec=spec,
+        url=(url or None),
+        campaign_id=campaign_id,
+        created_by=user.username,
+    )
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="PUSH_SCHEDULE_CREATED",
+            details=json.dumps(
+                {
+                    "schedule_id": row.id,
+                    "scheduled_at": scheduled_at.isoformat(),
+                    "segment": spec,
+                    "campaign_id": campaign_id,
+                    "title": title,
+                },
+                ensure_ascii=False,
+            )[:2000],
+        )
+    )
+    db.commit()
+    # Sükut saatı planı **bloklamır**: plan göndərilmə anında scheduler tərəfindən
+    # sükut bitən ana sürüşdürülür. Panelə bunu açıq deyirik ki, admin "gecə
+    # göndəriləcək" deyə səhv düşünməsin.
+    quiet = quiet_window_state(
+        load_push_settings(db, tenant.id), _tenant_minute_of_day(db, tenant.id)
+    )
+    return {
+        "success": True,
+        "schedule": _push_schedule_public(row),
+        "deferred_by_quiet": bool(scheduled_at and quiet["inside"]),
+        "quiet": quiet,
+    }
+
+
+@router.delete("/push/schedule/{schedule_id}")
+def cancel_push_schedule(
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Gözləyən planı ləğv edir.
+
+    Yalnız `pending` ləğv olunur: göndərilmiş planı "ləğv etmək" mümkün deyil
+    (bildiriş telefonlardadır), buna görə 409 qaytarılır — panel bunu "artıq getdi"
+    kimi göstərir. Sətri silmirik, çünki bu, auditdir.
+    """
+    _ensure_admin(user)
+    row = (
+        db.query(PushSchedule)
+        .filter(PushSchedule.id == str(schedule_id or "").strip(), PushSchedule.tenant_id == tenant.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Plan tapılmadı")
+    if row.status != PENDING:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Bu plan artıq '{row.status}' statusundadır — ləğv edilə bilməz.",
+        )
+    row.status = CANCELED
+    row.executed_at = _utcnow()
+    row.error = f"{user.username} tərəfindən ləğv edildi"
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="PUSH_SCHEDULE_CANCELED",
+            details=json.dumps({"schedule_id": row.id}, ensure_ascii=False)[:2000],
+        )
+    )
+    db.commit()
+    return {"success": True, "schedule": _push_schedule_public(row)}
 
 
 @router.patch("/settings/service-fee")
@@ -4766,6 +5369,9 @@ def get_customer_app_bootstrap(
         # yəni platforma açarları düz olsa da push getmirdi.
         "onesignal_app_id": client_app_id_for_tenant(db, tenant.id),
         "registration_mode": str(app_settings.get("registration_mode") or "full"),
+        # F5.3 — Pass Type ID sertifikatı yoxdursa frontend "Wallet-ə əlavə et"
+        # düyməsini gizlədir (saxta imzalı pass iOS tərəfində rədd edilir).
+        "wallet_pass_enabled": _wallet_pass_configured(),
         "customer_app_settings": app_settings,
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
@@ -4952,7 +5558,13 @@ def enroll_customer_app(
     if registration_mode == "full" and email:
         existing_customer = db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.email == email).first()
         if existing_customer:
-            return {"success": True, "card_id": existing_customer.card_id, "token": existing_customer.secret_token}
+            # F5.1 — təhlükəsizlik: yalnız e-poçu bilmək hesaba girmək üçün
+            # kifayət etmirdi (account takeover). Token qaytarılmır; giriş
+            # yalnız telefon OTP yolu ilədir (`/customer-app/otp/verify`).
+            raise HTTPException(
+                status_code=409,
+                detail="Bu e-poçt artıq qeydiyyatdan keçib. Giriş üçün telefon nömrənizlə SMS kodundan istifadə edin.",
+            )
 
     card_id = f"QR-{secrets.token_hex(4).upper()}"
     while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
@@ -5010,9 +5622,218 @@ def save_push_token(
     tenant = Depends(get_tenant),
 ):
     customer = _resolve_customer_session(db, tenant.id, payload.card_id, payload.token)
-    customer.push_token = payload.push_token
+    config, push_settings = resolve_tenant_push_config(db, tenant.id)
+    # F5.4 — native cihaz tokeni OneSignal abunəliyinə çevrilir ki, seqment
+    # süzgəci onu atmasın və tətbiq istifadəçiləri də bildiriş alsın.
+    # Brauzer tokeni (artıq UUID) olduğu kimi qalır.
+    if bool(push_settings.get("enabled", True)):
+        customer.push_token = register_native_token(config, payload.push_token)
+    else:
+        customer.push_token = payload.push_token
     db.commit()
     return {"success": True}
+
+
+class DeleteAccountIn(BaseModel):
+    card_id: str
+    token: str
+
+
+@router.post("/customer-app/delete-account")
+def delete_customer_account(
+    payload: DeleteAccountIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    """F5.5 — App Store 5.1.1: tətbiq daxilində hesab silmə.
+
+    Şəxsi məlumatlar (ad, e-poçt, telefon, doğum tarixi, push token) və razılıq
+    qeydləri silinir. Sifariş/satış/loyallıq tarixçəsi biznes qeydi kimi
+    `card_id` ilə qalır — artıq heç bir şəxsi məlumatla bağlanmır.
+    """
+    customer = _resolve_customer_session(db, tenant.id, payload.card_id, payload.token)
+    card_id = customer.card_id
+    db.query(CustomerConsent).filter(
+        CustomerConsent.tenant_id == tenant.id, CustomerConsent.card_id == card_id
+    ).delete(synchronize_session=False)
+    db.query(Notification).filter(
+        Notification.tenant_id == tenant.id, Notification.card_id == card_id
+    ).delete(synchronize_session=False)
+    db.delete(customer)
+    db.commit()
+    return {"success": True}
+
+
+# ---------------------------------------------------------------------------
+# F3/F6 — epoint.az onlayn ödəniş (test rejimi)
+# Açarlar (EPOINT_PUBLIC_KEY/EPOINT_PRIVATE_KEY) gələnə qədər 503 qaytarılır.
+# ---------------------------------------------------------------------------
+
+
+def _epoint_order_total(order: KitchenOrder) -> Decimal:
+    """Sifarişin məbləği serverdə items_json-dan hesablanır — client-dan götürülmür."""
+    total = Decimal("0")
+    try:
+        rows = json.loads(order.items_json or "[]")
+    except ValueError:
+        return total
+    for row in rows if isinstance(rows, list) else []:
+        try:
+            total += Decimal(str(row.get("price") or 0)) * max(1, int(row.get("qty") or 1))
+        except Exception:
+            continue
+    return total
+
+
+class PaymentCreateIn(BaseModel):
+    card_id: str
+    token: str
+    order_id: str
+    language: str | None = None
+
+
+class PaymentStatusIn(BaseModel):
+    card_id: str
+    token: str
+    transaction: str
+
+
+@router.post("/customer-app/payment/create")
+def create_customer_payment(
+    payload: PaymentCreateIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    """Sifariş üçün epoint ödənişi yaradır → bank səhifəsinə redirect_url."""
+    if not epoint_service.epoint_configured():
+        raise HTTPException(status_code=503, detail="Onlayn ödəniş hələ konfiqurasiya olunmayıb")
+    customer = _resolve_customer_session(db, tenant.id, payload.card_id, payload.token)
+    order = (
+        db.query(KitchenOrder)
+        .filter(
+            KitchenOrder.tenant_id == tenant.id,
+            KitchenOrder.id == str(payload.order_id or ""),
+            KitchenOrder.card_id == customer.card_id,
+        )
+        .first()
+    )
+    if order is None:
+        raise HTTPException(status_code=404, detail="Sifariş tapılmadı")
+    total = _epoint_order_total(order)
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="Sifarişin məbləği sıfırdır")
+    amount = str(total.quantize(Decimal("0.01")))
+    try:
+        resp = epoint_service.create_payment(
+            amount=amount,
+            order_id=order.id,
+            description="Onlayn sifariş ödənişi",
+            language=payload.language,
+        )
+    except epoint_service.EpointError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    row = EpointPayment(
+        tenant_id=tenant.id,
+        card_id=customer.card_id,
+        order_id=order.id,
+        amount=total.quantize(Decimal("0.01")),
+        currency="AZN",
+        transaction=str(resp.get("transaction") or "") or None,
+        status="new",
+    )
+    db.add(row)
+    db.commit()
+    return {
+        "redirect_url": resp["redirect_url"],
+        "transaction": row.transaction,
+        "order_id": order.id,
+        "amount": amount,
+    }
+
+
+@router.post("/customer-app/payment/status")
+def customer_payment_status(
+    payload: PaymentStatusIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    """epoint-dən status yoxlayır, lokal qeydi yeniləyir (yalnız öz ödənişi)."""
+    if not epoint_service.epoint_configured():
+        raise HTTPException(status_code=503, detail="Onlayn ödəniş hələ konfiqurasiya olunmayıb")
+    customer = _resolve_customer_session(db, tenant.id, payload.card_id, payload.token)
+    row = (
+        db.query(EpointPayment)
+        .filter(
+            EpointPayment.tenant_id == tenant.id,
+            EpointPayment.card_id == customer.card_id,
+            EpointPayment.transaction == str(payload.transaction or ""),
+        )
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Ödəniş tapılmadı")
+    try:
+        resp = epoint_service.get_status(row.transaction or "")
+    except epoint_service.EpointError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    row.status = str(resp.get("status") or row.status)
+    row.code = str(resp.get("code") or "") or None
+    row.rrn = str(resp.get("rrn") or "") or None
+    row.message = str(resp.get("message") or "") or None
+    db.commit()
+    return {
+        "status": row.status,
+        "code": row.code,
+        "rrn": row.rrn,
+        "message": row.message,
+        "order_id": row.order_id,
+        "amount": str(row.amount),
+    }
+
+
+@router.post("/customer-app/payment/callback")
+async def epoint_payment_callback(
+    data: str = Form(...),
+    signature: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """epoint result_url callback — SHA1 imzası yoxlanır, status yenilənir.
+
+    Auth/tenant asılılığı yoxdur (epoint serverlərindən gəlir); təhlükəsizlik
+    imza yoxlamasıdır (timing-safe compare). URL epoint merchant panelində
+    `result_url` kimi qeyd olunur.
+    """
+    if not epoint_service.epoint_configured():
+        raise HTTPException(status_code=503, detail="epoint konfiqurasiya olunmayıb")
+    private_key = str(app_settings.epoint_private_key or "")
+    if not epoint_service.verify_signature(data, signature, private_key):
+        raise HTTPException(status_code=403, detail="epoint imzası etibarsız")
+    try:
+        payload = epoint_service.decode_data(data)
+    except epoint_service.EpointError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    tx = str(payload.get("transaction") or "").strip()
+    order_ref = str(payload.get("order_id") or "").strip()
+    row = None
+    if tx:
+        row = db.query(EpointPayment).filter(EpointPayment.transaction == tx).first()
+    if row is None and order_ref:
+        row = (
+            db.query(EpointPayment)
+            .filter(EpointPayment.order_id == order_ref)
+            .order_by(EpointPayment.created_at.desc())
+            .first()
+        )
+    if row is None:
+        # İmza düzgündür, amma bizim qeyd yoxdur (məs. panel-də test ödənişi).
+        logger.warning({"event": "epoint_callback_unknown", "order_id": order_ref, "transaction": tx})
+        return {"status": "received"}
+    row.status = str(payload.get("status") or row.status)
+    row.code = str(payload.get("code") or "") or None
+    row.rrn = str(payload.get("rrn") or "") or None
+    row.message = str(payload.get("message") or "") or None
+    db.commit()
+    return {"status": "success"}
 
 
 def _get_totp_for_phone(phone: str) -> pyotp.TOTP:
@@ -5461,6 +6282,8 @@ def get_customer_app_session(
             "phone": (branding.phone if branding else "") or "",
         },
         "stores": _customer_stores(db, tenant, branding),
+        # F5.3 — Pass Type ID sertifikatı yoxdursa frontend Wallet düyməsini gizlədir.
+        "wallet_pass_enabled": _wallet_pass_configured(),
         "customer": {
             "card_id": customer.card_id,
             "type": customer.type,
@@ -5471,6 +6294,8 @@ def get_customer_app_session(
             "discount_percent": str(customer.discount_percent or 0),
             "birth_date": customer.birth_date.isoformat() if customer.birth_date else None,
             "created_at": customer.created_at.isoformat() if customer.created_at else None,
+            # P4.1 — kanal razılığı. Panel (Profil) bu üç bayraqla işləyir.
+            "push_prefs": _customer_prefs(customer),
         },
         "wallet": {
             "points_label": str(app_settings.get("points_label") or ("Cashback" if program_mode == "cashback" else "Ulduz")),
@@ -5504,6 +6329,8 @@ def get_customer_app_session(
                 "start_time": row.start_time,
                 "end_time": row.end_time,
                 "categories": row.categories,
+                # P2.1 — vitrin bu günün təklifini gün filteri ilə seçsin deyə.
+                "days_of_week": _campaign_days(row.days_of_week_json),
             }
             for row in active_campaigns
         ] if bool(app_settings.get("show_campaigns", True)) else [],
@@ -5794,22 +6621,49 @@ def create_customer_pre_order(
     customer = _resolve_customer_session(db, tenant.id, id, t)
     if not payload.items:
         raise HTTPException(status_code=400, detail="Order is empty")
-    items = [
-        {
-            "id": str(item.id or ""),
-            "item_name": str(item.name or "").strip(),
-            "qty": max(1, int(item.quantity or 1)),
-            "price": str(item.price if item.price is not None else 0),
-            "variant_name": item.variant_name,
-            "selected_modifiers": item.selected_modifiers or [],
-            "notes": str(item.notes or "").strip(),
-        }
-        for item in payload.items
-    ]
+    store_id = str(payload.store_id or "").strip()
+    if not store_id:
+        # F5.2 — filial məcburi: sifariş hansı filiala aid olduğunu itirməməlidir.
+        raise HTTPException(status_code=400, detail="Filial seçilməyib")
+    # F5.2 — server qiyməti: qiymət client-dan götürülmür, menyudakı sətirdən
+    # hesablanır. Menyuda olmayan id sifarişə düşmür.
+    menu_by_id = {
+        str(row.id): row
+        for row in db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).all()
+    }
+    items: list[dict] = []
+    for item in payload.items:
+        menu_row = menu_by_id.get(str(item.id or ""))
+        if menu_row is None:
+            raise HTTPException(status_code=400, detail=f"Menyu məhsulu tapılmadı: {item.name}")
+        extras = Decimal("0")
+        for mod in item.selected_modifiers or []:
+            try:
+                mod_price = Decimal(str((mod or {}).get("price") or 0))
+            except Exception:
+                mod_price = Decimal("0")
+            # Əlavələr mənfi və ya baza qiymətindən böyük ola bilməz (abuz göndərişi).
+            extras += max(Decimal("0"), min(mod_price, menu_row.price))
+        # ponytail: variant qiyməti serverdə saxlanmır (menyuda variant cədvəli
+        # yoxdur) — variant seçiləndə baza qiymət işlənir; variant data backend-ə
+        # gələndə buraya delta əlavə olunacaq.
+        unit_price = menu_row.price + extras
+        items.append(
+            {
+                "id": str(item.id or ""),
+                "item_name": menu_row.item_name,
+                "qty": max(1, int(item.quantity or 1)),
+                "price": str(unit_price),
+                "variant_name": item.variant_name,
+                "selected_modifiers": item.selected_modifiers or [],
+                "notes": str(item.notes or "").strip(),
+            }
+        )
     store_label = (str(payload.store_name or "").strip() or "Online Order")
     order = KitchenOrder(
         tenant_id=tenant.id,
         table_label=store_label,
+        store_id=store_id,
         order_type="Online",
         status="NEW",
         priority="NORMAL",
@@ -5892,6 +6746,143 @@ def mark_customer_notification_read(
     row.is_read = True
     db.commit()
     return {"success": True}
+
+class CustomerPrefsIn(BaseModel):
+    push: bool | None = None
+    email: bool | None = None
+    sms: bool | None = None
+
+
+class PushEngagementIn(BaseModel):
+    """P4.5 — tətbiqdən gələn "bildirişə toxundum" hadisəsi."""
+
+    delivery_id: str
+    #: OneSignal abunəlik id-si. Boş ola bilər — o halda müştərinin cari
+    #: `push_token`-i işlədilir (tətbiq onu həmişə bilmir).
+    subscription_id: str | None = None
+    #: "opened" (default). Gələcəkdə "clicked" üçün yer var.
+    kind: str | None = None
+
+
+@router.post("/customer-app/push-engagement")
+def record_push_engagement(
+    payload: PushEngagementIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    """P4.5 — bildirişə toxunma hadisəsini qeyd edir.
+
+    Niyə müştəri sessiyası ilə qorunur (açıq webhook deyil): hadisəni **tətbiq**
+    göndərir və onun artıq təsdiqlənmiş sessiyası var. Açıq endpoint olsaydı
+    istənilən şəxs istənilən `delivery_id` üçün saxta açılma yarada bilərdi.
+
+    Niyə OneSignal webhook-u deyil: OneSignal-ın web push webhook-ları yalnız
+    brauzer üçündür, mobil tətbiq push-una şamil olunmur və səhifənin açıq
+    olmasını tələb edir — yəni tətbiq bağlı olanda toxunma heç vaxt qeyd
+    olunmazdı, panel isə "0 açılma" görüb yanlış nəticə çıxarardı.
+
+    Təkrar göndərmə **səssizcə udulur** (`uq_push_engagement_event`): mobil
+    şəbəkə eyni hadisəni iki dəfə çatdıra bilər və təkrar sətir "daha çox
+    açılma" kimi oxunardı. Cavab hər iki halda `success=True`-dir, çünki tətbiq
+    üçün bu, uğurlu qeyddir.
+    """
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+
+    delivery_id = str(payload.delivery_id or "").strip()[:36]
+    if not delivery_id:
+        raise HTTPException(status_code=400, detail="delivery_id boşdur.")
+
+    kind = str(payload.kind or "opened").strip().lower()[:16] or "opened"
+    if kind not in PUSH_ENGAGEMENT_KINDS:
+        raise HTTPException(status_code=400, detail="Tanınmayan hadisə növü.")
+
+    subscription_id = str(payload.subscription_id or "").strip()[:80]
+    if not subscription_id:
+        subscription_id = str(customer.push_token or "").strip()[:80]
+    if not subscription_id:
+        # Abunəlik yoxdursa hadisəni bağlaya bilmirik. Uydurma id yazmaqdansa
+        # bunu açıq deyirik — yoxsa eyni müştərinin bütün açılmaları bir sətirdə
+        # birləşib sayı azaldardı.
+        raise HTTPException(
+            status_code=400, detail="Abunəlik id-si yoxdur — bildiriş abunəliyi tapılmadı."
+        )
+
+    # `delivery_id` həmin tenant-ın göndərməsi olmalıdır: başqa tenant-ın id-sini
+    # göndərmək onun statistikasını şişirdə bilməz.
+    delivery = (
+        db.query(PushDelivery)
+        .filter(PushDelivery.id == delivery_id, PushDelivery.tenant_id == tenant.id)
+        .first()
+    )
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Göndərmə tapılmadı")
+
+    existing = (
+        db.query(PushEngagement)
+        .filter(
+            PushEngagement.delivery_id == delivery_id,
+            PushEngagement.subscription_id == subscription_id,
+            PushEngagement.kind == kind,
+        )
+        .first()
+    )
+    if existing:
+        return {"success": True, "recorded": False, "reason": "already_recorded"}
+
+    db.add(
+        PushEngagement(
+            tenant_id=tenant.id,
+            delivery_id=delivery_id,
+            subscription_id=subscription_id,
+            kind=kind,
+            card_id=customer.card_id,
+        )
+    )
+    db.commit()
+    return {"success": True, "recorded": True}
+
+
+@router.post("/customer-app/preferences")
+def update_customer_preferences(
+    payload: CustomerPrefsIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    """Müştəri kanal razılığını dəyişir (Profil → Bildirişlər).
+
+    P4.1 — hər kanal ayrıca saxlanılır; göndərici razılığı yoxlayır. `None`
+    göndərilən sahə dəyişmir (PATCH semantikası). Hər dəyişiklik AuditLog-a
+    yazılır ki, "müştəri mənə bildiriş göndərmə dedi" mübahisəsi sənədlə
+    həll olunsun.
+    """
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    changed: list[str] = []
+    if payload.push is not None and bool(payload.push) != bool(customer.push_opt_in):
+        customer.push_opt_in = bool(payload.push)
+        changed.append(f"push={'on' if customer.push_opt_in else 'off'}")
+    if payload.email is not None and bool(payload.email) != bool(customer.email_opt_in):
+        customer.email_opt_in = bool(payload.email)
+        changed.append(f"email={'on' if customer.email_opt_in else 'off'}")
+    if payload.sms is not None and bool(payload.sms) != bool(customer.sms_opt_in):
+        customer.sms_opt_in = bool(payload.sms)
+        changed.append(f"sms={'on' if customer.sms_opt_in else 'off'}")
+    if not changed:
+        return {"success": True, "prefs": _customer_prefs(customer)}
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=customer.card_id,
+            action="CUSTOMER_PREFS_UPDATED",
+            details=json.dumps({k: v for k, v in (item.split("=") for item in changed)}, ensure_ascii=False)[:2000],
+        )
+    )
+    db.commit()
+    return {"success": True, "prefs": _customer_prefs(customer)}
 
 
 class FortuneAnalyzeIn(BaseModel):
@@ -6116,6 +7107,46 @@ def hex_to_rgb_str(hex_color: str, default: str) -> str:
         return default
 
 
+def _wallet_pass_paths() -> tuple[str, str]:
+    import os
+
+    cert_path = app_settings.apple_wallet_cert_path or "keys/passcert.pem"
+    key_path = app_settings.apple_wallet_key_path or "keys/passkey.pem"
+    return cert_path, key_path
+
+
+def _wallet_pass_configured() -> bool:
+    """F5.3 — Pass Type ID sertifikatı+ açarı varmı? (yoxdursa düymə gizlənir)"""
+    import os
+
+    cert_path, key_path = _wallet_pass_paths()
+    return os.path.exists(cert_path) and os.path.exists(key_path)
+
+
+def _load_wallet_pass_signing() -> tuple[str, str, object, object]:
+    """(passTypeIdentifier, teamIdentifier, cert, key) — hamısı sertifikatdan.
+
+    Pass Type ID sertifikatında CN = "Pass Type ID: pass.com....", OU = Team ID.
+    Dəyərlər kodda saxta şəkildə (TEAMID123 və s.) durmurdu — iOS onları
+    sertifikatla yoxlayıb kartı rədd edirdi (F5.3).
+    """
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.x509 import load_pem_x509_certificate
+    from cryptography.x509.oid import NameOID
+
+    cert_path, key_path = _wallet_pass_paths()
+    with open(cert_path, "rb") as f:
+        cert = load_pem_x509_certificate(f.read())
+    with open(key_path, "rb") as f:
+        key = load_pem_private_key(f.read(), password=None)
+    cn = next((str(a.value) for a in cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)), "")
+    ou = next((str(a.value) for a in cert.subject.get_attributes_for_oid(NameOID.ORGANIZATIONAL_UNIT_NAME)), "")
+    pass_type_id = cn[len("Pass Type ID:"):].strip() if cn.startswith("Pass Type ID:") else cn.strip()
+    if not pass_type_id.startswith("pass.") or not ou:
+        raise ValueError("sertifikat Pass Type ID sertifikatı deyil (CN/OU gözlənilməz)")
+    return pass_type_id, ou, cert, key
+
+
 @router.get("/customer-app/wallet-pass")
 def get_customer_wallet_pass(
     id: str = Query(...),
@@ -6125,6 +7156,13 @@ def get_customer_wallet_pass(
     tenant: Tenant = Depends(get_tenant),
 ):
     customer = _resolve_customer_session(db, tenant.id, id, t)
+    # F5.3 — saxta imzalı (TEAMID123/unsigned-dev-pass) pass heç vaxt göndərilmir:
+    # sertifikat yoxdursa 503, frontend düyməni gizlədir (bootstrap wallet_pass_enabled).
+    try:
+        pass_type_id, team_id, sign_cert, sign_key = _load_wallet_pass_signing()
+    except Exception as e:
+        logger.warning(f"Wallet pass imzası yoxdur, 503 qaytarılır: {e}")
+        raise HTTPException(status_code=503, detail="Apple Wallet kartı konfiqurasiya olunmayıb")
     branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
     app_settings_val = _setting_value(
         db,
@@ -6139,9 +7177,9 @@ def get_customer_wallet_pass(
     
     pass_data = {
         "formatVersion": 1,
-        "passTypeIdentifier": "pass.com.ironwaves.store",
+        "passTypeIdentifier": pass_type_id,
         "serialNumber": customer.card_id,
-        "teamIdentifier": "TEAMID123",
+        "teamIdentifier": team_id,
         "barcode": {
             "message": customer.card_id,
             "format": "PKBarcodeFormatQR",
@@ -6197,32 +7235,26 @@ def get_customer_wallet_pass(
     for name, data in files.items():
         manifest[name] = hashlib.sha1(data).hexdigest()
     manifest_json_bytes = json.dumps(manifest, indent=2).encode("utf-8")
-    
-    signature_bytes = b"unsigned-dev-pass"
-    
+
+    # F5.3 — imza məcburi: uğursuz olanda saxta "unsigned-dev-pass" yox, xəta qaytarılır.
+    # cryptography >=45: builder.add_certificate/add_signer + sign(encoding, options)
+    # (köhnə versiyalarda zəncir fərqlidir — kod heç vaxt real sertifikatla
+    # işləmədiyi üçün köhnə API səssizcə səhv imza hazırlayırdı).
     try:
         from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.serialization import load_pem_private_key
-        from cryptography.x509 import load_pem_x509_certificate
-        from cryptography.hazmat.primitives.serialization.pkcs7 import PKCS7SignatureBuilder
-        import os
-        
-        cert_path = app_settings.apple_wallet_cert_path or "keys/passcert.pem"
-        key_path = app_settings.apple_wallet_key_path or "keys/passkey.pem"
-        
-        if os.path.exists(cert_path) and os.path.exists(key_path):
-            with open(cert_path, "rb") as f:
-                cert = load_pem_x509_certificate(f.read())
-            with open(key_path, "rb") as f:
-                private_key = load_pem_private_key(f.read(), password=None)
-                
-            builder = PKCS7SignatureBuilder()
-            builder.set_data(manifest_json_bytes)
-            signature_bytes = builder.sign(
-                cert, private_key, hashes.SHA1(), options=[]
-            ).serialize()
+        from cryptography.hazmat.primitives.serialization import Encoding
+        from cryptography.hazmat.primitives.serialization import pkcs7 as pkcs7_mod
+
+        signature_bytes = (
+            pkcs7_mod.PKCS7SignatureBuilder()
+            .set_data(manifest_json_bytes)
+            .add_certificate(sign_cert)
+            .add_signer(sign_cert, sign_key, hashes.SHA256())
+            .sign(Encoding.DER, [pkcs7_mod.PKCS7Options.DetachedSignature])
+        )
     except Exception as e:
-        logger.warning(f"Failed to sign PKPASS, using mock signature: {e}")
+        logger.warning(f"Failed to sign PKPASS: {e}")
+        raise HTTPException(status_code=503, detail="Apple Wallet kartı imzalanmayıb (Pass Type ID sertifikatı)")
         
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:

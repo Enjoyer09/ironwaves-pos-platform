@@ -32,6 +32,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate.
     }
 
+    // MARK: - Scene Lifecycle
+
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: "Default Configuration",
+                                          sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Custom URL scheme handling (e.g. ironwaves://customer?cardId=xxx&token=yyy)
         if handleCustomUrl(url) { return true }
@@ -63,7 +74,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let scheme = url.scheme?.lowercased(),
               scheme == "ironwaves" || scheme == "ironwavesloyalty" else { return false }
 
-        // Post notification so Capacitor's App plugin can pick it up
+        // Post notification so the web app can pick it up
         NotificationCenter.default.post(
             name: Notification.Name("CAPOpenURL"),
             object: nil,

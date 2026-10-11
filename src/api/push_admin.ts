@@ -31,23 +31,32 @@ import {
   MAX_BROADCAST_RECIPIENTS,
   MAX_PUSH_BODY,
   MAX_PUSH_TITLE,
+  MAX_SCHEDULE_LEAD_DAYS,
+  MIN_SCHEDULE_LEAD_SECONDS,
   PUSH_KINDS,
   PUSH_SECRET_SENTINEL,
   SEGMENT_LABELS,
   normalizeAudienceSpec,
+  normalizePushSettings,
   pushAudienceSummary,
   pushConfigPublic,
+  quietBlockMessage,
+  quietWindowState,
   resolveClientAppId,
   resolvePushAudience,
   resolvePushConfig,
   sanitizePushText,
+  buildFunnel,
+  summarizeFunnels,
 } from '../lib/push';
 import type {
   PushAudienceRow,
   PushAudienceSpec,
   PushAudienceSummary,
   PushConfigPublic,
+  PushFunnelSummary,
   PushTierRow,
+  QuietWindowState,
 } from '../lib/push';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
@@ -69,6 +78,8 @@ export interface PushHistoryItem {
   segment: string | null;
   segment_value: string | null;
   card_id: string | null;
+  /** P4.2 — bildiriş bağlı olduğu kampaniya (happy hour) id-si, yoxsa null. */
+  campaign_id: string | null;
   status: string;
   config_source: string | null;
   recipients: number;
@@ -85,6 +96,14 @@ export interface PushBroadcastState {
   used_today: number;
   remaining: number;
   max_daily_limit: number;
+  /** P4.3 — iki kütləvi bildiriş arasında minimum fasilə (dəqiqə). */
+  cooldown_minutes: number;
+  /** P4.3 — fasilə bitməsinə qalan dəqiqə (0 = fasilə yoxdur). */
+  cooldown_remaining_minutes: number;
+  /** P4.3 — növbəti icazəli vaxt (ISO), yoxsa `null`. */
+  next_allowed_at: string | null;
+  /** P4.3 — sükut saatı vəziyyəti. `inside` olanda dərhal göndərmə bloklanır. */
+  quiet: QuietWindowState;
 }
 
 export interface PushSegmentInfo {
@@ -104,6 +123,10 @@ export interface PushStatus {
     broadcast_enabled: boolean;
     onesignal_rest_api_key: string;
     broadcast_daily_limit: number;
+    broadcast_cooldown_minutes: number;
+    quiet_enabled: boolean;
+    quiet_start: string;
+    quiet_end: string;
     onesignal_rest_api_key_set?: boolean;
   };
   onesignal_app_id: string;
@@ -138,6 +161,9 @@ export interface PushSendResult {
   config: PushConfigPublic;
   audience?: PushAudienceSummary;
   broadcast?: PushBroadcastState;
+  /** P4.2 — göndərmə kampaniyaya bağlandısa onun id-si/adı. */
+  campaign_id?: string | null;
+  campaign_name?: string | null;
 }
 
 /* ==========================================================================
@@ -168,8 +194,19 @@ const getCustomersLocal = (tenantId: string): Customer[] => {
   return filterTenantRecords(getDB<Customer>('customers'), tenantId);
 };
 
-const getSalesLocal = (tenantId: string): Sale[] => {
-  const scoped = getDB<Sale>(`${tenantId}_sales`);
+/**
+ * P4.2 — kampaniya adı (lokal rejim). Backend `HappyHour.name`-i birbaşa qaytarır;
+ * burada `happy_hours` cədvəlindən oxunur. Tapılmasa boş sətir: silinmiş kampaniya
+ * tarixçədə adsız qalır, panel isə id-ni göstərir.
+ */
+const campaignNameLocal = (tenantId: string, campaignId: string): string => {
+  const row = filterTenantRecords(getDB<any>('happy_hours'), tenantId).find(
+    (r: any) => String(r?.id || '') === campaignId,
+  );
+  return String(row?.name || '');
+};
+
+const getSalesLocal = (tenantId: string): Sale[] => {  const scoped = getDB<Sale>(`${tenantId}_sales`);
   if (scoped.length > 0) return scoped.filter((s) => s.tenant_id === tenantId);
   return getDB<Sale>('sales').filter((s) => s.tenant_id === tenantId);
 };
@@ -219,6 +256,9 @@ const buildAudienceRowsLocal = (tenantId: string): PushAudienceRow[] => {
       // Lokal bazada `lifetime_stars` həmişə yoxdur; o zaman cari balans işlədilir
       // (`crm.ts`-dəki tier hesabı ilə eyni fallback).
       lifetime_stars: anyCustomer.lifetime_stars ?? customer.stars,
+      // P4.1 — kanal razılığı. Sütun yoxdursa `undefined` qalır və süzgəc onu
+      // "razılıq verilmiş" sayır (backend `server_default=true` ilə eyni).
+      push_opt_in: anyCustomer.push_opt_in,
     };
   });
 };
@@ -256,15 +296,53 @@ const countBroadcastsTodayLocal = (tenantId: string): number => {
   }).length;
 };
 
+/** P4.3 — son broadcast cəhdinin vaxtı (ms). `null` = heç vaxt. */
+const lastBroadcastMsLocal = (tenantId: string): number | null => {
+  let best: number | null = null;
+  for (const row of getDeliveriesLocal(tenantId)) {
+    if (row.kind !== 'broadcast') continue;
+    if (!['sent', 'partial', 'failed'].includes(String(row.status || ''))) continue;
+    const ms = new Date(String(row.created_at || '')).getTime();
+    if (!Number.isFinite(ms)) continue;
+    if (best === null || ms > best) best = ms;
+  }
+  return best;
+};
+
+/**
+ * `operations._push_broadcast_state` güzgüsü.
+ *
+ * P4.3 — `cooldown` "nə qədər tez-tez" sualına cavab verir: gündəlik hədd beş
+ * bildirişi 10 dəqiqə içində göndərməyə icazə verir, bu isə spamdır.
+ */
 const broadcastStateLocal = (tenantId: string, push: any): PushBroadcastState => {
   const limit = Number(push?.broadcast_daily_limit || 0);
   const used = countBroadcastsTodayLocal(tenantId);
+  const cooldown = Number(push?.broadcast_cooldown_minutes || 0);
+  const lastMs = lastBroadcastMsLocal(tenantId);
+  let remainingMin = 0;
+  let nextAllowedAt: string | null = null;
+  if (cooldown > 0 && lastMs !== null) {
+    const nextMs = lastMs + cooldown * 60000;
+    if (nextMs > Date.now()) {
+      remainingMin = Math.floor((nextMs - Date.now()) / 60000) + 1;
+      nextAllowedAt = new Date(nextMs).toISOString();
+    }
+  }
   return {
     enabled: !!push?.broadcast_enabled,
     daily_limit: limit,
     used_today: used,
     remaining: Math.max(0, limit - used),
     max_daily_limit: MAX_BROADCAST_DAILY_LIMIT,
+    cooldown_minutes: cooldown,
+    cooldown_remaining_minutes: remainingMin,
+    next_allowed_at: nextAllowedAt,
+    // Lokal rejimdə tenant saat qurşağı məlum deyil → brauzerin yerli saatı
+    // işlədilir. Backend tenant-ın `time_settings.timezone`-unu oxuyur, yəni iki
+    // rejim eyni saatda fərqli cavab verə bilər; fərq yalnız panelə göndərməni
+    // **əvvəlcədən** bloklamaqdadır, yekun qərar həmişə serverdədir.
+    quiet: quietWindowState(push, new Date().getHours() * 60 + new Date().getMinutes()),
   };
 };
 
@@ -290,7 +368,9 @@ export function get_push_status(tenant_id?: string): PushStatus {
   const audience = resolvePushAudience(buildAudienceRowsLocal(tenantId), { segment: 'all' }, { tiers });
   return {
     config: pushConfigPublic(config),
-    settings: push,
+    // Lokal blob `push_settings` xam saxlanılır; panelin gözlədiyi tam sxemi
+    // (P4.3 açarları daxil) normalizer verir — backend `/push/status` də onu qaytarır.
+    settings: normalizePushSettings(push) as any,
     // Lokal rejimdə platforma app id-si yoxdur, yəni bu, tenant dəyəridir.
     onesignal_app_id: resolveClientAppId(appId),
     subscribers: pushAudienceSummary(audience),
@@ -392,6 +472,7 @@ const recordLocalDelivery = (
     segment?: string | null;
     segment_value?: string | null;
     card_id?: string | null;
+    campaign_id?: string | null;
     config_source: string;
     result: PushSendResult['result'];
   },
@@ -406,6 +487,7 @@ const recordLocalDelivery = (
     segment: args.segment || null,
     segment_value: args.segment_value || null,
     card_id: args.card_id || null,
+    campaign_id: args.campaign_id || null,
     status: args.result.status,
     config_source: args.config_source,
     recipients: args.result.attempted,
@@ -480,6 +562,8 @@ export interface PushBroadcastInput {
   body: string;
   url?: string | null;
   audience?: PushAudienceInput | null;
+  /** P4.2 — kampaniyaya bağlanırsa onun id-si (atribusiya üçün). */
+  campaign_id?: string | null;
 }
 
 /**
@@ -506,6 +590,15 @@ export function send_push_broadcast(payload: PushBroadcastInput, tenant_id?: str
         'Sayğac tenant-ın gecə yarısında sıfırlanır.',
     );
   }
+  // P4.3 — sükut saatı və fasilə. Backend nərdivanı ilə **eyni sıra**: sükut
+  // sonra fasilə, çünki sükut daha güclü səbəbdir (vaxt bitəndə özü keçir).
+  if (state.quiet?.inside) throw new Error(quietBlockMessage(state.quiet));
+  if (state.cooldown_remaining_minutes > 0) {
+    throw new Error(
+      `İki kütləvi bildiriş arasında fasilə gözlənilir (${state.cooldown_minutes} dəqiqə). ` +
+        `Yenidən cəhd: ${state.cooldown_remaining_minutes} dəqiqə sonra.`,
+    );
+  }
   if (!config.ok) throw new Error(config.reason || 'Push konfiqurasiyası tamamlanmayıb.');
 
   const { title, body } = sanitizePushText(payload?.title, payload?.body);
@@ -523,17 +616,20 @@ export function send_push_broadcast(payload: PushBroadcastInput, tenant_id?: str
     throw new Error(
       `Seçilmiş seqmentdə çatdırıla bilən abunəçi yoxdur (uyğun müştəri: ` +
         `${audience.matched}, abunəliyi olan: ${audience.with_token}, çatdırılmayan ` +
-        `cihaz tokeni: ${audience.undeliverable}).`,
+        `cihaz tokeni: ${audience.undeliverable}, razılığı geri götürən: ` +
+        `${audience.no_consent}).`,
     );
   }
 
   const result = localSendResult(push, 'broadcast', audience.tokens.length);
+  const campaignId = String(payload?.campaign_id || '').trim() || null;
   recordLocalDelivery(tenantId, {
     kind: 'broadcast',
     title,
     body,
     segment: spec.segment,
     segment_value: audience.label,
+    campaign_id: campaignId,
     config_source: config.source,
     result,
   });
@@ -546,6 +642,7 @@ export function send_push_broadcast(payload: PushBroadcastInput, tenant_id?: str
     accepted: result.accepted,
     failed: result.failed,
     title,
+    campaign_id: campaignId,
   });
   return {
     success: false,
@@ -554,6 +651,8 @@ export function send_push_broadcast(payload: PushBroadcastInput, tenant_id?: str
     config: pushConfigPublic(config),
     // `skipped` sətir həddi yemir, ona görə vəziyyət yenidən hesablanır.
     broadcast: broadcastStateLocal(tenantId, push),
+    campaign_id: campaignId,
+    campaign_name: campaignId ? campaignNameLocal(tenantId, campaignId) : null,
   };
 }
 
@@ -567,6 +666,7 @@ export async function send_push_broadcast_live(payload: PushBroadcastInput): Pro
       title: String(payload?.title || ''),
       body: String(payload?.body || ''),
       url: String(payload?.url || '') || null,
+      campaign_id: String(payload?.campaign_id || '') || null,
       audience: {
         segment: spec.segment,
         value: spec.value,
@@ -574,6 +674,193 @@ export async function send_push_broadcast_live(payload: PushBroadcastInput): Pro
         min_stars: spec.min_stars,
       },
     },
+  });
+}
+
+/* ==========================================================================
+ * P4.2 — kampaniya üzrə göndərmə xülasəsi
+ * ========================================================================== */
+
+export interface CampaignPushStat {
+  campaign_id: string;
+  sends: number;
+  recipients: number;
+  accepted: number;
+  failed: number;
+  last_sent_at: string | null;
+}
+
+/**
+ * Kampaniya başına göndərmə sayı. Tarixçə səhifəsindən say çıxarmaq **yanlış**
+ * olardı: o siyahı `limit` ilə kəsilir. Lokal rejimdə saxlanan bütün
+ * `push_deliveries` sətirləri üzərində hesablanır (lokal bazada həcm kiçikdir və
+ * `MAX_PUSH_HISTORY_LIMIT * 4` ilə sərhədlidir).
+ */
+export function get_push_campaign_stats(tenant_id?: string): Record<string, CampaignPushStat> {
+  const tenantId = resolveTenant(tenant_id);
+  const stats: Record<string, CampaignPushStat> = {};
+  for (const row of getDeliveriesLocal(tenantId)) {
+    const campaignId = String(row.campaign_id || '').trim();
+    if (!campaignId) continue;
+    const entry = stats[campaignId] || {
+      campaign_id: campaignId,
+      sends: 0,
+      recipients: 0,
+      accepted: 0,
+      failed: 0,
+      last_sent_at: null,
+    };
+    entry.sends += 1;
+    entry.recipients += Number(row.recipients || 0);
+    entry.accepted += Number(row.accepted || 0);
+    entry.failed += Number(row.failed || 0);
+    const createdAt = String(row.created_at || '');
+    if (createdAt && (!entry.last_sent_at || createdAt > entry.last_sent_at)) entry.last_sent_at = createdAt;
+    stats[campaignId] = entry;
+  }
+  return stats;
+}
+
+export async function get_push_campaign_stats_live(days?: number): Promise<Record<string, CampaignPushStat>> {
+  if (!isBackendEnabled()) return get_push_campaign_stats();
+  const params = new URLSearchParams();
+  params.set('days', String(Number(days) > 0 ? Math.trunc(Number(days)) : 90));
+  const res = await apiRequest<{ days: number; stats: Record<string, CampaignPushStat> }>(
+    `/api/v1/ops/push/campaign-stats?${params.toString()}`,
+    { tenantId: null },
+  );
+  return res?.stats || {};
+}
+
+/* ==========================================================================
+ * P4.4 — ölçmə və atribusiya (göndərmə → istifadə hunisi)
+ *
+ * **Açılma (open) siqnalı P4.5-dən sonra VAR, lakin QİSMƏNDİR**: tətbiq özü
+ * bildirir (`pushNotificationActionPerformed` → `data.delivery_id` →
+ * `POST /customer-app/push-engagement`). Bildirişi panel-dən silən müştəri
+ * görünmür; `clicked` yoxdur (düymə yoxdur). Ona görə `open_rate` "ən azı"
+ * kimi oxunmalıdır və `open_tracking: false` olanda panel "izlənmir" yazır —
+ * "0 açılma" deyil. Əsas rəqəm yenə `redemption_rate`-dir (kassa kampaniya
+ * endirimini TƏTBİQ edəndə), `conversion_rate` adı isə sübutsuz iddia olardı —
+ * müştəri bildirişi görüb gəldi, yoxsa onsuz da gələcəkdi, satış sətrindən
+ * bilinmir.
+ * ========================================================================== */
+
+export interface PushFunnelRow {
+  campaign_id: string;
+  campaign_name: string;
+  sends: number;
+  recipients: number;
+  accepted: number;
+  failed: number;
+  delivery_rate: number;
+  /** P4.5 — tətbiqdən gələn toxunma. Qismən ölçü, "ən azı" kimi oxu. */
+  opened: number;
+  openers: number;
+  open_rate: number;
+  orders: number;
+  customers: number;
+  revenue: number;
+  discount: number;
+  avg_order_value: number;
+  discount_per_order: number;
+  redemption_rate: number;
+  attribution: string;
+  open_tracking: boolean;
+}
+
+export interface PushFunnelResponse {
+  days: number;
+  since: string;
+  funnels: PushFunnelRow[];
+  summary: PushFunnelSummary;
+}
+
+/**
+ * Lokal rejimdə huni. **Nəticə backend ilə eyni olmaya bilər** və səbəbi
+ * dürüstdür: brauzer bazası son satışların bir hissəsini saxlayır
+ * (`analytics.ts` köhnə çekləri təmizləyir), server isə hamısını. Panel bunu
+ * `local_mode` xəbərdarlığı ilə deyir — uydurma bərabərlik göstərmirik.
+ *
+ * Açılma (P4.5) lokal rejimdə **heç vaxt** göstərilmir: hadisə serverdəki
+ * `push_engagement` cədvəlinə yazılır, brauzerdə qeydi yoxdur. `open_tracking`
+ * `false` qalır, yəni panel "izlənmir" yazır — "0 açılma" deyil. Server
+ * rejimində real rəqəm gəlir.
+ */
+export function get_push_funnel(days?: number, tenant_id?: string): PushFunnelResponse {
+  const tenantId = resolveTenant(tenant_id);
+  const windowDays = Number(days) > 0 ? Math.trunc(Number(days)) : 90;
+  const cutoffMs = Date.now() - windowDays * 86400_000;
+
+  const deliveries = getDeliveriesLocal(tenantId).filter(
+    (row) => row.campaign_id && new Date(String(row.created_at || '')).getTime() >= cutoffMs,
+  );
+  const sales = getSalesLocal(tenantId).filter(
+    (row) =>
+      row.campaign_id &&
+      !VOID_SALE_STATUSES.has(String(row.status || '').toUpperCase()) &&
+      new Date(String(row.created_at || '')).getTime() >= cutoffMs,
+  );
+
+  const byCampaign = new Map<string, { d: any; s: any[] }>();
+  const bucket = (campaignId: string) => {
+    const key = String(campaignId);
+    if (!byCampaign.has(key)) byCampaign.set(key, { d: null, s: [] });
+    return byCampaign.get(key)!;
+  };
+  for (const row of deliveries) {
+    const b = bucket(String(row.campaign_id));
+    b.d = b.d || { sends: 0, recipients: 0, accepted: 0, failed: 0 };
+    b.d.sends += 1;
+    b.d.recipients += Number(row.recipients || 0);
+    b.d.accepted += Number(row.accepted || 0);
+    b.d.failed += Number(row.failed || 0);
+  }
+  for (const row of sales) {
+    // Təkrarsız müştəri: kassa `customer_card_id`-ni həmişə doldurmur (qonaq
+    // çeki), ona görə boş kartlar ayrı sayılmır — `analytics.ts` ilə eyni qayda.
+    bucket(String(row.campaign_id)).s.push(row);
+  }
+
+  const funnels: PushFunnelRow[] = [];
+  for (const [campaignId, group] of byCampaign.entries()) {
+    const cards = new Set(
+      group.s.map((s) => String(s.customer_card_id || '').trim()).filter(Boolean),
+    );
+    const funnel = buildFunnel({
+      ...(group.d || {}),
+      orders: group.s.length,
+      customers: cards.size,
+      revenue: group.s.reduce((sum, s) => sum + Number(s.total || 0), 0),
+      discount: group.s.reduce((sum, s) => sum + Number(s.discount_amount || 0), 0),
+    });
+    funnels.push({
+      ...funnel,
+      campaign_id: campaignId,
+      campaign_name: campaignNameLocal(tenantId, campaignId),
+    });
+  }
+  // Ən çox istifadə olunan əvvəldə — backend ilə eyni sıra.
+  funnels.sort((a, b) => b.orders - a.orders || b.recipients - a.recipients);
+  return {
+    days: windowDays,
+    since: new Date(cutoffMs).toISOString(),
+    funnels,
+    summary: summarizeFunnels(funnels),
+  };
+}
+
+export async function get_push_funnel_live(
+  days?: number,
+  campaign_id?: string,
+): Promise<PushFunnelResponse> {
+  if (!isBackendEnabled()) return get_push_funnel(days);
+  const params = new URLSearchParams();
+  params.set('days', String(Number(days) > 0 ? Math.trunc(Number(days)) : 90));
+  const cleanCampaign = String(campaign_id || '').trim();
+  if (cleanCampaign) params.set('campaign_id', cleanCampaign);
+  return apiRequest<PushFunnelResponse>(`/api/v1/ops/push/funnel?${params.toString()}`, {
+    tenantId: null,
   });
 }
 
@@ -591,7 +878,12 @@ export interface PushHistoryResponse {
  * Göndərmə tarixçəsi, yeni sətir əvvəldə. `details` qaytarılmır (backend də
  * qaytarmır) — içindəki `provider_ids` panelə heç nə demir.
  */
-export function get_push_history(limit?: number, kind?: string, tenant_id?: string): PushHistoryResponse {
+export function get_push_history(
+  limit?: number,
+  kind?: string,
+  tenant_id?: string,
+  campaign_id?: string,
+): PushHistoryResponse {
   const tenantId = resolveTenant(tenant_id);
   const raw = Number(limit);
   const clamped = Number.isFinite(raw) && raw > 0
@@ -601,18 +893,244 @@ export function get_push_history(limit?: number, kind?: string, tenant_id?: stri
   // Tanınmayan `kind` **süzmür** (backend də belədir): panel yeni bir növ göndərsə,
   // boş cədvəl yerinə tam tarixçə görünür.
   const filterKind = (PUSH_KINDS as readonly string[]).includes(cleanKind) ? cleanKind : '';
+  // P4.2 — kampaniya süzgəci. Verilibsə yalnız o kampaniyanın bildirişləri.
+  const filterCampaign = String(campaign_id || '').trim();
   const rows = getDeliveriesLocal(tenantId)
     .filter((row) => !filterKind || row.kind === filterKind)
+    .filter((row) => !filterCampaign || String(row.campaign_id || '') === filterCampaign)
     .sort((a, b) => new Date(String(b.created_at || '')).getTime() - new Date(String(a.created_at || '')).getTime())
     .slice(0, clamped);
   return { items: rows, count: rows.length, kinds: [...PUSH_KINDS] };
 }
 
-export async function get_push_history_live(limit?: number, kind?: string): Promise<PushHistoryResponse> {
-  if (!isBackendEnabled()) return get_push_history(limit, kind);
+export async function get_push_history_live(
+  limit?: number,
+  kind?: string,
+  campaign_id?: string,
+): Promise<PushHistoryResponse> {
+  if (!isBackendEnabled()) return get_push_history(limit, kind, undefined, campaign_id);
   const params = new URLSearchParams();
   params.set('limit', String(limit || PUSH_HISTORY_LIMIT));
   const cleanKind = String(kind || '').trim().toLowerCase();
   if ((PUSH_KINDS as readonly string[]).includes(cleanKind)) params.set('kind', cleanKind);
+  const cleanCampaign = String(campaign_id || '').trim();
+  if (cleanCampaign) params.set('campaign_id', cleanCampaign);
   return apiRequest<PushHistoryResponse>(`/api/v1/ops/push/history?${params.toString()}`, { tenantId: null });
+}
+
+/* ==========================================================================
+ * P4.3 — planlanmış kütləvi bildiriş
+ *
+ * Lokal rejim **dürüstdür**: plan saxlanılır (cədvəl görünür), lakin göndərilmir —
+ * brauzer bağlananda "scheduler" də dayanır. Ona görə `get_push_schedules` lokal
+ * planların `status`-unu `pending` saxlayır və panelin `local_mode` xəbərdarlığı
+ * istifadəçini real göndərmənin backend tələb etdiyini bilir.
+ * ========================================================================== */
+
+export interface PushScheduleItem {
+  id: string;
+  title: string;
+  body: string;
+  url: string | null;
+  audience: PushAudienceSpec;
+  campaign_id: string | null;
+  /** "pending" | "sent" | "canceled" | "failed" */
+  status: string;
+  scheduled_at: string | null;
+  executed_at: string | null;
+  error: string | null;
+  delivery_id: string | null;
+  created_by: string | null;
+  created_at: string | null;
+}
+
+export interface PushScheduleResponse {
+  items: PushScheduleItem[];
+  count: number;
+  statuses: string[];
+}
+
+export interface PushScheduleInput {
+  title?: string;
+  body: string;
+  url?: string | null;
+  /** ISO 8601 — ofset verilərsə UTC-yə çevrilir. */
+  scheduled_at: string;
+  audience?: PushAudienceInput | null;
+  campaign_id?: string | null;
+}
+
+const schedulesKey = (tenantId: string) => `${tenantId}_push_schedules`;
+
+const getSchedulesLocal = (tenantId: string): PushScheduleItem[] => {
+  const scoped = getDB<PushScheduleItem>(schedulesKey(tenantId));
+  if (scoped.length > 0) return scoped;
+  return filterTenantRecords(getDB<any>('push_schedules'), tenantId) as PushScheduleItem[];
+};
+
+const saveSchedulesLocal = (tenantId: string, rows: PushScheduleItem[]) => {
+  const scoped = rows.slice(0, 200);
+  const shared = getDB<any>('push_schedules').filter((r) => String(r?.tenant_id || '') !== tenantId);
+  setDB('push_schedules', [...shared, ...scoped]);
+  setDB(schedulesKey(tenantId), scoped);
+};
+
+/** `push_schedules.validate_schedule_window` güzgüsü. Boş sətir = qaydasındadır. */
+export function validateScheduleWindow(scheduledAt: unknown, now: number = Date.now()): string {
+  const raw = String(scheduledAt || '').trim();
+  if (!raw) return 'Planlanmış vaxt düzgün deyil (ISO 8601 formatı gözlənilir).';
+  const ms = new Date(raw).getTime();
+  if (!Number.isFinite(ms)) return 'Planlanmış vaxt düzgün deyil (ISO 8601 formatı gözlənilir).';
+  const deltaSec = (ms - now) / 1000;
+  if (deltaSec < MIN_SCHEDULE_LEAD_SECONDS) {
+    return (
+      'Planlanmış vaxt ən azı 1 dəqiqə sonra olmalıdır. ' +
+      'Dərhal göndərmək üçün adi göndərmə düyməsini işlədin.'
+    );
+  }
+  if (deltaSec > MAX_SCHEDULE_LEAD_DAYS * 86400) {
+    return `Planlanmış vaxt ${MAX_SCHEDULE_LEAD_DAYS} gündən uzaq ola bilməz — ili yoxlayın.`;
+  }
+  return '';
+}
+
+export function get_push_schedules(
+  limit?: number,
+  status?: string,
+  tenant_id?: string,
+): PushScheduleResponse {
+  const tenantId = resolveTenant(tenant_id);
+  const clamped = Number.isFinite(Number(limit)) && Number(limit) > 0
+    ? Math.min(Math.trunc(Number(limit)), 200)
+    : PUSH_HISTORY_LIMIT;
+  const cleanStatus = String(status || '').trim().toLowerCase();
+  const rows = getSchedulesLocal(tenantId)
+    .filter((row) => !cleanStatus || String(row.status || '') === cleanStatus)
+    .sort((a, b) => new Date(String(a.scheduled_at || '')).getTime() - new Date(String(b.scheduled_at || '')).getTime())
+    .slice(0, clamped);
+  return { items: rows, count: rows.length, statuses: ['pending', 'sent', 'canceled', 'failed'] };
+}
+
+export async function get_push_schedules_live(
+  limit?: number,
+  status?: string,
+  campaign_id?: string,
+): Promise<PushScheduleResponse> {
+  if (!isBackendEnabled()) return get_push_schedules(limit, status);
+  const params = new URLSearchParams();
+  params.set('limit', String(limit || PUSH_HISTORY_LIMIT));
+  const cleanStatus = String(status || '').trim().toLowerCase();
+  if (cleanStatus) params.set('status', cleanStatus);
+  const cleanCampaign = String(campaign_id || '').trim();
+  if (cleanCampaign) params.set('campaign_id', cleanCampaign);
+  return apiRequest<PushScheduleResponse>(`/api/v1/ops/push/schedule?${params.toString()}`, { tenantId: null });
+}
+
+/**
+ * Plan yaradır. Lokal rejimdə sətir yalnız **siyahıda** görünür (göndərilmir) —
+ * brauzerdə scheduler yoxdur, ona görə "göndərildi" demək P0.7-nin pozulması olardı.
+ */
+export function create_push_schedule(payload: PushScheduleInput, tenant_id?: string): PushScheduleItem {
+  const tenantId = resolveTenant(tenant_id);
+  const body = String(payload?.body || '').trim();
+  if (!body) throw new Error('Bildiriş mətni boşdur.');
+  const url = String(payload?.url || '').trim();
+  if (url && !url.startsWith('https://')) throw new Error('Keçid ünvanı https:// ilə başlamalıdır.');
+  const reason = validateScheduleWindow(payload?.scheduled_at);
+  if (reason) throw new Error(reason);
+
+  const row: PushScheduleItem = {
+    id: uuidv4(),
+    title: String(payload?.title || '').trim().slice(0, MAX_PUSH_TITLE),
+    body: body.slice(0, MAX_PUSH_BODY),
+    url: url || null,
+    // Seqment **dondurulur** (backend `create_schedule` ilə eyni səbəb): göndərmə
+    // anında yenidən hesablamaq adminin təsdiqlədiyi dəsti dəyişərdi.
+    audience: normalizeAudienceSpec(payload?.audience),
+    campaign_id: String(payload?.campaign_id || '').trim() || null,
+    status: 'pending',
+    scheduled_at: new Date(String(payload?.scheduled_at)).toISOString(),
+    executed_at: null,
+    error: null,
+    delivery_id: null,
+    created_by: 'local',
+    created_at: new Date().toISOString(),
+  };
+  saveSchedulesLocal(tenantId, [row, ...getSchedulesLocal(tenantId)]);
+  logEvent('admin', 'PUSH_SCHEDULE_CREATED', {
+    tenant_id: tenantId,
+    schedule_id: row.id,
+    scheduled_at: row.scheduled_at,
+    audience: row.audience,
+    campaign_id: row.campaign_id,
+  });
+  return row;
+}
+
+export async function create_push_schedule_live(payload: PushScheduleInput): Promise<PushScheduleItem> {
+  if (!isBackendEnabled()) return create_push_schedule(payload);
+  const spec = normalizeAudienceSpec(payload?.audience);
+  // `<input type="datetime-local">` **ofsetsiz** sətir verir ("2026-10-11T18:30") və
+  // brauzer onu yerli vaxt kimi oxuyur, backend isə naive sətri UTC sayır —
+  // Bakıda (UTC+4) plan 4 saat gec göndərilərdi. Ona görə burada ISO UTC-yə
+  // çevrilir (lokal yolda da eyni çevrilmə var: `create_push_schedule`).
+  // Xarab dəyər `toISOString()`-də `RangeError` atardı — əvvəlcə yoxlayırıq.
+  const reason = validateScheduleWindow(payload?.scheduled_at);
+  if (reason) throw new Error(reason);
+  const scheduledAt = new Date(String(payload?.scheduled_at)).toISOString();
+  const res = await apiRequest<{ success: boolean; schedule: PushScheduleItem }>(
+    '/api/v1/ops/push/schedule',
+    {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        title: String(payload?.title || ''),
+        body: String(payload?.body || ''),
+        url: String(payload?.url || '') || null,
+        scheduled_at: scheduledAt,
+        campaign_id: String(payload?.campaign_id || '') || null,
+        audience: {
+          segment: spec.segment,
+          value: spec.value,
+          days: spec.days,
+          min_stars: spec.min_stars,
+        },
+      },
+    },
+  );
+  return res.schedule;
+}
+
+/**
+ * Gözləyən planı ləğv edir. Artıq göndərilmiş plan üçün **atır**: bildiriş
+ * telefonlardadır, geri alınmır — panel bunu `409` kimi göstərir.
+ */
+export function cancel_push_schedule(schedule_id: string, tenant_id?: string): PushScheduleItem {
+  const tenantId = resolveTenant(tenant_id);
+  const id = String(schedule_id || '').trim();
+  const rows = getSchedulesLocal(tenantId);
+  const row = rows.find((r) => String(r.id) === id);
+  if (!row) throw new Error('Plan tapılmadı');
+  if (String(row.status) !== 'pending') {
+    throw new Error(`Bu plan artıq '${row.status}' statusundadır — ləğv edilə bilməz.`);
+  }
+  const next: PushScheduleItem = {
+    ...row,
+    status: 'canceled',
+    executed_at: new Date().toISOString(),
+    error: 'local istifadəçisi tərəfindən ləğv edildi',
+  };
+  saveSchedulesLocal(tenantId, rows.map((r) => (String(r.id) === id ? next : r)));
+  logEvent('admin', 'PUSH_SCHEDULE_CANCELED', { tenant_id: tenantId, schedule_id: id });
+  return next;
+}
+
+export async function cancel_push_schedule_live(schedule_id: string): Promise<PushScheduleItem> {
+  if (!isBackendEnabled()) return cancel_push_schedule(schedule_id);
+  const id = String(schedule_id || '').trim();
+  const res = await apiRequest<{ success: boolean; schedule: PushScheduleItem }>(
+    `/api/v1/ops/push/schedule/${encodeURIComponent(id)}`,
+    { method: 'DELETE', tenantId: null },
+  );
+  return res.schedule;
 }

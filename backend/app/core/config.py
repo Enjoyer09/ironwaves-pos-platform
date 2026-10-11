@@ -115,6 +115,15 @@ class Settings(BaseSettings):
     apple_wallet_cert_path: str | None = None
     apple_wallet_key_path: str | None = None
 
+    # F3/F6 — epoint.az ödəniş (test rejimi). Açarlar gələnə qədər None qalır,
+    # endpoint-lər 503 qaytarır (fail-closed, wallet pass kimi).
+    epoint_public_key: str | None = None
+    epoint_private_key: str | None = None
+    epoint_base_url: str = "https://epoint.az/api/1"
+    epoint_language: str = "az"
+    epoint_success_redirect_url: str | None = None
+    epoint_failed_redirect_url: str | None = None
+
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_from_number: str | None = None

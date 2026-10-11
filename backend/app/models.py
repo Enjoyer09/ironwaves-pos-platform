@@ -298,6 +298,29 @@ class Payment(Base):
     paid_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class EpointPayment(Base):
+    """F3/F6 — epoint.az onlayn ödəniş cəhdi (müşteri app sifariş/balans üçün)."""
+
+    __tablename__ = "epoint_payments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    #: KitchenOrder.id (sifariş ödənişi); balans artırmaqda None qalır.
+    order_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    currency: Mapped[str] = mapped_column(String(8), default="AZN")
+    #: epoint transaction identifikatoru (yaratdıqdan sonra qaytarılır).
+    transaction: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    #: new / success / failed / returned / error / server_error (epoint statusları).
+    status: Mapped[str] = mapped_column(String(24), default="new")
+    code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    rrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class InventoryItem(Base):
     __tablename__ = "inventory_items"
 
@@ -526,6 +549,9 @@ class KitchenOrder(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
     sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     table_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: F5.2 — online sifarişin seçildiyi filial (tenant_branches.id; filial
+    #: cədvəli yoxdursa tenant.id). `table_label` yalnız oxunur, id saxlanır.
+    store_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     order_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     card_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(16), default="NEW")
@@ -552,6 +578,13 @@ class Customer(Base):
     push_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    # P4.1 — kanal bazlı marketinq razılığı (global standart).
+    # Tətbiqə qoşulmaq push razılığı demək deyil; hər kanal ayrıca saxlanılır.
+    # Defoltlar: push=true (tətbiq istifadəçisi bildiriş almaq istəyir),
+    # email/sms=false (ayrıca razılıq tələb olunur — kanal spam-ı qadağandır).
+    push_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    email_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    sms_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -615,6 +648,10 @@ class PushDelivery(Base):
     segment_value: Mapped[str | None] = mapped_column(String(80), nullable=True)
     #: hadisə push-unda hədəf müştəri; broadcast-da NULL
     card_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    #: P4.2 — bildiriş hansı kampaniya (happy hour) üçün göndərilibsə onun id-si.
+    #: FK DEYİL: kampaniya silinsə tarixçə itməməlidir — "keçən ay bu kampaniyaya
+    #: nə göndərdik" sualının cavabı auditdir, kampaniyanın mövcudluğundan asılı deyil.
+    campaign_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     #: "sent" | "partial" | "failed" | "skipped"
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="skipped")
     #: konfiqurasiya mənbəyi: "tenant" | "platform" | "none"
@@ -627,6 +664,92 @@ class PushDelivery(Base):
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: paneldən göndərilibsə istifadəçi adı; avtomatik hadisədə NULL
     created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class PushSchedule(Base):
+    """P4.3 — planlanmış kütləvi bildiriş (gələcək vaxta saxlanmış göndərmə).
+
+    Niyə ayrı cədvəl: kampaniyanı sükut saatı bitəndə elan etmək üçün admin gecə
+    oyaq qalmamalıdır. Cədvəl **niyyəti** saxlayır; göndərməni `push_scheduler`
+    edir və nəticəni `push_deliveries`-ə yazır — yəni tarixçə tək mənbədə qalır.
+
+    Seqment `spec_json`-da **dondurulur** (segment/value/days/min_stars). Səbəb:
+    planlama anındaki seqmenti göndərmə anında yenidən hesablamaq "128 nəfərə
+    gedəcək" deyib başqa dəstəyə göndərərdi; adminsə hansı müştərilərin nəzərdə
+    tutulduğunu təsdiqləyib.
+    """
+
+    __tablename__ = "push_schedules"
+    __table_args__ = (
+        # Scheduler hər dövrədə "vaxtı çatmış gözləyənlər"i soruşur.
+        Index("ix_push_schedules_due", "status", "scheduled_at"),
+        Index("ix_push_schedules_tenant_status", "tenant_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    #: `push_audience.normalize_audience_spec` çıxışı (JSON).
+    spec_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    #: P4.2 — hansı kampaniya üçün elan (atribusiya). FK deyil, `PushDelivery`
+    #: ilə eyni səbəb: silinmiş kampaniya tarixçəni itirməməlidir.
+    campaign_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    #: "pending" | "sent" | "canceled" | "failed"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    #: Göndərmə **cəhdi** olubsa vaxt. `status="failed"` olsa da doldurulur — yoxsa
+    #: scheduler onu hər dövrədə sonsuz yenidən cəhd edərdi.
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Uğurlu göndərmədən sonra yaranan `push_deliveries` sətri (izlənə bilənlik).
+    delivery_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PushEngagement(Base):
+    """P4.5 — bildirişə **toxunma** hadisəsi (açılma/klik).
+
+    Niyə ayrı cədvəl: `push_deliveries` bir göndərmədir (bir sətir = min
+    müştəriyə gedən bir yayım), açılma isə **müştəri başına** hadisədir. Sayğacı
+    həmin sətrə yazsaq "400 nəfərə getdi, 3 açıldı" məlumatı itər və eyni adamın
+    iki dəfə toxunması ilə üç adamın toxunması ayırd olunmazdı.
+
+    **Yalnız tətbiq içindən gəlir.** OneSignal-ın "web push webhooks" xüsusiyyəti
+    burada İŞLƏMİR: o, yalnız brauzer üçündür, mobil tətbiq push-una şamil
+    olunmur və səhifə açıq olmasını tələb edir (yəni tətbiq bağlı olanda bildirişə
+    toxunma heç vaxt qeyd olunmazdı). Ona görə hadisə **Capacitor**-ın
+    `pushNotificationActionPerformed` çağırışından gəlir və göndərmə ilə
+    `data.delivery_id` vasitəsilə əlaqələnir.
+
+    `subscription_id` + `kind` UNIKALdır: mobil şəbəkə eyni hadisəni iki dəfə
+    göndərə bilər (OneSignal öz sənədində idempotentliyi tələb edir), təkrar
+    sətir isə "daha çox açılma" kimi oxunardı.
+    """
+
+    __tablename__ = "push_engagement"
+    __table_args__ = (
+        UniqueConstraint(
+            "delivery_id", "subscription_id", "kind", name="uq_push_engagement_event"
+        ),
+        Index("ix_push_engagement_tenant_created", "tenant_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    #: `push_deliveries.id` — payload-daki korrelyasiya id-si. FK **deyil**:
+    #: jurnal təmizlənsə açılma sətri silinməməlidir (o, ayrıca faktdır).
+    delivery_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    #: OneSignal abunəlik id-si — təkrarsızlıq açarının bir hissəsidir.
+    subscription_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    #: "opened" — bu gün yeganə dəstəklənən növ. "clicked" üçün yer saxlanılır.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="opened")
+    #: Toxunma anındaki müştəri kartı (session-dan). Boş ola bilər: abunəlik
+    #: mövcuddur, amma müştəri kartı hələ bağlanmayıb.
+    card_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 

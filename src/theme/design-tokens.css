@@ -1,0 +1,106 @@
+/* iRonWaves Customer iOS / Quiet UI v2
+ * Proposed design system, not yet imported by the live customer app.
+ * Scope prevents accidental changes to POS/admin. Apply data-customer-theme
+ * on the SAME element as customer-design-system. No global :root overrides.
+ */
+.customer-design-system {
+  color-scheme: light;
+  --c-background: #f5f5f7;
+  --c-surface: #ffffff;
+  --c-surface-secondary: #ededf0;
+  --c-text: #1c1c1e;
+  --c-text-secondary: #646469;
+  --c-text-muted: #707075;
+  --c-separator: #dedee3;
+  --c-brand: #f48c24; /* Decorative brand identity; not small text on white. */
+  --c-action: #a94708; /* White label on action fill, or action text on white. */
+  --c-action-pressed: #883805;
+  --c-tint: #fff2e8;
+  --c-on-action: #ffffff;
+  --c-inverse: #1c1c1e;
+  --c-on-inverse: #ffffff;
+  --c-success: #207a42;
+  --c-success-soft: #eaf7ee;
+  --c-danger: #ba2531;
+  --c-danger-soft: #fff0f1;
+  --c-warning: #8a5900;
+  --c-warning-soft: #fff5dc;
+  --c-info: #155ecb;
+  --c-info-soft: #edf3ff;
+  --c-font: -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+  --c-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --c-text-large-title: 2.125rem; /* 34px at default root size */
+  --c-text-title-1: 1.75rem;
+  --c-text-title-2: 1.375rem;
+  --c-text-headline: 1.0625rem;
+  --c-text-body: 1.0625rem;
+  --c-text-subheadline: 0.9375rem;
+  --c-text-footnote: 0.8125rem;
+  --c-text-caption: 0.75rem;
+  --c-line-tight: 1.15;
+  --c-line-body: 1.45;
+  --c-space-1: 4px;
+  --c-space-2: 8px;
+  --c-space-3: 12px;
+  --c-space-4: 16px;
+  --c-space-5: 20px;
+  --c-space-6: 24px;
+  --c-space-8: 32px;
+  --c-space-12: 48px;
+  --c-radius-control: 12px;
+  --c-radius-card: 20px;
+  --c-radius-sheet: 28px;
+  --c-radius-pill: 999px;
+  --c-touch-min: 48px;
+  --c-shadow-card: none;
+  --c-shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.14);
+  --c-duration-feedback: 120ms;
+  --c-duration-transition: 240ms;
+  --c-ease: cubic-bezier(0.2, 0, 0, 1);
+  font-family: var(--c-font);
+  color: var(--c-text);
+}
+.customer-design-system[data-customer-theme="dark"] {
+  color-scheme: dark;
+  --c-background: #101012;
+  --c-surface: #1c1c1e;
+  --c-surface-secondary: #2c2c2e;
+  --c-text: #f5f5f7;
+  --c-text-secondary: #bebec4;
+  --c-text-muted: #a0a0a8;
+  --c-separator: #414145;
+  --c-brand: #ffa452;
+  --c-action: #ffb077;
+  --c-action-pressed: #ffc49a;
+  --c-tint: #352619;
+  --c-on-action: #271508;
+  --c-inverse: #f5f5f7;
+  --c-on-inverse: #1c1c1e;
+  --c-success: #74d394;
+  --c-success-soft: #193424;
+  --c-danger: #ff9198;
+  --c-danger-soft: #3b1e22;
+  --c-warning: #f1ca72;
+  --c-warning-soft: #372d18;
+  --c-info: #93bdff;
+  --c-info-soft: #192c46;
+  --c-shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+.customer-design-system :focus-visible {
+  outline: 2px solid var(--c-action);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-design-system {
+    --c-duration-feedback: 0ms;
+    --c-duration-transition: 0ms;
+  }
+  .customer-design-system *,
+  .customer-design-system *::before,
+  .customer-design-system *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

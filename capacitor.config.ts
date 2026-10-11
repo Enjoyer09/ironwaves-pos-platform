@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.ironwaves.loyalty',
-  appName: 'iRonWaves Loyalty',
+  appId: 'com.emalatcoffee.loyalty',
+  appName: 'Emalat Coffee',
   webDir: 'dist',
   packageClassList: [
     'CAPCameraPlugin',

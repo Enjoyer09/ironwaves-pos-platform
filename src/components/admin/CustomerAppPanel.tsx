@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Eye, UserCheck, Home, Coffee, Gift, MessageSquare, UserRound, Bell, Send } from 'lucide-react';
+import { MapPin, Palette, Plus, Sparkles, Trash2 , Clock, Calendar, Star, Eye, UserCheck, Home, Coffee, Gift, MessageSquare, UserRound, Bell, Send, Moon, CalendarClock, TrendingUp } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -11,15 +11,24 @@ import type { PushSettingsPatch } from '../../api/settings';
 // mərkəzi qurmuruq — panel yalnız cavabı göstərir.
 import {
   PUSH_HISTORY_LIMIT,
+  cancel_push_schedule_live,
+  create_push_schedule_live,
+  get_push_campaign_stats_live,
+  get_push_funnel_live,
   get_push_history_live,
+  get_push_schedules_live,
   get_push_status_live,
   preview_push_audience_live,
   send_push_broadcast_live,
   send_push_test_live,
+  validateScheduleWindow,
 } from '../../api/push_admin';
 import type {
+  CampaignPushStat,
   PushAudienceInput,
+  PushFunnelResponse,
   PushHistoryItem,
+  PushScheduleItem,
   PushSendResult,
   PushStatus,
 } from '../../api/push_admin';
@@ -44,6 +53,9 @@ import {
 } from '../../lib/loyalty';
 // Hədiyyə sətri konkret menyu məhsuluna bağlana bilər — seçim siyahısı üçün.
 // `get_menu_items_live` hər iki rejimdə işləyir (backend yoxdursa lokal DB).
+// P4.3 — sükut saatı etiketini formatlayan yeganə funksiya (`push.ts` = `push_schedule.py`
+// güzgüsü). Panel özü saat hesablamır, yoxsa ekranda bir vaxt, serverdə başqası olardı.
+import { formatHhmm } from '../../lib/push';
 import { get_menu_items_live } from '../../api/menu';
 import type { CustomerAppReward, CustomerAppTier } from '../../types/pos';
 
@@ -76,6 +88,14 @@ const PUSH_KIND_LABELS: Record<string, [string, string, string]> = {
   event: ['Hadisə', 'Событие', 'Event'],
   test: ['Test', 'Тест', 'Test'],
   broadcast: ['Kütləvi', 'Массовая', 'Broadcast'],
+};
+
+/** `push_schedules.status` → rəng. `canceled` sükutla keçməsin deyə ayrı ton. */
+const PUSH_SCHEDULE_STATUS_STYLE: Record<string, string> = {
+  pending: 'border-sky-400/40 bg-sky-500/10 text-sky-200',
+  sent: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200',
+  canceled: 'border-slate-600 bg-slate-800/60 text-slate-300',
+  failed: 'border-rose-400/40 bg-rose-500/10 text-rose-200',
 };
 
 // P1.1 — P0.4-də bu fayldaki `NotAppliedBadge` dörd sahəni "tətbiqdə hələ
@@ -181,6 +201,13 @@ export default function CustomerAppPanel() {
     event_push_enabled: true,
     broadcast_enabled: false,
     broadcast_daily_limit: '3',
+    // P4.3 — fasilə və sükut saatları. `quiet_start`/`quiet_end` **sətirdir**:
+    // `<input type="time">` boş sətri `""` verir və normalizer onu defaulta
+    // salır, yoxsa admin sahəni təmizləyəndə pəncərə səssizcə gecə yarısına düşərdi.
+    broadcast_cooldown_minutes: '0',
+    quiet_enabled: false,
+    quiet_start: '22:00',
+    quiet_end: '09:00',
   });
 
   // Kütləvi bildiriş yazıcısı. `days` / `min_stars` SƏTİRDİR: boş buraxılanda
@@ -189,6 +216,9 @@ export default function CustomerAppPanel() {
   const [pushCompose, setPushCompose] = useState({
     title: '', body: '', url: '',
     segment: 'all', value: '', days: '', min_stars: '',
+    // P4.2 — bildiriş hansı kampaniyaya bağlanır. Boş = ümumi kütləvi bildiriş.
+    // Atribusiya üçündür: göndərmə məntiqini dəyişmir.
+    campaign_id: '',
   });
   const [pushAudience, setPushAudience] = useState<{ key: string; data: PushStatus['subscribers'] } | null>(null);
   const [pushAudienceBusy, setPushAudienceBusy] = useState(false);
@@ -199,6 +229,18 @@ export default function CustomerAppPanel() {
   const [pushTesting, setPushTesting] = useState(false);
   const [pushHistory, setPushHistory] = useState<PushHistoryItem[]>([]);
   const [pushHistoryKind, setPushHistoryKind] = useState('');
+  // P4.2 — kampaniya üzrə göndərmə xülasəsi (`/push/campaign-stats`).
+  const [campaignPushStats, setCampaignPushStats] = useState<Record<string, CampaignPushStat>>({});
+  // P4.3 — planlanmış bildirişlər. Göndərməni backend-dəki scheduler edir; panel
+  // yalnız sıradakı işi göstərir və ləğv edir (lokal rejimdə göndərilmir).
+  const [pushSchedules, setPushSchedules] = useState<PushScheduleItem[]>([]);
+  const [pushScheduleForm, setPushScheduleForm] = useState({ scheduled_at: '' });
+  const [pushScheduleBusy, setPushScheduleBusy] = useState(false);
+  // P4.4 — göndərmə → istifadə hunisi. `null` = hələ yüklənməyib; xəta ayrıca
+  // saxlanılır ki, "rəqəm yoxdur" ilə "hesablanmadı" qarışmasın.
+  const [pushFunnel, setPushFunnel] = useState<PushFunnelResponse | null>(null);
+  const [pushFunnelDays, setPushFunnelDays] = useState(90);
+  const [pushFunnelError, setPushFunnelError] = useState('');
 
   const [form, setForm] = useState({
 
@@ -391,6 +433,10 @@ export default function CustomerAppPanel() {
       event_push_enabled: Boolean(st.settings?.event_push_enabled),
       broadcast_enabled: Boolean(st.settings?.broadcast_enabled),
       broadcast_daily_limit: String(st.settings?.broadcast_daily_limit ?? 0),
+      broadcast_cooldown_minutes: String(st.settings?.broadcast_cooldown_minutes ?? 0),
+      quiet_enabled: Boolean(st.settings?.quiet_enabled),
+      quiet_start: String(st.settings?.quiet_start || '22:00'),
+      quiet_end: String(st.settings?.quiet_end || '09:00'),
     });
     // Seqment kataloqu serverdən gəlir; seçilmiş seqment siyahıda yoxdursa
     // (köhnə vəziyyət) `all`-a qaytarırıq, yoxsa preview həmişə boş qayıdar.
@@ -419,12 +465,146 @@ export default function CustomerAppPanel() {
     }
   };
 
+  // P4.2 — kampaniya üzrə göndərmə sayı. Tarixçə siyahısı `limit` ilə kəsilir,
+  // ona görə say **ayrı aqreqatdan** gəlir (oradan saysaq yalan rəqəm çıxardı).
+  const loadCampaignPushStats = async () => {
+    try {
+      setCampaignPushStats(await get_push_campaign_stats_live());
+    } catch {
+      setCampaignPushStats({});
+    }
+  };
+
+  /** P4.4 — göndərmə → istifadə hunisi. Xəta bloku bağlamır, ayrıca göstərilir. */
+  const loadPushFunnel = async (days?: number) => {
+    const window = Number(days) > 0 ? Math.trunc(Number(days)) : pushFunnelDays;
+    try {
+      setPushFunnel(await get_push_funnel_live(window));
+      setPushFunnelError('');
+    } catch (e: any) {
+      setPushFunnel(null);
+      setPushFunnelError(
+        String(e?.message || tx(lang, 'Ölçmə hesablanmadı', 'Не удалось посчитать', 'Could not compute')),
+      );
+    }
+  };
+
+  /** P4.3 — gözləyən planlar. Xəta bloku bağlamır (ikinci dərəcəli siyahıdır). */
+  const loadPushSchedules = async () => {
+    try {
+      const res = await get_push_schedules_live();
+      setPushSchedules(Array.isArray(res?.items) ? res.items : []);
+    } catch {
+      setPushSchedules([]);
+    }
+  };
+
+  /**
+   * P4.3 — "Sonra göndər". Cari yazıcıdaki mətn və seqment **dondurulur**:
+   * göndərmə anında yenidən hesablasaq adminin təsdiqlədiyi dəst dəyişərdi.
+   * Lokal rejimdə sətir yalnız siyahıda görünür — brauzerdə scheduler yoxdur,
+   * ona görə "göndərildi" demək olmaz.
+   */
+  const schedulePushBroadcast = async () => {
+    if (!pushCompose.body.trim()) {
+      notify('error', tx(lang, 'Bildiriş mətni boşdur.', 'Текст пуст.', 'Body is empty.'));
+      return;
+    }
+    const reason = validateScheduleWindow(pushScheduleForm.scheduled_at);
+    if (reason) {
+      notify('error', reason);
+      return;
+    }
+    setPushScheduleBusy(true);
+    try {
+      await create_push_schedule_live({
+        title: pushCompose.title.trim(),
+        body: pushCompose.body.trim(),
+        url: pushCompose.url.trim() || null,
+        scheduled_at: pushScheduleForm.scheduled_at,
+        audience: pushAudienceInput(),
+        campaign_id: pushCompose.campaign_id.trim() || null,
+      });
+      setPushScheduleForm({ scheduled_at: '' });
+      await loadPushSchedules();
+      flash(tx(lang, 'Plan yaradıldı', 'План создан', 'Schedule created'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Plan yaradılmadı', 'Не удалось создать план', 'Could not create the schedule'));
+    } finally {
+      setPushScheduleBusy(false);
+    }
+  };
+
+  const cancelPushSchedule = async (id: string) => {
+    if (!window.confirm(tx(lang, 'Bu plan ləğv edilsin?', 'Отменить этот план?', 'Cancel this schedule?'))) return;
+    setPushScheduleBusy(true);
+    try {
+      await cancel_push_schedule_live(id);
+      await loadPushSchedules();
+      flash(tx(lang, 'Plan ləğv edildi', 'План отменён', 'Schedule canceled'));
+    } catch (e: any) {
+      // Artıq göndərilmiş plan üçün server 409 verir — bu, səhv deyil, faktdır.
+      notify('error', e?.message || tx(lang, 'Plan ləğv edilmədi', 'Не удалось отменить', 'Could not cancel'));
+    } finally {
+      setPushScheduleBusy(false);
+    }
+  };
+
+  /** P4.2 — "Elan et": kampaniya üçün bildiriş yazıcısını əvvəlcədən doldurur. */
+  const announceCampaign = (c: any) => {
+    const discount = Number(c?.discount_percent || 0);
+    const days: number[] = Array.isArray(c?.days_of_week) ? c.days_of_week : [];
+    const dayNames: Record<number, { az: string; ru: string; en: string }> = {
+      1: { az: 'B.E', ru: 'Пн', en: 'Mon' }, 2: { az: 'Ç.A', ru: 'Вт', en: 'Tue' },
+      3: { az: 'Ç', ru: 'Ср', en: 'Wed' }, 4: { az: 'C.A', ru: 'Чт', en: 'Thu' },
+      5: { az: 'C', ru: 'Пт', en: 'Fri' }, 6: { az: 'Ş', ru: 'Сб', en: 'Sat' },
+      7: { az: 'B', ru: 'Вс', en: 'Sun' },
+    };
+    // Hər gün seçilibsə günləri sadalamaq artıqdır — "hər gün" daha aydındır.
+    const dayText = days.length >= 7
+      ? tx(lang, 'hər gün', 'каждый день', 'every day')
+      : days.map((d) => tx(lang, dayNames[d]?.az || '', dayNames[d]?.ru || '', dayNames[d]?.en || '')).filter(Boolean).join(', ');
+    const when = [dayText, `${c?.start_time || ''}-${c?.end_time || ''}`.trim()].filter(Boolean).join(' · ');
+    setPushCompose((prev) => ({
+      ...prev,
+      title: String(c?.name || ''),
+      body: tx(lang,
+        `${discount}% endirim! ${when}`.trim(),
+        `Скидка ${discount}%! ${when}`.trim(),
+        `${discount}% off! ${when}`.trim()),
+      // Kampaniya elanı **abunəçilərə** gedir; dar seqmenti admin özü seçir.
+      segment: 'all',
+      value: '',
+      campaign_id: String(c?.id || ''),
+    }));
+    setPushLastSend(null);
+    // İstifadəçini yazıcıya aparırıq — düymə "heç nə olmadı" təəssüratı verməsin.
+    window.setTimeout(() => {
+      document.getElementById('push-compose')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  };
+
   useEffect(() => {
     void loadPushStatus();
     void loadPushHistory(pushHistoryKind);
+    void loadCampaignPushStats();
+    void loadPushSchedules();
+    void loadPushFunnel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, pushHistoryKind]);
 
+  // Kampaniyanın göndərmə sayı bildiriş göndərildikdən sonra dəyişir; hər
+  // uğurlu göndərmədən sonra xülasə yenilənir (aşağıda `afterBroadcast`).
+  const refreshAfterBroadcast = async () => {
+    await Promise.all([
+      loadPushStatus(),
+      loadPushHistory(pushHistoryKind),
+      loadCampaignPushStats(),
+      loadPushSchedules(),
+      // Yeni göndərmə huninin göndərmə pilləsini dəyişir (istifadə hələ yox).
+      loadPushFunnel(),
+    ]);
+  };
   const pushComposeKey = pushSpecKey(
     pushCompose.segment, pushCompose.value, pushCompose.days, pushCompose.min_stars,
   );
@@ -498,6 +678,12 @@ export default function CustomerAppPanel() {
         event_push_enabled: pushForm.event_push_enabled,
         broadcast_enabled: pushForm.broadcast_enabled,
         broadcast_daily_limit: Number(pushForm.broadcast_daily_limit || 0),
+        broadcast_cooldown_minutes: Number(pushForm.broadcast_cooldown_minutes || 0),
+        quiet_enabled: pushForm.quiet_enabled,
+        // Boş `<input type="time">` **göndərilmir**: normalizer onsuz da defaulta
+        // salır, amma `""` göndərmək "gecə yarısı" kimi oxuna bilərdi.
+        quiet_start: pushForm.quiet_start.trim() || undefined,
+        quiet_end: pushForm.quiet_end.trim() || undefined,
         onesignal_app_id: pushForm.onesignal_app_id.trim(),
       };
       // Açar YALNIZ admin yeni dəyər yazanda göndərilir. Boş sahə "dəyişmə"
@@ -554,13 +740,14 @@ export default function CustomerAppPanel() {
         body: pushCompose.body.trim(),
         url: pushCompose.url.trim(),
         audience: pushAudienceInput(),
+        campaign_id: pushCompose.campaign_id.trim() || null,
       });
       setPushLastSend(res);
       // `success === false` real haldır (lokal rejim, natamam konfiqurasiya,
       // provayder xətası) — səssiz keçmək P0.7-nin pozulmasıdır.
       if (res.success) flash(tx(lang, `Göndərildi: ${res.result.accepted}`, `Отправлено: ${res.result.accepted}`, `Sent: ${res.result.accepted}`));
       else notify('error', res.result.error || tx(lang, 'Göndərilmədi', 'Не отправлено', 'Not sent'));
-      await Promise.all([loadPushStatus(), loadPushHistory(pushHistoryKind)]);
+      await refreshAfterBroadcast();
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Bildiriş göndərilmədi', 'Уведомление не отправлено', 'Notification not sent'));
     } finally {
@@ -2170,8 +2357,23 @@ export default function CustomerAppPanel() {
                      return <span key={d} className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-300">{tx(lang, dayNames[d]?.az || '', dayNames[d]?.ru || '', dayNames[d]?.en || '')}</span>;
                    })}
                 </div>
+                {/* P4.2 — bu kampaniya üçün nə qədər bildiriş getdiyi */}
+                {campaignPushStats[String(c.id)] ? (
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    <Bell size={11} className="inline mr-1" />
+                    {tx(lang,
+                      `${campaignPushStats[String(c.id)].sends} bildiriş · ${campaignPushStats[String(c.id)].accepted} çatdı`,
+                      `${campaignPushStats[String(c.id)].sends} уведомл. · ${campaignPushStats[String(c.id)].accepted} доставлено`,
+                      `${campaignPushStats[String(c.id)].sends} notification(s) · ${campaignPushStats[String(c.id)].accepted} delivered`)}
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => announceCampaign(c)}
+                  className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-bold text-amber-200">
+                  <Send size={13} className="inline mr-1" />
+                  {tx(lang, 'Elan et', 'Объявить', 'Announce')}
+                </button>
                 <button type="button" onClick={() => startEditCampaign(c)} className="rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200">
                   {tx(lang, 'Düzəlt', 'Изменить', 'Edit')}
                 </button>
@@ -2424,11 +2626,14 @@ export default function CustomerAppPanel() {
         ) : null}
 
         {pushStatus ? (
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
             {([
               [tx(lang, 'Abunə', 'Подписки', 'Subscribed'), pushStatus.subscribers.with_token],
               [tx(lang, 'Çatdırıla bilən', 'Доставляемые', 'Deliverable'), pushStatus.subscribers.recipients],
               [tx(lang, 'Çatdırılmayan', 'Недоставляемые', 'Undeliverable'), pushStatus.subscribers.undeliverable],
+              // P4.1 — razılığı geri götürənlər. Bu rəqəm artım göstərdikdə
+              // göndərmə sayının düşməsi nasazlıq deyil, uyğunluqdur.
+              [tx(lang, 'İmtina edən', 'Отказались', 'Opted out'), pushStatus.subscribers.no_consent],
               [tx(lang, 'Müştəri (cəmi)', 'Клиентов всего', 'Customers total'), pushStatus.subscribers.total],
             ] as Array<[string, number]>).map(([label, value]) => (
               <div key={label} className="rounded-xl border border-slate-700 bg-slate-900/50 p-3">
@@ -2496,6 +2701,21 @@ export default function CustomerAppPanel() {
               {tx(lang, '0 yazsanız kütləvi bildiriş tam bağlanır (limitsiz demək deyil).', '0 полностью блокирует массовые (не «без лимита»).', '0 blocks broadcasts entirely (not “unlimited”).')}
               {pushStatus ? ` ${tx(lang, 'Bu gün', 'Сегодня', 'Today')}: ${pushStatus.broadcast.used_today}/${pushStatus.broadcast.daily_limit}` : ''}
             </span>
+            {/* P4.3 — fasilə. Gündəlik hədd "neçə dəfə" sualına cavab verir, bu isə
+                "nə qədər tez-tez": beş bildirişi 10 dəqiqə içində göndərmək həddi
+                keçməz, amma müştərilər üçün spamdır. */}
+            <label className="space-y-1 text-sm text-slate-300">
+              <span className="block text-xs text-slate-400">{tx(lang, 'Fasilə (dəqiqə)', 'Пауза (мин)', 'Cooldown (min)')}</span>
+              <input className="neon-input w-28" type="number" min={0} max={1440}
+                value={pushForm.broadcast_cooldown_minutes}
+                onChange={(e) => setPushForm((prev) => ({ ...prev, broadcast_cooldown_minutes: e.target.value }))} />
+            </label>
+            <span className="text-[11px] text-slate-500">
+              {tx(lang, '0 = fasilə yoxdur. İki kütləvi bildiriş arasında minimum vaxt.', '0 = без паузы. Минимум между рассылками.', '0 = no cooldown. Minimum time between two broadcasts.')}
+              {pushStatus && pushStatus.broadcast.cooldown_remaining_minutes > 0
+                ? ` · ${tx(lang, 'Gözlənilir', 'Ждать', 'Waiting')}: ${pushStatus.broadcast.cooldown_remaining_minutes} ${tx(lang, 'dəq', 'мин', 'min')}`
+                : ''}
+            </span>
             <div className="ml-auto flex gap-2">
               {pushStatus?.settings.onesignal_rest_api_key_set ? (
                 <button onClick={() => { void clearPushRestKey(); }} disabled={pushSaving}
@@ -2511,7 +2731,49 @@ export default function CustomerAppPanel() {
           </div>
         </div>
 
+        {/* P4.3 — sükut saatları. Panelin göstərdiyi vəziyyət `pushStatus.broadcast.quiet`-dən
+            gəlir (server hesablayır), forma isə yalnız redaktə üçündür — yoxsa ekranda
+            "sükut yoxdur" yazıb serverin bloklaması izahsız qalardı. */}
         <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <Moon size={15} /> {tx(lang, 'Sükut saatları', 'Тихие часы', 'Quiet hours')}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={pushForm.quiet_enabled}
+                onChange={(e) => setPushForm((prev) => ({ ...prev, quiet_enabled: e.target.checked }))} />
+              <span>{tx(lang, 'Gecə bildiriş göndərilməsin', 'Не отправлять ночью', 'Do not send at night')}</span>
+            </label>
+            <label className="space-y-1 text-sm text-slate-300">
+              <span className="block text-xs text-slate-400">{tx(lang, 'Başlanğıc', 'Начало', 'From')}</span>
+              <input className="neon-input" type="time" value={pushForm.quiet_start}
+                onChange={(e) => setPushForm((prev) => ({ ...prev, quiet_start: e.target.value }))} />
+            </label>
+            <label className="space-y-1 text-sm text-slate-300">
+              <span className="block text-xs text-slate-400">{tx(lang, 'Son', 'До', 'To')}</span>
+              <input className="neon-input" type="time" value={pushForm.quiet_end}
+                onChange={(e) => setPushForm((prev) => ({ ...prev, quiet_end: e.target.value }))} />
+            </label>
+            <button onClick={() => { void savePushSettings(); }} disabled={pushSaving}
+              className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">
+              {pushSaving ? tx(lang, 'Saxlanır…', 'Сохранение…', 'Saving…') : tx(lang, 'Sükut saatlarını saxla', 'Сохранить тихие часы', 'Save quiet hours')}
+            </button>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            {tx(lang,
+              'Dərhal göndərmə sükut içində bloklanır. Planlanmış bildiriş isə itmir — sükut bitəndə avtomatik göndərilir.',
+              'Немедленная отправка в тихие часы блокируется. Запланированное уведомление не теряется — уйдёт автоматически после тихих часов.',
+              'An immediate send inside quiet hours is blocked. A scheduled notification is not lost — it goes out automatically once quiet hours end.')}
+          </div>
+          {pushStatus?.broadcast.quiet.inside ? (
+            <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              {tx(lang, 'Hazırda sükut saatıdır', 'Сейчас тихие часы', 'Quiet hours are active now')} ({pushStatus.broadcast.quiet.start}–{pushStatus.broadcast.quiet.end}).
+              {' '}{tx(lang, 'Növbəti icazəli vaxt', 'Следующее разрешённое время', 'Next allowed time')}: {formatHhmm(pushStatus.broadcast.quiet.next_allowed_minute, '00:00')}
+            </div>
+          ) : null}
+        </div>
+
+        <div id="push-compose" className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
             <Send size={15} /> {tx(lang, 'Kütləvi bildiriş göndər', 'Отправить массовое уведомление', 'Send a broadcast')}
           </div>
@@ -2540,6 +2802,29 @@ export default function CustomerAppPanel() {
             <textarea className="neon-input w-full" rows={2} maxLength={pushStatus?.limits.body ?? 240} value={pushCompose.body}
               placeholder={tx(lang, 'Kafeyə gəl, hər alışa 2 qat ulduz yazılır.', 'Заходите — двойные звёзды за каждую покупку.', 'Drop by — double stars on every purchase.')}
               onChange={(e) => setPushCompose((prev) => ({ ...prev, body: e.target.value }))} />
+          </label>
+
+          {/* P4.2 — kampaniya bağlantısı. Atribusiya üçündür: göndərilən bildiriş
+              tarixçədə hansı kampaniyaya aid olduğunu bilir. */}
+          <label className="block space-y-1 text-sm text-slate-300">
+            <span className="block text-xs text-slate-400">
+              {tx(lang, 'Kampaniya (istəyə görə)', 'Кампания (необязательно)', 'Campaign (optional)')}
+            </span>
+            <select className="neon-input w-full" value={pushCompose.campaign_id}
+              onChange={(e) => setPushCompose((prev) => ({ ...prev, campaign_id: e.target.value }))}>
+              <option value="">{tx(lang, '— kampaniyasız —', '— без кампании —', '— no campaign —')}</option>
+              {campaigns.map((c: any) => (
+                <option key={String(c.id)} value={String(c.id)}>
+                  {String(c.name || c.id)}{c.is_active ? '' : ` (${tx(lang, 'inaktiv', 'неактивна', 'inactive')})`}
+                </option>
+              ))}
+            </select>
+            <span className="block text-[11px] text-slate-500">
+              {tx(lang,
+                'Seçilsə bildiriş həmin kampaniyanın tarixçəsində görünür.',
+                'Если выбрано, уведомление появится в истории кампании.',
+                'If selected, the notification appears in that campaign’s history.')}
+            </span>
           </label>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -2595,6 +2880,7 @@ export default function CustomerAppPanel() {
                 <span className="text-[11px] text-slate-400">
                   {tx(lang, 'seqmentə uyğun', 'подходят', 'matched')}: {pushAudienceFresh.matched} · {tx(lang, 'abunə', 'подписаны', 'subscribed')}: {pushAudienceFresh.with_token}
                   {pushAudienceFresh.undeliverable > 0 ? ` · ${tx(lang, 'çatdırılmayan', 'недоставляемые', 'undeliverable')}: ${pushAudienceFresh.undeliverable}` : ''}
+                  {pushAudienceFresh.no_consent > 0 ? ` · ${tx(lang, 'imtina edən', 'отказались', 'opted out')}: ${pushAudienceFresh.no_consent}` : ''}
                   {pushAudienceFresh.capped ? ` · ${tx(lang, 'hədd tətbiq olundu', 'применён лимит', 'capped')}` : ''}
                 </span>
                 <span className="text-[11px] text-slate-500">{pushAudienceFresh.label}</span>
@@ -2641,6 +2927,83 @@ export default function CustomerAppPanel() {
             </div>
           ) : null}
 
+        </div>
+
+        {/* P4.3 — planlanmış göndərmələr. Yazıcı yuxarıdaki mətn/seqment sahələrini
+            işlədir: plan "indi" yox, "sonra" göndərir. Göndərməni backend-dəki
+            daemon scheduler edir (brauzer bağlı olsa da işləyir); lokal rejimdə
+            sətir yalnız siyahıda görünür və göndərilmir. */}
+        <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <CalendarClock size={15} /> {tx(lang, 'Planlanmış bildirişlər', 'Запланированные', 'Scheduled broadcasts')}
+            </div>
+            <label className="space-y-1 text-sm text-slate-300">
+              <span className="block text-xs text-slate-400">{tx(lang, 'Vaxt', 'Время', 'When')}</span>
+              <input className="neon-input" type="datetime-local" value={pushScheduleForm.scheduled_at}
+                onChange={(e) => setPushScheduleForm({ scheduled_at: e.target.value })} />
+            </label>
+            <button onClick={() => { void schedulePushBroadcast(); }}
+              disabled={pushScheduleBusy || !pushCompose.body.trim() || !pushScheduleForm.scheduled_at}
+              className="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">
+              {pushScheduleBusy ? tx(lang, 'Yaradılır…', 'Создание…', 'Creating…') : tx(lang, 'Bu mətni planla', 'Запланировать', 'Schedule this')}
+            </button>
+            <button onClick={() => { void loadPushSchedules(); }}
+              className="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300">
+              {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+            </button>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            {tx(lang,
+              'Yuxarıdaki başlıq, mətn, keçid və seqment dondurulur. Sükut saatına düşən plan itmir — sükut bitəndə avtomatik göndərilir.',
+              'Заголовок, текст, ссылка и сегмент фиксируются. План в тихие часы не теряется — уйдёт после них.',
+              'The title, body, link and audience above are frozen. A plan that lands in quiet hours is not lost — it goes out once they end.')}
+          </div>
+          {pushSchedules.length === 0 ? (
+            <div className="text-xs text-slate-500">{tx(lang, 'Planlanmış bildiriş yoxdur.', 'Запланированных нет.', 'No scheduled broadcasts.')}</div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-slate-900/90 text-slate-400">
+                  <tr>
+                    <th className="py-1 pr-2">{tx(lang, 'Vaxt', 'Время', 'When')}</th>
+                    <th className="py-1 pr-2">{tx(lang, 'Mətn', 'Текст', 'Message')}</th>
+                    <th className="py-1 pr-2">{tx(lang, 'Status', 'Статус', 'Status')}</th>
+                    <th className="py-1" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pushSchedules.map((row) => (
+                    <tr key={String(row.id)} className="border-t border-slate-800 align-top">
+                      <td className="py-1.5 pr-2 whitespace-nowrap text-slate-400">
+                        {String(row.scheduled_at || '').replace('T', ' ').slice(0, 16)}
+                      </td>
+                      <td className="py-1.5 pr-2 text-slate-300">
+                        <span className="block font-semibold">{String(row.title || '—')}</span>
+                        <span className="block text-[10px] text-slate-500">{String(row.body || '')}</span>
+                        {row.error ? <span className="block text-[10px] text-amber-300">{String(row.error)}</span> : null}
+                      </td>
+                      <td className="py-1.5 pr-2 whitespace-nowrap">
+                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${PUSH_SCHEDULE_STATUS_STYLE[String(row.status)] || PUSH_SCHEDULE_STATUS_STYLE.pending}`}>
+                          {String(row.status || '')}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-right">
+                        {/* Yalnız gözləyən plan ləğv olunur — göndərilmiş bildiriş
+                            telefonlardadır, geri alınmır. */}
+                        {String(row.status) === 'pending' ? (
+                          <button onClick={() => { void cancelPushSchedule(String(row.id)); }} disabled={pushScheduleBusy}
+                            className="rounded-lg border border-rose-400/40 px-2 py-0.5 text-[10px] font-semibold text-rose-200 disabled:opacity-50">
+                            {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
@@ -2707,6 +3070,176 @@ export default function CustomerAppPanel() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+
+        {/* P4.4/P4.5 — ölçmə və atribusiya. Panel burada **dürüst** olmalıdır.
+            P4.5-dən sonra açılma (open) siqnalı VAR, lakin qisməndir: hadisəni
+            yalnız tətbiq özü bildirir (`pushNotificationActionPerformed` →
+            `data.delivery_id` → POST /customer-app/push-engagement). Bildirişi
+            panel-dən silən müştəri görünmür, ona görə `open_tracking` bayrağı
+            `0` ilə "izlənmir"-i ayırır. Son pillə hələ də atribusiya deyil —
+            endirim tətbiqi satış sətrindən yazılır, səbəb isə bilinmir; yoxsa
+            admin "bildiriş X AZN qazandırdı" iddiasını sübutsuz qəbul edərdi. */}
+        <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <TrendingUp size={15} /> {tx(lang, 'Ölçmə: göndərmə → istifadə', 'Измерение: отправка → использование', 'Measurement: send → use')}
+            </div>
+            <label className="space-y-1 text-sm text-slate-300">
+              <span className="block text-xs text-slate-400">{tx(lang, 'Pəncərə (gün)', 'Окно (дней)', 'Window (days)')}</span>
+              <select className="neon-input w-24 text-xs" value={String(pushFunnelDays)}
+                onChange={(e) => { const d = Number(e.target.value); setPushFunnelDays(d); void loadPushFunnel(d); }}>
+                {[7, 30, 90, 180, 365].map((d) => (
+                  <option key={d} value={String(d)}>{d}</option>
+                ))}
+              </select>
+            </label>
+            <button onClick={() => { void loadPushFunnel(); }}
+              className="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300">
+              {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+            </button>
+          </div>
+
+          {/* Huninin nə olmadığını açıq deyirik — bu, məhsulun dürüstlük qaydasıdır. */}
+          <div className="rounded-xl border border-slate-600 bg-slate-800/40 p-3 text-[11px] leading-snug text-slate-300">
+            {tx(lang,
+              'Son pillə atribusiya deyil: kassa kampaniya endirimini tətbiq edəndə yazılır. Müştəri bildirişi görüb gəldi, yoxsa onsuz da gələcəkdi — bu, satış sətrindən bilinmir. Açılma yalnız tətbiq içindən bildirilir, yəni rəqəm "ən azı"dır: bildirişi panel-dən silən müştəri görünmür. "İzlənmir" yazısı "0 açılma" demək deyil.',
+              'Последний шаг — не атрибуция: он пишется, когда касса применяет скидку кампании. Пришёл ли гость из-за уведомления — из строки продажи не видно. Открытие сообщает только само приложение, поэтому цифра — это «как минимум»: гость, удаливший уведомление из шторки, не виден. Надпись «не отслеживается» не означает «0 открытий».',
+              'The last step is not attribution: it is written when the till applies the campaign discount. Whether the guest came because of the notification cannot be told from the sale row. Opens are reported only from inside the app, so the figure is a lower bound: a guest who dismisses the notification from the shade is not visible. "Not tracked" does not mean "0 opens".')}
+          </div>
+
+          {pushFunnelError ? (
+            <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-xs text-rose-100">{pushFunnelError}</div>
+          ) : !pushFunnel ? (
+            <div className="text-xs text-slate-500">{tx(lang, 'Hesablanır…', 'Считаем…', 'Computing…')}</div>
+          ) : pushFunnel.funnels.length === 0 ? (
+            <div className="text-xs text-slate-500">
+              {tx(lang,
+                `Son ${pushFunnel.days} gündə kampaniyaya bağlı bildiriş və ya endirim tətbiqi yoxdur.`,
+                `За последние ${pushFunnel.days} дней нет уведомлений или скидок, привязанных к кампании.`,
+                `No campaign-linked sends or discount applications in the last ${pushFunnel.days} days.`)}
+            </div>
+          ) : (
+            <>
+              {/* Cəm kartları. `customers` cəmdə `null`-dur (təkrarsız say
+                  aqreqatdan çıxmır) — ona görə ümumi kartda göstərilmir. */}
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">{tx(lang, 'Göndərilən', 'Отправлено', 'Sent to')}</div>
+                  <div className="text-lg font-bold text-slate-100">{pushFunnel.summary.recipients}</div>
+                  <div className="text-[10px] text-slate-500">
+                    {tx(lang, 'qəbul', 'принято', 'accepted')}: {pushFunnel.summary.accepted}
+                    {' · '}{pushFunnel.summary.delivery_rate}%
+                  </div>
+                </div>
+                {/* P4.5 — açılma. İzlənmirsə "0" yazmırıq: `0` uğursuzluq kimi
+                    oxunardı, halbuki sadəcə heç bir hadisə qeyd olunmayıb. */}
+                <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {tx(lang, 'Açılma (qismən)', 'Открытия (частично)', 'Opens (partial)')}
+                  </div>
+                  {pushFunnel.summary.open_tracking ? (
+                    <>
+                      <div className="text-lg font-bold text-slate-100">{pushFunnel.summary.opened}</div>
+                      <div className="text-[10px] text-slate-500">
+                        {tx(lang, 'ən azı', 'как минимум', 'at least')}: {pushFunnel.summary.open_rate}%
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-bold text-slate-500">—</div>
+                      <div className="text-[10px] text-slate-500">
+                        {tx(lang, 'izlənmir', 'не отслеживается', 'not tracked')}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">{tx(lang, 'Endirimli çek', 'Чеков со скидкой', 'Discounted orders')}</div>
+                  <div className="text-lg font-bold text-slate-100">{pushFunnel.summary.orders}</div>
+                  <div className="text-[10px] text-slate-500">
+                    {tx(lang, 'istifadə', 'использование', 'redemption')}: {pushFunnel.summary.redemption_rate}%
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">{tx(lang, 'Gəlir (endirimdən sonra)', 'Выручка (после скидки)', 'Revenue (after discount)')}</div>
+                  <div className="text-lg font-bold text-slate-100">{pushFunnel.summary.revenue.toFixed(2)} ₼</div>
+                  <div className="text-[10px] text-slate-500">
+                    {tx(lang, 'orta çek', 'средний чек', 'avg order')}: {pushFunnel.summary.avg_order_value.toFixed(2)} ₼
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">{tx(lang, 'Verilən endirim', 'Отдано скидкой', 'Discount given')}</div>
+                  <div className="text-lg font-bold text-slate-100">{pushFunnel.summary.discount.toFixed(2)} ₼</div>
+                  <div className="text-[10px] text-slate-500">
+                    {tx(lang, 'çek başına', 'на чек', 'per order')}: {pushFunnel.summary.discount_per_order.toFixed(2)} ₼
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-h-72 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-slate-900/90 text-slate-400">
+                    <tr>
+                      <th className="py-1 pr-2">{tx(lang, 'Kampaniya', 'Кампания', 'Campaign')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Göndərilən', 'Отправлено', 'Sent')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Çatdı', 'Доставлено', 'Delivered')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Açılma', 'Открытия', 'Opens')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Çek', 'Чеков', 'Orders')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Müştəri', 'Гостей', 'Customers')}</th>
+                      <th className="py-1 pr-2">{tx(lang, 'Gəlir', 'Выручка', 'Revenue')}</th>
+                      <th className="py-1">{tx(lang, 'İstifadə', 'Использование', 'Redemption')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pushFunnel.funnels.map((row) => (
+                      <tr key={row.campaign_id} className="border-t border-slate-800 align-top">
+                        <td className="py-1.5 pr-2 text-slate-200">
+                          <span className="block font-semibold">{row.campaign_name || row.campaign_id}</span>
+                          {row.attribution === 'no_redemption' ? (
+                            <span className="block text-[10px] text-amber-300">
+                              {tx(lang, 'endirim tətbiq olunmayıb', 'скидка не применена', 'no discount applied')}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">{row.recipients}</td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">
+                          {row.accepted}
+                          <span className="block text-[10px] text-slate-500">{row.delivery_rate}%</span>
+                        </td>
+                        {/* `open_tracking` false → "izlənmir", `0` yox. Açan adam
+                            sayı ayrı göstərilir: "40 açılma, 12 adam" ilə
+                            "40 açılma, 40 adam" fərqli hekayədir. */}
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">
+                          {row.open_tracking ? (
+                            <>
+                              {row.opened}
+                              <span className="block text-[10px] text-slate-500">
+                                {tx(lang, 'ən azı', 'как мин.', 'at least')} {row.open_rate}%
+                              </span>
+                              <span className="block text-[10px] text-slate-500">
+                                {row.openers} {tx(lang, 'nəfər', 'чел.', 'people')}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-slate-600">{tx(lang, 'izlənmir', 'не отсл.', 'n/a')}</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">{row.orders}</td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">{row.customers}</td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-slate-300">{row.revenue.toFixed(2)} ₼</td>
+                        <td className="py-1.5 whitespace-nowrap">
+                          <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${row.orders > 0 ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' : 'border-slate-600 bg-slate-800/60 text-slate-300'}`}>
+                            {row.redemption_rate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

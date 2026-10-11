@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emalat Liquid Glass v3 — Starbucks / Tim Hortons dərsləri ilə</title>
+<style>
+/* ============================================================
+   Emalat · Liquid Glass v3 "Informed"
+   v2 material sistemi qalır (4 pillə, specular, refraksiya).
+   v3 = UX qatı: dünyanın ən yaxşı kofe app-lərindən çıxarılan
+   6 konkret dərs tətbiq olunur:
+     1. Uyğun məhsulları filtrlə (McDonald's/Starbucks edir, Tims etmir)
+     2. "Aktivləşdir" düyməsini ləğv et (Tims-in əsas friksiyası)
+     3. Səbətdə təklif və mükafatı AYRI göstər (Tims hər şeyi "Reward" adlandırır)
+     4. Səbətə həmişə əlçatan ol (Starbucks-un üzən zənbili)
+     5. Sifariş izləmə: real mərhələ + vaxt (NN/g qaydaları)
+     6. Boş halda yönləndir, "sistem xətası" yox (Starbucks-un bağlı filialları)
+   Heç bir fayl import olunmayıb. Bu sənəd/konseptdir.
+   ============================================================ */
+
+:root{
+  --doc-bg:#e9e7ee;
+  --doc-panel:#fdfdff;
+  --doc-ink:#131216;
+  --doc-ink-2:#5e5c69;
+  --doc-rule:#d7d4de;
+  --doc-accent:#2f28be;
+  --doc-warn:#9c5209;
+  --doc-ok:#166b3c;
+  --doc-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --doc-sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;
+
+  --g-alpha:.58;
+  --g-blur-chrome:30px;
+  --g-blur-sheet:20px;
+  --g-blur-inline:12px;
+  --g-sat:1.8;
+  --g-bright:1.04;
+  --g-edge:1;
+  --g-refract:1;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--doc-bg);color:var(--doc-ink);font:400 15px/1.62 var(--doc-sans);
+  background-image:radial-gradient(circle at 6% -8%,rgba(47,40,190,.10),transparent 50%),
+                   radial-gradient(circle at 95% 2%,rgba(244,140,36,.11),transparent 44%)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 26px 96px}
+
+header.doc{padding:56px 0 26px;border-bottom:2px solid var(--doc-ink)}
+.kicker{font:600 11px/1 var(--doc-mono);letter-spacing:.22em;text-transform:uppercase;color:var(--doc-accent)}
+h1.doc{font:700 clamp(33px,5.4vw,60px)/1.0 var(--doc-sans);margin:15px 0 0;letter-spacing:-.035em}
+h1.doc em{font-style:normal;font-weight:400;color:var(--doc-accent)}
+.lede{max-width:68ch;margin:18px 0 0;color:var(--doc-ink-2);font-size:16px}
+.meta-row{display:flex;flex-wrap:wrap;gap:9px 22px;margin-top:23px;font:500 11px/1.6 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2)}
+nav.toc{position:sticky;top:0;z-index:40;display:flex;gap:3px;flex-wrap:wrap;padding:11px 0;
+  background:color-mix(in srgb,var(--doc-bg) 91%,transparent);border-bottom:1px solid var(--doc-rule)}
+nav.toc a{font:600 10.5px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);
+  text-decoration:none;padding:7px 10px;border:1px solid transparent}
+nav.toc a:hover{color:var(--doc-ink);border-color:var(--doc-rule);background:var(--doc-panel)}
+section.doc-sec{padding:50px 0 8px;border-bottom:1px solid var(--doc-rule)}
+h2.doc{font:700 27px/1.12 var(--doc-sans);margin:0 0 10px;letter-spacing:-.025em}
+h2.doc .num{font:600 11px/1 var(--doc-mono);letter-spacing:.18em;color:var(--doc-accent);display:block;margin-bottom:11px}
+h3.doc{font:700 12px/1 var(--doc-mono);letter-spacing:.16em;text-transform:uppercase;margin:26px 0 12px;color:var(--doc-ink-2)}
+p.doc{max-width:76ch;color:var(--doc-ink-2);margin:0 0 15px}
+
+/* ---- benchmark kartları ---- */
+.bench{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:15px;margin:22px 0}
+.bcard{border:1px solid var(--doc-rule);background:var(--doc-panel);border-radius:5px;overflow:hidden;display:flex;flex-direction:column}
+.bcard .top{padding:14px 16px;border-bottom:1px solid var(--doc-rule);display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.bcard .top b{font:700 14px/1.2 var(--doc-sans)}
+.bcard .top span{font:600 9.5px/1 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2)}
+.bcard .body{padding:14px 16px;flex:1}
+.bcard .body p{margin:0 0 10px;font-size:13px;color:var(--doc-ink-2)}
+.bcard .body p:last-child{margin:0}
+.bcard .take{padding:12px 16px;border-top:1px dashed var(--doc-rule);background:rgba(47,40,190,.04)}
+.bcard .take .tl{font:700 9.5px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent);display:block;margin-bottom:7px}
+.bcard .take p{margin:0;font-size:13px;font-weight:600}
+.bcard .take .no .tl{color:var(--doc-warn)}
+.bcard .take.no{background:rgba(156,82,9,.05)}
+
+table.cmp{width:100%;border-collapse:collapse;margin:20px 0 6px;font-size:13.5px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:12px 13px;border-bottom:1px solid var(--doc-rule)}
+table.cmp thead th{font:700 10.5px/1.4 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);border-bottom:2px solid var(--doc-ink)}
+table.cmp tbody th{font:600 13px/1.4 var(--doc-sans);width:20%}
+table.cmp .bad{color:var(--doc-warn)}
+table.cmp .good{color:var(--doc-ink);background:rgba(47,40,190,.05)}
+table.cmp thead .good{color:var(--doc-accent)}
+table.cmp code{font:500 11.5px/1 var(--doc-mono);background:rgba(19,18,22,.07);padding:2px 5px;border-radius:3px}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(296px,1fr));gap:16px;margin:20px 0}
+.note{background:var(--doc-panel);border:1px solid var(--doc-rule);padding:17px 19px;border-radius:4px}
+.note h5{margin:0 0 9px;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.note p{margin:0;font-size:13.5px;color:var(--doc-ink-2)}
+.note ul{margin:8px 0 0;padding-left:17px;font-size:13.5px;color:var(--doc-ink-2)}
+.note li{margin:6px 0}
+.note code{font:500 11.5px/1 var(--doc-mono);background:rgba(19,18,22,.07);padding:2px 5px;border-radius:3px}
+.note.real{border-left:3px solid var(--doc-warn)}
+
+/* ---- axın diaqramı (sətir) ---- */
+.flow{display:flex;gap:0;flex-wrap:wrap;margin:22px 0;border:1px solid var(--doc-rule);border-radius:5px;overflow:hidden;background:var(--doc-panel)}
+.fstep{flex:1 1 168px;padding:15px 16px;border-right:1px solid var(--doc-rule);position:relative}
+.fstep:last-child{border-right:0}
+.fstep .fn{font:700 9.5px/1 var(--doc-mono);letter-spacing:.13em;color:var(--doc-accent);display:block;margin-bottom:9px}
+.fstep b{display:block;font-size:13.5px;margin-bottom:5px}
+.fstep p{margin:0;font-size:12px;color:var(--doc-ink-2);line-height:1.5}
+.fstep .mt{display:inline-block;margin-top:9px;font:600 9.5px/1 var(--doc-mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:3px}
+.fstep .mt.bad{background:rgba(156,82,9,.13);color:var(--doc-warn)}
+.fstep .mt.good{background:rgba(22,107,60,.12);color:var(--doc-ok)}
+
+/* ================= telefonlar ================= */
+.stage{display:flex;gap:28px;flex-wrap:wrap;padding:30px 0 8px}
+.pcol{flex:1 1 300px;min-width:288px;max-width:352px}
+.pcol h4{font:700 11px/1.4 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--doc-accent);margin:0 0 13px}
+.pcol h4 em{display:block;font-style:normal;font-weight:500;letter-spacing:.04em;color:var(--doc-ink-2);margin-top:5px;font-size:10px}
+.pdev{position:relative;border-radius:46px;padding:11px;background:#17161e;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 34px 64px -30px rgba(19,18,22,.62)}
+.pdev::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);width:112px;height:4px;border-radius:99px;background:rgba(255,255,255,.3)}
+.pscr{position:relative;border-radius:35px;overflow:hidden;height:612px;display:flex;flex-direction:column;
+  font-family:var(--doc-sans);color:#16120e}
+.pscr[data-theme="dark"]{color:#f5f1ea}
+.pbg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0}
+.pnotch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:96px;height:25px;border-radius:99px;background:#0b0a0f;z-index:20}
+.pstat{position:relative;z-index:22;display:flex;justify-content:space-between;align-items:center;padding:11px 20px 0;font:600 11.5px/1 var(--doc-sans)}
+.pbody{position:relative;z-index:10;flex:1;overflow:auto;padding:6px 0 106px;scrollbar-width:none}
+.pbody::-webkit-scrollbar{display:none}
+.p-scr{display:none}
+.pscr[data-tab="home"] .p-scr--home,
+.pscr[data-tab="offer"] .p-scr--offer,
+.pscr[data-tab="menu"] .p-scr--menu,
+.pscr[data-tab="filtered"] .p-scr--filtered,
+.pscr[data-tab="cart"] .p-scr--cart,
+.pscr[data-tab="track"] .p-scr--track,
+.pscr[data-tab="wallet"] .p-scr--wallet,
+.pscr[data-tab="me"] .p-scr--me{display:block}
+
+/* ---- şüşə pillələri (v2-dən) ---- */
+.g-chrome{
+  background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  border:1px solid rgba(255,255,255,calc(.30 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.85 * var(--g-edge))),
+    inset 0 -1px 0 rgba(255,255,255,calc(.34 * var(--g-edge))),
+    0 .5px 0 rgba(16,12,8,.20),0 10px 26px -10px rgba(16,12,8,.42);
+  position:relative;overflow:hidden}
+.g-chrome::before{content:"";position:absolute;left:0;right:0;top:0;height:44%;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,calc(.30 * var(--g-edge))),rgba(255,255,255,0))}
+.g-chrome::after{content:"";position:absolute;left:0;right:0;top:0;height:9px;pointer-events:none;
+  -webkit-backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));
+  opacity:var(--g-refract);-webkit-mask-image:linear-gradient(180deg,#000,transparent);mask-image:linear-gradient(180deg,#000,transparent)}
+[data-theme="dark"] .g-chrome{background:rgba(26,21,17,calc(var(--g-alpha) * .92));border-color:rgba(255,255,255,calc(.16 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.22 * var(--g-edge))),inset 0 -1px 0 rgba(255,255,255,calc(.08 * var(--g-edge))),0 .5px 0 rgba(0,0,0,.5),0 12px 30px -12px rgba(0,0,0,.7)}
+[data-theme="dark"] .g-chrome::before{background:linear-gradient(180deg,rgba(255,255,255,calc(.10 * var(--g-edge))),rgba(255,255,255,0))}
+
+.g-sheet{background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.8 * var(--g-edge))),0 -14px 40px -14px rgba(16,12,8,.45)}
+[data-theme="dark"] .g-sheet{background:rgba(26,21,17,calc(var(--g-alpha) * .94));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.18 * var(--g-edge))),0 -16px 44px -16px rgba(0,0,0,.75)}
+
+.g-inline{background:rgba(255,255,255,calc(var(--g-alpha) * .88));
+  -webkit-backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));
+  backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));
+  border:1px solid rgba(255,255,255,calc(.34 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.6 * var(--g-edge))),0 4px 14px -6px rgba(16,12,8,.28)}
+[data-theme="dark"] .g-inline{background:rgba(30,24,19,calc(var(--g-alpha) * .9));border-color:rgba(255,255,255,calc(.14 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.16 * var(--g-edge))),0 4px 16px -8px rgba(0,0,0,.6)}
+
+.g-solid{background:#fffdfa;border:1px solid rgba(20,16,12,.08);box-shadow:0 1px 2px rgba(20,16,12,.05),0 12px 30px -18px rgba(20,16,12,.4)}
+[data-theme="dark"] .g-solid{background:#1e1914;border-color:rgba(255,255,255,.09);box-shadow:0 12px 34px -18px rgba(0,0,0,.8)}
+
+/* ---- tab bar ---- */
+.ptabs{position:absolute;left:11px;right:11px;bottom:20px;z-index:26;border-radius:20px;display:flex;padding:6px;transition:box-shadow .2s}
+.ptabs.is-scrolled{box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.9 * var(--g-edge))),inset 0 -1px 0 rgba(255,255,255,calc(.36 * var(--g-edge))),0 .5px 0 rgba(16,12,8,.24),0 18px 34px -14px rgba(16,12,8,.5)}
+.ptabs .morph{position:absolute;top:6px;bottom:6px;border-radius:15px;z-index:0;background:rgba(255,255,255,.72);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 2px 8px -3px rgba(16,12,8,.35);
+  transition:left .34s cubic-bezier(.22,1.2,.36,1),width .34s cubic-bezier(.22,1.2,.36,1)}
+[data-theme="dark"] .ptabs .morph{background:rgba(255,255,255,.14);box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 2px 8px -3px rgba(0,0,0,.5)}
+.ptabs button{position:relative;z-index:1;flex:1;background:none;border:0;cursor:pointer;padding:9px 2px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;font:600 9.5px/1 var(--doc-sans);letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(22,18,14,.62);font-family:var(--doc-sans);transition:color .2s}
+.ptabs button[aria-selected="true"]{color:#0f0c09}
+[data-theme="dark"] .ptabs button{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .ptabs button[aria-selected="true"]{color:#fff}
+.ptabs svg{width:19px;height:19px;stroke-width:1.75}
+
+/* ============ DƏRS 4: üzən səbət (Starbucks) ============ */
+.fab{position:absolute;right:14px;bottom:92px;z-index:27;width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;
+  display:grid;place-items:center;color:#fffdfa;background:#16120e;
+  box-shadow:0 8px 22px -8px rgba(16,12,8,.6),inset 0 1px 0 rgba(255,255,255,.24);
+  transform:translateY(14px) scale(.86);opacity:0;pointer-events:none;
+  transition:transform .28s cubic-bezier(.22,1.2,.36,1),opacity .22s}
+.fab.show{transform:translateY(0) scale(1);opacity:1;pointer-events:auto}
+.fab svg{width:22px;height:22px}
+.fab .cnt{position:absolute;top:-3px;right:-3px;min-width:21px;height:21px;border-radius:99px;background:#f48c24;color:#fff;
+  font:700 11px/21px var(--doc-sans);text-align:center;padding:0 5px;border:2px solid #fffdfa}
+
+/* ============ HOME ============ */
+.hero{padding:20px 20px 0}
+.greet{padding:15px 16px;border-radius:18px}
+.greet .h{font:700 10px/1 var(--doc-sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(22,18,14,.6)}
+.greet .n{font:700 27px/1 var(--doc-sans);letter-spacing:-.03em;margin:8px 0 0}
+.greet .s{font-size:12px;line-height:1.5;margin:7px 0 0;color:rgba(22,18,14,.66)}
+[data-theme="dark"] .greet .h{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .greet .s{color:rgba(245,241,234,.68)}
+
+/* DƏRS 5: aktiv sifariş zolağı (mərhələ + real vaxt) */
+.livetrack{margin:13px 20px 0;border-radius:18px;padding:14px 15px;cursor:pointer;text-align:left;font-family:var(--doc-sans);color:inherit;width:calc(100% - 40px);
+  display:flex;align-items:center;gap:13px;background:#fffdfa;border:1px solid rgba(244,140,36,.34);
+  box-shadow:0 1px 2px rgba(20,16,12,.05),0 12px 30px -18px rgba(20,16,12,.4)}
+[data-theme="dark"] .livetrack{background:#1e1914;border-color:rgba(244,140,36,.34)}
+.livetrack .pulse{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:rgba(244,140,36,.14);color:#c96a08;position:relative}
+.livetrack .pulse::after{content:"";position:absolute;inset:0;border-radius:50%;border:1.5px solid #f48c24;animation:ring 2.4s ease-out infinite}
+@keyframes ring{0%{transform:scale(.72);opacity:.9}70%,100%{transform:scale(1.35);opacity:0}}
+@media (prefers-reduced-motion:reduce){.livetrack .pulse::after{animation:none;opacity:0}}
+.livetrack .mid{flex:1;min-width:0}
+.livetrack .st{font:700 9.5px/1 var(--doc-sans);letter-spacing:.17em;text-transform:uppercase;color:#c96a08}
+.livetrack .nm{font:600 13px/1.3 var(--doc-sans);margin:6px 0 2px}
+.livetrack .mt2{font-size:10.5px;color:rgba(22,18,14,.58)}
+[data-theme="dark"] .livetrack .mt2{color:rgba(245,241,234,.58)}
+.livetrack .go{font-size:18px;opacity:.4}
+
+.stamp{margin:13px 20px 0;border-radius:22px;padding:17px 18px}
+.lbl-k{font:700 9.5px/1 var(--doc-sans);letter-spacing:.2em;text-transform:uppercase;color:rgba(22,18,14,.6)}
+[data-theme="dark"] .lbl-k{color:rgba(245,241,234,.62)}
+.stamp .num{font:700 46px/1 var(--doc-sans);letter-spacing:-.045em;margin:9px 0 0}
+.stamp .num small{font:600 11px/1 var(--doc-sans);letter-spacing:.1em;color:rgba(22,18,14,.6);margin-left:6px}
+[data-theme="dark"] .stamp .num small{color:rgba(245,241,234,.62)}
+.dots{display:flex;gap:7px;margin:15px 0 0}
+.dots i{flex:1;height:7px;border-radius:99px;background:rgba(22,18,14,.13)}
+.dots i.f{background:#f48c24}
+.dots i.n{background:rgba(244,140,36,.45)}
+[data-theme="dark"] .dots i{background:rgba(255,255,255,.16)}
+.stamp .foot{display:flex;justify-content:space-between;align-items:center;margin-top:15px;gap:10px}
+.stamp .foot p{margin:0;font-size:11.5px;color:rgba(22,18,14,.66);line-height:1.45}
+[data-theme="dark"] .stamp .foot p{color:rgba(245,241,234,.62)}
+.pill{border:0;border-radius:99px;padding:10px 16px;font:700 10.5px/1 var(--doc-sans);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;white-space:nowrap;font-family:var(--doc-sans)}
+.pill.solid{background:#16120e;color:#fffdfa}
+.pill.ghost{border:1px solid rgba(22,18,14,.28);background:rgba(255,255,255,.5);color:#16120e}
+.pill.tiny{padding:8px 12px;font-size:9.5px}
+[data-theme="dark"] .pill.solid{background:#f5f1ea;color:#16120e}
+[data-theme="dark"] .pill.ghost{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.1);color:#f5f1ea}
+
+/* DƏRS 1: "bu gün sənə nə lazımdır" — Starbucks-un prioritetləşdirməsi */
+.picks{margin:13px 20px 0}
+.picks .ph{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.picks .ph b{font:700 13.5px/1 var(--doc-sans)}
+.picks .ph span{font:600 9.5px/1 var(--doc-sans);letter-spacing:.13em;text-transform:uppercase;color:rgba(22,18,14,.55)}
+[data-theme="dark"] .picks .ph span{color:rgba(245,241,234,.55)}
+.pr{display:flex;gap:11px;overflow:auto;padding-bottom:4px;scrollbar-width:none}
+.pr::-webkit-scrollbar{display:none}
+.pcard{flex:none;width:124px;border-radius:16px;padding:12px;text-align:left;cursor:pointer;font-family:var(--doc-sans);color:inherit;
+  display:flex;flex-direction:column;gap:7px;background:#fffdfa;border:1px solid rgba(20,16,12,.08)}
+[data-theme="dark"] .pcard{background:#1e1914;border-color:rgba(255,255,255,.09)}
+.pcard .tag{font:700 8.5px/1 var(--doc-sans);letter-spacing:.14em;text-transform:uppercase;color:#c96a08}
+.pcard .tn{font:600 12.5px/1.25 var(--doc-sans)}
+.pcard .tp{font:700 12px/1 var(--doc-sans);margin-top:auto}
+.pcard .tp s{font-weight:500;font-size:10px;color:rgba(22,18,14,.5);margin-right:4px}
+[data-theme="dark"] .pcard .tp s{color:rgba(245,241,234,.5)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:13px 20px 0}
+.tile{border-radius:18px;padding:14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:8px;
+  font-family:var(--doc-sans);color:inherit;transition:transform .14s}
+.tile:active{transform:scale(.985)}
+.tile .ic{width:25px;height:25px;color:#f48c24}
+.tile .t{font:700 13px/1.25 var(--doc-sans)}
+.tile .d{font-size:10.5px;color:rgba(22,18,14,.58)}
+[data-theme="dark"] .tile .d{color:rgba(245,241,234,.58)}
+
+/* ============ DƏRS 1+2: təklif detalı → uyğun məhsullar ============ */
+.ohead{padding:20px 20px 0}
+.ohead .back{border:0;background:none;padding:0 0 14px;cursor:pointer;font:600 12px/1 var(--doc-sans);color:rgba(22,18,14,.66);
+  display:flex;align-items:center;gap:6px;font-family:var(--doc-sans)}
+[data-theme="dark"] .ohead .back{color:rgba(245,241,234,.66)}
+.ohead h2{font:700 29px/1.06 var(--doc-sans);letter-spacing:-.035em;margin:0}
+.ocard{margin:15px 20px 0;border-radius:20px;padding:17px;background:linear-gradient(135deg,#ff9a3d,#e06d10);color:#fff;
+  box-shadow:0 14px 34px -16px rgba(224,109,16,.7)}
+.ocard .tag{display:inline-block;font:700 8.5px/1 var(--doc-sans);letter-spacing:.16em;text-transform:uppercase;
+  padding:5px 9px;border-radius:99px;background:rgba(255,255,255,.22);margin-bottom:11px}
+.ocard .big{font:700 40px/1 var(--doc-sans);letter-spacing:-.04em}
+.ocard .big span{font-size:14px;font-weight:600;letter-spacing:0;opacity:.9}
+.ocard .nm{font:700 15px/1.25 var(--doc-sans);margin:9px 0 0}
+.ocard .mt3{font:500 11.5px/1.5 var(--doc-sans);opacity:.9;margin:7px 0 0}
+.tabs2{display:flex;gap:0;margin:15px 20px 0;border-radius:12px;overflow:hidden;padding:4px}
+.tabs2 button{flex:1;border:0;background:none;cursor:pointer;padding:9px 6px;border-radius:9px;font:700 10px/1 var(--doc-sans);
+  letter-spacing:.12em;text-transform:uppercase;color:rgba(22,18,14,.6);font-family:var(--doc-sans)}
+.tabs2 button[aria-selected="true"]{background:rgba(255,255,255,.86);color:#16120e;box-shadow:0 1px 3px rgba(16,12,8,.18)}
+[data-theme="dark"] .tabs2 button{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .tabs2 button[aria-selected="true"]{background:rgba(255,255,255,.15);color:#fff}
+.terms{margin:14px 20px 0;padding:0;list-style:none;border-radius:16px;overflow:hidden}
+.terms li{padding:13px 15px;border-bottom:1px solid rgba(20,16,12,.07);font-size:12.5px;line-height:1.5;display:flex;gap:11px}
+.terms li:last-child{border-bottom:0}
+[data-theme="dark"] .terms li{border-bottom-color:rgba(255,255,255,.07)}
+.terms .k{color:#166b3c;font-weight:800;flex:none}
+.terms .n{color:var(--doc-warn);font-weight:800;flex:none}
+.oact{margin:15px 20px 0;display:flex;gap:9px}
+.oact .pill{flex:1;text-align:center;padding:13px 14px;font-size:11px}
+.oact .big-take{flex:2}
+.hint-line{margin:12px 20px 0;font-size:11px;line-height:1.55;color:rgba(22,18,14,.6)}
+[data-theme="dark"] .hint-line{color:rgba(245,241,234,.6)}
+
+/* sticky təklif çipi — DƏRS 1-in kaliti */
+.stickybar{position:absolute;left:11px;right:11px;top:44px;z-index:24;border-radius:15px;padding:10px 13px;
+  display:flex;align-items:center;gap:10px}
+.stickybar .ic{width:19px;height:19px;color:#c96a08;flex:none}
+.stickybar .tx{flex:1;min-width:0}
+.stickybar .t1{font:700 10.5px/1.2 var(--doc-sans)}
+.stickybar .t2{font:500 9.5px/1.4 var(--doc-sans);color:rgba(22,18,14,.6)}
+[data-theme="dark"] .stickybar .t2{color:rgba(245,241,234,.6)}
+.stickybar .x{border:0;background:none;cursor:pointer;padding:4px;color:rgba(22,18,14,.5);font-size:14px;line-height:1;font-weight:700;font-family:var(--doc-sans)}
+[data-theme="dark"] .stickybar .x{color:rgba(245,241,234,.55)}
+
+.mhead{padding:20px 20px 12px}
+.mhead h2{font:700 29px/1.06 var(--doc-sans);letter-spacing:-.035em;margin:0}
+.mhead .c{font:600 10px/1 var(--doc-sans);letter-spacing:.17em;text-transform:uppercase;color:rgba(22,18,14,.58);display:block;margin-top:10px}
+[data-theme="dark"] .mhead .c{color:rgba(245,241,234,.58)}
+.mlist{list-style:none;margin:14px 20px 0;padding:0;border-radius:20px;overflow:hidden}
+.mlist li{display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid rgba(20,16,12,.07);cursor:pointer}
+.mlist li:last-child{border-bottom:0}
+[data-theme="dark"] .mlist li{border-bottom-color:rgba(255,255,255,.07)}
+.mlist .mid{flex:1;min-width:0}
+.mlist .nm{font:600 14.5px/1.25 var(--doc-sans)}
+.mlist .ds{font-size:10.5px;color:rgba(22,18,14,.56);margin-top:4px;line-height:1.45}
+[data-theme="dark"] .mlist .ds{color:rgba(245,241,234,.56)}
+.mlist .pr2{text-align:right;flex:none}
+.mlist .pr2 .new{font:700 15px/1 var(--doc-sans);color:#c96a08}
+.mlist .pr2 .old{font:500 10.5px/1 var(--doc-sans);color:rgba(22,18,14,.45);text-decoration:line-through;margin-top:3px}
+[data-theme="dark"] .mlist .pr2 .old{color:rgba(245,241,234,.45)}
+.mlist li.dim{opacity:.42}
+.mlist li.dim .nm{font-weight:500}
+.elig-tag{font:700 8.5px/1 var(--doc-sans);letter-spacing:.12em;text-transform:uppercase;padding:4px 7px;border-radius:4px;
+  background:rgba(244,140,36,.16);color:#a85708;flex:none}
+.mfoot-note{margin:12px 20px 0;font:italic 500 11px/1.6 var(--doc-sans);color:rgba(22,18,14,.55)}
+[data-theme="dark"] .mfoot-note{color:rgba(245,241,234,.55)}
+
+/* ============ DƏRS 3: səbət — təklif və mükafat AYRI ============ */
+.carthead{padding:20px 20px 12px;display:flex;justify-content:space-between;align-items:baseline}
+.carthead h2{font:700 25px/1.1 var(--doc-sans);letter-spacing:-.03em;margin:0}
+.carthead .cnt2{font:600 10px/1 var(--doc-sans);letter-spacing:.15em;text-transform:uppercase;color:rgba(22,18,14,.55)}
+[data-theme="dark"] .carthead .cnt2{color:rgba(245,241,234,.55)}
+.citems{margin:0 20px;border-radius:18px;overflow:hidden}
+.crow{display:flex;gap:12px;padding:14px 15px;border-bottom:1px solid rgba(20,16,12,.07);align-items:flex-start}
+.crow:last-child{border-bottom:0}
+[data-theme="dark"] .crow{border-bottom-color:rgba(255,255,255,.07)}
+.crow .cm{flex:1;min-width:0}
+.crow .cn{font:600 13.5px/1.3 var(--doc-sans)}
+.crow .cd{font-size:10.5px;color:rgba(22,18,14,.55);margin-top:4px;line-height:1.45}
+[data-theme="dark"] .crow .cd{color:rgba(245,241,234,.55)}
+.crow .cq{display:flex;align-items:center;gap:8px;margin-top:8px}
+.crow .cq button{width:24px;height:24px;border-radius:7px;border:1px solid rgba(22,18,14,.2);background:rgba(255,255,255,.6);
+  cursor:pointer;font:700 13px/1 var(--doc-sans);color:#16120e;display:grid;place-items:center}
+.crow .cq span{font:700 12.5px/1 var(--doc-sans);min-width:14px;text-align:center}
+.crow .cp{text-align:right;flex:none}
+.crow .cp .now{font:700 14px/1 var(--doc-sans)}
+.crow .cp .was{font:500 10.5px/1 var(--doc-sans);color:rgba(22,18,14,.45);text-decoration:line-through;margin-top:3px}
+[data-theme="dark"] .crow .cp .was{color:rgba(245,241,234,.45)}
+.crow .rm{border:0;background:none;cursor:pointer;color:rgba(22,18,14,.4);padding:3px;flex:none;font-size:14px;font-family:var(--doc-sans)}
+[data-theme="dark"] .crow .rm{color:rgba(245,241,234,.45)}
+
+/* ayrı sətirlər — Tims-in səhvi buradadır */
+.applylist{margin:14px 20px 0;border-radius:18px;padding:4px 0}
+.applyrow{display:flex;align-items:center;gap:11px;padding:12px 15px;border-bottom:1px solid rgba(20,16,12,.07)}
+.applyrow:last-child{border-bottom:0}
+[data-theme="dark"] .applyrow{border-bottom-color:rgba(255,255,255,.07)}
+.applyrow .ai{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:12px}
+.applyrow .ai.off{background:rgba(244,140,36,.16);color:#a85708}
+.applyrow .ai.rew{background:rgba(22,107,60,.14);color:#166b3c}
+.applyrow .am{flex:1;min-width:0}
+.applyrow .an{font:700 12px/1.25 var(--doc-sans)}
+.applyrow .as{font-size:10px;color:rgba(22,18,14,.55);margin-top:3px}
+[data-theme="dark"] .applyrow .as{color:rgba(245,241,234,.55)}
+.applyrow .av{font:700 13.5px/1 var(--doc-sans);color:#166b3c;flex:none}
+.applyrow .av.limit{color:#9c5209;font-size:11px;font-weight:600}
+.applyrow .edit{border:0;background:none;cursor:pointer;font:700 9.5px/1 var(--doc-sans);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--doc-accent);padding:5px 0 5px 8px;font-family:var(--doc-sans);flex:none}
+.applywarn{display:flex;gap:9px;padding:11px 15px;background:rgba(156,82,9,.09);align-items:flex-start}
+.applywarn .wt{font:600 11px/1.5 var(--doc-sans);color:#8a4a08}
+[data-theme="dark"] .applywarn .wt{color:#f0b471}
+.totalbar{margin:15px 20px 0;border-radius:18px;padding:16px}
+.totalbar .line{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:4px 0}
+.totalbar .line.sum{margin-top:9px;padding-top:11px;border-top:1px dashed rgba(22,18,14,.22)}
+[data-theme="dark"] .totalbar .line.sum{border-top-color:rgba(255,255,255,.22)}
+.totalbar .line.sum .k2{font:700 14px/1 var(--doc-sans)}
+.totalbar .line.sum .v2{font:700 22px/1 var(--doc-sans);letter-spacing:-.03em}
+.totalbar .line .k2{color:rgba(22,18,14,.7)}
+.totalbar .line .v2{font-weight:600}
+[data-theme="dark"] .totalbar .line .k2{color:rgba(245,241,234,.72)}
+.totalbar .pill{width:100%;margin-top:14px;padding:14px;font-size:11.5px;text-align:center}
+
+/* ============ DƏRS 5: izləmə — mərhələ + real vaxt (NN/g) ============ */
+.trackhead{padding:22px 20px 0}
+.trackhead h2{font:700 24px/1.1 var(--doc-sans);letter-spacing:-.03em;margin:0 0 7px}
+.trackhead .no2{font:600 11px/1 var(--doc-mono);color:rgba(22,18,14,.55)}
+[data-theme="dark"] .trackhead .no2{color:rgba(245,241,234,.55)}
+.bignow{margin:16px 20px 0;border-radius:22px;padding:19px;text-align:center}
+.bignow .k{font:700 9.5px/1 var(--doc-sans);letter-spacing:.2em;text-transform:uppercase;color:#c96a08}
+.bignow .v{font:700 28px/1.1 var(--doc-sans);letter-spacing:-.03em;margin:11px 0 0}
+.bignow .e{font-size:12px;color:rgba(22,18,14,.62);margin:9px 0 0;line-height:1.5}
+[data-theme="dark"] .bignow .e{color:rgba(245,241,234,.62)}
+.bignow .barwrap{height:7px;border-radius:99px;background:rgba(22,18,14,.12);margin:15px 0 0;overflow:hidden}
+[data-theme="dark"] .bignow .barwrap{background:rgba(255,255,255,.14)}
+.bignow .bar{height:100%;border-radius:99px;background:#f48c24;transition:width .5s cubic-bezier(.2,0,0,1)}
+
+.stepper{margin:16px 20px 0;padding:4px 0;border-radius:18px;list-style:none}
+.stepper li{display:flex;gap:13px;padding:13px 15px;align-items:flex-start;position:relative}
+.stepper li .dot{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 11px/1 var(--doc-sans);
+  border:2px solid rgba(22,18,14,.2);color:transparent;background:transparent}
+[data-theme="dark"] .stepper li .dot{border-color:rgba(255,255,255,.24)}
+.stepper li.done .dot{background:#166b3c;border-color:#166b3c;color:#fff}
+.stepper li.now .dot{background:#f48c24;border-color:#f48c24;color:#fff}
+.stepper li.now .dot::after{content:"";position:absolute;left:15px;top:13px;width:24px;height:24px;border-radius:50%;border:2px solid #f48c24;animation:ring 2.4s ease-out infinite}
+.stepper li .sm{flex:1;min-width:0}
+.stepper li .sn{font:700 12.5px/1.3 var(--doc-sans)}
+.stepper li.todo .sn{font-weight:600;color:rgba(22,18,14,.5)}
+[data-theme="dark"] .stepper li.todo .sn{color:rgba(245,241,234,.5)}
+.stepper li .sd{font-size:10.5px;color:rgba(22,18,14,.55);margin-top:4px;line-height:1.45}
+[data-theme="dark"] .stepper li .sd{color:rgba(245,241,234,.55)}
+.stepper li .time{font:600 10px/1 var(--doc-mono);color:rgba(22,18,14,.45);flex:none;padding-top:3px}
+[data-theme="dark"] .stepper li .time{color:rgba(245,241,234,.48)}
+.stepper li+p{border-top:1px solid rgba(20,16,12,.07)}
+
+.ordersum{margin:16px 20px 0;border-radius:18px;padding:15px}
+.ordersum .ol{display:flex;justify-content:space-between;gap:12px;font-size:12px;padding:4px 0}
+.ordersum .ol.tt{margin-top:8px;padding-top:10px;border-top:1px dashed rgba(22,18,14,.2);font-weight:700}
+[data-theme="dark"] .ordersum .ol.tt{border-top-color:rgba(255,255,255,.2)}
+.demo-ctl{margin:16px 20px 0;display:flex;gap:9px}
+.demo-ctl .pill{flex:1;text-align:center}
+
+/* ============ CÜZDAN (tək yerdə) ============ */
+.wseg{display:flex;gap:0;margin:16px 20px 0;border-radius:12px;padding:4px}
+.wseg button{flex:1;border:0;background:none;cursor:pointer;padding:10px 4px;border-radius:9px;font:700 9.5px/1 var(--doc-sans);
+  letter-spacing:.11em;text-transform:uppercase;color:rgba(22,18,14,.6);font-family:var(--doc-sans)}
+.wseg button[aria-selected="true"]{background:rgba(255,255,255,.86);color:#16120e;box-shadow:0 1px 3px rgba(16,12,8,.18)}
+[data-theme="dark"] .wseg button{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .wseg button[aria-selected="true"]{background:rgba(255,255,255,.15);color:#fff}
+.wpanel{display:none}
+.wpanel.on{display:block}
+.balcard{margin:16px 20px 0;border-radius:22px;padding:19px}
+.balcard .amt{font:700 52px/1 var(--doc-sans);letter-spacing:-.048em;margin:10px 0 0}
+.balcard .amt sup{font-size:20px;font-weight:600;vertical-align:super;color:rgba(22,18,14,.55)}
+[data-theme="dark"] .balcard .amt sup{color:rgba(245,241,234,.58)}
+.balcard .row{display:flex;gap:9px;margin-top:17px}
+.balcard .pill{flex:1;text-align:center}
+.tierline{margin:16px 20px 0;border-radius:18px;padding:15px}
+.tierline .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.tierline .tn2{font:700 13px/1 var(--doc-sans)}
+.tierline .tv{font:600 10.5px/1 var(--doc-sans);color:rgba(22,18,14,.55)}
+[data-theme="dark"] .tierline .tv{color:rgba(245,241,234,.55)}
+.tierline .tb{height:8px;border-radius:99px;background:rgba(22,18,14,.12);margin-top:12px;overflow:hidden;display:flex}
+[data-theme="dark"] .tierline .tb{background:rgba(255,255,255,.14)}
+.tierline .tb i{height:100%}
+.tierline .tb i.t1{background:#c98a4f}
+.tierline .tb i.t2{background:#9aa3ad}
+.tierline .tb i.t3{background:#e0b154}
+.tierline .lbls{display:flex;justify-content:space-between;margin-top:8px;font:600 9.5px/1 var(--doc-sans);letter-spacing:.08em;
+  text-transform:uppercase;color:rgba(22,18,14,.5)}
+[data-theme="dark"] .tierline .lbls{color:rgba(245,241,234,.52)}
+.coupons{list-style:none;margin:16px 20px 0;padding:0}
+.coupons li{border-radius:16px;padding:14px;margin-bottom:11px;display:flex;gap:12px;align-items:center;position:relative;overflow:hidden}
+.coupons .ci{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:17px;
+  background:rgba(244,140,36,.15)}
+.coupons .cm{flex:1;min-width:0}
+.coupons .cn2{font:700 13px/1.25 var(--doc-sans)}
+.coupons .cd2{font-size:10.5px;color:rgba(22,18,14,.56);margin-top:4px;line-height:1.45}
+[data-theme="dark"] .coupons .cd2{color:rgba(245,241,234,.56)}
+.coupons .cs{font:700 9.5px/1 var(--doc-sans);letter-spacing:.1em;text-transform:uppercase;color:#166b3c;flex:none}
+.coupons .cs.soon{color:rgba(22,18,14,.45)}
+[data-theme="dark"] .coupons .cs.soon{color:rgba(245,241,234,.48)}
+.coupons .notch2{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--pbg,#f0ece2);left:-7px;top:50%;transform:translateY(-50%)}
+
+/* ============ ME ============ */
+.metop{padding:22px 20px 16px}
+.ava{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font:700 22px/1 var(--doc-sans);color:#8c4a06;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.7);position:relative;z-index:12;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px -3px rgba(16,12,8,.35)}
+[data-theme="dark"] .ava{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:#ffb877}
+.metop .nm{font:700 24px/1.1 var(--doc-sans);letter-spacing:-.03em;margin:13px 0 3px}
+.metop .ph{font:600 11.5px/1 var(--doc-mono);opacity:.72}
+.rows{list-style:none;margin:14px 20px 0;padding:0;border-radius:20px;overflow:hidden}
+.rows li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 15px;
+  border-bottom:1px solid rgba(20,16,12,.07);font:600 13px/1.3 var(--doc-sans);cursor:pointer}
+.rows li:last-child{border-bottom:0}
+[data-theme="dark"] .rows li{border-bottom-color:rgba(255,255,255,.07)}
+.rows .v{font-weight:500;font-size:11.5px;color:rgba(22,18,14,.58)}
+[data-theme="dark"] .rows .v{color:rgba(245,241,234,.58)}
+
+/* ---- laboratoriya ---- */
+.lab{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:15px;margin:22px 0;
+  background:var(--doc-panel);border:1px solid var(--doc-rule);padding:19px;border-radius:6px}
+.ctl{display:flex;flex-direction:column;gap:7px}
+.ctl label{font:600 10.5px/1 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2);
+  display:flex;justify-content:space-between;gap:10px}
+.ctl label b{color:var(--doc-ink);font-weight:700}
+.ctl input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:99px;background:var(--doc-rule);outline:none}
+.ctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+  background:var(--doc-accent);cursor:pointer;box-shadow:0 1px 3px rgba(19,18,22,.3)}
+.btns{display:flex;gap:7px;flex-wrap:wrap}
+.btns button{font:600 10.5px/1 var(--doc-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--doc-rule);background:#fff;color:var(--doc-ink);padding:9px 12px;border-radius:4px}
+.btns button[aria-pressed="true"]{background:var(--doc-ink);color:#fff;border-color:var(--doc-ink)}
+.meter{margin:22px 0;border:1px solid var(--doc-rule);background:var(--doc-panel);border-radius:6px;overflow:hidden}
+.meter .hd{padding:13px 17px;border-bottom:1px solid var(--doc-rule);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.meter .hd h5{margin:0;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.meter .hd span{font:500 11px/1.5 var(--doc-mono);color:var(--doc-ink-2)}
+.mrow{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;padding:12px 17px;border-bottom:1px solid var(--doc-rule)}
+.mrow:last-child{border-bottom:0}
+.mrow .mi{font:600 12.5px/1.35 var(--doc-sans)}
+.mrow .mi em{display:block;font-style:normal;font:500 10.5px/1.5 var(--doc-mono);color:var(--doc-ink-2);margin-top:3px}
+.swatchrow{display:flex;gap:5px;align-items:center}
+.sw-sm{width:22px;height:22px;border-radius:4px;border:1px solid rgba(19,18,22,.14)}
+.badge{font:700 10px/1 var(--doc-mono);letter-spacing:.08em;padding:5px 8px;border-radius:4px;white-space:nowrap}
+.badge.pass{background:rgba(22,107,60,.12);color:var(--doc-ok)}
+.badge.fail{background:rgba(156,82,9,.15);color:var(--doc-warn)}
+.score{font:700 13px/1 var(--doc-mono);min-width:56px;text-align:right}
+.score.pass{color:var(--doc-ok)}
+.score.fail{color:var(--doc-warn)}
+
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}
+.steps li{counter-increment:s;position:relative;padding:0 0 19px 42px;border-left:1px solid var(--doc-rule);margin-left:12px}
+.steps li:last-child{border-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-13px;top:-3px;width:26px;height:26px;border-radius:50%;
+  background:var(--doc-ink);color:#fff;display:grid;place-items:center;font:700 11px/1 var(--doc-mono)}
+.steps b{display:block;font-size:14px;margin-bottom:3px}
+.steps p{margin:0;font-size:13px;color:var(--doc-ink-2)}
+.steps code{font:500 11.5px/1 var(--doc-mono);background:rgba(19,18,22,.07);padding:2px 5px;border-radius:3px}
+
+footer.doc{margin-top:48px;padding-top:20px;border-top:2px solid var(--doc-ink);display:flex;justify-content:space-between;
+  gap:18px;flex-wrap:wrap;font:500 11px/1.7 var(--doc-mono);letter-spacing:.08em;color:var(--doc-ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Emalat Coffee — Liquid Glass <em>v3</em> · informed by world practice · 9 oktyabr 2026</div>
+  <h1 class="doc">Dünyanın ən yaxşı kofe app-lərindən <em>6 dərs</em></h1>
+  <p class="lede">Starbucks, Tim Hortons, McDonald's, Luckin və NN/g araşdırmasını etdim. Nəticə gözlədiyimdən daha konkret oldu: <b>onların ən yaxşı həlləri məhz bizim zəif yerlərimizi göstərir.</b> Sənin app-ində "Aktivləşdir" düyməsi var — Tim Hortons istifadəçiləri tam həmin düymədə ilişib qalır. Aşağıda hər tapıntı və onun bizə tətbiqi var.</p>
+  <div class="meta-row">
+    <span>Material: v2 sistemi qalır</span>
+    <span>Yeni: 6 UX dərsi</span>
+    <span>Benchmark: 4 brend</span>
+    <span>Canlı axın: təklif → uyğun məhsul → səbət → izləmə</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#research">01 Araşdırma</a>
+  <a href="#lessons">02 6 dərs</a>
+  <a href="#flow">03 Yeni axın</a>
+  <a href="#screens">04 Ekranlar</a>
+  <a href="#lab">05 Material lab.</a>
+  <a href="#rules">06 İzləmə qaydaları</a>
+  <a href="#handoff">07 Keçid</a>
+</nav>
+
+<!-- 01 -->
+<section class="doc-sec" id="research">
+  <h2 class="doc"><span class="num">01 / Araşdırma</span>Dörd brend, dörd ayrı dərs</h2>
+  <p class="doc">Hər app-ı açıb axınlarını, uğurlarını və <b>istifadəçilərin şikayət etdiyi yerləri</b> araşdırdım. Ən faydalısı ikincisi oldu — çünki onlar sınaqdan keçmiş səhvlərdir.</p>
+
+  <div class="bench">
+    <div class="bcard">
+      <div class="top"><b>Starbucks</b><span>iOS · 550K/ay</span></div>
+      <div class="body">
+        <p>Dərin fərdiləşdirmə (süd növü, şot sayı, şərbət ölçüsü) — brendin mağazadaki dəyərini rəqəmə köçürüb.</p>
+        <p><b>Səbət həmişə görünür:</b> sağ aşağıda üzən zənbil + məhsul sayğacı. Sifariş yığarkən heç vaxt itmir.</p>
+        <p>Qeydiyyat tələbi <b>yalnız maneə ilə üzləşəndə</b> gəlir ("order ahead" basanda), əvvəlcədən yox.</p>
+        <p>Menyu məntiqi kateqoriyalara bölünüb, başlıqlar mövsümi ("Home for the Holidays").</p>
+      </div>
+      <div class="take">
+        <span class="tl">Bizə dərsi</span>
+        <p>Üzən səbət + kontekstual sorğu. Bizim menyuda 34 məhsul var — kateqoriya başlığı daha güclü olmalıdır.</p>
+      </div>
+    </div>
+
+    <div class="bcard">
+      <div class="top"><b>Tim Hortons</b><span>təhlil + istifadəçi testi</span></div>
+      <div class="body">
+        <p><b>"Aktivləşdir" düyməsi</b> əlavə friksiya yaradır: istifadəçi basır, sonra nə olacağını bilmir.</p>
+        <p>Uyğun məhsullar menyuda <b>göstərilmir</b> — McDonald's və Starbucks menyunu filtrləyir, Tims yox. İstifadəçi əl ilə axtarır.</p>
+        <p>Səbətdə həm təklif, həm mükafat tətbiq olanda <b>hamısı "Reward" adlanır</b> — nəyin tətbiq olduğu anlaşılmır.</p>
+        <p>Çoxlu təklif aktiv olanda yalnız ən yaxşısı işləyir, amma <b>xəbərdarlıq yoxdur</b>. Təklifi dəyişmək imkanı da yoxdur.</p>
+        <p>Test: 50% filtrli menyuda itdi, 50% təklifi tez xatırlamaq istədi. 4 istifadəçidən: <em>"Yadda saxlamıram təklifim nə idi"</em>.</p>
+      </div>
+      <div class="take no">
+        <span class="tl">Bizə dərsi — bu, birbaşa bizim koddur</span>
+        <p>Bizim <code>OffersTab.tsx</code>-də eyni "Aktivləşdir" düyməsi var. Onu ləğv edib uyğun məhsul filtrinə keçmək lazımdır.</p>
+      </div>
+    </div>
+
+    <div class="bcard">
+      <div class="top"><b>McDonald's</b><span>müqayisə bazası</span></div>
+      <div class="body">
+        <p>Menyunu <b>yalnız uyğun məhsullara</b> filtr edir — istifadəçi seçim edəndə səhv element seçə bilmir.</p>
+        <p>Xəta hallarında yönləndirmə var, "sistem xətası" yox.</p>
+      </div>
+      <div class="take">
+        <span class="tl">Bizə dərsi</span>
+        <p>Uyğun olmayan məhsulları tam gizlət yox, <b>solğun</b> göstər — istifadəçi menyunun tam olduğunu bilsin, amma səhv seçməsin.</p>
+      </div>
+    </div>
+
+    <div class="bcard">
+      <div class="top"><b>NN/g</b><span>16 qayda, izləmə</span></div>
+      <div class="body">
+        <p>Zəif izləmə ekranları <b>dəstək zənglərini artırır</b>. Mərhələ adı bir söz olmalıdır, "hazırlanır" kimi.</p>
+        <p>Tamamlanmış və cari mərhələ <b>vizual olaraq fərqlənməlidir</b> — yoxsa istifadəçi hansı addımda olduğunu bilmir.</p>
+        <p>Vaxt göstəriləndə dəqiq olmayan rəqəm vermə — "~4 dəq" kimi yumşaq ifadə işlət.</p>
+      </div>
+      <div class="take">
+        <span class="tl">Bizə dərsi</span>
+        <p>Bizdə izləmə tam yoxdur — yalnız status mətni var. Real mərhələ + vaxt lazımdır.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note real" style="margin-top:18px">
+    <h5>Ən vacib tapıntı</h5>
+    <p>Tim Hortons-un problemi <b>texniki deyil, UX-dir</b>: funksiya işləyir, amma istifadəçi əmin deyil. İstifadəçi testində 4 nəfərdən 2-si "Aktivləşdir" basandan sonra <em>nə olacağını bilmədiyini</em> deyib. Bizim app-də həmin düymə var. Ona görə v3-də ən böyük dəyişiklik məhz oradadır — və o, heç bir backend dəyişikliyi tələb etmir.</p>
+  </div>
+</section>
+
+<!-- 02 -->
+<section class="doc-sec" id="lessons">
+  <h2 class="doc"><span class="num">02 / Altı dərs</span>Hər dərs, hər düzəliş</h2>
+  <table class="cmp">
+    <thead><tr><th>Dərs</th><th class="bad">İndiki halımız</th><th class="good">v3-də</th></tr></thead>
+    <tbody>
+      <tr>
+        <th>1 · Uyğun məhsulları filtr et</th>
+        <td class="bad">Təklifi aktivləşdirirsən, sonra menyuda özün axtarırsan</td>
+        <td class="good">Təklif detalında <b>"Uyğun məhsulları gör"</b> → menyu filtrli açılır, uyğun olmayanlar solğun</td>
+      </tr>
+      <tr>
+        <th>2 · "Aktivləşdir" düyməsini ləğv et</th>
+        <td class="bad"><code>Aktivləşdir</code> → QR → gözlə, iliş, xatırlama</td>
+        <td class="good">Təklif avtomatik tətbiq olunur. QR yalnız <b>kassada lazım olanda</b> çıxır</td>
+      </tr>
+      <tr>
+        <th>3 · Təklif və mükafatı ayır</th>
+        <td class="bad">Səbətdə hər şey bir sətirdə qarışır</td>
+        <td class="good">Ayrı sətirlər: "Təklif qənaəti −2.00 ₼" və "Mükafat: 1 möhür" — <b>ayrı rəng, ayrı ikon</b></td>
+      </tr>
+      <tr>
+        <th>4 · Səbət həmişə əlçatan</th>
+        <td class="bad">Səbəti görmək üçün tab dəyişmək lazımdır</td>
+        <td class="good">Sağ aşağıda üzən sənbil + sayğac; hər ekrandan görünür</td>
+      </tr>
+      <tr>
+        <th>5 · Sifariş izləmə</th>
+        <td class="bad">Yalnız status mətni, mərhələ yox</td>
+        <td class="good">3 mərhələ + real vaxt + tamamlanmış/cari fərqi (NN/g)</td>
+      </tr>
+      <tr>
+        <th>6 · Boş hal yönləndirsin</th>
+        <td class="bad">"Aktiv kampaniya yoxdur" — sonra nə?</td>
+        <td class="good">Boş halda konkret hərəkət: ən yaxın açıq filial + təklif abunəsi</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə üçün bunların hamısı frontend-dir</h5>
+      <ul>
+        <li>1, 2, 3, 6 — mövcud data ilə edilir: <code>campaigns</code>, <code>menu</code>, <code>discount_percent</code>, <code>categories</code>.</li>
+        <li>4 — sadəcə üzən düymə, səbət state-i mövcuddur.</li>
+        <li>5 — <code>KitchenOrder.status</code> artıq var; mərhələ adları ondan törəyir.</li>
+        <li>Yəni <b>backend, ödəniş və loyallıq məntiqinə toxunmuruq</b>.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Ən böyük risk və həlli</h5>
+      <p>Təklifi avtomatik tətbiq etmək (dərs 2) ilə bağlı sual yaranır: <em>"İstifadəçi hansı endirimi aldığını biləcəkmi?"</em> Bəli — səbətdə ayrı sətirdə görünür (dərs 3). Tims bu ikisini birlikdə etmədiyi üçün ilişdi. Biz ikisini <b>eyni vaxtda</b> edirik, ona görə problem yaranmır.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 03 -->
+<section class="doc-sec" id="flow">
+  <h2 class="doc"><span class="num">03 / Axın</span>Köhnə yol vs yeni yol</h2>
+  <p class="doc">Aşağıda real addım sayı. Köhnə yolda istifadəçi 6 addımda 2 dəfə dayanır ("Aktivləşdir"dən sonra və menyuda axtararkən). Yeni yolda heç bir addım yoxdur ki, istifadəçi "indi nə olacaq?" deyə dayansın.</p>
+  <h3 class="doc">İndiki axın — 6 addım, 2 ilişmə nöqtəsi</h3>
+  <div class="flow">
+    <div class="fstep"><span class="fn">01</span><b>Təkliflər tabı</b><p>Kampaniya siyahısı, faiz nişanı ilə.</p></div>
+    <div class="fstep"><span class="fn">02</span><b>"Aktivləşdir" bas</b><p>Düymə basılır, gözləmə anı yaranır.</p><span class="mt bad">ilişmə · test: "sonra nə?"</span></div>
+    <div class="fstep"><span class="fn">03</span><b>QR açılır</b><p>Sayğac işləyir, ekran QR göstərir.</p></div>
+    <div class="fstep"><span class="fn">04</span><b>Menyuya keç</b><p>Hansı məhsulun uyğun olduğu bilinmir.</p><span class="mt bad">ilişmə · test: "uyğun məhsullar hanı?"</span></div>
+    <div class="fstep"><span class="fn">05</span><b>Təklifi xatırla</b><p>Detalı geri açmaq lazım gəlir.</p><span class="mt bad">test: "yadda saxlamıram"</span></div>
+    <div class="fstep"><span class="fn">06</span><b>Səbət</b><p>Hər şey bir sətirdə "endirim" kimi görünür.</p></div>
+  </div>
+
+  <h3 class="doc">v3 axını — 4 addım, ilişmə yoxdur</h3>
+  <div class="flow">
+    <div class="fstep"><span class="fn">01</span><b>Təkliflər tabı</b><p><b>Uyğun məhsul sayı</b> kartın üzündə: "4 məhsula keçir".</p><span class="mt good">qərar asandır</span></div>
+    <div class="fstep"><span class="fn">02</span><b>"Uyğun məhsulları gör"</b><p>Menyu filtrli açılır, sticky çip təklifi xatırladır. Uyğun olmayanlar solğun.</p><span class="mt good">axtarış yoxdur</span></div>
+    <div class="fstep"><span class="fn">03</span><b>Əlavə et</b><p>Endirimli qiymət dərhal görünür (5.00 → 4.00). Səbət üzən düymədə sayğacla artır.</p><span class="mt good">nəticə göz qabağında</span></div>
+    <div class="fstep"><span class="fn">04</span><b>Səbət + izləmə</b><p>Təklif və mükafat <b>ayrı sətirdə</b>. Sifarişdən sonra 3 mərhələli izləmə.</p><span class="mt good">şəffaflıq</span></div>
+  </div>
+
+  <div class="note">
+    <h5>Ən böyük fərq bir cümləylə</h5>
+    <p>Köhnə axında istifadəçi <b>qərar verir və sonra nə olacağını gözləyir</b>. Yeni axında <b>görür və sonra qərar verir</b>. Bu fərq Tims-in istifadəçi testində 50%-in menyuda ilişməsinin səbəbi idi.</p>
+  </div>
+</section>
+
+<!-- 04 -->
+<section class="doc-sec" id="screens">
+  <h2 class="doc"><span class="num">04 / Ekranlar</span>Hamısı işlək</h2>
+  <p class="doc">Telefonlar canlıdır: təklifdən uyğun məhsullara keç, məhsul əlavə et, səbəti aç, sifariş ver, izləmə mərhələlərini irəli apar. Üzən səbət düyməsi məhsul artdıqca görünür.</p>
+  <div class="stage">
+
+    <!-- ===== PHONE 1 ===== -->
+    <div class="pcol">
+      <h4>1 · Əsas<em>aktiv sifariş zolağı + bu gün üçün seçimlər + üzən səbət</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="home" id="p1" data-cart="0">
+          <div class="pbg" data-bg="1" data-follow="1"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home">
+              <div class="hero">
+                <div class="greet g-inline">
+                  <div class="h">Cümə · Nizami filialı</div>
+                  <div class="n">Salam, Rəşad</div>
+                  <div class="s">Növbəti pulsuz kofeyə <b>2 möhür</b> qalıb.</div>
+                </div>
+              </div>
+
+              <!-- dərs 5: aktiv sifariş zolağı -->
+              <button class="livetrack" data-goto="track">
+                <span class="pulse"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg></span>
+                <span class="mid">
+                  <span class="st">Hazırlanır</span>
+                  <span class="nm">Flat White + Fındıq kruassan</span>
+                  <span class="mt2">Nizami filialı · ~4 dəq qalıb</span>
+                </span>
+                <span class="go">›</span>
+              </button>
+
+              <div class="stamp g-solid">
+                <div class="lbl-k">Loyallıq möhürü</div>
+                <div class="num">6<small>/ 10</small></div>
+                <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div>
+                <div class="foot">
+                  <p>1 möhür = 1 kofe.<br>Kassa tərəfindən vurulur.</p>
+                  <button class="pill solid" data-goto="wallet">Cüzdan</button>
+                </div>
+              </div>
+
+              <!-- dərs 1: bu gün üçün seçimlər (təklif qiymətləri ilə) -->
+              <div class="picks">
+                <div class="ph">
+                  <b>Bu gün üçün</b>
+                  <span data-goto="offer" style="cursor:pointer">Hamısı ›</span>
+                </div>
+                <div class="pr">
+                  <button class="pcard" data-goto="offer">
+                    <span class="tag">20% endirim</span>
+                    <span class="tn">İsti içkilər</span>
+                    <span class="tp"><s>5.00</s>4.00 ₼</span>
+                  </button>
+                  <button class="pcard" data-add="1">
+                    <span class="tag">Mükafat hazır</span>
+                    <span class="tn">Pulsuz tək kofe</span>
+                    <span class="tp">0.00 ₼</span>
+                  </button>
+                  <button class="pcard" data-add="2">
+                    <span class="tag">Yeni</span>
+                    <span class="tn">Kakao &amp; Portağal</span>
+                    <span class="tp">6.50 ₼</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="duo">
+                <button class="tile g-solid" data-goto="menu">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>
+                  <span class="t">Sifariş et</span><span class="d">Menyu · 34 məhsul</span>
+                </button>
+                <button class="tile g-solid" data-goto="wallet">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+                  <span class="t">Balans 12.50 ₼</span><span class="d">3 kupon var</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- menyu (filtrsiz) -->
+            <div class="p-scr p-scr--menu">
+              <div class="mhead"><h2>Menyu</h2><span class="c" id="mCount1">10 məhsul · 5 kateqoriya</span></div>
+              <ul class="mlist g-solid" id="list1"></ul>
+              <p class="mfoot-note">Bütün menyu göstərilir. Təklif aktiv olsa, uyğun məhsullar qeyd olunur.</p>
+            </div>
+
+            <!-- təklif detalı (dərs 1+2) -->
+            <div class="p-scr p-scr--offer">
+              <div class="ohead">
+                <button class="back" data-goto="home">‹ Geri</button>
+                <h2>Təklif</h2>
+              </div>
+              <div class="ocard">
+                <span class="tag">Bu gün · 08:00–22:00</span>
+                <div class="big">20%<span> endirim</span></div>
+                <p class="nm">İsti içkilər — bütün isti kofe və çaylar</p>
+                <p class="mt3">Kassada əlavə heç nə etmək lazım deyil. Sifarişdə avtomatik tətbiq olunur.</p>
+              </div>
+              <div class="tabs2 g-inline" id="oTabs">
+                <button data-ot="elig" aria-selected="true">Uyğun məhsullar (4)</button>
+                <button data-ot="terms" aria-selected="false">Şərtlər</button>
+              </div>
+              <ul class="terms g-solid" id="oElig" style="list-style:none">
+                <li><span class="k">✓</span><div>Flat White — 5.00 → <b>4.00 ₼</b></div></li>
+                <li><span class="k">✓</span><div>Fındıq Latte — 6.00 → <b>4.80 ₼</b></div></li>
+                <li><span class="k">✓</span><div>Kakao &amp; Portağal — 6.50 → <b>5.20 ₼</b></div></li>
+                <li><span class="k">✓</span><div>Südlü Çay — 3.50 → <b>2.80 ₼</b></div></li>
+              </ul>
+              <ul class="terms g-solid" id="oTerms" style="display:none;list-style:none">
+                <li><span class="k">✓</span><div>Bir sifarişdə bir təklif işləyir. Ən yüksək faizli avtomatik seçilir.</div></li>
+                <li><span class="k">✓</span><div>Mükafat möhürü ilə <b>eyni vaxtda</b> işləyə bilər (ayrı məhsullara).</div></li>
+                <li><span class="n">✕</span><div>Digər endirim kampaniyaları ilə birləşmir.</div></li>
+                <li><span class="n">✕</span><div>Çörək və şirin məhsullara şamil olunmur.</div></li>
+              </ul>
+              <div class="oact">
+                <button class="pill solid big-take" data-goto="filtered">Uyğun məhsulları gör</button>
+                <button class="pill ghost" data-goto="menu">Bütün menyu</button>
+              </div>
+              <p class="hint-line">Təklifi aktivləşdirmək lazım deyil — məhsul seçəndə özü tətbiq olunacaq.</p>
+            </div>
+
+            <!-- filtrlənmiş menyu -->
+            <div class="p-scr p-scr--filtered">
+              <div class="mhead"><h2>Uyğun məhsullar</h2><span class="c" id="mCountF">4 məhsul · İsti içkilər təklifi</span></div>
+              <ul class="mlist g-solid" id="listF"></ul>
+              <p class="mfoot-note">Solğun məhsullar təklifə uyğun deyil — onlara da baxa bilərsən, endirim tətbiq olunmayacaq.</p>
+            </div>
+
+            <!-- səbət (dərs 3) -->
+            <div class="p-scr p-scr--cart">
+              <div class="carthead">
+                <h2>Səbət</h2><span class="cnt2" id="cartCnt">2 məhsul</span>
+              </div>
+              <div class="citems g-solid">
+                <div class="crow">
+                  <div class="cm">
+                    <div class="cn">Flat White</div>
+                    <div class="cd">Böyük · ipək süd · əlavə şot</div>
+                    <div class="cq"><button data-q="-1">−</button><span>1</span><button data-q="1">+</button></div>
+                  </div>
+                  <div class="cp"><div class="now">4.00 ₼</div><div class="was">5.00 ₼</div></div>
+                  <button class="rm">✕</button>
+                </div>
+                <div class="crow">
+                  <div class="cm">
+                    <div class="cn">Fındıq Kruassan</div>
+                    <div class="cd">Təklifə uyğun deyil</div>
+                    <div class="cq"><button data-q="-1">−</button><span>1</span><button data-q="1">+</button></div>
+                  </div>
+                  <div class="cp"><div class="now">4.20 ₼</div></div>
+                  <button class="rm">✕</button>
+                </div>
+              </div>
+
+              <!-- dərs 3: ayrı sətirlər -->
+              <div class="applylist g-inline">
+                <div class="applyrow">
+                  <span class="ai off">%</span>
+                  <span class="am">
+                    <span class="an">Təklif: İsti içkilər 20%</span>
+                    <span class="as">Flat White-ə tətbiq olundu</span>
+                  </span>
+                  <span class="av">−1.00 ₼</span>
+                  <button class="edit">Dəyiş</button>
+                </div>
+                <div class="applyrow">
+                  <span class="ai rew">★</span>
+                  <span class="am">
+                    <span class="an">Mükafat: möhür kofesi</span>
+                    <span class="as">İstifadə üçün əlçatandır</span>
+                  </span>
+                  <span class="av limit">tətbiq olunmadı</span>
+                  <button class="edit">İstifadə et</button>
+                </div>
+                <div class="applywarn">
+                  <span style="color:#9c5209;flex:none">⚠</span>
+                  <span class="wt">Bir sifarişdə bir təklif işləyir. Mükafat möhürünü ayrı sifarişdə istifadə etsən daha çox qənaət edərsən (−4.20 ₼).</span>
+                </div>
+              </div>
+
+              <div class="totalbar g-solid">
+                <div class="line"><span class="k2">Məhsullar</span><span class="v2">9.20 ₼</span></div>
+                <div class="line"><span class="k2">Təklif qənaəti</span><span class="v2" style="color:#166b3c">−1.00 ₼</span></div>
+                <div class="line sum"><span class="k2">Yekun</span><span class="v2">8.20 ₼</span></div>
+                <button class="pill solid" data-place="1">Sifariş et · 8.20 ₼</button>
+              </div>
+            </div>
+
+            <!-- izləmə (dərs 5) -->
+            <div class="p-scr p-scr--track">
+              <div class="trackhead">
+                <h2>Sifarişin</h2>
+                <span class="no2">№1042 · Nizami filialı</span>
+              </div>
+              <div class="bignow g-solid">
+                <div class="k">İndiki mərhələ</div>
+                <div class="v" id="nowStep">Hazırlanır</div>
+                <p class="e" id="nowEta">Təxminən 4 dəqiqə qalıb. Hazır olanda bildiriş gələcək.</p>
+                <div class="barwrap"><div class="bar" id="nowBar" style="width:66%"></div></div>
+              </div>
+              <ul class="stepper g-solid" id="stepper">
+                <li class="done"><span class="dot">✓</span><span class="sm"><span class="sn">Sifariş qəbul edildi</span><span class="sd">Ödəniş təsdiqləndi, kassaya düşdü</span></span><span class="time">09:38</span></li>
+                <li class="now"><span class="dot">2</span><span class="sm"><span class="sn">Hazırlanır</span><span class="sd">Barista sifarişi götürdü</span></span><span class="time">09:41</span></li>
+                <li class="todo"><span class="dot">3</span><span class="sm"><span class="sn">Hazırdır</span><span class="sd">Kassadan götürə bilərsən</span></span><span class="time">—</span></li>
+              </ul>
+              <div class="ordersum g-solid">
+                <div class="ol"><span>Flat White</span><span>4.00 ₼</span></div>
+                <div class="ol"><span>Fındıq Kruassan</span><span>4.20 ₼</span></div>
+                <div class="ol"><span style="color:#166b3c">Təklif qənaəti</span><span style="color:#166b3c">−1.00 ₼</span></div>
+                <div class="ol tt"><span>Yekun</span><span>8.20 ₼</span></div>
+              </div>
+              <div class="demo-ctl">
+                <button class="pill ghost" id="advBtn">Növbəti mərhələ (demo)</button>
+                <button class="pill ghost" id="resetBtn">Sıfırla</button>
+              </div>
+              <p class="hint-line">Demo düyməsi yalnız bu konseptdədir — real app-də mərhələ <code>KitchenOrder.status</code>-dan gəlir.</p>
+            </div>
+
+            <!-- cüzdan -->
+            <div class="p-scr p-scr--wallet">
+              <div class="mhead"><h2>Cüzdan</h2><span class="c">Hər şey bir yerdə</span></div>
+              <div class="wseg g-inline" id="wSeg">
+                <button data-wp="stamp" aria-selected="true">Möhürlər</button>
+                <button data-wp="bal" aria-selected="false">Balans</button>
+                <button data-wp="coup" aria-selected="false">Kuponlar</button>
+              </div>
+              <div class="wpanel on" data-wp="stamp">
+                <div class="stamp g-solid" style="margin-top:16px">
+                  <div class="lbl-k">Loyallıq möhürü</div>
+                  <div class="num">6<small>/ 10</small></div>
+                  <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div>
+                  <div class="foot"><p>Növbəti pulsuz kofeyə <b>4 möhür</b> qalıb.</p><button class="pill solid">QR göstər</button></div>
+                </div>
+              </div>
+              <div class="wpanel" data-wp="bal">
+                <div class="balcard g-solid">
+                  <div class="lbl-k">Cari balans</div>
+                  <p class="amt">12<sup>.50 ₼</sup></p>
+                  <div class="row"><button class="pill solid">Artır</button><button class="pill ghost">Tarixçə</button></div>
+                </div>
+              </div>
+              <div class="wpanel" data-wp="coup">
+                <ul class="coupons">
+                  <li class="g-inline"><span class="ci">☕</span><span class="cm"><span class="cn2">Pulsuz tək kofe</span><span class="cd2">İstənilən isti içki · 14 gün</span></span><span class="cs">Hazır</span></li>
+                  <li class="g-inline"><span class="ci">🥐</span><span class="cm"><span class="cn2">Kruassan hədiyyə</span><span class="cd2">8/10 möhür topla · daha 2 lazım</span></span><span class="cs soon">Yolda</span></li>
+                  <li class="g-inline"><span class="ci">🎂</span><span class="cm"><span class="cn2">Ad günü endirimi 30%</span><span class="cd2">Doğum günü həftəsi · oktyabr</span></span><span class="cs">Hazır</span></li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- profil -->
+            <div class="p-scr p-scr--me">
+              <div class="metop">
+                <div class="ava">R</div>
+                <div class="nm">Rəşad Məmmədov</div>
+                <div class="ph">+994 ·· 4 12 ··</div>
+              </div>
+              <ul class="rows g-solid">
+                <li>Şəxsi məlumatlar <span class="v">Redaktə</span></li>
+                <li>Sevimli filial <span class="v">Nizami</span></li>
+                <li>Dil <span class="v">AZ · EN · RU</span></li>
+                <li>Apple Wallet kartı <span class="v">Konfiq. olunmayıb</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <button class="fab" id="fab" data-goto="cart" aria-label="Səbət">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+            <span class="cnt" id="fabCnt">1</span>
+          </button>
+
+          <div class="ptabs g-chrome" id="tabs1">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="wallet" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/><path d="M4 11h16M8 7V5h8v2"/></svg>Cüzdan</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PHONE 2 — dark ===== -->
+    <div class="pcol">
+      <h4>2 · Gecə rejimi<em>eyni axın, tünd şüşə</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="dark" data-tab="filtered" id="p2">
+          <div class="pbg" data-bg="2"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home"><div class="hero"><div class="greet g-inline"><div class="h">Cümə · Nizami</div><div class="n">Salam, Rəşad</div><div class="s">Təklif aktivdir — 4 məhsula keçir.</div></div></div>
+              <div class="ocard" style="margin:13px 20px 0"><span class="tag">Aktiv təklif</span><div class="big">20%<span> endirim</span></div><p class="nm">İsti içkilər</p></div>
+              <div class="stamp g-solid"><div class="lbl-k">Loyallıq möhürü</div><div class="num">6<small>/ 10</small></div><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div></div>
+            </div>
+            <div class="p-scr p-scr--filtered">
+              <div class="mhead"><h2>Uyğun məhsullar</h2><span class="c">4 məhsul · İsti içkilər təklifi</span></div>
+              <ul class="mlist g-solid" id="list2"></ul>
+            </div>
+            <div class="p-scr p-scr--menu">
+              <div class="mhead"><h2>Menyu</h2><span class="c" id="mCount2">10 məhsul</span></div>
+              <ul class="mlist g-solid" id="listN2"></ul>
+            </div>
+            <div class="p-scr p-scr--cart">
+              <div class="carthead"><h2>Səbət</h2><span class="cnt2">1 məhsul</span></div>
+              <div class="citems g-solid">
+                <div class="crow"><div class="cm"><div class="cn">Flat White</div><div class="cd">Böyük · ipək süd</div></div><div class="cp"><div class="now">4.00 ₼</div><div class="was">5.00 ₼</div></div></div>
+              </div>
+              <div class="applylist g-inline">
+                <div class="applyrow"><span class="ai off">%</span><span class="am"><span class="an">Təklif: İsti içkilər 20%</span><span class="as">Avtomatik tətbiq olundu</span></span><span class="av">−1.00 ₼</span></div>
+              </div>
+              <div class="totalbar g-solid">
+                <div class="line sum"><span class="k2">Yekun</span><span class="v2">4.00 ₼</span></div>
+                <button class="pill solid">Sifariş et · 4.00 ₼</button>
+              </div>
+            </div>
+            <div class="p-scr p-scr--wallet">
+              <div class="mhead"><h2>Cüzdan</h2><span class="c">Möhürlər</span></div>
+              <div class="stamp g-solid"><div class="lbl-k">Loyallıq möhürü</div><div class="num">6<small>/ 10</small></div><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div></div>
+            </div>
+            <div class="p-scr p-scr--me"><div class="metop"><div class="ava">R</div><div class="nm">Rəşad</div><div class="ph">+994 ·· 4 12 ··</div></div></div>
+          </div>
+          <div class="ptabs g-chrome" id="tabs2">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="cart" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/><path d="M4 11h16M8 7V5h8v2"/></svg>Səbət</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PHONE 3 — izləmə ===== -->
+    <div class="pcol">
+      <h4>3 · Sifariş izləmə<em>NN/g qaydaları: mərhələ fərqi + yumşaq vaxt + tək söz</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="track" id="p3">
+          <div class="pbg" data-bg="3"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home"><div class="hero"><div class="greet g-inline"><div class="h">Sifarişin hazırlanır</div><div class="n">~4 dəq</div><div class="s">Hazır olanda bildiriş gələcək.</div></div></div></div>
+            <div class="p-scr p-scr--track">
+              <div class="trackhead">
+                <h2>Sifarişin</h2>
+                <span class="no2">№1042 · Nizami filialı</span>
+              </div>
+              <div class="bignow g-solid">
+                <div class="k">İndiki mərhələ</div>
+                <div class="v" data-now>Hazırlanır</div>
+                <p class="e" data-eta>Təxminən 4 dəqiqə qalıb. Hazır olanda bildiriş gələcək.</p>
+                <div class="barwrap"><div class="bar" data-bar style="width:66%"></div></div>
+              </div>
+              <ul class="stepper g-solid" data-stepper>
+                <li class="done"><span class="dot">✓</span><span class="sm"><span class="sn">Sifariş qəbul edildi</span><span class="sd">Ödəniş təsdiqləndi, kassaya düşdü</span></span><span class="time">09:38</span></li>
+                <li class="now"><span class="dot">2</span><span class="sm"><span class="sn">Hazırlanır</span><span class="sd">Barista sifarişi götürdü</span></span><span class="time">09:41</span></li>
+                <li class="todo"><span class="dot">3</span><span class="sm"><span class="sn">Hazırdır</span><span class="sd">Kassadan götürə bilərsən</span></span><span class="time">—</span></li>
+              </ul>
+              <div class="demo-ctl">
+                <button class="pill ghost" data-adv>Növbəti mərhələ</button>
+                <button class="pill ghost" data-reset>Sıfırla</button>
+              </div>
+            </div>
+            <div class="p-scr p-scr--menu"><div class="mhead"><h2>Menyu</h2></div></div>
+            <div class="p-scr p-scr--wallet"><div class="mhead"><h2>Cüzdan</h2></div></div>
+            <div class="p-scr p-scr--me"><div class="metop"><div class="ava">R</div><div class="nm">Rəşad</div></div></div>
+          </div>
+          <div class="ptabs g-chrome" id="tabs3">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="track" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>İzləmə</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 05 -->
+<section class="doc-sec" id="lab">
+  <h2 class="doc"><span class="num">05 / Material</span>Laboratoriya (v2-dən, qısaldılmış)</h2>
+  <p class="doc">Material sistemi v2-dəki kimidir — 4 pillə qalır. Burada yalnız əsas iki düymə var, çünki v3-ün ağırlığı UX-dədir. Canlı kontrast ölçən işləməyə davam edir.</p>
+  <div class="lab">
+    <div class="ctl">
+      <label>Blur (chrome) <b id="vBlur">30px</b></label>
+      <input type="range" id="sBlur" min="0" max="48" value="30">
+    </div>
+    <div class="ctl">
+      <label>Şəffaflıq <b id="vAlpha">58%</b></label>
+      <input type="range" id="sAlpha" min="10" max="95" value="58">
+    </div>
+    <div class="ctl">
+      <label>Əlçatanlıq</label>
+      <div class="btns"><button id="btnRT" aria-pressed="false">Reduce Transparency</button></div>
+    </div>
+    <div class="ctl">
+      <label>Presetlər</label>
+      <div class="btns">
+        <button data-preset="apple">Apple balansı</button>
+        <button data-preset="calm">Sakit</button>
+        <button data-preset="bold">Cəsarətli</button>
+      </div>
+    </div>
+  </div>
+  <div class="meter">
+    <div class="hd">
+      <h5>Kontrast ölçən — canlı</h5>
+      <span id="meterNote">Fondan real piksel · hədəf ≥ 4.5:1 (AA)</span>
+    </div>
+    <div id="meterRows"></div>
+  </div>
+</section>
+
+<!-- 06 -->
+<section class="doc-sec" id="rules">
+  <h2 class="doc"><span class="num">06 / İzləmə</span>NN/g-nin qaydaları bizim ekranda</h2>
+  <table class="cmp">
+    <thead><tr><th>Qayda</th><th class="good">Bizdə necə</th></tr></thead>
+    <tbody>
+      <tr><th>Mərhələ adı bir söz olsun</th><td class="good">"Hazırlanır" — "Sifarişiniz hazırlanma mərhələsindədir" yox</td></tr>
+      <tr><th>Tamamlanmış cari fərqlənsin</th><td class="good">Yaşıl ✓ (keçmiş) vs narıncı nöqtə + həlqə animasiyası (cari) vs boş halqa (gələcək)</td></tr>
+      <tr><th>Vaxt yumşaq olsun</th><td class="good">"~4 dəqiqə" — "4 dəq 12 san" yox. KDS-in ETA-sı dəyişə bilər.</td></tr>
+      <tr><th>Kontekst ver</th><td class="good">Hər mərhələnin altında izah: "Barista sifarişi götürdü"</td></tr>
+      <tr><th>Yekun nəticəni göstər</th><td class="good">"Hazırdır" mərhələsi + "Kassadan götürə bilərsən"</td></tr>
+      <tr><th>Bildiriş vədi ver</th><td class="good">"Hazır olanda bildiriş gələcək" — istifadəçi ekranı açıq saxlamaq məcburiyyətində deyil</td></tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə üçün "4 dəq 12 san" yazmırıq</h5>
+      <p>Starbucks-un bağlı filialları və Tims-in ilişmələri eyni kökdən gəlir: <b>sistemin bilmədiyi şeyi bilirmiş kimi göstərmək</b>. KDS-də barista sifarişi götürməyibsə, saniyə dəqiqliyində vaxt yalandır. Ona görə yumşaq ifadə işlədirik — və istifadəçi aldadılmır.</p>
+    </div>
+    <div class="note">
+      <h5>Boş hal — dərs 6</h5>
+      <ul>
+        <li>İzləmə yoxdursa: "Aktiv sifarişin yoxdur" + <b>"Menyuya bax"</b> düyməsi</li>
+        <li>Kampaniya yoxdursa: "Hazırda təklif yoxdur" + <b>"Bildiriş qoş"</b> (yeni təklif gələndə xəbər ver)</li>
+        <li>Menyu axtarışı boşdursa: "Tapılmadı" + <b>ən çox sifariş olunan 3 məhsul</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 07 -->
+<section class="doc-sec" id="handoff">
+  <h2 class="doc"><span class="num">07 / Keçid</span>İcra planı</h2>
+  <p class="doc">Sıra qəsdən belədir: əvvəl UX, sonra vizual. Çünki UX dəyişikliyi dəyəri dərhal göstərir, vizual isə sonra gəlir.</p>
+  <ol class="steps">
+    <li><b>Üzən səbət + sayğac (dərs 4)</b><p>Ən kiçik dəyişiklik, ən tez hiss olunan. <code>CustomerApp.tsx</code>-də mövcud səbət state-i üzərinə üzən düymə. Telefonda yoxlayırsan.</p></li>
+    <li><b>Təklif detalı + uyğun məhsul filtri (dərs 1)</b><p><code>OffersTab.tsx</code> → detal səhifəsi; <code>OrderTab.tsx</code> → filtrlənmiş rejim + solğun uyğun olmayanlar. Sticky xatırladıcı çip.</p></li>
+    <li><b>"Aktivləşdir" düyməsini ləğv et (dərs 2)</b><p>QR yalnız kassada lazım olanda (Cüzdan → "QR göstər"). Aktivləşdirmə serverdə sifariş anında olur.</p></li>
+    <li><b>Səbətdə ayrı sətirlər (dərs 3)</b><p>Təklif və mükafat ayrı: rəng, ikon, mətn fərqli. "Dəyiş" və "İstifadə et" düymələri. Çoxlu təklif xəbərdarlığı.</p></li>
+    <li><b>Sifariş izləmə (dərs 5)</b><p>3 mərhələ <code>KitchenOrder.status</code>-dan. Ana ekranda canlı zolaq, tam ekranda stepper.</p></li>
+    <li><b>Boş hallar (dərs 6)</b><p>Hər boş ekrana konkret hərəkət düyməsi. "Sistem xətası" mətnləri qadağandır.</p></li>
+    <li><b>Glass material qatı</b><p>v2-dəki token sistemi ən sonda — UX düzgün olandan sonra. <code>src/theme/glass-tokens.css</code>.</p></li>
+  </ol>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə qazanırıq</h5>
+      <ul>
+        <li>Təklif axınında addım sayı <b>6 → 4</b>, ilişmə nöqtəsi <b>2 → 0</b>.</li>
+        <li>Səbətdə "nə tətbiq olundu" sualı yox olur — ayrı sətirlər.</li>
+        <li>İstifadəçi sifarişini izləyə bilir → dəstək sorğusu azalır (NN/g).</li>
+        <li>Mövcud backend <b>dəyişmir</b>. Heç bir migration lazım deyil.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Risk</h5>
+      <ul>
+        <li>"Aktivləşdir"i ləğv etmək ən cəsarətli dəyişiklikdir. Amma server tərəfi onsuz da sifariş anında yoxlayır — düymə yalnız UX friksiyası idi.</li>
+        <li>Əvvəlcə 1-ci addımı tək göndər, telefonda bax, sonra davam edək.</li>
+        <li>Hər addım ayrı commit → geri qaytarmaq asandır.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Emalat · Liquid Glass v3 (informed) · müştəri tətbiqi</span>
+  <span>docs/design-system/customer-ios-liquid-glass-v3.html</span>
+  <span>Import olunmayıb · deploy yoxdur</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ 1. PROSEDURAL FON ============ */
+  var W=360,H=640;
+  var canv=document.createElement('canvas'); canv.width=W; canv.height=H;
+  var cx=canv.getContext('2d',{willReadFrequently:true});
+  var BACKDROPS={
+    '1':{base:['#f0d8b8','#c98a4f','#7a4a22'],blobs:[[70,110,120,'rgba(255,214,160,.85)'],[300,70,110,'rgba(196,116,52,.6)'],[180,330,150,'rgba(255,236,205,.75)'],[40,500,140,'rgba(120,70,30,.55)'],[320,520,130,'rgba(255,190,120,.6)'],[200,600,120,'rgba(90,52,22,.45)']]},
+    '2':{base:['#2a2118','#140f0a','#0a0705'],blobs:[[80,140,130,'rgba(255,168,86,.55)'],[300,110,100,'rgba(120,80,40,.5)'],[200,380,160,'rgba(70,48,28,.6)'],[50,560,140,'rgba(255,140,60,.35)'],[330,560,120,'rgba(40,28,18,.7)']]},
+    '3':{base:['#ffffff','#e8e2d8','#cfc6b8'],blobs:[[100,120,150,'rgba(255,255,255,.9)'],[300,200,140,'rgba(255,248,235,.85)'],[180,450,170,'rgba(255,255,255,.8)'],[60,600,140,'rgba(240,232,218,.7)']]}
+  };
+  var painted={}, canvasHolds=null;
+  function paintBackdrop(id){
+    if(painted[id]) return painted[id];
+    var spec=BACKDROPS[id]; if(!spec) return '';
+    cx.setTransform(1,0,0,1,0,0); cx.filter='none'; cx.clearRect(0,0,W,H);
+    var g=cx.createLinearGradient(0,0,W*0.4,H);
+    g.addColorStop(0,spec.base[0]); g.addColorStop(.55,spec.base[1]); g.addColorStop(1,spec.base[2]);
+    cx.fillStyle=g; cx.fillRect(0,0,W,H);
+    cx.filter='blur(34px)';
+    for(var i=0;i<spec.blobs.length;i++){var b=spec.blobs[i];cx.beginPath();cx.arc(b[0],b[1],b[2],0,Math.PI*2);cx.fillStyle=b[3];cx.fill();}
+    cx.filter='none';
+    var img=cx.getImageData(0,0,W,H),d=img.data;
+    for(var p=0;p<d.length;p+=4){var n=(Math.random()-.5)*9;d[p]+=n;d[p+1]+=n;d[p+2]+=n;}
+    cx.putImageData(img,0,0);
+    var url=canv.toDataURL('image/jpeg',.86); painted[id]=url; canvasHolds=id; return url;
+  }
+  function sampleBackdrop(xr,yr,id){
+    if(canvasHolds!==id) paintBackdrop(id);
+    var x=Math.round(xr*W),y=Math.round(yr*H);
+    x=Math.max(6,Math.min(W-6,x)); y=Math.max(6,Math.min(H-6,y));
+    var d=cx.getImageData(x-5,y-5,10,10).data,r=0,g=0,b=0,n=0;
+    for(var i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+    return [r/n,g/n,b/n];
+  }
+  function relLum(c){function f(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);}return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2]);}
+  function contrast(a,b){var l1=relLum(a),l2=relLum(b);if(l1<l2){var t=l1;l1=l2;l2=t;}return (l1+.05)/(l2+.05);}
+  function composite(t,a,b){return [t[0]*a+b[0]*(1-a),t[1]*a+b[1]*(1-a),t[2]*a+b[2]*(1-a)];}
+  function css(c){return 'rgb('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+')';}
+
+  /* ============ 2. TOKENLAR ============ */
+  var state={blur:30,alpha:.58,rt:0};
+  function applyTokens(){
+    var s=document.documentElement.style;
+    s.setProperty('--g-blur-chrome',state.blur+'px');
+    s.setProperty('--g-blur-sheet',Math.round(state.blur*.66)+'px');
+    s.setProperty('--g-blur-inline',Math.round(state.blur*.4)+'px');
+    s.setProperty('--g-alpha',String(state.alpha));
+    document.getElementById('vBlur').textContent=state.blur+'px';
+    document.getElementById('vAlpha').textContent=Math.round(state.alpha*100)+'%';
+    var rt=document.getElementById('btnRT'); if(rt) rt.setAttribute('aria-pressed',state.rt?'true':'false');
+    renderMeter();
+  }
+  var PROBES=[
+    {n:'Tab bar — aktiv yazı',where:'tab',text:[15,12,9],tint:[255,255,255],min:4.5},
+    {n:'Tab bar — passiv yazı',where:'tab',text:[86,82,78],tint:[255,255,255],min:4.5},
+    {n:'Stepper başlığı',where:'sheet',text:[22,18,14],tint:[255,255,255],min:4.5},
+    {n:'Stepper izahı',where:'sheet',text:[112,105,98],tint:[255,255,255],min:4.5}
+  ];
+  function renderMeter(){
+    var host=document.getElementById('meterRows'); if(!host) return;
+    var rows='';
+    PROBES.forEach(function(pr){
+      var back = pr.where==='tab' ? sampleBackdrop(.42,.965,'1') : sampleBackdrop(.5,.78,'1');
+      var glass;
+      if(state.rt) glass=pr.tint.slice();
+      else glass=composite(pr.tint,state.alpha,back);
+      var ratio=contrast(pr.text,glass), pass=ratio>=pr.min;
+      rows+='<div class="mrow"><div class="mi">'+pr.n+'<em>'+pr.where+' · hədəf ≥ '+pr.min.toFixed(1)+':1</em></div>'+
+        '<div class="swatchrow"><span class="sw-sm" style="background:'+css(glass)+'"></span><span class="sw-sm" style="background:'+css(back)+'"></span><span class="sw-sm" style="background:'+css(pr.text)+'"></span></div>'+
+        '<span class="badge '+(pass?'pass':'fail')+'">'+(pass?'KEÇİR':'ZƏİF')+'</span><span class="score '+(pass?'pass':'fail')+'">'+ratio.toFixed(2)+':1</span></div>';
+    });
+    document.getElementById('meterNote').textContent = state.rt
+      ? 'Reduce Transparency aktiv — bütün şüşə möhkəm'
+      : 'Şüşə '+Math.round(state.alpha*100)+'% · blur '+state.blur+'px';
+    host.innerHTML=rows;
+  }
+
+  /* ============ 3. MENYU DATA ============ */
+  var MENU=[
+    {n:'Flat White',d:'İpək süd, ikiqat espresso · 250ml',p:'5.00',c:'İsti'},
+    {n:'Fındıq Latte',d:'Ev fındıq şərbəti · 350ml',p:'6.00',c:'İsti'},
+    {n:'Kakao & Portağal',d:'Yeni · mürəbbə qatı',p:'6.50',c:'İsti'},
+    {n:'Südlü Çay',d:'Qara çay, darçın',p:'3.50',c:'İsti'},
+    {n:'Iced Latte',d:'Soyuq espresso, buz · 350ml',p:'5.00',c:'Soyuq'},
+    {n:'Cold Brew',d:'12 saat dəmlənmiş · 300ml',p:'5.50',c:'Soyuq'},
+    {n:'Limonad',d:'Nanə, buz',p:'3.80',c:'Soyuq'},
+    {n:'Fındıq Kruassan',d:'Hər səhər təzə',p:'4.20',c:'Çörək'},
+    {n:'Tərəvəzli Sendviç',d:'Focaccia, feta',p:'6.80',c:'Çörək'},
+    {n:'Tira Misu',d:'Maskarpone, espresso',p:'5.60',c:'Şirin'}
+  ];
+  var ELIGIBLE_CAT='İsti', DISCOUNT=0.20;
+  function isEligible(m){ return m.c===ELIGIBLE_CAT; }
+  function savePrice(p){ return (parseFloat(p)*(1-DISCOUNT)).toFixed(2); }
+
+  function buildList(listId, countId, filtered){
+    var el=document.getElementById(listId); if(!el) return;
+    var rows = filtered ? MENU.filter(isEligible) : MENU;
+    var html='';
+    rows.forEach(function(m){
+      var elig = isEligible(m);
+      var show = filtered ? true : elig;
+      html+='<li class="'+(filtered?'':'')+(show?'':' dim')+'" data-item="'+m.n+'">'
+        + '<div class="mid"><div class="nm">'+m.n+'</div><div class="ds">'+m.d+'</div></div>'
+        + (show && elig ? '<span class="elig-tag">−20%</span>' : '')
+        + '<span class="pr2">'
+        + (show && elig ? '<div class="new">'+savePrice(m.p)+' ₼</div><div class="old">'+m.p+' ₼</div>'
+                        : '<div class="new" style="color:inherit;font-weight:600">'+m.p+' ₼</div>')
+        + '</span></li>';
+    });
+    el.innerHTML=html;
+    if(countId){var ce=document.getElementById(countId); if(ce) ce.textContent=rows.length+' məhsul · '+(filtered?'1 kateqoriya':'5 kateqoriya');}
+  }
+
+  /* ============ 4. TAB DAVRANIŞI ============ */
+  function moveMorph(scr){
+    var bar=scr.querySelector('.ptabs'); if(!bar) return;
+    var act=bar.querySelector('button[aria-selected="true"]'); var cap=bar.querySelector('.morph');
+    if(!act||!cap) return;
+    var br=bar.getBoundingClientRect(), ar=act.getBoundingClientRect();
+    cap.style.left=(ar.left-br.left)+'px'; cap.style.width=ar.width+'px';
+  }
+  function goTab(scr,name){
+    var btn=scr.querySelector('.ptabs button[data-t="'+name+'"]');
+    if(btn){ btn.click(); return; }
+    /* telefonda həmin tab yoxdursa (məs. izləmə) — tab-ı dəyişmədən ekranı göstər */
+    scr.setAttribute('data-tab',name);
+  }
+  function initPhone(scr){
+    var bar=scr.querySelector('.ptabs');
+    if(bar){
+      /* Alt-tab-ı annotasiya edən 'sığorta' xəritəsi: filter/offer ekranları
+         menyu tab-ı altındadır → menyu işıqlandırılsın (heç bir tab sönməsin). */
+      var HIGHLIGHT={home:'home',menu:'menu',filtered:'menu',offer:'menu',
+                     cart:'cart',track:'track',wallet:'wallet',me:'me'};
+
+      bar.querySelectorAll('button[data-t]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var t=btn.getAttribute('data-t');
+          scr.setAttribute('data-tab',t);
+          bar.querySelectorAll('button[data-t]').forEach(function(b){b.setAttribute('aria-selected',b===btn?'true':'false');});
+          moveMorph(scr);
+          var body=scr.querySelector('.pbody'); if(body) body.scrollTop=0;
+        });
+      });
+
+      /* Alt-ekran keçidləri (data-goto) — tab işıqlandırması düzgün yenilənir */
+      scr.querySelectorAll('[data-goto]').forEach(function(el){
+        el.addEventListener('click',function(e){
+          e.preventDefault();
+          var name=el.getAttribute('data-goto');
+          var target=HIGHLIGHT[name]||name;
+          var btn=bar.querySelector('button[data-t="'+target+'"]');
+          if(btn){
+            scr.setAttribute('data-tab',name);
+            bar.querySelectorAll('button[data-t]').forEach(function(b){b.setAttribute('aria-selected',b===btn?'true':'false');});
+            moveMorph(scr);
+            var body=scr.querySelector('.pbody'); if(body) body.scrollTop=0;
+          } else {
+            /* tab-ı olmayan ekran (məs. izləmə) → yalnız ekranı göstər */
+            scr.setAttribute('data-tab',name);
+          }
+        });
+      });
+
+      var body=scr.querySelector('.pbody');
+      if(body) body.addEventListener('scroll',function(){bar.classList.toggle('is-scrolled',body.scrollTop>18);},{passive:true});
+      moveMorph(scr); window.addEventListener('resize',function(){moveMorph(scr);});
+      setTimeout(function(){moveMorph(scr);},140);
+    }
+  }
+  document.querySelectorAll('.pscr').forEach(initPhone);
+
+  /* ============ 5. TƏKLİF DETALI — iki panel ============ */
+  var oTabs=document.getElementById('oTabs');
+  if(oTabs){
+    oTabs.querySelectorAll('[data-ot]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var which=b.getAttribute('data-ot');
+        oTabs.querySelectorAll('[data-ot]').forEach(function(x){x.setAttribute('aria-selected', x===b?'true':'false');});
+        document.getElementById('oElig').style.display = which==='elig'?'':'none';
+        document.getElementById('oTerms').style.display = which==='terms'?'':'none';
+      });
+    });
+  }
+
+  /* ============ 6. CÜZDAN SEQMENTİ ============ */
+  var wSeg=document.getElementById('wSeg');
+  if(wSeg){
+    wSeg.querySelectorAll('[data-wp]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var which=b.getAttribute('data-wp');
+        wSeg.querySelectorAll('[data-wp]').forEach(function(x){x.setAttribute('aria-selected', x===b?'true':'false');});
+        document.querySelectorAll('.wpanel').forEach(function(p){
+          p.classList.toggle('on', p.getAttribute('data-wp')===which);
+        });
+      });
+    });
+  }
+
+  /* ============ 7. SƏBƏT SAYĞACI (dərs 4) ============ */
+  var cartCount=1;
+  function setCart(n){
+    cartCount=Math.max(0,n);
+    var fab=document.getElementById('fab'), cnt=document.getElementById('fabCnt');
+    if(fab) fab.classList.toggle('show',cartCount>0);
+    if(cnt) cnt.textContent=String(cartCount);
+    document.querySelectorAll('[data-cart]').forEach(function(el){el.setAttribute('data-cart',String(cartCount));});
+    var cc=document.getElementById('cartCnt'); if(cc) cc.textContent=cartCount+' məhsul';
+    /* miqdar düymələri */
+    document.querySelectorAll('.crow .cq span').forEach(function(s,i){ if(i===0) s.textContent=String(Math.max(1,cartCount)); });
+  }
+  document.querySelectorAll('[data-add]').forEach(function(el){
+    el.addEventListener('click',function(){ setCart(cartCount+1); });
+  });
+  document.querySelectorAll('.crow [data-q]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var d=parseInt(b.getAttribute('data-q'),10); setCart(cartCount+d);
+    });
+  });
+  document.querySelectorAll('.mlist').forEach(function(list){
+    list.addEventListener('click',function(e){
+      var li=e.target.closest('li[data-item]'); if(!li) return;
+      setCart(cartCount+1);
+      var fab=document.getElementById('fab');
+      if(fab){ fab.style.transform='translateY(0) scale(1.14)'; setTimeout(function(){fab.style.transform='';},180); }
+    });
+  });
+
+  /* ============ 8. İZLƏMƏ DEMO ============ */
+  var STEPS=[
+    {name:'Sifariş qəbul edildi', etaText:'Ödəniş təsdiqləndi. Barista sifarişi hələ götürməyib.', bar:18},
+    {name:'Hazırlanır', etaText:'Təxminən 4 dəqiqə qalıb. Hazır olanda bildiriş gələcək.', bar:66},
+    {name:'Hazırdır', etaText:'Nizami filialından götürə bilərsən. Afiyət olsun!', bar:100}
+  ];
+  function wireTracker(root){
+    if(!root) return;
+    var idx=1;
+    var lis=root.querySelectorAll('[data-stepper] li');
+    var nowEl=root.querySelector('[data-now]');
+    var etaEl=root.querySelector('[data-eta]');
+    var barEl=root.querySelector('[data-bar]');
+    function render(){
+      lis.forEach(function(li,i){
+        li.classList.remove('done','now','todo');
+        li.classList.add(i<idx?'done':(i===idx?'now':'todo'));
+        var dot=li.querySelector('.dot');
+        if(i<idx){ dot.textContent='✓'; } else { dot.textContent=String(i+1); }
+      });
+      var s=STEPS[idx];
+      if(nowEl) nowEl.textContent=s.name;
+      if(etaEl) etaEl.textContent=s.etaText;
+      if(barEl) barEl.style.width=s.bar+'%';
+    }
+    var adv=root.querySelector('[data-adv]'); if(adv) adv.addEventListener('click',function(){ idx=(idx+1)%STEPS.length; render(); });
+    var res=root.querySelector('[data-reset]'); if(res) res.addEventListener('click',function(){ idx=1; render(); });
+    render();
+  }
+  document.querySelectorAll('.pscr').forEach(function(scr){ wireTracker(scr); });
+  /* phone 1-in stepper düymələri (id-li) */
+  (function(){
+    var p1=document.getElementById('p1'); if(!p1) return;
+    var nowEl=document.getElementById('nowStep'), etaEl=document.getElementById('nowEta'), barEl=document.getElementById('nowBar');
+    var lis=p1.querySelectorAll('#stepper li'); var idx=1;
+    function render(){
+      lis.forEach(function(li,i){
+        li.classList.remove('done','now','todo');
+        li.classList.add(i<idx?'done':(i===idx?'now':'todo'));
+        var dot=li.querySelector('.dot'); dot.textContent = i<idx?'✓':String(i+1);
+      });
+      var s=STEPS[idx];
+      if(nowEl) nowEl.textContent=s.name;
+      if(etaEl) etaEl.textContent=s.etaText;
+      if(barEl) barEl.style.width=s.bar+'%';
+    }
+    var a=document.getElementById('advBtn'); if(a) a.addEventListener('click',function(){ idx=(idx+1)%3; render(); });
+    var r=document.getElementById('resetBtn'); if(r) r.addEventListener('click',function(){ idx=1; render(); });
+    render();
+  })();
+
+  /* ============ 9. NƏZARƏTLƏR ============ */
+  var sB=document.getElementById('sBlur');
+  if(sB) sB.addEventListener('input',function(){ state.blur=parseFloat(sB.value); applyTokens(); });
+  var sA=document.getElementById('sAlpha');
+  if(sA) sA.addEventListener('input',function(){ state.alpha=parseFloat(sA.value)/100; applyTokens(); });
+  var bRT=document.getElementById('btnRT');
+  if(bRT) bRT.addEventListener('click',function(){ state.rt=state.rt?0:1; applyTokens(); });
+  var PRESETS={apple:{blur:30,alpha:.58},calm:{blur:22,alpha:.70},bold:{blur:38,alpha:.44}};
+  document.querySelectorAll('[data-preset]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var p=PRESETS[b.getAttribute('data-preset')]; if(!p) return;
+      state.blur=p.blur; state.alpha=p.alpha;
+      if(sB) sB.value=p.blur; if(sA) sA.value=Math.round(p.alpha*100);
+      applyTokens();
+    });
+  });
+
+  /* ============ 10. BAŞLA ============ */
+  document.querySelectorAll('.pbg').forEach(function(el){
+    el.style.backgroundImage='url('+paintBackdrop(el.getAttribute('data-bg'))+')';
+  });
+  applyTokens();
+  buildList('list1','mCount1',false);
+  buildList('listF','mCountF',true);
+  buildList('list2',null,true);
+  buildList('listN2','mCount2',false);
+  setCart(1);
+  setTimeout(function(){ document.querySelectorAll('.pscr').forEach(moveMorph); },260);
+
+  /* sifariş et → izləməyə keç */
+  document.querySelectorAll('[data-place]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var scr=b.closest('.pscr'); if(scr) goTab(scr,'track');
+      setCart(0);
+    });
+  });
+})();
+</script>
+</body>
+</html>

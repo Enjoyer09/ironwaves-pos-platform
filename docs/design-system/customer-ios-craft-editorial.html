@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emalat Craft — Editorial / Type-First konsept (v3)</title>
+<style>
+/* ============================================================
+   Emalat Craft — üçüncü istiqamət.
+   Prinsip: şüşə YOX, işıq YOX, blur YOX.
+   Material = KAĞIZ və MÜRƏKKƏB. Dərinlik kölgədən deyil, KƏNARDAN,
+   BOŞLUQDAN və OFSET çapdan gəlir. Tipografiya kompozisiyadır.
+   Heç bir fayl import olunmayıb — bu, sənəd/konseptdir.
+   ============================================================ */
+
+:root{
+  /* ---- SƏNƏD (doc) tonları — bu səhifənin özü ---- */
+  --doc-bg:#efeae1;
+  --doc-panel:#fbf8f3;
+  --doc-ink:#1d1813;
+  --doc-ink-2:#6b6055;
+  --doc-rule:#d8cfc1;
+  --doc-mark:#b4471f;
+  --doc-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --doc-sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;
+  --doc-serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+
+  /* ---- MƏHSUL (app) token-ları — LIGHT: "Bone & Ink" ---- */
+  --p-paper:#f5f1e8;        /* səhifə fonu — kağız */
+  --p-card:#fffdf8;         /* kart səthi — kağız */
+  --p-card-2:#efe8db;       /* ikinci dərəcəli kağız */
+  --p-ink:#1a1611;          /* əsas mürəkkəb */
+  --p-ink-2:#5a5147;        /* ikinci mürəkkəb */
+  --p-ink-3:#8b8073;        /* solğun */
+  --p-rule:#ded5c6;         /* hairline */
+  --p-rule-strong:#c9bda9;
+  --p-mark:#b4471f;         /* marka möhürü — terracotta */
+  --p-mark-deep:#8c3517;
+  --p-leaf:#3f5b3a;         /* ikinci aksent — yaşıl çay */
+  --p-metal:#8a6b2f;        /* qızıl çalar — yalnız mükafat */
+  --p-shadow:0 1px 0 rgba(26,22,17,.05), 0 10px 24px -14px rgba(26,22,17,.22);
+  --p-serif:var(--doc-serif);
+  --p-sans:var(--doc-sans);
+}
+[data-p-theme="night"]{
+  /* ---- MƏHSUL — NIGHT: "Dark Roast" ---- */
+  --p-paper:#171310;
+  --p-card:#211b16;
+  --p-card-2:#2b241d;
+  --p-ink:#f3ece0;
+  --p-ink-2:#b8ab9a;
+  --p-ink-3:#8a7d6c;
+  --p-rule:#3a3128;
+  --p-rule-strong:#4d4237;
+  --p-mark:#e2723c;
+  --p-mark-deep:#f1905c;
+  --p-leaf:#8fb08a;
+  --p-metal:#d0a862;
+  --p-shadow:0 1px 0 rgba(0,0,0,.4), 0 12px 26px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--doc-bg);color:var(--doc-ink);
+  font:400 15px/1.6 var(--doc-sans);
+  background-image:
+    radial-gradient(circle at 12% -10%,rgba(180,71,31,.07),transparent 55%),
+    radial-gradient(circle at 92% 4%,rgba(63,91,58,.06),transparent 50%),
+    repeating-linear-gradient(0deg,rgba(29,24,19,.014) 0 1px,transparent 1px 3px);
+}
+
+/* ---------- sənəd qabığı ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:0 26px 90px}
+header.doc{padding:60px 0 30px;border-bottom:2px solid var(--doc-ink)}
+.kicker{font:600 11px/1 var(--doc-mono);letter-spacing:.22em;text-transform:uppercase;color:var(--doc-mark)}
+h1.doc{font:400 clamp(38px,6.4vw,76px)/.98 var(--doc-serif);margin:16px 0 0;letter-spacing:-.028em}
+h1.doc em{font-style:italic;color:var(--doc-mark)}
+.lede{max-width:64ch;margin:20px 0 0;color:var(--doc-ink-2);font-size:16px}
+.meta-row{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:26px;font:500 11px/1.6 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2)}
+
+nav.toc{position:sticky;top:0;z-index:20;display:flex;gap:4px;flex-wrap:wrap;
+  padding:12px 0;background:color-mix(in srgb,var(--doc-bg) 88%,transparent);
+  backdrop-filter:blur(0);border-bottom:1px solid var(--doc-rule)}
+nav.toc a{font:600 10.5px/1 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--doc-ink-2);text-decoration:none;padding:7px 11px;border:1px solid transparent}
+nav.toc a:hover{color:var(--doc-ink);border-color:var(--doc-rule-strong);background:var(--doc-panel)}
+
+section.doc-sec{padding:54px 0 8px;border-bottom:1px solid var(--doc-rule)}
+h2.doc{font:400 30px/1.1 var(--doc-serif);margin:0 0 8px;letter-spacing:-.02em}
+h2.doc .num{font:600 11px/1 var(--doc-mono);letter-spacing:.18em;color:var(--doc-mark);display:block;margin-bottom:12px}
+h3.doc{font:700 12px/1 var(--doc-mono);letter-spacing:.16em;text-transform:uppercase;margin:30px 0 12px;color:var(--doc-ink-2)}
+p.doc{max-width:70ch;color:var(--doc-ink-2);margin:0 0 16px}
+
+/* ---------- müqayisə cədvəli ---------- */
+table.cmp{width:100%;border-collapse:collapse;margin:22px 0 6px;font-size:13.5px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:13px 14px;border-bottom:1px solid var(--doc-rule)}
+table.cmp thead th{font:700 10.5px/1.4 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--doc-ink-2);
+  border-bottom:2px solid var(--doc-ink)}
+table.cmp tbody th{font:600 13px/1.4 var(--doc-sans);width:24%}
+table.cmp .a{color:var(--doc-ink-2)}
+table.cmp .b{color:var(--doc-ink);background:rgba(180,71,31,.045)}
+table.cmp thead .b{color:var(--doc-mark)}
+table.cmp code{font:500 11.5px/1 var(--doc-mono);background:rgba(29,24,19,.06);padding:2px 5px}
+
+/* ---------- telefon səhnəsi ---------- */
+.stage{display:flex;gap:34px;flex-wrap:wrap;padding:34px 0 10px}
+.phone-col{flex:1 1 300px;min-width:288px;max-width:340px}
+.phone-col h4{font:700 11px/1 var(--doc-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--doc-mark);margin:0 0 14px}
+.p-device{position:relative;border-radius:44px;padding:11px;background:#221c16;
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset,0 30px 60px -28px rgba(26,22,17,.55)}
+.p-device::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
+  width:112px;height:4px;border-radius:99px;background:rgba(255,255,255,.28)}
+.p-screen{position:relative;border-radius:34px;overflow:hidden;background:var(--p-paper);color:var(--p-ink);
+  font-family:var(--p-sans);height:604px;display:flex;flex-direction:column;transition:background .3s,color .3s}
+.p-notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:96px;height:25px;border-radius:99px;background:#15110d;z-index:9}
+.p-status{display:flex;justify-content:space-between;align-items:center;padding:11px 20px 0;font:600 11.5px/1 var(--p-sans);
+  color:var(--p-ink);position:relative;z-index:10}
+.p-status b{font-weight:600}
+.p-body{flex:1;overflow:auto;padding:8px 0 96px;scrollbar-width:none}
+.p-body::-webkit-scrollbar{display:none}
+[data-p-tab] .p-scr{display:none}
+[data-p-tab="home"] .p-scr--home,
+[data-p-tab="menu"] .p-scr--menu,
+[data-p-tab="card"] .p-scr--card,
+[data-p-tab="me"] .p-scr--me{display:block}
+
+/* ---------- alt naviqasiya — KAĞIZ zolaq, şüşə deyil ---------- */
+.p-tabs{position:absolute;left:11px;right:11px;bottom:22px;z-index:12;
+  display:flex;background:var(--p-card);border:1px solid var(--p-rule-strong);
+  border-radius:16px;overflow:hidden;box-shadow:var(--p-shadow)}
+.p-tabs button{flex:1;background:none;border:0;cursor:pointer;padding:10px 2px 9px;position:relative;
+  color:var(--p-ink-3);font:600 9.5px/1 var(--p-sans);letter-spacing:.07em;text-transform:uppercase;
+  display:flex;flex-direction:column;align-items:center;gap:5px;font-family:var(--p-sans)}
+.p-tabs button+button{border-left:1px solid var(--p-rule)}
+.p-tabs button.on{color:var(--p-mark);background:color-mix(in srgb,var(--p-mark) 8%,transparent)}
+.p-tabs button.on::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--p-mark)}
+.p-tabs svg{width:18px;height:18px;stroke-width:1.7}
+
+/* ============================================================
+   EKRAN 1 — "HOME": jurnal açılışı
+   ============================================================ */
+.cover{padding:26px 22px 4px;border-bottom:1px solid var(--p-rule)}
+.cover .dateline{display:flex;justify-content:space-between;align-items:baseline;
+  font:600 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)}
+.cover .dateline span:last-child{letter-spacing:.06em}
+.cover h2{font:400 46px/1.0 var(--p-serif);letter-spacing:-.03em;margin:16px 0 0;color:var(--p-ink)}
+.cover h2 em{font-style:italic;color:var(--p-mark)}
+.cover .sub{margin:12px 0 20px;font-size:12.5px;color:var(--p-ink-2);max-width:34ch;line-height:1.5}
+.rule-thick{height:3px;background:var(--p-ink);margin:0 0 1px}
+.rule-thin{height:1px;background:var(--p-rule-strong)}
+
+/* kinetik tip: yavaş hərəkət edən menyu zolağı */
+.ticker{border-top:1px solid var(--p-rule);border-bottom:1px solid var(--p-rule);
+  background:var(--p-card-2);overflow:hidden;margin:0 -22px;padding:9px 0}
+.ticker-track{display:flex;gap:22px;white-space:nowrap;animation:tick 26s linear infinite;padding-left:22px}
+.ticker-track b{font:700 10px/1 var(--p-sans);letter-spacing:.16em;text-transform:uppercase;color:var(--p-ink-2)}
+.ticker-track i{font-style:normal;color:var(--p-mark)}
+@keyframes tick{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.ticker-track{animation:none}}
+
+/* stamp / möhür kartı */
+.stampcard{margin:18px 22px 0;background:var(--p-card);border:1px solid var(--p-rule-strong);border-radius:3px;
+  box-shadow:var(--p-shadow);position:relative;overflow:hidden}
+.stampcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--p-mark)}
+.sc-head{padding:15px 18px 11px 21px;border-bottom:1px dashed var(--p-rule-strong);
+  display:flex;justify-content:space-between;align-items:flex-start}
+.sc-head h3{font:700 10px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;margin:0;color:var(--p-ink-3)}
+.sc-head .big{font:400 40px/1 var(--p-serif);letter-spacing:-.04em;margin:6px 0 0;color:var(--p-ink)}
+.sc-head .big small{font:600 10px/1 var(--p-sans);letter-spacing:.14em;color:var(--p-ink-3);display:block;margin-top:7px;text-transform:uppercase}
+.seal{width:64px;height:64px;flex:none;transform:rotate(-9deg)}
+.punch{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;padding:16px 18px 18px 21px}
+.punch i{aspect-ratio:1;border-radius:50%;border:1px dashed var(--p-rule-strong);
+  display:grid;place-items:center;font:600 10px/1 var(--p-mono);color:transparent;background:var(--p-card-2)}
+.punch i.done{border:0;background:var(--p-mark);color:#fffaf4;box-shadow:0 2px 0 var(--p-mark-deep)}
+.punch i.done::after{content:"✓";font-size:13px}
+.punch i.next{border-style:solid;border-color:var(--p-mark);color:var(--p-mark);background:transparent}
+.sc-foot{padding:12px 18px 13px 21px;border-top:1px dashed var(--p-rule-strong);display:flex;justify-content:space-between;align-items:center}
+.sc-foot p{margin:0;font-size:11.5px;color:var(--p-ink-2);line-height:1.45}
+.sc-foot p b{color:var(--p-ink);font-weight:600}
+.btn-mark{border:0;background:var(--p-ink);color:var(--p-card);border-radius:99px;padding:9px 16px;
+  font:700 10.5px/1 var(--p-sans);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.btn-mark:active{transform:translateY(1px)}
+
+/* ikili bento — məzmun möhkəm kağız üzərində */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px 22px 0}
+.tile{border:1px solid var(--p-rule-strong);background:var(--p-card);padding:14px;border-radius:3px;
+  display:flex;flex-direction:column;gap:9px;cursor:pointer;text-align:left;font-family:var(--p-sans);
+  box-shadow:var(--p-shadow);transition:transform .16s var(--doc-ease, cubic-bezier(.2,0,0,1))}
+.tile:active{transform:translateY(1px)}
+.tile .ico{width:26px;height:26px;color:var(--p-mark)}
+.tile .t{font:600 13px/1.25 var(--p-sans);color:var(--p-ink)}
+.tile .d{font-size:10.5px;color:var(--p-ink-3);line-height:1.5}
+.tile.wide{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px}
+.tile.wide .t{flex:1}
+
+/* sifariş zolağı */
+.orderline{margin:18px 22px 0;border:1px solid var(--p-rule-strong);background:var(--p-card);
+  display:flex;align-items:stretch;border-radius:3px;overflow:hidden;box-shadow:var(--p-shadow)}
+.orderline .lft{padding:12px 14px;flex:1}
+.orderline .st{font:700 9.5px/1 var(--p-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--p-mark)}
+.orderline .nm{font:600 13.5px/1.3 var(--p-sans);margin:7px 0 3px;color:var(--p-ink)}
+.orderline .mt{font-size:10.5px;color:var(--p-ink-3)}
+.orderline .rgt{border-left:1px dashed var(--p-rule-strong);padding:12px 16px;display:grid;place-items:center;
+  background:var(--p-card-2);min-width:78px}
+.orderline .rgt b{font:400 26px/1 var(--p-serif);letter-spacing:-.03em;display:block;text-align:center}
+.orderline .rgt small{font:600 8.5px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--p-ink-3);display:block;margin-top:5px;text-align:center}
+
+/* ============================================================
+   EKRAN 2 — "MENU": tip-first siyahı
+   ============================================================ */
+.m-head{padding:24px 22px 14px}
+.m-head h2{font:400 34px/1.02 var(--p-serif);letter-spacing:-.03em;margin:0;color:var(--p-ink)}
+.m-head .cnt{font:600 10px/1 var(--p-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--p-ink-3);margin-top:11px;display:block}
+.m-search{margin:0 22px;display:flex;align-items:center;gap:9px;border:1px solid var(--p-rule-strong);
+  border-radius:99px;padding:9px 14px;background:var(--p-card)}
+.m-search svg{width:15px;height:15px;color:var(--p-ink-3);flex:none}
+.m-search input{border:0;background:none;outline:0;font:400 13px/1 var(--p-sans);color:var(--p-ink);width:100%;font-family:var(--p-sans)}
+.chips{display:flex;gap:7px;overflow:auto;padding:13px 22px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1px solid var(--p-rule-strong);background:transparent;color:var(--p-ink-2);
+  border-radius:99px;padding:7px 13px;font:600 9.5px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase;
+  cursor:pointer;font-family:var(--p-sans)}
+.chips button.on{background:var(--p-ink);border-color:var(--p-ink);color:var(--p-card)}
+.m-list{list-style:none;margin:18px 0 0;padding:0 22px}
+.m-list li{display:flex;gap:13px;align-items:flex-start;padding:15px 0;border-top:1px solid var(--p-rule);cursor:pointer}
+.m-list li:last-child{border-bottom:1px solid var(--p-rule)}
+.m-list .idx{font:600 9.5px/1.5 var(--p-mono);color:var(--p-ink-3);padding-top:4px;width:20px;flex:none}
+.m-list .mid{flex:1;min-width:0}
+.m-list .nm{font:400 19px/1.15 var(--p-serif);letter-spacing:-.015em;color:var(--p-ink)}
+.m-list .ds{font-size:10.5px;color:var(--p-ink-3);margin-top:5px;line-height:1.5}
+.m-list .pr{font:400 19px/1 var(--p-serif);color:var(--p-ink);white-space:nowrap;padding-top:2px}
+.m-list .pr small{font-size:12px;color:var(--p-ink-3)}
+.m-list li:hover .nm{color:var(--p-mark)}
+.empty-pad{text-align:center;padding:30px 10px;font:400 14px/1.5 var(--p-serif);color:var(--p-ink-3);font-style:italic}
+
+/* ============================================================
+   EKRAN 3 — "CARD": qəbz / bilet metaforu
+   ============================================================ */
+.ticket{margin:20px 22px 0;background:var(--p-card);position:relative;box-shadow:var(--p-shadow)}
+.ticket .body{border:1px solid var(--p-rule-strong);border-bottom:0;padding:20px 18px 16px}
+.ticket .perf{height:14px;position:relative;background:var(--p-card)}
+.ticket .perf::before,.ticket .perf::after{content:"";position:absolute;top:0;width:100%;height:1px;
+  background:repeating-linear-gradient(90deg,var(--p-rule-strong) 0 5px,transparent 5px 11px)}
+.ticket .stub{border:1px solid var(--p-rule-strong);border-top:0;padding:14px 18px 18px;background:var(--p-card-2)}
+.ticket .notch{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--p-paper);
+  border:1px solid var(--p-rule-strong);left:-10px;transform:translateY(-50%)}
+.ticket .notch.r{left:auto;right:-10px}
+.tk-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.tk-top .lbl{font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)}
+.tk-top .nm{font:400 25px/1.06 var(--p-serif);letter-spacing:-.025em;margin:9px 0 0;color:var(--p-ink)}
+.tk-top .id{font:600 10px/1.6 var(--p-mono);color:var(--p-ink-3);text-align:right}
+.qrbox{width:66px;height:66px;border:1px solid var(--p-rule-strong);background:var(--p-card-2);
+  display:grid;place-items:center;margin-top:12px}
+.qrbox svg{width:46px;height:46px;color:var(--p-ink)}
+.balance{margin:22px 22px 0;border:1px solid var(--p-rule-strong);background:var(--p-card);padding:18px;position:relative;overflow:hidden}
+.balance .amt{font:400 54px/1 var(--p-serif);letter-spacing:-.045em;margin:8px 0 0;color:var(--p-ink)}
+.balance .amt sup{font-size:22px;vertical-align:super;color:var(--p-ink-3);letter-spacing:0}
+.balance .row{display:flex;gap:9px;margin-top:17px}
+.btn-line{flex:1;border:1px solid var(--p-ink);background:transparent;color:var(--p-ink);border-radius:99px;
+  padding:11px 12px;font:700 10px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase;cursor:pointer;font-family:var(--p-sans)}
+.btn-line.solid{background:var(--p-ink);color:var(--p-card)}
+.rewards{list-style:none;margin:0;padding:0 22px 0}
+.rewards li{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--p-rule)}
+.rewards .rk{width:24px;font:400 16px/1 var(--p-serif);color:var(--p-mark)}
+.rewards .rn{flex:1;font:600 12.5px/1.3 var(--p-sans);color:var(--p-ink)}
+.rewards .rv{font:600 10px/1 var(--p-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--p-ink-3)}
+.rewards li.ready .rv{color:var(--p-leaf)}
+.sec-lbl{padding:24px 22px 10px;font:700 10px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)}
+
+/* ============================================================
+   EKRAN 4 — "ME": profil
+   ============================================================ */
+.me-top{padding:26px 22px 18px;border-bottom:3px solid var(--p-ink)}
+.me-top .ava{width:58px;height:58px;border-radius:50%;background:var(--p-card);border:1px solid var(--p-rule-strong);
+  display:grid;place-items:center;font:400 24px/1 var(--p-serif);color:var(--p-mark);overflow:hidden}
+.me-top .nm{font:400 27px/1.08 var(--p-serif);letter-spacing:-.025em;margin:14px 0 4px;color:var(--p-ink)}
+.me-top .ph{font:600 11.5px/1 var(--p-mono);color:var(--p-ink-3)}
+.me-rows{list-style:none;margin:0;padding:6px 22px 0}
+.me-rows li{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--p-rule);
+  font:600 12.5px/1.3 var(--p-sans);color:var(--p-ink);cursor:pointer}
+.me-rows li span.v{font-weight:500;color:var(--p-ink-3);font-size:11.5px}
+.danger{margin:22px 22px 0;border:1px solid color-mix(in srgb,var(--p-mark) 45%,var(--p-rule-strong));
+  background:color-mix(in srgb,var(--p-mark) 6%,var(--p-card));padding:15px}
+.danger .dt{font:700 10px/1 var(--p-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--p-mark)}
+.danger p{margin:9px 0 13px;font-size:11px;line-height:1.55;color:var(--p-ink-2)}
+.danger button{border:1px solid var(--p-mark);background:transparent;color:var(--p-mark);border-radius:99px;
+  padding:9px 15px;font:700 10px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase;cursor:pointer;font-family:var(--p-sans)}
+
+/* ---------- sənəd blokları ---------- */
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin:22px 0}
+.note{background:var(--doc-panel);border:1px solid var(--doc-rule);padding:18px 20px}
+.note h5{margin:0 0 9px;font:700 11px/1 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--doc-mark)}
+.note p{margin:0;font-size:13.5px;color:var(--doc-ink-2)}
+.note ul{margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--doc-ink-2)}
+.note li{margin:6px 0}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin:20px 0}
+.sw{border:1px solid var(--doc-rule);background:var(--doc-panel)}
+.sw .chip{height:58px}
+.sw .lbl{padding:9px 11px;font:500 10.5px/1.5 var(--doc-mono);color:var(--doc-ink-2)}
+.sw .lbl b{display:block;color:var(--doc-ink);font-weight:600}
+.dodont{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0}
+.dd{border:1px solid var(--doc-rule);background:var(--doc-panel);padding:18px}
+.dd.yes{border-top:3px solid var(--p-leaf)}
+.dd.no{border-top:3px solid var(--doc-mark)}
+.dd h5{margin:0 0 11px;font:700 11px/1 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase}
+.dd.yes h5{color:var(--p-leaf)}
+.dd.no h5{color:var(--doc-mark)}
+.dd ul{margin:0;padding-left:17px;font-size:13.5px;color:var(--doc-ink-2)}
+.dd li{margin:7px 0}
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}
+.steps li{counter-increment:s;position:relative;padding:0 0 20px 44px;border-left:1px solid var(--doc-rule);margin-left:12px}
+.steps li:last-child{border-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-13px;top:-3px;width:26px;height:26px;border-radius:50%;
+  background:var(--doc-ink);color:var(--doc-bg);display:grid;place-items:center;font:700 11px/1 var(--doc-mono)}
+.steps b{display:block;font-size:14px;margin-bottom:3px}
+.steps p{margin:0;font-size:13px;color:var(--doc-ink-2)}
+footer.doc{margin-top:50px;padding-top:22px;border-top:2px solid var(--doc-ink);
+  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font:500 11px/1.7 var(--doc-mono);letter-spacing:.08em;color:var(--doc-ink-2)}
+.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 22px}
+.controls button{font:700 10.5px/1 var(--doc-mono);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--doc-rule-strong);background:var(--doc-panel);color:var(--doc-ink);padding:9px 14px}
+.controls button.on{background:var(--doc-ink);color:var(--doc-panel);border-color:var(--doc-ink)}
+.controls .hint{font:500 11px/1.5 var(--doc-mono);color:var(--doc-ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Emalat Coffee — konsept v3 · 9 oktyabr 2026</div>
+  <h1 class="doc">Emalat <em>Craft</em><br>Kağız və mürəkkəb</h1>
+  <p class="lede">Bu, əvvəlki iki istiqamətdən tamamilə fərqlidir. Burada şüşə, blur, işıq saçan kənar, qradient yoxdur. Material kağızdır: hairline xətlər, möhür, qəbz perforasiyası, ofset çap. Ekranı dekorasiya deyil — <b>tipografiya və şəbəkə</b> qurur. Bu, 2026-da dünyada sürətlə böyüyən "editorial / type-first" cərəyanıdır və marketinq dili olaraq da güclüdür: sənin məhsulun sənətkarlıqla (craft) satılır.</p>
+  <div class="meta-row">
+    <span>İstiqamət: Editorial / Type-first</span>
+    <span>Material: kağız · mürəkkəb</span>
+    <span>Blur: 0px</span>
+    <span>Display: serif</span>
+    <span>İnteraktiv: 4 ekran</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#why">01 Niyə bu</a>
+  <a href="#screens">02 Ekranlar</a>
+  <a href="#tokens">03 Token-lar</a>
+  <a href="#type">04 Tip şkalası</a>
+  <a href="#rules">05 Qaydalar</a>
+  <a href="#handoff">06 Keçid planı</a>
+</nav>
+
+<!-- 01 -->
+<section class="doc-sec" id="why">
+  <h2 class="doc"><span class="num">01 / Niyə məhz bu istiqamət</span>Şüşədən sonra nə gəlir</h2>
+  <p class="doc">Keçən konsept Apple Liquid Glass idi. Araşdırma göstərdi ki, 2026-da şüşə <b>geriyə çəkilib</b>: yalnız naviqasiya zolağı və kontrollar üçün işlədilir, məzmun isə möhkəm səthdə qalır. Yəni şüşə artıq "dizayn" deyil — kiçik bir alətdir. Dizaynın ağırlığı başqa yerə keçib: <b>tipografiyaya, şəbəkəyə və material hissinə</b>.</p>
+  <table class="cmp">
+    <thead>
+      <tr><th>Meyar</th><th class="a">Quiet UI v2 (mövcud)</th><th class="b">Craft / Editorial (bu konsept)</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>Əsas təsir</th><td class="a">Sakit, neytral, Apple-ə bənzər</td><td class="b">Çap olunmuş jurnal / dərinin kağız qəbz</td></tr>
+      <tr><th>Material</th><td class="a">Düz səth, kölgə yoxdur</td><td class="b">Kağız tonu, hairline xət, möhür, perforasiya</td></tr>
+      <tr><th>Başlıq şrifti</th><td class="a">Sistem sans, 34px</td><td class="b"><b>Serif</b>, 34–54px, mənfi hərf aralığı</td></tr>
+      <tr><th>Rəng işi</th><td class="a">Ağ + narıncı aksent</td><td class="b">Bone kağız + mürəkkəb qara + terracotta + çay yaşılı</td></tr>
+      <tr><th>Kölgə</th><td class="a"><code>none</code></td><td class="b">Çox yumşaq, aşağıya "qoyulmuş kağız" effekti</td></tr>
+      <tr><th>Radius</th><td class="a">12 / 20 / 28px</td><td class="b">3px kart, tam dairəvi düymə — qəsdən asimmetrik</td></tr>
+      <tr><th>Hərəkət</th><td class="a">Sakit keçid</td><td class="b">Möhür basma effekti + yavaş kino lent (kinetik tip)</td></tr>
+      <tr><th>Marketinq gücü</th><td class="a">"Təmiz tətbiq"</td><td class="b">"Bu kofe sənətkardır" — brend hekayəsi ekranın özüdür</td></tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə üçün riskli deyil</h5>
+      <ul>
+        <li>Struktur eyni qalır: eyni 4 tab, eyni data, eyni backend. Yalnız <b>görünüş qatı</b> dəyişir.</li>
+        <li>Kontrast asan qazanılır: tünd mürəkkəb açıq kağız üzərində. 4.5:1-dən çox keçir, şüşədəki kimi problem yoxdur.</li>
+        <li>Performans: blur yoxdur → ən aşağı səviyyəli telefonda da rəvan.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Yeganə diqqət nöqtəsi</h5>
+      <ul>
+        <li>Serif başlıqlar kiçik ekranda çox sətirə düşməsin → biz onu qısaldırıq (maks. 2 söz + italik vurğu).</li>
+        <li>Kağız tonu ekranda "sarımtıl" görünə bilər → isti kağızı yalnız fon üçün işlədirik, mətn səthi isə demək olar ağ (<code>#fffdf8</code>).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 02 -->
+<section class="doc-sec" id="screens">
+  <h2 class="doc"><span class="num">02 / Ekranlar</span>Dörd ekran, hamısı işlək</h2>
+  <p class="doc">Aşağıdaki telefonlarda tab-lar, axtarış, kateqoriya filtri və möhür basma <b>canlı işləyir</b>. Bütün sahələr demo məlumatıdır — heç bir sifariş, ödəniş və ya balans dəyişikliyi real deyil.</p>
+  <div class="controls">
+    <button id="themeLight" class="on">Bone &amp; Ink (light)</button>
+    <button id="themeNight">Dark Roast (night)</button>
+    <span class="hint" id="themeHint">Tətbiqin öz rejimi — sənədin görünüşü dəyişmir</span>
+  </div>
+
+  <div class="stage">
+
+    <!-- PHONE A -->
+    <div class="phone-col">
+      <h4>A · Əsas — jurnal açılışı</h4>
+      <div class="p-device" data-p-theme="bone" data-p-tab="home" id="phA">
+        <div class="p-screen">
+          <div class="p-notch"></div>
+          <div class="p-status"><b>9:41</b><span style="letter-spacing:1px">●●● ⌁ ▮</span></div>
+          <div class="p-body">
+            <div class="p-scr p-scr--home">
+              <div class="cover">
+                <div class="dateline"><span>Emalat Coffee · Bakı</span><span>Cümə, 9 okt</span></div>
+                <h2>Salam, <em>Rəşad</em></h2>
+                <p class="sub">Növbəti pulsuz kofenə <b>2 möhür</b> qalıb. Bu gün Nizami filialı 08:00–22:00 açıqdır.</p>
+              </div>
+              <div class="rule-thick"></div>
+              <div class="ticker">
+                <div class="ticker-track">
+                  <b>Flat White <i>·</i></b><b>Yeni: Kakao &amp; Portağal <i>·</i></b><b>2 al 1 ödə — çərşənbə <i>·</i></b><b>Fındıq Latte <i>·</i></b>
+                  <b>Flat White <i>·</i></b><b>Yeni: Kakao &amp; Portağal <i>·</i></b><b>2 al 1 ödə — çərşənbə <i>·</i></b><b>Fındıq Latte <i>·</i></b>
+                </div>
+              </div>
+              <div class="stampcard">
+                <div class="sc-head">
+                  <div>
+                    <h3>Loyallıq möhürü</h3>
+                    <p class="big">6<small>10-dan · növbəti kofe pulsuz</small></p>
+                  </div>
+                  <svg class="seal" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle cx="50" cy="50" r="41" fill="none" stroke="var(--p-mark)" stroke-width="2.5"/>
+                    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--p-mark)" stroke-width=".9" stroke-dasharray="3 3"/>
+                    <text x="50" y="44" text-anchor="middle" font-family="var(--p-serif)" font-size="20" fill="var(--p-mark)">EC</text>
+                    <text x="50" y="60" text-anchor="middle" font-family="var(--p-sans)" font-size="7.5" letter-spacing="1.4" fill="var(--p-mark)">EMALAT</text>
+                    <text x="50" y="70" text-anchor="middle" font-family="var(--p-sans)" font-size="6.2" letter-spacing="1" fill="var(--p-mark)">BAKI · 2026</text>
+                  </svg>
+                </div>
+                <div class="punch" id="punchGrid">
+                  <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i>
+                  <i class="done"></i><i class="next">7</i><i></i><i></i><i></i>
+                </div>
+                <div class="sc-foot">
+                  <p><b>1 möhür</b> = 1 kofe. Kassa tərəfindən vurulur.</p>
+                  <button class="btn-mark" id="stampBtn">Möhür bas</button>
+                </div>
+              </div>
+              <div class="duo">
+                <button class="tile" id="goMenu">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M7 4v2M11 4v2"/></svg>
+                  <span class="t">Sifariş et</span>
+                  <span class="d">Menyu · 34 məhsul</span>
+                </button>
+                <button class="tile">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+                  <span class="t">Balans</span>
+                  <span class="d">12.50 ₼</span>
+                </button>
+                <button class="tile wide">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M3 12h18"/></svg>
+                  <span class="t">QR ilə ödə</span>
+                  <span class="d">Kassada skan et</span>
+                </button>
+              </div>
+              <div class="orderline">
+                <div class="lft">
+                  <div class="st">Hazırlanır</div>
+                  <div class="nm">Flat White + Fındıq kruassan</div>
+                  <div class="mt">Nizami filialı · sifariş №1042</div>
+                </div>
+                <div class="rgt"><div><b>4:12</b><small>gözləyir</small></div></div>
+              </div>
+            </div>
+
+            <div class="p-scr p-scr--menu">
+              <div class="m-head">
+                <div class="dateline" style="display:flex;justify-content:space-between;font:600 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)"><span>Menyu</span><span>Bütün filiallar</span></div>
+                <h2 style="margin-top:14px">Nə içək<br><em style="font-style:italic;color:var(--p-mark)">bu gün?</em></h2>
+                <span class="cnt" id="menuCount">34 məhsul · 5 kateqoriya</span>
+              </div>
+              <div class="m-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="menuSearch" placeholder="Latte, kruassan, kakao…">
+              </div>
+              <div class="chips" id="menuChips"></div>
+              <ul class="m-list" id="menuList"></ul>
+            </div>
+
+            <div class="p-scr p-scr--card">
+              <div class="sec-lbl" style="padding-top:22px">Loyallıq kartı</div>
+              <div class="ticket">
+                <div class="body">
+                  <div class="tk-top">
+                    <div>
+                      <div class="lbl">Üzv</div>
+                      <div class="nm">Rəşad Məmmədov</div>
+                    </div>
+                    <div class="id">№ 1042‑AZ<br>2024‑dən</div>
+                  </div>
+                  <div class="qrbox">
+                    <svg viewBox="0 0 40 40" fill="currentColor"><path d="M0 0h12v12H0V0Zm2 2v8h8V2H2Zm1 1h6v6H3V3Z"/><path d="M28 0h12v12H28V0Zm2 2v8h8V2h-8Zm1 1h6v6h-6V3Z"/><path d="M0 28h12v12H0V28Zm2 2v8h8v-8H2Zm1 1h6v6H3v-6Z"/><path d="M16 0h3v3h-3zM21 0h2v5h-2zM16 5h4v2h-4zM16 9h2v3h-2zM20 8h3v2h-3zM16 16h3v3h-3zM21 17h4v2h-4zM27 15h3v3h-3zM33 16h4v2h-4zM16 22h2v4h-2zM21 22h3v2h-3zM26 22h5v2h-5zM34 21h3v4h-3zM16 30h4v3h-4zM22 29h2v5h-2zM27 30h3v3h-3zM33 30h4v4h-4zM22 36h3v4h-3zM28 36h2v4h-2z"/></svg>
+                  </div>
+                </div>
+                <div class="perf"><span class="notch" style="top:0"></span><span class="notch r" style="top:0"></span></div>
+                <div class="stub">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div class="lbl" style="font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)">Qazandığın möhür</div>
+                      <div style="font:400 34px/1 var(--p-serif);letter-spacing:-.03em;margin-top:8px">6 <small style="font-size:13px;color:var(--p-ink-3)">/ 10</small></div>
+                    </div>
+                    <div style="font:600 10px/1.7 var(--p-mono);color:var(--p-ink-3);text-align:right">Kassa skanı<br>tələb olunur</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="balance">
+                <div class="lbl" style="font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)">Cari balans</div>
+                <p class="amt">12<sup>.50 ₼</sup></p>
+                <div class="row">
+                  <button class="btn-line solid">Artır</button>
+                  <button class="btn-line">Tarixçə</button>
+                </div>
+              </div>
+
+              <div class="sec-lbl">Mükafatlar</div>
+              <ul class="rewards">
+                <li class="ready"><span class="rk">1</span><span class="rn">Pulsuz tək kofe</span><span class="rv">Hazır</span></li>
+                <li><span class="rk">2</span><span class="rn">Kruassan hədiyyə</span><span class="rv">8/10</span></li>
+                <li><span class="rk">3</span><span class="rn">2 al 1 ödə günü</span><span class="rv">12/20</span></li>
+              </ul>
+            </div>
+
+            <div class="p-scr p-scr--me">
+              <div class="me-top">
+                <div class="ava">R</div>
+                <div class="nm">Rəşad Məmmədov</div>
+                <div class="ph">+994 ·· 4 12 ··</div>
+              </div>
+              <ul class="me-rows">
+                <li>Şəxsi məlumatlar <span class="v">Redaktə</span></li>
+                <li>Sevimli filial <span class="v">Nizami</span></li>
+                <li>Dil <span class="v">AZ · EN · RU</span></li>
+                <li>Bildirişlər <span class="v">Açıq</span></li>
+                <li>Apple Wallet kartı <span class="v">Konfiq. olunmayıb</span></li>
+                <li>Səfərbərlik / FAQ <span class="v">›</span></li>
+              </ul>
+              <div class="danger">
+                <div class="dt">Təhlükəli zona</div>
+                <p>Hesabı siləndə möhürlər, balans və sifariş tarixçəsi birdəfəlik silinir. Bu, geri qaytarılmır.</p>
+                <button>Hesabı sil</button>
+              </div>
+            </div>
+          </div>
+          <div class="p-tabs">
+            <button data-t="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Kart</button>
+            <button data-t="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHONE B — kompozisiya qaydaları -->
+    <div class="phone-col">
+      <h4>B · Bileti qəbz kimi</h4>
+      <div class="p-device" data-p-theme="bone" data-p-tab="card" id="phB">
+        <div class="p-screen">
+          <div class="p-notch"></div>
+          <div class="p-status"><b>9:41</b><span style="letter-spacing:1px">●●● ⌁ ▮</span></div>
+          <div class="p-body">
+            <div class="p-scr p-scr--card">
+              <div class="sec-lbl" style="padding-top:22px">Ödəniş kodu</div>
+              <div class="ticket" style="margin-top:0">
+                <div class="body" style="text-align:center">
+                  <div class="lbl" style="font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)">Kassaya göstər</div>
+                  <div class="qrbox" style="margin:14px auto 8px;width:132px;height:132px"><svg viewBox="0 0 40 40" fill="var(--p-ink)" style="width:96px;height:96px"><path d="M0 0h12v12H0V0Zm2 2v8h8V2H2Zm1 1h6v6H3V3Z"/><path d="M28 0h12v12H28V0Zm2 2v8h8V2h-8Zm1 1h6v6h-6V3Z"/><path d="M0 28h12v12H0V28Zm2 2v8h8v-8H2Zm1 1h6v6H3v-6Z"/><path d="M16 0h3v3h-3zM21 0h2v5h-2zM16 5h4v2h-4zM16 9h2v3h-2zM20 8h3v2h-3zM16 16h3v3h-3zM21 17h4v2h-4zM27 15h3v3h-3zM33 16h4v2h-4zM16 22h2v4h-2zM21 22h3v2h-3zM26 22h5v2h-5zM34 21h3v4h-3zM16 30h4v3h-4zM22 29h2v5h-2zM27 30h3v3h-3zM33 30h4v4h-4zM22 36h3v4h-3zM28 36h2v4h-2z"/></svg></div>
+                  <div style="font:600 11px/1 var(--p-mono);color:var(--p-ink-2)">EML‑1042‑AZ‑9K</div>
+                </div>
+                <div class="perf" style="position:relative;height:18px;background:var(--p-card)"><span class="notch" style="top:9px"></span><span class="notch r" style="top:9px"></span></div>
+                <div class="stub">
+                  <div style="font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3);margin-bottom:11px">Bu kodu göstər → kassa möhür basır</div>
+                  <div style="font:italic 13px/1.6 var(--p-serif);color:var(--p-ink-2)">"Kod yalnız skan üçündür, əl ilə yığılmır. Kassa tərəfindən təsdiqləndikdən sonra möhür düşür."</div>
+                </div>
+              </div>
+              <div class="note" style="margin:22px;background:var(--p-card);border-color:var(--p-rule-strong)">
+                <div style="font:700 10px/1 var(--p-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--p-mark)">Perforasiya nədir</div>
+                <p style="margin:9px 0 0;font:400 12px/1.6 var(--p-sans);color:var(--p-ink-2)">Qəbz/bilet metaforunun fiziki detalı. İki kəsilmiş dairə (notch) + qırıq xətt. Saf CSS ilə çəkilir, heç bir şəkil faylı yoxdur — <code style="font:500 10.5px/1 var(--p-mono);background:var(--p-card-2);padding:2px 5px">repeating-linear-gradient</code> + iki <code style="font:500 10.5px/1 var(--p-mono);background:var(--p-card-2);padding:2px 5px">border-radius:50%</code> dairə. Tətbiqin öz dilinə çevriləndə eyni üsul qalır.</p>
+              </div>
+            </div>
+          </div>
+          <div class="p-tabs">
+            <button data-t="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="card" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Kart</button>
+            <button data-t="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHONE C — night roast -->
+    <div class="phone-col">
+      <h4>C · Dark Roast (gecə rejimi)</h4>
+      <div class="p-device" data-p-theme="night" data-p-tab="home" id="phC">
+        <div class="p-screen">
+          <div class="p-notch"></div>
+          <div class="p-status"><b>9:41</b><span style="letter-spacing:1px">●●● ⌁ ▮</span></div>
+          <div class="p-body">
+            <div class="p-scr p-scr--home">
+              <div class="cover">
+                <div class="dateline" style="display:flex;justify-content:space-between;font:600 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)"><span>Emalat Coffee · Bakı</span><span>Cümə, 9 okt</span></div>
+                <h2 style="font:400 46px/1.0 var(--p-serif);letter-spacing:-.03em;margin:16px 0 0">Salam, <em style="font-style:italic;color:var(--p-mark)">Rəşad</em></h2>
+                <p class="sub" style="margin:12px 0 20px;font-size:12.5px;color:var(--p-ink-2);max-width:34ch;line-height:1.5">Növbəti pulsuz kofenə <b>2 möhür</b> qalıb. Bu gün Nizami filialı 08:00–22:00 açıqdır.</p>
+              </div>
+              <div style="height:3px;background:var(--p-ink)"></div>
+              <div class="ticker">
+                <div class="ticker-track">
+                  <b>Flat White <i>·</i></b><b>Yeni: Kakao &amp; Portağal <i>·</i></b><b>2 al 1 ödə — çərşənbə <i>·</i></b><b>Fındıq Latte <i>·</i></b>
+                  <b>Flat White <i>·</i></b><b>Yeni: Kakao &amp; Portağal <i>·</i></b><b>2 al 1 ödə — çərşənbə <i>·</i></b><b>Fındıq Latte <i>·</i></b>
+                </div>
+              </div>
+              <div class="stampcard">
+                <div class="sc-head">
+                  <div>
+                    <h3 style="font:700 10px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;margin:0;color:var(--p-ink-3)">Loyallıq möhürü</h3>
+                    <p class="big" style="font:400 40px/1 var(--p-serif);letter-spacing:-.04em;margin:6px 0 0">6<small style="font:600 10px/1 var(--p-sans);letter-spacing:.14em;color:var(--p-ink-3);display:block;margin-top:7px;text-transform:uppercase">10-dan · növbəti kofe pulsuz</small></p>
+                  </div>
+                  <svg class="seal" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle cx="50" cy="50" r="41" fill="none" stroke="var(--p-mark)" stroke-width="2.5"/>
+                    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--p-mark)" stroke-width=".9" stroke-dasharray="3 3"/>
+                    <text x="50" y="44" text-anchor="middle" font-family="var(--p-serif)" font-size="20" fill="var(--p-mark)">EC</text>
+                    <text x="50" y="60" text-anchor="middle" font-family="var(--p-sans)" font-size="7.5" letter-spacing="1.4" fill="var(--p-mark)">EMALAT</text>
+                    <text x="50" y="70" text-anchor="middle" font-family="var(--p-sans)" font-size="6.2" letter-spacing="1" fill="var(--p-mark)">BAKI · 2026</text>
+                  </svg>
+                </div>
+                <div class="punch">
+                  <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i>
+                  <i class="done"></i><i class="next">7</i><i></i><i></i><i></i>
+                </div>
+                <div class="sc-foot">
+                  <p><b>1 möhür</b> = 1 kofe. Kassa tərəfindən vurulur.</p>
+                  <button class="btn-mark">Möhür bas</button>
+                </div>
+              </div>
+              <div class="duo">
+                <button class="tile">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>
+                  <span class="t">Sifariş et</span><span class="d">Menyu · 34 məhsul</span>
+                </button>
+                <button class="tile">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+                  <span class="t">Balans</span><span class="d">12.50 ₼</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-scr p-scr--menu">
+              <div class="m-head">
+                <div style="display:flex;justify-content:space-between;font:600 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)"><span>Menyu</span><span>Nizami</span></div>
+                <h2 style="margin-top:14px">İsti<br><em style="font-style:italic;color:var(--p-mark)">seçimlər</em></h2>
+                <span class="cnt" style="font:600 10px/1 var(--p-sans);letter-spacing:.18em;text-transform:uppercase;color:var(--p-ink-3);margin-top:11px;display:block">6 məhsul</span>
+              </div>
+              <ul class="m-list" style="margin-top:12px">
+                <li><span class="idx">01</span><div class="mid"><div class="nm">Flat White</div><div class="ds">Çılpaq espresso, ipək süd · 250ml</div></div><span class="pr">5<small>.00</small></span></li>
+                <li><span class="idx">02</span><div class="mid"><div class="nm">Fındıq Latte</div><div class="ds">Ev şərbəti, qovrulmuş fındıq · 350ml</div></div><span class="pr">6<small>.00</small></span></li>
+                <li><span class="idx">03</span><div class="mid"><div class="nm">Kakao &amp; Portağal</div><div class="ds">Yeni əlavə · mürəbbə qatı</div></div><span class="pr">6<small>.50</small></span></li>
+                <li><span class="idx">04</span><div class="mid"><div class="nm">Südlü Çay</div><div class="ds">Qara çay, isti süd, darçın</div></div><span class="pr">3<small>.50</small></span></li>
+              </ul>
+            </div>
+
+            <div class="p-scr p-scr--card">
+              <div class="sec-lbl" style="padding-top:22px">Mükafatlar</div>
+              <ul class="rewards">
+                <li class="ready"><span class="rk">1</span><span class="rn">Pulsuz tək kofe</span><span class="rv">Hazır</span></li>
+                <li><span class="rk">2</span><span class="rn">Kruassan hədiyyə</span><span class="rv">8/10</span></li>
+                <li><span class="rk">3</span><span class="rn">2 al 1 ödə günü</span><span class="rv">12/20</span></li>
+              </ul>
+              <div class="balance">
+                <div style="font:700 9.5px/1 var(--p-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--p-ink-3)">Cari balans</div>
+                <p class="amt" style="font:400 54px/1 var(--p-serif);letter-spacing:-.045em;margin:8px 0 0">12<sup style="font-size:22px;color:var(--p-ink-3)">.50 ₼</sup></p>
+                <div class="row" style="display:flex;gap:9px;margin-top:17px">
+                  <button class="btn-line solid" style="flex:1;border:1px solid var(--p-ink);background:var(--p-ink);color:var(--p-card);border-radius:99px;padding:11px 12px;font:700 10px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase">Artır</button>
+                  <button class="btn-line" style="flex:1;border:1px solid var(--p-ink);background:transparent;color:var(--p-ink);border-radius:99px;padding:11px 12px;font:700 10px/1 var(--p-sans);letter-spacing:.14em;text-transform:uppercase">Tarixçə</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-scr p-scr--me">
+              <div class="me-top">
+                <div class="ava">R</div>
+                <div class="nm">Rəşad Məmmədov</div>
+                <div class="ph">+994 ·· 4 12 ··</div>
+              </div>
+              <ul class="me-rows">
+                <li>Şəxsi məlumatlar <span class="v">Redaktə</span></li>
+                <li>Sevimli filial <span class="v">Nizami</span></li>
+                <li>Dil <span class="v">AZ · EN · RU</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="p-tabs">
+            <button data-t="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Kart</button>
+            <button data-t="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 03 -->
+<section class="doc-sec" id="tokens">
+  <h2 class="doc"><span class="num">03 / Material</span>Rəng və səth token-ları</h2>
+  <p class="doc">Şüşə sistemindəki kimi "blur səviyyələri" yoxdur — onun yerinə <b>kağız pillələri</b> var. Üç səth, üç mürəkkəb, iki aksent. Hamısı WCAG AA-dan keçir.</p>
+  <h3 class="doc">Light — Bone &amp; Ink</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#f5f1e8"></div><div class="lbl"><b>--p-paper</b>#f5f1e8<br>səhifə kağızı</div></div>
+    <div class="sw"><div class="chip" style="background:#fffdf8"></div><div class="lbl"><b>--p-card</b>#fffdf8<br>kart səthi</div></div>
+    <div class="sw"><div class="chip" style="background:#efe8db"></div><div class="lbl"><b>--p-card-2</b>#efe8db<br>ikinci kağız</div></div>
+    <div class="sw"><div class="chip" style="background:#1a1611"></div><div class="lbl"><b>--p-ink</b>#1a1611<br>əsas mürəkkəb</div></div>
+    <div class="sw"><div class="chip" style="background:#5a5147"></div><div class="lbl"><b>--p-ink-2</b>#5a5147<br>ikinci mürəkkəb</div></div>
+    <div class="sw"><div class="chip" style="background:#b4471f"></div><div class="lbl"><b>--p-mark</b>#b4471f<br>möhür / marka</div></div>
+    <div class="sw"><div class="chip" style="background:#3f5b3a"></div><div class="lbl"><b>--p-leaf</b>#3f5b3a<br>ikinci aksent</div></div>
+    <div class="sw"><div class="chip" style="background:#8a6b2f"></div><div class="lbl"><b>--p-metal</b>#8a6b2f<br>yalnız mükafat</div></div>
+  </div>
+  <h3 class="doc">Kontrast qeydləri</h3>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Keçən cütlər</h5>
+      <ul>
+        <li><code>#1a1611</code> kağız <code>#f5f1e8</code> üzərində → ~16:1</li>
+        <li><code>#5a5147</code> kağız üzərində → ~6.9:1</li>
+        <li><code>#b4471f</code> kağız üzərində → ~4.8:1 (AA keçir; yalnız 14px+ üçün)</li>
+        <li>Ağ mətn <code>#b4471f</code> möhür dairəsi üzərində → ~5.4:1</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Qadağa</h5>
+      <ul>
+        <li>Terracotta rəngini <b>kiçik mətn</b> üçün işlətmə — yalnız nişan, xətt, möhür, və 14px+ başlıq.</li>
+        <li>Qızılı (<code>--p-metal</code>) yalnız "mükafat hazır" halında — adi element üçün işlətsən, dəyəri itir.</li>
+        <li>Kağız tonunu <b>iki səviyyədən çox</b> qatlama — sənəd palçıqlı görünür.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 04 -->
+<section class="doc-sec" id="type">
+  <h2 class="doc"><span class="num">04 / Tip</span>Şkala və ritm</h2>
+  <p class="doc">Bu sistemin ən böyük fərqi: <b>rəqəm və başlıq serif-dir</b>. "12.50 ₼" və "6/10" sadəcə məlumat deyil — kompozisiyanın ən böyük elementidir. Yüzdə 50 siyahı, yüzdə 50 plakat.</p>
+  <table class="cmp">
+    <thead><tr><th>Rol</th><th class="a">Ölçü / sətir</th><th class="b">Şrift və izah</th></tr></thead>
+    <tbody>
+      <tr><th>Plakat (cover)</th><td class="a">46px / 1.00</td><td class="b">Serif, <code>-0.03em</code> — maks. 2 söz + 1 italik vurğu</td></tr>
+      <tr><th>Rəqəm (balans)</th><td class="a">54px / 1.00</td><td class="b">Serif, <code>-0.045em</code>; qəpik yuxarı indeks, 22px</td></tr>
+      <tr><th>Başlıq səhifə</th><td class="a">34px / 1.02</td><td class="b">Serif — "Nə içək bu gün?"</td></tr>
+      <tr><th>Menyu sətri</th><td class="a">19px / 1.15</td><td class="b">Serif ad + serif qiymət, aralarında hairline</td></tr>
+      <tr><th>Etiket</th><td class="a">9.5px / 1.0</td><td class="b">Sans, <code>+0.2em</code>, BÖYÜK HƏRF — kəsişən başlıq</td></tr>
+      <tr><th>Bədən</th><td class="a">12.5px / 1.55</td><td class="b">Sans — yalnız izah mətni</td></tr>
+      <tr><th>Kod / ID</th><td class="a">11px / 1.6</td><td class="b">Mono — QR kodu, üzv nömrəsi</td></tr>
+    </tbody>
+  </table>
+  <div class="note" style="margin-top:22px">
+    <h5>Şrift seçimi — praktik qərar</h5>
+    <p>Serif kimi sistemi mövcud şriftlərdən götürürük: <code>Iowan Old Style → Palatino → Georgia</code>. iOS-da birinci işləyir, Android-də Georgia-ya düşür. Heç bir şrift faylı yüklənmir — tətbiq yüngül qalır. Daha kəskin fərq istəyirsənsə, sonradan bir dəyişən (variable) serif əlavə edilə bilər (məs. Fraunces, Instrument Serif) — amma konsept onsuz da tam işləyir.</p>
+  </div>
+</section>
+
+<!-- 05 -->
+<section class="doc-sec" id="rules">
+  <h2 class="doc"><span class="num">05 / Qaydalar</span>Et / Etmə</h2>
+  <div class="dodont">
+    <div class="dd yes">
+      <h5>Et</h5>
+      <ul>
+        <li>Hər ekranda <b>bir</b> dominant tip element — qalanı ona xidmət edir.</li>
+        <li>Dərinliyi <b>haşiyə + boşluq</b> ilə qur. Kölgə yalnız "kağız üstə kağız" üçün, maks. 24px yayılma.</li>
+        <li>Rəqəmi böyüt — balans, möhür, qiymət. İstifadəçi məlumatı oxumadan görsün.</li>
+        <li>Hairline (<code>1px</code>) xətləri səthi bölmək üçün işlət — kart-kart ayrılığı üçün deyil, <b>içəri</b> struktur üçün.</li>
+        <li>Möhür/perforasiya kimi fiziki detalları CSS ilə çək, şəkil faylı yükləmə.</li>
+        <li>Reduce Motion açıqsa kinetik lent də, möhür animasiyası da dayansın.</li>
+      </ul>
+    </div>
+    <div class="dd no">
+      <h5>Etmə</h5>
+      <ul>
+        <li>Blur, glass, parıltı, qradient qat əlavə etmə — bu sistem onların <b>əksi</b> kimi qurulub.</li>
+        <li>Serif başlığı 3 sətirdən çox uzatma; ekranı "şeir"ə çevirmə.</li>
+        <li>Radius-u hər yerdə böyütmə. Kart <code>3px</code>, düymə tam dairə — bu qəsdən asimmetriyadır, onu "düzəltmə".</li>
+        <li>Terracotta-nı fon kimi işlətmə — o, möhürdür, divar deyil.</li>
+        <li>İkonları dolu/rəngli etmə — <code>stroke 1.6</code>, tək rəng, 18–26px.</li>
+      </ul>
+    </div>
+  </div>
+  <h3 class="doc">Hərəkət dili</h3>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Möhür basma (180ms)</h5>
+      <p>İstifadəçi "Möhür bas" düyməsinə toxunanda boş dairə <code>scale(1.35) → 1</code> kiçilir, rəngi mürəkkəbə çevrilir, bir anlıq <code>rotate(-12deg)</code> əyilir. Fiziki möhürün ekrandaki qarşılığı — sistemi "oyun" deyil, "sənətkarlıq" hiss etdirir.</p>
+    </div>
+    <div class="note">
+      <h5>Kinetik lent (26s loop)</h5>
+      <p>Əsas ekrandaki incə hərəkətli zolaq — günün yeni məhsulu və kampaniyası. Statik banner-dən güclüdür, çünki göz onu izləyir və iki dəfə oxuyur. <code>prefers-reduced-motion</code> → tam dayanır.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 06 -->
+<section class="doc-sec" id="handoff">
+  <h2 class="doc"><span class="num">06 / Keçid</span>Necə tətbiqə salırıq</h2>
+  <p class="doc">Eyni qayda: yeni kod <b>heç bir yerə import olunmur</b>, POS/admin toxunulmur. Müştəri tətbiqi tədricən bu sistemə keçir, hər addımda sən telefonda yoxlayırsan.</p>
+  <ol class="steps">
+    <li><b>Token qatı</b><p><code>src/theme/craft-tokens.css</code> — yuxarıdaki dəyişənlər, <code>.customer-craft</code> + <code>data-craft-theme</code> scope-u ilə. Quiet UI v2 ilə yan-yana yaşayır, heç nəni əvəz etmir.</p></li>
+    <li><b>Alt naviqasiya + status zolağı</b><p>Kağız zolaq, hairline ayırıcı, üstdə 3px mürəkkəb indikator. İlk real fərq burada görünür.</p></li>
+    <li><b>Əsas ekran</b><p>Cover başlıq + dateline + kinetik lent + möhür kartı (real möhür sayı ilə) + bento tiles + sifariş zolağı.</p></li>
+    <li><b>Menyu</b><p>Tip-first siyahı: serif ad + serif qiymət + hairline. Mövcud axtarış və kateqoriya məntiqi olduğu kimi qalır.</p></li>
+    <li><b>Kart / balans / mükafat</b><p>Qəbz metaforu, real balans və möhür məlumatı, "Artır" düyməsi epoint hazır olanda işə düşür.</p></li>
+    <li><b>Təmizlik</b><p>Köhnə dekorativ kölgələr və qradiyent qalıqları silinir. Hər addımdan sonra: typecheck → smoke → parity → build → telefon quraşdırma → sən yoxlayırsan.</p></li>
+  </ol>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Risk və geri dönüş</h5>
+      <ul>
+        <li>Hər addım ayrı commit → bəyənməsən geri qaytarmaq asandır.</li>
+        <li>Backend, ödəniş, loyallıq məntiqi <b>heç toxunulmur</b> — yalnız görünüş.</li>
+        <li>Dark Roast rejimi ayrı token dəsti olduğu üçün sıfırdan sınanır.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Növbəti qərar sənin</h5>
+      <ul>
+        <li><b>Bu</b> istiqaməti seçsən → 1-ci addımdan başlayıram və hər addımı telefonda yoxlayırsan.</li>
+        <li>Liquid Glass ilə bunu <b>qarışdırmaq</b> olmaz — ikisi fərqli material dilidir, biri seçilməlidir.</li>
+        <li>Üçüncü variantı da istəyirsənsə (məs. tam type-first, kartsız, təmiz plakat) — de, ayrı konsept qururam.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Emalat Craft · konsept v3 · Emalat Coffee müştəri tətbiqi</span>
+  <span>docs/design-system/customer-ios-craft-editorial.html</span>
+  <span>Import olunmayıb · deploy yoxdur</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- 1. Tab keçidi (hər telefon öz müstəqil vəziyyəti ilə) ---------- */
+  document.querySelectorAll('.p-device').forEach(function(dev){
+    dev.querySelectorAll('.p-tabs [data-t]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        dev.setAttribute('data-p-tab', btn.getAttribute('data-t'));
+        dev.querySelectorAll('.p-tabs [data-t]').forEach(function(b){
+          b.classList.toggle('on', b === btn);
+        });
+        var body = dev.querySelector('.p-body');
+        if (body) body.scrollTop = 0;
+      });
+    });
+    /* əsas ekrandaki "Sifariş et" tile → Menyu tabına keçir */
+    var go = dev.querySelector('#goMenu');
+    if (go) {
+      go.addEventListener('click', function(){
+        var t = dev.querySelector('.p-tabs [data-t="menu"]');
+        if (t) t.click();
+      });
+    }
+  });
+
+  /* ---------- 2. Möhür basma — fiziki möhür animasiyası ---------- */
+  var grid = document.getElementById('punchGrid');
+  var stampBtn = document.getElementById('stampBtn');
+  if (grid && stampBtn) {
+    stampBtn.addEventListener('click', function(){
+      var slots = grid.querySelectorAll('i');
+      var target = null;
+      for (var i = 0; i < slots.length; i++) {
+        if (!slots[i].classList.contains('done')) { target = slots[i]; break; }
+      }
+      if (!target) return;
+      target.classList.remove('next');
+      target.style.transition = 'transform 180ms cubic-bezier(.2,0,0,1)';
+      target.style.transform = 'scale(1.35) rotate(-12deg)';
+      setTimeout(function(){
+        target.classList.add('done');
+        target.textContent = '';
+        target.style.transform = 'scale(1) rotate(0)';
+      }, 150);
+      setTimeout(function(){
+        var next = null;
+        var all = grid.querySelectorAll('i');
+        for (var j = 0; j < all.length; j++) {
+          if (!all[j].classList.contains('done')) { next = all[j]; break; }
+        }
+        if (next) { next.classList.add('next'); next.textContent = String(j + 1); }
+      }, 260);
+    });
+  }
+
+  /* ---------- 3. Menyu məlumatı + axtarış + kateqoriya ---------- */
+  var MENU = [
+    {n:'Flat White', d:'Çılpaq espresso, ipək süd · 250ml', p:'5.00', c:'İsti'},
+    {n:'Fındıq Latte', d:'Ev şərbəti, qovrulmuş fındıq · 350ml', p:'6.00', c:'İsti'},
+    {n:'Kakao & Portağal', d:'Yeni əlavə · mürəbbə qatı, süd', p:'6.50', c:'İsti'},
+    {n:'Südlü Çay', d:'Qara çay, isti süd, darçın', p:'3.50', c:'İsti'},
+    {n:'Espresso', d:'Tək porsiya, qatı krem · 30ml', p:'2.50', c:'İsti'},
+    {n:'Iced Latte', d:'Soyuq espresso, süd, buz · 350ml', p:'5.00', c:'Soyuq'},
+    {n:'Cold Brew', d:'12 saat dəmlənmiş · 300ml', p:'5.50', c:'Soyuq'},
+    {n:'Limonad', d:'Ev limonadı, nanə, buz', p:'3.80', c:'Soyuq'},
+    {n:'Fındıq Kruassan', d:'Hər səhər təzə bişirilir', p:'4.20', c:'Çörək'},
+    {n:'Zeytun Muffin', d:'Qara zeytun, rozmarin', p:'3.90', c:'Çörək'},
+    {n:'Tərəvəzli Sendviç', d:'Focaccia, feta, pomidor', p:'6.80', c:'Çörək'},
+    {n:'Tira Misu', d:'Maskarpone, espresso, kakao', p:'5.60', c:'Şirin'}
+  ];
+  var CATS = ['Hamısı','İsti','Soyuq','Çörək','Şirin'];
+  var listEl = document.getElementById('menuList');
+  var chipsEl = document.getElementById('menuChips');
+  var searchEl = document.getElementById('menuSearch');
+  var countEl = document.getElementById('menuCount');
+  var state = { q:'', c:'Hamısı' };
+  if (!listEl || !chipsEl) return;
+
+  function pad(n){ return n < 10 ? '0' + n : String(n); }
+
+  function renderChips(){
+    chipsEl.innerHTML = '';
+    CATS.forEach(function(c){
+      var b = document.createElement('button');
+      b.textContent = c;
+      if (c === state.c) b.classList.add('on');
+      b.addEventListener('click', function(){ state.c = c; renderChips(); render(); });
+      chipsEl.appendChild(b);
+    });
+  }
+
+  function render(){
+    var q = state.q.trim().toLowerCase();
+    var rows = MENU.filter(function(m){
+      var okC = state.c === 'Hamısı' || m.c === state.c;
+      var okQ = !q || m.n.toLowerCase().indexOf(q) !== -1 || m.d.toLowerCase().indexOf(q) !== -1;
+      return okC && okQ;
+    });
+    listEl.innerHTML = '';
+    if (!rows.length) {
+      var li = document.createElement('li');
+      li.className = 'empty-pad';
+      li.textContent = 'Heç nə tapılmadı.';
+      li.style.display = 'block';
+      li.style.borderTop = '0';
+      listEl.appendChild(li);
+    } else {
+      rows.forEach(function(m, i){
+        var li = document.createElement('li');
+        var idx = document.createElement('span');
+        idx.className = 'idx'; idx.textContent = pad(i + 1);
+        var mid = document.createElement('div');
+        mid.className = 'mid';
+        var nm = document.createElement('div');
+        nm.className = 'nm'; nm.textContent = m.n;
+        var ds = document.createElement('div');
+        ds.className = 'ds'; ds.textContent = m.d;
+        mid.appendChild(nm); mid.appendChild(ds);
+        var pr = document.createElement('span');
+        pr.className = 'pr'; pr.textContent = m.p + ' ';
+        var sm = document.createElement('small'); sm.textContent = '₼';
+        pr.appendChild(sm);
+        li.appendChild(idx); li.appendChild(mid); li.appendChild(pr);
+        listEl.appendChild(li);
+      });
+    }
+    if (countEl) countEl.textContent = rows.length + ' məhsul · ' + (state.c === 'Hamısı' ? '5' : '1') + ' kateqoriya';
+  }
+
+  if (searchEl) searchEl.addEventListener('input', function(){ state.q = searchEl.value; render(); });
+  renderChips();
+  render();
+
+  /* ---------- 4. Light / Night rejim — bütün telefonlara birgə ---------- */
+  var bLight = document.getElementById('themeLight');
+  var bNight = document.getElementById('themeNight');
+  var hint = document.getElementById('themeHint');
+  function setTheme(name){
+    document.querySelectorAll('.p-device').forEach(function(d){ d.setAttribute('data-p-theme', name); });
+    if (bLight) bLight.classList.toggle('on', name === 'bone');
+    if (bNight) bNight.classList.toggle('on', name === 'night');
+    if (hint) hint.textContent = name === 'bone'
+      ? 'Bone & Ink — isti kağız, açıq səth, tünd mürəkkəb'
+      : 'Dark Roast — gecə rejimi, ağac kömürü fon, isti aksent';
+  }
+  if (bLight) bLight.addEventListener('click', function(){ setTheme('bone'); });
+  if (bNight) bNight.addEventListener('click', function(){ setTheme('night'); });
+})();
+</script>
+</body>
+</html>

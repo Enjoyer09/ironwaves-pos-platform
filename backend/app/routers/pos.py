@@ -37,7 +37,7 @@ from app.services.finance_service import commission_percent, mirror_posted_trans
 from app.gl.bridge import emit_sale as emit_gl_sale
 # P1.1 — qazanma hesabı buradan gəlir. Router-də inline düstur saxlamırıq ki,
 # frontend güzgüsü (`src/lib/loyalty.ts`) və testlər eyni qaydanı işlədə bilsin.
-from app.services.loyalty_accrual import compute_points_earned, find_tier_multiplier, resolve_first_purchase_bonus
+from app.services.loyalty_accrual import compute_points_earned, find_tier_discount, find_tier_multiplier, resolve_first_purchase_bonus
 # P1.4 — push konfiqurasiyası per-tenant həll olunur; göndərmə saf modulda,
 # DB/jurnal tərəfi `push_dispatch`-də. Bax: `app/services/push_service.py`.
 from app.services.push_dispatch import send_event_push
@@ -632,7 +632,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     # P1-4b: campaign consumption happens HERE (atomically with the sale commit),
     # not at scan time. Re-validates ACTIVE + expiry + happy-hour window + card,
-    # applies max(manual, customer, campaign) and records an auditable reason.
+    # applies max(manual, customer, campaign, tier) and records an auditable reason.
     campaign_discount = Decimal("0")
     campaign_name = ""
     campaign_consumed = False
@@ -685,7 +685,21 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             status_code=400,
             detail="Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin! (Discount reason is required for manual discount)"
         )
-    effective_discount = max(manual_discount, customer_discount, campaign_discount)
+    customer_program = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {"program_mode": "points", "cashback_percent": 5},
+    )
+    # P1.6 — pillə (tier) endirimi də max() yarışına girir. Nərdivan seçimi
+    # `find_tier_multiplier` ilə eynidir (app "Gold 5%" göstərsə, kassa da 5%
+    # sayır). Default 0 → tenant pillə faizi yazana qədər davranış dəyişmir.
+    tier_discount = (
+        find_tier_discount(customer_program, customer.lifetime_stars)
+        if customer is not None
+        else Decimal("0")
+    )
+    effective_discount = max(manual_discount, customer_discount, campaign_discount, tier_discount)
     sale_reason = str(payload.discount_reason or "").strip() or None
     if campaign_consumed:
         campaign_reason = f"Kampaniya: {campaign_name}"
@@ -693,12 +707,6 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         # duplicated "Kampaniya: X; Kampaniya: X" on the receipt/audit trail.
         if not (sale_reason and campaign_reason in sale_reason):
             sale_reason = f"{sale_reason}; {campaign_reason}" if sale_reason else campaign_reason
-    customer_program = _setting_value(
-        db,
-        tenant.id,
-        "customer_app_settings",
-        {"program_mode": "points", "cashback_percent": 5},
-    )
     program_mode = str(customer_program.get("program_mode") or "points").strip().lower()
     cashback_percent = Decimal(str(customer_program.get("cashback_percent") or 0))
     # P0.3 — hədiyyə həddi artıq ayardan gəlir (əvvəl hardcoded 10 idi).

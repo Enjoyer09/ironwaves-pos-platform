@@ -1,0 +1,384 @@
+/* Customer (iOS app) styles — isolated from POS/admin.  Imported by CustomerApp.tsx. */
+/* ══════════════════════════════════════════════════════════
+   CUSTOMER APP — LIQUID GLASS v3 (material tiers)
+   Mənbə: docs/design-system/customer-ios-liquid-glass-v3.html
+   Tier 1 Chrome (nav) · 2 Sheet/kart · 3 Chip · 4 məzvan = möhkəm
+   Qayda: heç vaxt şüşə-üstü-şüşə. Kənar linzaları (::after) yalnız Chrome-da.
+   ══════════════════════════════════════════════════════════ */
+/* ── Tier 1 — Chrome (bottom nav) ─────────────────────────── */
+.cust-chrome {
+  position: relative;
+  border-radius: 32px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.10) 0%,
+    rgba(255, 255, 255, 0.045) 48%,
+    rgba(255, 255, 255, 0.075) 100%);
+  backdrop-filter: blur(34px) saturate(2);
+  -webkit-backdrop-filter: blur(34px) saturate(2);
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  /* üçqat specular kənar: üst parlaq, orta xətt, alt rim */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+  transition: background 0.3s ease;
+}
+
+/* Kənar linzaları — yuxarı kəvarda şüşə qalınlaşır (v3 imzası) */
+.cust-chrome::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  backdrop-filter: blur(24px) saturate(1.9);
+  -webkit-backdrop-filter: blur(24px) saturate(1.9);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 24%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 24%);
+  opacity: 0.5;
+}
+
+/* Scroll reaksiyası: məzvan sürüşdükcə material sıxlaşır */
+.cust-chrome.is-scrolled {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.07) 48%,
+    rgba(255, 255, 255, 0.10) 100%);
+  backdrop-filter: blur(36px) saturate(2);
+  -webkit-backdrop-filter: blur(36px) saturate(2);
+}
+
+/* İşıq rejimi: qatı-ağ üstlə, kölgə ilə davranır */
+.cust-chrome.is-light {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(255, 255, 255, 0.70) 50%,
+    rgba(255, 255, 255, 0.80) 100%);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+    0 10px 30px rgba(0, 0, 0, 0.10);
+}
+.cust-chrome.is-light::after { opacity: 0.25; }
+.cust-chrome.is-light.is-scrolled {
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+}
+
+/* ── Aktiv tab həbri (spring keçid) ───────────────────────── */
+.cust-tab {
+  position: relative;
+  z-index: 1;
+  border-radius: 22px;
+  transition:
+    background 0.3s cubic-bezier(0.22, 1.2, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+.cust-tab.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 4px 14px rgba(255, 139, 38, 0.18);
+}
+/* Instagram-tipli şüşə: aktiv tab yumşaq şəkildə sürüşür, basanda sıxılır */
+@media (prefers-reduced-motion: no-preference) {
+  .cust-tab { transition: background 0.35s cubic-bezier(0.22, 1.2, 0.36, 1), transform 0.25s ease, box-shadow 0.35s ease; }
+  .cust-tab.is-active { animation: custTabPop 0.42s cubic-bezier(0.22, 1.2, 0.36, 1); }
+}
+@keyframes custTabPop {
+  0%   { transform: scale(0.94); }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.cust-chrome.is-light .cust-tab.is-active {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10), 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ── Tier 3 — Chip (filtor həbləri) ───────────────────────── */
+.cust-chip {
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+}
+.cust-chip.is-active {
+  background: rgba(255, 139, 38, 0.22);
+  border-color: rgba(255, 139, 38, 0.45);
+}
+
+/* ── Reduce Transparency (iOS) ────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  .cust-chrome,
+  .cust-chrome.is-scrolled,
+  .cust-chip {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .cust-chrome { background: #17110c; }
+  .cust-chrome.is-light { background: #ffffff; }
+  .cust-chrome::after { display: none; }
+}
+
+/* ── v3 kofe bokeh fonu (glass-ın refraksiya edəcəyi arxa plan) ──
+   Şüşənin mənası arxada zəngin, dərin məzmun olanda görünür.
+   Yalnız fon: kontent kartları bunun üzərində QATI qalır. */
+.cust-bokeh {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 196, 128, 0.42) 0 70px, transparent 150px),
+    radial-gradient(circle at 84% 30%, rgba(196, 116, 52, 0.45) 0 90px, transparent 180px),
+    radial-gradient(circle at 46% 58%, rgba(255, 228, 190, 0.22) 0 120px, transparent 220px),
+    radial-gradient(circle at 12% 88%, rgba(120, 70, 30, 0.55) 0 110px, transparent 210px),
+    radial-gradient(circle at 90% 92%, rgba(255, 170, 96, 0.35) 0 100px, transparent 200px),
+    linear-gradient(160deg, #3a2716 0%, #1d130b 48%, #0c0805 100%);
+  filter: saturate(1.1);
+}
+.cust-bokeh--light {
+  background:
+    radial-gradient(circle at 20% 16%, rgba(255, 214, 160, 0.55) 0 80px, transparent 170px),
+    radial-gradient(circle at 86% 34%, rgba(232, 180, 120, 0.42) 0 100px, transparent 200px),
+    radial-gradient(circle at 40% 62%, rgba(255, 246, 232, 0.8) 0 130px, transparent 240px),
+    radial-gradient(circle at 10% 90%, rgba(210, 160, 110, 0.35) 0 110px, transparent 210px),
+    linear-gradient(170deg, #f7efe4 0%, #efe3d2 55%, #e6d5bf 100%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cust-bokeh { animation: custBokehDrift 26s ease-in-out infinite alternate; }
+}
+@keyframes custBokehDrift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-10px, 8px, 0) scale(1.04); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Profile v4 — iOS Settings naxışı
+   Mənbə: docs/design-system/customer-ios-profile-settings.html
+   (.mecard .stats .quick .grp .srow .si .sw .seg .pill .ptabs .morph)
+   Şüşə: yarı-şəffaf ağ + blur + daxili parıltı. Düz ağ fon YOXDUR.
+   ══════════════════════════════════════════════════════════ */
+.cust-glass{
+  background:rgba(255,255,255,.72);
+  -webkit-backdrop-filter:blur(20px) saturate(1.8);
+  backdrop-filter:blur(20px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85),inset 0 -1px 0 rgba(255,255,255,.34),0 8px 24px -8px rgba(16,12,8,.15);
+}
+.cust-dark .cust-glass{
+  background:rgba(30,25,20,.74);
+  border-color:rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -1px 0 rgba(255,255,255,.06),0 10px 28px -10px rgba(0,0,0,.62);
+}
+@media (prefers-reduced-transparency:reduce){
+  .cust-glass{background:#fffdfa;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .cust-dark .cust-glass{background:#1e1914}
+}
+
+/* Bölmə başlığı */
+.cust-secttl{
+  font-size:12px;font-weight:600;line-height:1;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(22,18,14,.52);padding:22px 20px 9px;
+}
+.cust-dark .cust-secttl{color:rgba(245,241,234,.52)}
+
+/* Vahid qrup bloku — hər sətir ayrı kart DEYİL */
+.cust-grp{margin:0 20px;border-radius:16px;overflow:hidden}
+
+/* Sətir */
+.cust-srow{
+  display:flex;align-items:center;gap:13px;padding:13px 15px;width:100%;text-align:left;
+  background:none;border:0;border-bottom:1px solid rgba(20,16,12,.07);color:inherit;
+  transition:background .18s ease;
+}
+.cust-srow:last-child{border-bottom:0}
+.cust-srow:not([disabled]):active{background:rgba(20,16,12,.035)}
+.cust-dark .cust-srow{border-bottom-color:rgba(255,255,255,.07)}
+.cust-dark .cust-srow:not([disabled]):active{background:rgba(255,255,255,.045)}
+.cust-srow[style*="cursor:default"]:active{background:none}
+
+/* Sol ikon — dairə deyil, 28x28 yumşaq kvadrat */
+.cust-si{
+  width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;
+  font-size:13px;background:rgba(20,16,12,.06);color:rgba(22,18,14,.72);
+}
+.cust-dark .cust-si{background:rgba(255,255,255,.09);color:rgba(245,241,234,.75)}
+.cust-si.orange{background:rgba(244,140,36,.16);color:#a85708}
+.cust-si.green{background:rgba(20,104,58,.13);color:#14683a}
+.cust-si.blue{background:rgba(43,36,184,.11);color:#2b24b8}
+.cust-si.red{background:rgba(165,35,28,.11);color:#a5231c}
+.cust-dark .cust-si.orange{color:#ffb877}
+.cust-dark .cust-si.green{color:#7fd39e}
+.cust-dark .cust-si.blue{color:#a8a2ff}
+.cust-dark .cust-si.red{color:#ff9b95}
+
+/* Sətir mətnləri — ölçülər prototipə uyğun (customer-ios-profile-settings.html) */
+.cust-sm{flex:1;min-width:0}
+.cust-sn{font-size:15px;font-weight:600;line-height:1.3;display:block}
+.cust-sd{font-size:12px;line-height:1.45;margin-top:3px;display:block;color:rgba(22,18,14,.55)}
+.cust-dark .cust-sd{color:rgba(245,241,234,.55)}
+.cust-sv{font-size:13.5px;font-weight:500;line-height:1;flex:none;max-width:104px;text-align:right;color:rgba(22,18,14,.5)}
+.cust-dark .cust-sv{color:rgba(245,241,234,.52)}
+.cust-ch{font-size:16px;line-height:1;flex:none;color:rgba(22,18,14,.26)}
+.cust-dark .cust-ch{color:rgba(245,241,234,.3)}
+.cust-srow.cust-danger .cust-sn{color:#a5231c}
+.cust-dark .cust-srow.cust-danger .cust-sn{color:#ff9b95}
+
+/* Şəxsi kart */
+.cust-mecard{margin:18px 20px 0;border-radius:22px;padding:18px}
+.cust-mecard .cust-top{display:flex;gap:14px;align-items:center}
+.cust-ava{
+  width:58px;height:58px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:23px;font-weight:700;color:#8c4a06;background:rgba(255,255,255,.66);
+  border:1px solid rgba(255,255,255,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px -3px rgba(16,12,8,.35);
+}
+.cust-dark .cust-ava{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:#ffb877}
+.cust-nm{font-size:20px;font-weight:700;line-height:1.15;letter-spacing:-.025em}
+.cust-ph{font-size:11px;font-weight:600;line-height:1;margin-top:6px;font-family:ui-monospace,Menlo,monospace;color:rgba(22,18,14,.55)}
+.cust-dark .cust-ph{color:rgba(245,241,234,.58)}
+.cust-tier{
+  display:inline-flex;align-items:center;gap:6px;margin-top:9px;font-size:10px;font-weight:700;line-height:1;
+  letter-spacing:.14em;text-transform:uppercase;padding:5px 9px;border-radius:99px;
+  background:rgba(201,138,79,.18);color:#8c4a06;
+}
+.cust-dark .cust-tier{color:#f0b471}
+.cust-id{font-size:10px;font-weight:600;line-height:1.6;text-align:right;flex:none;
+  font-family:ui-monospace,Menlo,monospace;color:rgba(22,18,14,.45)}
+.cust-dark .cust-id{color:rgba(245,241,234,.48)}
+
+/* 3 statistika */
+.cust-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 20px 0}
+.cust-stat{border-radius:16px;padding:13px 12px;text-align:center;color:inherit}
+.cust-stat .sv2{font-size:22px;font-weight:700;line-height:1;letter-spacing:-.03em;display:block}
+.cust-stat .sl2{font-size:10px;font-weight:600;line-height:1.3;letter-spacing:.1em;text-transform:uppercase;
+  margin-top:7px;display:block;color:rgba(22,18,14,.52)}
+.cust-dark .cust-stat .sl2{color:rgba(245,241,234,.52)}
+
+/* Əsas düymələr */
+.cust-quick{display:flex;gap:10px;margin:14px 20px 0}
+.cust-pill{
+  border-radius:99px;padding:12px 16px;font-size:11.5px;font-weight:700;line-height:1;
+  letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;text-align:center;flex:1;
+  transition:transform .18s ease;
+}
+.cust-pill:active{transform:scale(.97)}
+.cust-pill.solid{background:#16120e;color:#fffdfa;border:1px solid #16120e}
+.cust-pill.ghost{background:rgba(255,255,255,.5);border:1px solid rgba(22,18,14,.26);color:#16120e}
+.cust-dark .cust-pill.solid{background:#f5f1ea;color:#16120e;border-color:#f5f1ea}
+.cust-dark .cust-pill.ghost{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.26);color:#f5f1ea}
+.cust-pill[disabled]{opacity:.55}
+
+/* iOS açar */
+.cust-sw{
+  width:44px;height:26px;border-radius:99px;flex:none;border:0;padding:0;position:relative;cursor:pointer;
+  background:rgba(22,18,14,.18);transition:background .22s ease;
+}
+.cust-dark .cust-sw{background:rgba(255,255,255,.2)}
+.cust-sw::after{
+  content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .24s cubic-bezier(.22,1.2,.36,1);
+}
+.cust-sw[aria-checked="true"]{background:#14683a}
+.cust-sw[aria-checked="true"]::after{transform:translateX(18px)}
+
+/* Seqment (tema / dil) */
+.cust-seg{display:flex;border-radius:11px;padding:3px;flex:none}
+.cust-seg button{
+  border:0;background:none;padding:7px 10px;border-radius:8px;font-size:11px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:rgba(22,18,14,.55);transition:background .2s ease;
+}
+.cust-seg button[aria-selected="true"]{background:rgba(255,255,255,.9);color:#16120e;box-shadow:0 1px 3px rgba(16,12,8,.2)}
+.cust-dark .cust-seg button{color:rgba(245,241,234,.58)}
+.cust-dark .cust-seg button[aria-selected="true"]{background:rgba(255,255,255,.16);color:#fff}
+
+/* Sətir daxilində seqment sətri */
+.cust-seginrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;
+  border-bottom:1px solid rgba(20,16,12,.07)}
+.cust-seginrow:last-child{border-bottom:0}
+.cust-dark .cust-seginrow{border-bottom-color:rgba(255,255,255,.07)}
+.cust-seginrow .sl{flex:1;min-width:0}
+.cust-seginrow .sl b{font-size:14px;font-weight:600;line-height:1.3;display:block}
+.cust-seginrow .sl span{font-size:11.5px;display:block;margin-top:3px;color:rgba(22,18,14,.55)}
+.cust-dark .cust-seginrow .sl span{color:rgba(245,241,234,.55)}
+
+/* Kiçik/inline şüşə (seqmentlərin arxası) — daha yüngül blur */
+.cust-glass--inline{
+  background:rgba(255,255,255,.5);
+  -webkit-backdrop-filter:blur(12px) saturate(1.7);
+  backdrop-filter:blur(12px) saturate(1.7);
+  border:1px solid rgba(255,255,255,.34);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 4px 14px -6px rgba(16,12,8,.28);
+}
+.cust-dark .cust-glass--inline{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14)}
+
+/* ── Üzən alt nav (.ptabs) ────────────────────────────────── */
+/* overflow YOXDUR: orta QR düyməsi panelin üstünə qalxır və kəsilməməlidir. */
+.cust-ptabs{
+  position:relative;border-radius:24px;display:grid;grid-template-columns:repeat(3,1fr);
+  align-items:stretch;padding:6px;
+  /* Referans: yarımşəffaf şüşə, düz ağ DEYİL */
+  background:rgba(255,255,255,.65);
+  -webkit-backdrop-filter:blur(25px) saturate(1.8);
+  backdrop-filter:blur(25px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    inset 0 -1px 0 rgba(255,255,255,.34),
+    0 .5px 0 rgba(16,12,8,.20),
+    0 10px 26px -10px rgba(16,12,8,.42);
+}
+/* Şüşə dərinliyi (referans .g-chrome): üst 44%-də specular parıltı +
+   üst 9px-də gücləndirilmiş refraksiya zolağı. Bunlar olmadan panel
+   "düz plastik" kimi görünür. */
+.cust-ptabs::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:44%;pointer-events:none;
+  border-radius:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,0));
+}
+.cust-ptabs::after{
+  content:"";position:absolute;left:0;right:0;top:0;height:9px;pointer-events:none;
+  border-radius:inherit;
+  -webkit-backdrop-filter:blur(42px);backdrop-filter:blur(42px);
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent);
+  mask-image:linear-gradient(180deg,#000,transparent);
+}
+.cust-dark .cust-ptabs{
+  background:rgba(26,21,17,.6);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(255,255,255,.08),0 .5px 0 rgba(0,0,0,.5),0 12px 30px -12px rgba(0,0,0,.7);
+}
+.cust-dark .cust-ptabs::before{background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0))}
+@media (prefers-reduced-transparency:reduce){
+  .cust-ptabs{background:#fffdfa;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .cust-ptabs::after{display:none}
+}
+/* Hərəkətli seçim kapsulu (.morph) — bir sütun enində sürüşür */
+.cust-morph{
+  position:absolute;top:6px;bottom:6px;width:calc((100% - 12px) / 3);z-index:0;
+  border-radius:15px;background:rgba(255,255,255,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px -3px rgba(16,12,8,.35);
+  transition:left .34s cubic-bezier(.22,1.2,.36,1);
+}
+.cust-dark .cust-morph{background:rgba(255,255,255,.14)}
+
+/* Tab düyməsi */
+.cust-ptab{
+  position:relative;z-index:1;background:none;border:0;padding:9px 2px 8px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  font-size:11px;font-weight:600;line-height:1;letter-spacing:.06em;text-transform:uppercase;
+  color:rgba(22,18,14,.62);transition:color .24s ease;
+}
+.cust-ptab[aria-selected="true"]{color:#0f0c09}
+.cust-dark .cust-ptab{color:rgba(245,241,234,.6)}
+.cust-dark .cust-ptab[aria-selected="true"]{color:#fff}
+.cust-ptab svg{width:19px;height:19px;stroke-width:1.75}
+@media (prefers-reduced-motion:reduce){
+  .cust-morph{transition:none}
+}
+
+/* Versiya sətri */
+.cust-verfoot{text-align:center;font-size:11px;font-weight:500;padding:16px 24px 4px;
+  font-family:ui-monospace,Menlo,monospace;color:rgba(22,18,14,.5)}
+.cust-dark .cust-verfoot{color:rgba(245,241,234,.52)}

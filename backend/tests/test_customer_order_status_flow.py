@@ -25,6 +25,7 @@ from app.models import (
     Check,
     Customer,
     KitchenOrder,
+    MenuItem,
     Notification,
     OrderItem,
     OrderRound,
@@ -69,7 +70,13 @@ def _seed_tenant_customer(db, *, push_token: str | None = "fcm:test-token") -> t
         type="golden",
         push_token=push_token,
     )
-    db.add_all([tenant, customer])
+    # F5.2 — pre-order artıq server qiyməti hesablayır: menyuda olmayan id
+    # sifarişə düşmür, ona görə test sifarişlərinin məhsulları seed olunur.
+    menu = [
+        MenuItem(id="m1", tenant_id=tenant.id, item_name="Iced Latte", category="Coffee", price=Decimal("4.00")),
+        MenuItem(id="m2", tenant_id=tenant.id, item_name="Cinnamon Roll", category="Pastry", price=Decimal("3.20")),
+    ]
+    db.add_all([tenant, customer, *menu])
     db.commit()
     return tenant, customer
 
@@ -94,6 +101,9 @@ def _order_payload(operations):
             ),
         ],
         notes="Doora çatdırın",
+        # F5.2 — filial məcburidir.
+        store_id="branch-1",
+        store_name="Nizami filialı",
     )
 
 

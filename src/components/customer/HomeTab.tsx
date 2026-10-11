@@ -377,6 +377,7 @@ export default function HomeTab({
 
   return (
     <div className="space-y-6">
+      {/* v3 .pbg — fon indi CustomerApp şell-ində, tab keçidində dəyişir. */}
       <style>{`
         @keyframes modalFadeIn {
           from { opacity: 0; }
@@ -779,26 +780,77 @@ export default function HomeTab({
         <div className="stagger-fade-in">
           <button
             type="button"
-            onClick={() => setActiveTab('order')}
-            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all"
+            onClick={() => setActiveTab('track' as any)}
+            className={`w-full rounded-[18px] border p-3.5 flex items-center gap-3 text-left active:scale-[0.99] transition-all ${
+              isLight
+                ? 'bg-white border-[#FF8B26]/30 shadow-[0_12px_30px_-18px_rgba(20,16,12,0.4)]'
+                : 'bg-[#1C1C1E] border-[#FF8B26]/30 shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
+            }`}
           >
-            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0 shadow-sm">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="relative h-10 w-10 rounded-full bg-[#FF8B26]/15 flex items-center justify-center text-[#FF8B26] shrink-0">
+              <span className="absolute inset-0 rounded-full border-[1.5px] border-[#FF8B26] animate-ping opacity-50 motion-reduce:animate-none" />
+              <svg className="relative h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold text-[#FF8B26]">
-                {tx(safeLang, 'Sifariş hazırlanır', 'Заказ готовится', 'Order in progress')}
-              </p>
+              <p className="text-[9.5px] font-bold uppercase tracking-[0.17em] text-[#c96a08]">
+                {tx(safeLang, 'Sifariş hazırlanır', 'Заказ готовится', 'Order in progress')}              </p>
               <p className={`text-[11px] truncate ${subText}`}>
                 {activeOrders[0]?.item_names || activeOrders[0]?.title || tx(safeLang, 'Kasada götürün', 'Заберите у кассы', 'Pick up at counter')}
               </p>
             </div>
-            <span className="text-[11px] font-black text-[#FF8B26] shrink-0">
-              {activeOrders[0]?.eta || '2 dəq'}
-            </span>
+            {/* ponytail: real ETA yalnız KDS hazırlama müddəti göndərəndə
+                görünür — hazırda sifariş payload-unda `eta` yoxdur, yalan
+                "2 dəq" fallbacki silindi (F5.6). */}
+            {activeOrders[0]?.eta ? (
+              <span className="text-[11px] font-black text-[#FF8B26] shrink-0">
+                {activeOrders[0]?.eta}
+              </span>
+            ) : null}
           </button>
+        </div>
+      )}
+
+      {/* ── "Bu gün üçün" offer strip (v3 .picks) — real campaigns only ── */}
+      {campaignsCount > 0 && (
+        <div className="stagger-fade-in">
+          <div className="flex items-baseline justify-between mb-2.5 px-1">
+            <h3 className={`text-[15px] font-black tracking-tight ${textPrimary}`}>
+              {tx(safeLang, 'Bu gün üçün', 'На сегодня', 'For today')}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setActiveTab('offers' as any)}
+              className="text-[12px] font-bold text-[#c96a08]"
+            >
+              {tx(safeLang, 'Hamısı', 'Все', 'All')}
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
+            {((data as any).campaigns as any[]).slice(0, 5).map((row: any) => (
+              <button
+                key={row.id ?? row.name}
+                type="button"
+                onClick={() => setActiveTab('order')}
+                className={`shrink-0 w-[200px] rounded-[18px] p-4 text-left border active:scale-[0.98] transition-transform ${
+                  isLight
+                    ? 'bg-white border-black/5 shadow-[0_12px_30px_-18px_rgba(20,16,12,0.35)]'
+                    : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
+                }`}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#c96a08]">
+                  {row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}
+                </p>
+                <p className={`mt-1.5 text-[15px] font-black leading-tight line-clamp-2 ${textPrimary}`}>
+                  {row.name}
+                </p>
+                <p className={`mt-2 text-[11px] font-semibold truncate ${subText}`}>
+                  {row.start_time && row.end_time ? `${row.start_time} - ${row.end_time}` : ''}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -872,7 +924,7 @@ export default function HomeTab({
               <div key={idx} onClick={async () => { onReorderItem(item); await nativeHapticImpact(ImpactStyle.Light); }}
                 role="button" tabIndex={0} aria-label={`${item.name} ${tx(safeLang, 'yenidən sifariş et', 'заказать снова', 'reorder')}`}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReorderItem(item); } }}
-                className={`flex items-center justify-between gap-3 rounded-2xl p-3.5 border active:scale-[0.98] transition-all cursor-pointer ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md' : 'bg-white/6 border-white/6 hover:border-white/12 hover:bg-white/10'}`}>
+                className={`flex items-center justify-between gap-3 rounded-2xl p-3.5 border active:scale-[0.98] transition-all cursor-pointer ${isLight ? 'bg-white border-black/[0.05] shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-md' : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/20'}`}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
                     {(() => { switch(item.category) { case 'coffee': return '☕'; case 'tea': return '🍵'; case 'sweet': return '🍰'; case 'food': return '🥪'; default: return '🥤'; } })()}
@@ -903,7 +955,7 @@ export default function HomeTab({
               <div key={item.name} onClick={async () => { onReorderItem(item.lastItem || item); await nativeHapticImpact(ImpactStyle.Light); }}
                 role="button" tabIndex={0} aria-label={`${item.name} ${tx(safeLang, 'yenidən sifariş et', 'заказать снова', 'reorder')}`}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReorderItem(item.lastItem || item); } }}
-                className={`flex items-center gap-3 shrink-0 rounded-2xl p-3 border active:scale-95 transition-all cursor-pointer ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md shadow-sm' : 'bg-white/6 border-white/6 hover:border-white/12 hover:bg-white/10'}`}
+                className={`flex items-center gap-3 shrink-0 rounded-2xl p-3 border active:scale-95 transition-all cursor-pointer ${isLight ? 'bg-white border-black/[0.05] shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-md' : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/20'}`}
                 style={{ minWidth: '160px' }}>
                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
                   {(() => { switch(item.category) { case 'coffee': return '☕'; case 'tea': return '🍵'; case 'sweet': return '🍰'; case 'food': return '🥪'; default: return '🥤'; } })()}

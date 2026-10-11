@@ -1571,6 +1571,12 @@ export interface PushSettingsPatch {
   onesignal_rest_api_key?: string;
   clear_onesignal_rest_api_key?: boolean;
   broadcast_daily_limit?: number;
+  /** P4.3 — iki kütləvi bildiriş arasında minimum fasilə (dəqiqə). `0` = söndürülüb. */
+  broadcast_cooldown_minutes?: number;
+  /** P4.3 — sükut saatları. */
+  quiet_enabled?: boolean;
+  quiet_start?: string;
+  quiet_end?: string;
   onesignal_app_id?: string;
 }
 
@@ -1584,6 +1590,10 @@ export function update_push_settings(payload: PushSettingsPatch) {
     ['broadcast_enabled', payload?.broadcast_enabled],
     ['onesignal_rest_api_key', payload?.onesignal_rest_api_key],
     ['broadcast_daily_limit', payload?.broadcast_daily_limit],
+    ['broadcast_cooldown_minutes', payload?.broadcast_cooldown_minutes],
+    ['quiet_enabled', payload?.quiet_enabled],
+    ['quiet_start', payload?.quiet_start],
+    ['quiet_end', payload?.quiet_end],
   ];
   for (const [key, value] of pairs) {
     if (value !== undefined && value !== null) incoming[key] = value;

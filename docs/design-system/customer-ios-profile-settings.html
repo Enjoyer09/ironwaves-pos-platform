@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emalat · Profil & Saalamalar — tam yenidən qurulmuş (v4)</title>
+<style>
+/* ============================================================
+   Emalat · Profil & Saalamalar (v4)
+   Problem: mövcud profil ekranında SAZLAMA YOXDUR.
+   Təsdiqlənmiş çatışmazlıqlar (kod oxunuşu ilə):
+     ✕ Çıxış (logout) — mexanizm var (clearCustomerSession), UI yox
+     ✕ Apple Wallet kartı — funksiya var (showWallet + wallet_pass_url), UI yox
+     ✕ Sevimli filial — stores + selectedStore var, profilə bağlanmayıb
+     ✕ Məxfilik siyasəti / İstifadə şərtləri — App Store tələbi, yoxdur
+     ✕ Dəstək əlaqəsi — branding.phone / branding.address var, göstərilmir
+     ✕ Bildiriş seçimləri — push token var, toggle yox
+     ✕ Versiya nömrəsi — yoxdur
+   Bu fayl = Apple Settings naxışı + Emalat glass materialı.
+   Heç bir fayl import olunmayıb. Konseptdir.
+   ============================================================ */
+
+:root{
+  --doc-bg:#e8e6ec;
+  --doc-panel:#fdfdff;
+  --doc-ink:#121116;
+  --doc-ink-2:#5c5a67;
+  --doc-rule:#d6d3dd;
+  --doc-accent:#2b24b8;
+  --doc-warn:#9a5007;
+  --doc-ok:#14683a;
+  --doc-bad:#a5231c;
+  --doc-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --doc-sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;
+
+  --g-alpha:.58;
+  --g-blur-chrome:30px;
+  --g-blur-sheet:20px;
+  --g-blur-inline:12px;
+  --g-sat:1.8;
+  --g-edge:1;
+  --g-refract:1;
+  --g-rt:0;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--doc-bg);color:var(--doc-ink);font:400 15px/1.62 var(--doc-sans);
+  background-image:radial-gradient(circle at 7% -6%,rgba(43,36,184,.10),transparent 52%),
+                   radial-gradient(circle at 94% 4%,rgba(244,140,36,.11),transparent 44%)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 26px 96px}
+
+header.doc{padding:56px 0 26px;border-bottom:2px solid var(--doc-ink)}
+.kicker{font:600 11px/1 var(--doc-mono);letter-spacing:.22em;text-transform:uppercase;color:var(--doc-accent)}
+h1.doc{font:700 clamp(32px,5.2vw,58px)/1.0 var(--doc-sans);margin:15px 0 0;letter-spacing:-.035em}
+h1.doc em{font-style:normal;font-weight:400;color:var(--doc-accent)}
+.lede{max-width:68ch;margin:18px 0 0;color:var(--doc-ink-2);font-size:16px}
+.meta-row{display:flex;flex-wrap:wrap;gap:9px 22px;margin-top:23px;font:500 11px/1.6 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2)}
+nav.toc{position:sticky;top:0;z-index:40;display:flex;gap:3px;flex-wrap:wrap;padding:11px 0;
+  background:color-mix(in srgb,var(--doc-bg) 91%,transparent);border-bottom:1px solid var(--doc-rule)}
+nav.toc a{font:600 10.5px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);
+  text-decoration:none;padding:7px 10px;border:1px solid transparent}
+nav.toc a:hover{color:var(--doc-ink);border-color:var(--doc-rule);background:var(--doc-panel)}
+section.doc-sec{padding:50px 0 8px;border-bottom:1px solid var(--doc-rule)}
+h2.doc{font:700 27px/1.12 var(--doc-sans);margin:0 0 10px;letter-spacing:-.025em}
+h2.doc .num{font:600 11px/1 var(--doc-mono);letter-spacing:.18em;color:var(--doc-accent);display:block;margin-bottom:11px}
+h3.doc{font:700 12px/1 var(--doc-mono);letter-spacing:.16em;text-transform:uppercase;margin:26px 0 12px;color:var(--doc-ink-2)}
+p.doc{max-width:76ch;color:var(--doc-ink-2);margin:0 0 15px}
+
+table.cmp{width:100%;border-collapse:collapse;margin:20px 0 6px;font-size:13.5px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:12px 13px;border-bottom:1px solid var(--doc-rule)}
+table.cmp thead th{font:700 10.5px/1.4 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);border-bottom:2px solid var(--doc-ink)}
+table.cmp tbody th{font:600 13px/1.4 var(--doc-sans);width:22%}
+table.cmp .no{color:var(--doc-bad)}
+table.cmp .yes{color:var(--doc-ink);background:rgba(43,36,184,.05)}
+table.cmp thead .yes{color:var(--doc-accent)}
+table.cmp code{font:500 11.5px/1 var(--doc-mono);background:rgba(18,17,22,.07);padding:2px 5px;border-radius:3px}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(294px,1fr));gap:16px;margin:20px 0}
+.note{background:var(--doc-panel);border:1px solid var(--doc-rule);padding:17px 19px;border-radius:4px}
+.note h5{margin:0 0 9px;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.note p{margin:0;font-size:13.5px;color:var(--doc-ink-2)}
+.note ul{margin:8px 0 0;padding-left:17px;font-size:13.5px;color:var(--doc-ink-2)}
+.note li{margin:6px 0}
+.note code{font:500 11.5px/1 var(--doc-mono);background:rgba(18,17,22,.07);padding:2px 5px;border-radius:3px}
+.note.warn{border-left:3px solid var(--doc-bad)}
+
+/* ---- 7 qrup taksonomiyası ---- */
+.taxo{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:15px;margin:22px 0}
+.tcard{border:1px solid var(--doc-rule);background:var(--doc-panel);border-radius:5px;padding:16px 18px}
+.tcard .tn{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.tcard .tn i{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font:700 11px/1 var(--doc-mono);font-style:normal;
+  background:rgba(43,36,184,.11);color:var(--doc-accent);flex:none}
+.tcard .tn b{font:700 14px/1.2 var(--doc-sans)}
+.tcard ul{list-style:none;margin:0;padding:0}
+.tcard li{font:500 12.5px/1.5 var(--doc-sans);color:var(--doc-ink-2);padding:5px 0 5px 15px;position:relative}
+.tcard li::before{content:"›";position:absolute;left:0;color:var(--doc-rule);font-weight:700}
+.tcard li b{color:var(--doc-ink);font-weight:600}
+.tcard li .src{font:500 10px/1 var(--doc-mono);color:var(--doc-ok);background:rgba(20,104,58,.09);padding:2px 5px;border-radius:3px;margin-left:5px}
+.tcard li .new{font:500 10px/1 var(--doc-mono);color:var(--doc-warn);background:rgba(154,80,7,.11);padding:2px 5px;border-radius:3px;margin-left:5px}
+
+/* ================= telefonlar ================= */
+.stage{display:flex;gap:28px;flex-wrap:wrap;padding:30px 0 8px}
+.pcol{flex:1 1 300px;min-width:288px;max-width:352px}
+.pcol h4{font:700 11px/1.4 var(--doc-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--doc-accent);margin:0 0 13px}
+.pcol h4 em{display:block;font-style:normal;font-weight:500;letter-spacing:.04em;color:var(--doc-ink-2);margin-top:5px;font-size:10px}
+.pdev{position:relative;border-radius:46px;padding:11px;background:#17161e;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 34px 64px -30px rgba(18,17,22,.62)}
+.pdev::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);width:112px;height:4px;border-radius:99px;background:rgba(255,255,255,.3)}
+.pscr{position:relative;border-radius:35px;overflow:hidden;height:614px;display:flex;flex-direction:column;
+  font-family:var(--doc-sans);color:#16120e}
+.pscr[data-theme="dark"]{color:#f5f1ea}
+.pbg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center}
+.pnotch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:96px;height:25px;border-radius:99px;background:#0b0a0f;z-index:20}
+.pstat{position:relative;z-index:22;display:flex;justify-content:space-between;align-items:center;padding:11px 20px 0;font:600 11.5px/1 var(--doc-sans)}
+.pbody{position:relative;z-index:10;flex:1;overflow:auto;padding:6px 0 106px;scrollbar-width:none}
+.pbody::-webkit-scrollbar{display:none}
+.p-scr{display:none}
+.pscr[data-tab="me"] .p-scr--me,
+.pscr[data-tab="set"] .p-scr--set,
+.pscr[data-tab="legal"] .p-scr--legal{display:block}
+
+/* glass */
+.g-chrome{background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat));backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat));
+  border:1px solid rgba(255,255,255,calc(.30 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.85 * var(--g-edge))),inset 0 -1px 0 rgba(255,255,255,calc(.34 * var(--g-edge))),
+    0 .5px 0 rgba(16,12,8,.20),0 10px 26px -10px rgba(16,12,8,.42);position:relative;overflow:hidden}
+.g-chrome::before{content:"";position:absolute;left:0;right:0;top:0;height:44%;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,calc(.30 * var(--g-edge))),rgba(255,255,255,0))}
+.g-chrome::after{content:"";position:absolute;left:0;right:0;top:0;height:9px;pointer-events:none;
+  -webkit-backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));
+  opacity:var(--g-refract);-webkit-mask-image:linear-gradient(180deg,#000,transparent);mask-image:linear-gradient(180deg,#000,transparent)}
+[data-theme="dark"] .g-chrome{background:rgba(26,21,17,calc(var(--g-alpha) * .92));border-color:rgba(255,255,255,calc(.16 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.22 * var(--g-edge))),inset 0 -1px 0 rgba(255,255,255,calc(.08 * var(--g-edge))),0 .5px 0 rgba(0,0,0,.5),0 12px 30px -12px rgba(0,0,0,.7)}
+[data-theme="dark"] .g-chrome::before{background:linear-gradient(180deg,rgba(255,255,255,calc(.10 * var(--g-edge))),rgba(255,255,255,0))}
+.g-sheet{background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat));backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.8 * var(--g-edge))),0 -14px 40px -14px rgba(16,12,8,.45)}
+[data-theme="dark"] .g-sheet{background:rgba(26,21,17,calc(var(--g-alpha) * .94));box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.18 * var(--g-edge))),0 -16px 44px -16px rgba(0,0,0,.75)}
+.g-inline{background:rgba(255,255,255,calc(var(--g-alpha) * .88));
+  -webkit-backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));
+  border:1px solid rgba(255,255,255,calc(.34 * var(--g-edge)));box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.6 * var(--g-edge))),0 4px 14px -6px rgba(16,12,8,.28)}
+[data-theme="dark"] .g-inline{background:rgba(30,24,19,calc(var(--g-alpha) * .9));border-color:rgba(255,255,255,calc(.14 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.16 * var(--g-edge))),0 4px 16px -8px rgba(0,0,0,.6)}
+.g-solid{background:#fffdfa;border:1px solid rgba(20,16,12,.08);box-shadow:0 1px 2px rgba(20,16,12,.05),0 12px 30px -18px rgba(20,16,12,.4)}
+[data-theme="dark"] .g-solid{background:#1e1914;border-color:rgba(255,255,255,.09);box-shadow:0 12px 34px -18px rgba(0,0,0,.8)}
+
+.ptabs{position:absolute;left:11px;right:11px;bottom:20px;z-index:26;border-radius:20px;display:flex;padding:6px}
+.ptabs .morph{position:absolute;top:6px;bottom:6px;border-radius:15px;z-index:0;background:rgba(255,255,255,.72);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 2px 8px -3px rgba(16,12,8,.35);
+  transition:left .34s cubic-bezier(.22,1.2,.36,1),width .34s cubic-bezier(.22,1.2,.36,1)}
+[data-theme="dark"] .ptabs .morph{background:rgba(255,255,255,.14)}
+.ptabs button{position:relative;z-index:1;flex:1;background:none;border:0;cursor:pointer;padding:9px 2px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;font:600 9.5px/1 var(--doc-sans);letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(22,18,14,.62);font-family:var(--doc-sans)}
+.ptabs button[aria-selected="true"]{color:#0f0c09}
+[data-theme="dark"] .ptabs button{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .ptabs button[aria-selected="true"]{color:#fff}
+.ptabs svg{width:19px;height:19px;stroke-width:1.75}
+
+/* ---- iOS settings naxışı: başlıq + grouped list ---- */
+.secttl{font:600 11px/1 var(--doc-sans);letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(22,18,14,.52);padding:22px 20px 9px}
+[data-theme="dark"] .secttl{color:rgba(245,241,234,.52)}
+.grp{margin:0 20px;border-radius:16px;overflow:hidden}
+.srow{display:flex;align-items:center;gap:13px;padding:13px 15px;border-bottom:1px solid rgba(20,16,12,.07);cursor:pointer;
+  width:100%;text-align:left;background:none;border-left:0;border-right:0;border-top:0;font-family:var(--doc-sans);color:inherit}
+.srow:last-child{border-bottom:0}
+[data-theme="dark"] .srow{border-bottom-color:rgba(255,255,255,.07)}
+.srow:active{background:rgba(20,16,12,.035)}
+[data-theme="dark"] .srow:active{background:rgba(255,255,255,.045)}
+.srow .si{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:13px;
+  background:rgba(20,16,12,.06);color:rgba(22,18,14,.72)}
+[data-theme="dark"] .srow .si{background:rgba(255,255,255,.09);color:rgba(245,241,234,.75)}
+.srow .si.orange{background:rgba(244,140,36,.16);color:#a85708}
+.srow .si.green{background:rgba(20,104,58,.13);color:#14683a}
+.srow .si.blue{background:rgba(43,36,184,.11);color:#2b24b8}
+.srow .si.red{background:rgba(165,35,28,.11);color:#a5231c}
+[data-theme="dark"] .srow .si.orange{color:#ffb877}
+[data-theme="dark"] .srow .si.green{color:#7fd39e}
+[data-theme="dark"] .srow .si.blue{color:#a8a2ff}
+[data-theme="dark"] .srow .si.red{color:#ff9b95}
+.srow .sm{flex:1;min-width:0}
+.srow .sn{font:600 13px/1.3 var(--doc-sans);display:block}
+.srow .sd{font-size:10.5px;color:rgba(22,18,14,.55);margin-top:3px;line-height:1.45;display:block}
+[data-theme="dark"] .srow .sd{color:rgba(245,241,234,.55)}
+.srow .sv{font:500 12px/1 var(--doc-sans);color:rgba(22,18,14,.5);flex:none;max-width:104px;text-align:right}
+[data-theme="dark"] .srow .sv{color:rgba(245,241,234,.52)}
+.srow .ch{font-size:16px;color:rgba(22,18,14,.26);flex:none;line-height:1}
+[data-theme="dark"] .srow .ch{color:rgba(245,241,234,.3)}
+.srow.danger .sn{color:#a5231c}
+[data-theme="dark"] .srow.danger .sn{color:#ff9b95}
+.srow.warnval .sv{color:#9a5007;font-weight:600}
+[data-theme="dark"] .srow.warnval .sv{color:#f0b471}
+
+/* iOS açar (switch) */
+.sw{width:44px;height:26px;border-radius:99px;background:rgba(22,18,14,.18);position:relative;flex:none;cursor:pointer;border:0;
+  transition:background .22s;padding:0}
+[data-theme="dark"] .sw{background:rgba(255,255,255,.2)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .24s cubic-bezier(.22,1.2,.36,1)}
+.sw[aria-checked="true"]{background:#14683a}
+.sw[aria-checked="true"]::after{transform:translateX(18px)}
+
+/* seqment (tema/dil) */
+.seg{display:flex;gap:0;border-radius:11px;padding:3px;flex:none}
+.seg button{border:0;background:none;cursor:pointer;padding:7px 10px;border-radius:8px;font:700 10px/1 var(--doc-sans);
+  letter-spacing:.08em;text-transform:uppercase;color:rgba(22,18,14,.55);font-family:var(--doc-sans)}
+.seg button[aria-selected="true"]{background:rgba(255,255,255,.9);color:#16120e;box-shadow:0 1px 3px rgba(16,12,8,.2)}
+[data-theme="dark"] .seg button{color:rgba(245,241,234,.58)}
+[data-theme="dark"] .seg button[aria-selected="true"]{background:rgba(255,255,255,.16);color:#fff}
+.seginrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;
+  border-bottom:1px solid rgba(20,16,12,.07)}
+.seginrow:last-child{border-bottom:0}
+[data-theme="dark"] .seginrow{border-bottom-color:rgba(255,255,255,.07)}
+.seginrow .sl{flex:1;min-width:0}
+.seginrow .sl b{font:600 13px/1.3 var(--doc-sans);display:block}
+.seginrow .sl span{font-size:10.5px;color:rgba(22,18,14,.55);display:block;margin-top:3px}
+[data-theme="dark"] .seginrow .sl span{color:rgba(245,241,234,.55)}
+
+/* şəxsi kart (yuxarı) */
+.mecard{margin:18px 20px 0;border-radius:22px;padding:18px}
+.mecard .top{display:flex;gap:14px;align-items:center}
+.mecard .ava{width:58px;height:58px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 23px/1 var(--doc-sans);
+  color:#8c4a06;background:rgba(255,255,255,.66);border:1px solid rgba(255,255,255,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px -3px rgba(16,12,8,.35)}
+[data-theme="dark"] .mecard .ava{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:#ffb877}
+.mecard .nm{font:700 20px/1.15 var(--doc-sans);letter-spacing:-.025em}
+.mecard .ph{font:600 11px/1 var(--doc-mono);color:rgba(22,18,14,.55);margin-top:6px}
+[data-theme="dark"] .mecard .ph{color:rgba(245,241,234,.58)}
+.mecard .tier{display:inline-flex;align-items:center;gap:6px;margin-top:9px;font:700 9px/1 var(--doc-sans);
+  letter-spacing:.14em;text-transform:uppercase;padding:5px 9px;border-radius:99px;background:rgba(201,138,79,.18);color:#8c4a06}
+[data-theme="dark"] .mecard .tier{color:#f0b471}
+.mecard .id{font:600 10px/1.6 var(--doc-mono);color:rgba(22,18,14,.45);text-align:right;flex:none}
+[data-theme="dark"] .mecard .id{color:rgba(245,241,234,.48)}
+
+/* 3 statistika */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 20px 0}
+.stat{border-radius:16px;padding:13px 12px;text-align:center;cursor:pointer;font-family:var(--doc-sans);color:inherit;
+  border:1px solid rgba(20,16,12,.08);background:#fffdfa}
+[data-theme="dark"] .stat{background:#1e1914;border-color:rgba(255,255,255,.09)}
+.stat .sv2{font:700 22px/1 var(--doc-sans);letter-spacing:-.03em}
+.stat .sl2{font:600 9px/1.3 var(--doc-sans);letter-spacing:.1em;text-transform:uppercase;color:rgba(22,18,14,.52);margin-top:7px;display:block}
+[data-theme="dark"] .stat .sl2{color:rgba(245,241,234,.52)}
+
+/* əsas düymələr */
+.quick{display:flex;gap:10px;margin:14px 20px 0}
+.pill{border:0;border-radius:99px;padding:12px 16px;font:700 10.5px/1 var(--doc-sans);letter-spacing:.1em;
+  text-transform:uppercase;cursor:pointer;white-space:nowrap;font-family:var(--doc-sans);text-align:center}
+.pill.solid{background:#16120e;color:#fffdfa;flex:1}
+.pill.ghost{border:1px solid rgba(22,18,14,.26);background:rgba(255,255,255,.5);color:#16120e;flex:1}
+.pill.disabled{opacity:.55;cursor:default}
+[data-theme="dark"] .pill.solid{background:#f5f1ea;color:#16120e}
+[data-theme="dark"] .pill.ghost{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.1);color:#f5f1ea}
+
+/* sheet */
+.scrim{position:absolute;inset:0;z-index:15;background:rgba(14,10,7,.36);opacity:0;pointer-events:none;transition:opacity .24s}
+.scrim.on{opacity:1;pointer-events:auto}
+[data-theme="dark"] .scrim{background:rgba(0,0,0,.52)}
+.sheetwrap{position:absolute;left:0;right:0;bottom:0;z-index:16;transform:translateY(102%);
+  transition:transform .34s cubic-bezier(.22,1.1,.36,1)}
+.sheetwrap.on{transform:translateY(0)}
+.sheet{border-radius:28px 28px 35px 35px;padding:10px 20px 30px;position:relative;overflow:hidden}
+.sheet::before{content:"";position:absolute;left:0;right:0;top:0;height:38%;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,calc(.26 * var(--g-edge))),rgba(255,255,255,0))}
+.grab{width:38px;height:5px;border-radius:99px;background:rgba(22,18,14,.24);margin:2px auto 16px;position:relative}
+[data-theme="dark"] .grab{background:rgba(255,255,255,.28)}
+.sheet h3{margin:0;font:700 19px/1.2 var(--doc-sans);letter-spacing:-.025em;position:relative}
+.sheet p.s{margin:9px 0 0;font-size:12px;line-height:1.6;color:rgba(22,18,14,.66);position:relative}
+[data-theme="dark"] .sheet p.s{color:rgba(245,241,234,.66)}
+.sheetopts{position:relative;margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.sheetopt{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;cursor:pointer;border:0;
+  text-align:left;width:100%;font-family:var(--doc-sans);color:inherit;background:rgba(255,255,255,.5);border:1px solid rgba(20,16,12,.09)}
+[data-theme="dark"] .sheetopt{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.1)}
+.sheetopt[aria-pressed="true"]{border-color:#f48c24;background:rgba(244,140,36,.13)}
+.sheetopt .so{flex:1;min-width:0}
+.sheetopt .so b{font:600 13px/1.3 var(--doc-sans);display:block}
+.sheetopt .so span{font-size:10.5px;color:rgba(22,18,14,.55);display:block;margin-top:3px}
+[data-theme="dark"] .sheetopt .so span{color:rgba(245,241,234,.55)}
+.sheetopt .ck{color:#f48c24;font-weight:800;flex:none;opacity:0}
+.sheetopt[aria-pressed="true"] .ck{opacity:1}
+.sheetbtns{position:relative;display:flex;gap:9px;margin-top:16px}
+.sheetbtns .pill{flex:1}
+
+/* versiya */
+.verfoot{margin:0 20px;border-radius:16px;overflow:hidden}
+.verfoot .vrow{padding:13px 15px;font:500 11.5px/1.5 var(--doc-mono);color:rgba(22,18,14,.5);text-align:center;
+  border-bottom:1px solid rgba(20,16,12,.07)}
+.verfoot .vrow:last-child{border-bottom:0}
+[data-theme="dark"] .verfoot .vrow{color:rgba(245,241,234,.52);border-bottom-color:rgba(255,255,255,.07)}
+.legalnote{margin:12px 22px 0;font-size:10.5px;line-height:1.6;color:rgba(22,18,14,.5);text-align:center}
+[data-theme="dark"] .legalnote{color:rgba(245,241,234,.52)}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:96px;transform:translate(-50%,10px);z-index:30;opacity:0;pointer-events:none;
+  border-radius:99px;padding:11px 17px;font:600 11.5px/1 var(--doc-sans);background:rgba(22,18,14,.92);color:#fffdfa;
+  transition:opacity .22s,transform .22s;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+[data-theme="dark"] .toast{background:rgba(245,241,234,.94);color:#16120e}
+
+/* laboratoriya/meter */
+.lab{display:grid;grid-template-columns:repeat(auto-fit,minmax(266px,1fr));gap:15px;margin:22px 0;
+  background:var(--doc-panel);border:1px solid var(--doc-rule);padding:19px;border-radius:6px}
+.ctl{display:flex;flex-direction:column;gap:7px}
+.ctl label{font:600 10.5px/1 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2);
+  display:flex;justify-content:space-between;gap:10px}
+.ctl label b{color:var(--doc-ink);font-weight:700}
+.ctl input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:99px;background:var(--doc-rule);outline:none}
+.ctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+  background:var(--doc-accent);cursor:pointer;box-shadow:0 1px 3px rgba(18,17,22,.3)}
+.btns{display:flex;gap:7px;flex-wrap:wrap}
+.btns button{font:600 10.5px/1 var(--doc-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--doc-rule);background:#fff;color:var(--doc-ink);padding:9px 12px;border-radius:4px}
+.btns button[aria-pressed="true"]{background:var(--doc-ink);color:#fff;border-color:var(--doc-ink)}
+.meter{margin:22px 0;border:1px solid var(--doc-rule);background:var(--doc-panel);border-radius:6px;overflow:hidden}
+.meter .hd{padding:13px 17px;border-bottom:1px solid var(--doc-rule);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.meter .hd h5{margin:0;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.meter .hd span{font:500 11px/1.5 var(--doc-mono);color:var(--doc-ink-2)}
+.mrow{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;padding:12px 17px;border-bottom:1px solid var(--doc-rule)}
+.mrow:last-child{border-bottom:0}
+.mrow .mi{font:600 12.5px/1.35 var(--doc-sans)}
+.mrow .mi em{display:block;font-style:normal;font:500 10.5px/1.5 var(--doc-mono);color:var(--doc-ink-2);margin-top:3px}
+.swatchrow{display:flex;gap:5px;align-items:center}
+.sw-sm{width:22px;height:22px;border-radius:4px;border:1px solid rgba(18,17,22,.14)}
+.badge{font:700 10px/1 var(--doc-mono);letter-spacing:.08em;padding:5px 8px;border-radius:4px;white-space:nowrap}
+.badge.pass{background:rgba(20,104,58,.12);color:var(--doc-ok)}
+.badge.fail{background:rgba(154,80,7,.15);color:var(--doc-warn)}
+.score{font:700 13px/1 var(--doc-mono);min-width:56px;text-align:right}
+.score.pass{color:var(--doc-ok)}
+.score.fail{color:var(--doc-warn)}
+
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}
+.steps li{counter-increment:s;position:relative;padding:0 0 19px 42px;border-left:1px solid var(--doc-rule);margin-left:12px}
+.steps li:last-child{border-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-13px;top:-3px;width:26px;height:26px;border-radius:50%;
+  background:var(--doc-ink);color:#fff;display:grid;place-items:center;font:700 11px/1 var(--doc-mono)}
+.steps b{display:block;font-size:14px;margin-bottom:3px}
+.steps p{margin:0;font-size:13px;color:var(--doc-ink-2)}
+.steps code{font:500 11.5px/1 var(--doc-mono);background:rgba(18,17,22,.07);padding:2px 5px;border-radius:3px}
+
+footer.doc{margin-top:48px;padding-top:20px;border-top:2px solid var(--doc-ink);display:flex;justify-content:space-between;
+  gap:18px;flex-wrap:wrap;font:500 11px/1.7 var(--doc-mono);letter-spacing:.08em;color:var(--doc-ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Emalat Coffee — profil &amp; sazlamalar <em>v4</em> · 9 oktyabr 2026</div>
+  <h1 class="doc">Profil ekranı <em>sazlama olmadan profil deyil</em></h1>
+  <p class="lede">Haqqın var — mövcud profil ekranında <b>heç bir sazlama yoxdur</b>. Kodu oxudum: çıxış, Apple Wallet, sevimli filial, hüquqi səhifələr, dəstək əlaqəsi, versiya — heç biri <code>ProfileTab.tsx</code>-də yoxdur. Ən pisi: <b>funksiyaların çoxu app-də artıq var</b>, sadəcə profilə bağlanmayıb. Aşağıda tam taksonomiya və işlək ekranlar.</p>
+  <div class="meta-row">
+    <span>Problem: 7 çatışmayan sazlama</span>
+    <span>Həll: 7 qrup</span>
+    <span>Canlı: 3 telefon</span>
+    <span>Backend dəyişikliyi: yoxdur</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#audit">01 Kod auditi</a>
+  <a href="#taxo">02 7 qrup</a>
+  <a href="#screens">03 Ekranlar</a>
+  <a href="#rules">04 İOS naxışı</a>
+  <a href="#handoff">05 Keçid</a>
+</nav>
+
+<!-- 01 -->
+<section class="doc-sec" id="audit">
+  <h2 class="doc"><span class="num">01 / Kod auditi</span>Nə var, nə yox</h2>
+  <p class="doc">Bunu təxmin etmədim — faylları oxudum. Hər sətirdə ya "koddadır", ya "yoxdur" yazılıb. Maraqlısı: demək olar hamısı <b>artıq koddadır</b>, yalnız interfeysə bağlanmayıb.</p>
+  <table class="cmp">
+    <thead><tr><th>Sazlama</th><th class="no">Mövcud profil ekranı</th><th class="yes">Koddaki vəziyyət</th></tr></thead>
+    <tbody>
+      <tr><th>Çıxış (logout)</th><td class="no">YOXDUR</td><td class="yes">Mexanizm hazırdır: <code>clearCustomerSession()</code> + <code>setSessionCreds({cardId:'',token:''})</code> — silmə axınında artıq işlədilir</td></tr>
+      <tr><th>Apple Wallet kartı</th><td class="no">YOXDUR</td><td class="yes"><code>showWallet</code> bayrağı + <code>get_customer_wallet_pass_url()</code> hazırdır — yalnız ana ekranda istifadə olunur</td></tr>
+      <tr><th>Sevimli filial</th><td class="no">YOXDUR</td><td class="yes"><code>stores</code> siyahısı + <code>selectedStoreId</code> + <code>selectedStore</code> hazırdır — filial seçimi yalnız sifariş ekranındadır</td></tr>
+      <tr><th>Bildiriş seçimləri</th><td class="no">Yalnız oxuma siyahısı</td><td class="yes">Push token qeydiyyatı var (<code>save_push_token</code>) — seçim (toggle) yoxdur</td></tr>
+      <tr><th>Məxfilik / Şərtlər</th><td class="no">YOXDUR</td><td class="no">Yoxdur — <b>App Store tələbidir</b>, URL host etmək lazımdır</td></tr>
+      <tr><th>Dəstək əlaqəsi</th><td class="no">YOXDUR</td><td class="yes">Payload-da var: <code>branding.phone</code>, <code>branding.address</code>, <code>branding.company_name</code></td></tr>
+      <tr><th>Versiya nömrəsi</th><td class="no">YOXDUR</td><td class="no">Yoxdur — build nömrəsi (.plist) oxunmalıdır</td></tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə üçün bu vacibdir</h5>
+      <ul>
+        <li><b>Çıxış olmayan app hesab app deyil.</b> İstifadəçi hesabını dəyişə bilmir, paylaşılan telefonda qalır.</li>
+        <li><b>Hüquqi səhifələr App Store-un rədd səbəbidir.</b> Məxfilik siyasəti linki olmayan loyallıq app-i təsdiqdən keçmir.</li>
+        <li><b>Dəstək əlaqəsi olmayan app-də istifadəçi ilişir.</b> Problem olanda nə edəcəyini bilmir.</li>
+      </ul>
+    </div>
+    <div class="note warn">
+      <h5>Ən böyük itki: çıxış</h5>
+      <p>F5-də <b>hesab silmə</b> əlavə etdik (Apple 5.1.1 üçün). Amma <b>çıxış</b> yoxdur. Bu, məntiqsiz vəziyyətdir: istifadəçi hesabı tamamilə silə bilir, amma sadəcə çıxa bilmir. Üstəlik <code>clearCustomerSession()</code> funksiyası onsuz da hazırdır — yəni bu, <b>10 sətirlik işdir</b>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 02 -->
+<section class="doc-sec" id="taxo">
+  <h2 class="doc"><span class="num">02 / Taksonomiya</span>Yeddi qrup</h2>
+  <p class="doc">Apple-ın öz Settings naxışını izlədim: qruplar məntiqi sıra ilə — <b>əvvəl şəxsi, sonra tətbiq, sonra təhlükəli</b>. Təhlükəli əməliyyatlar həmişə ən sonda və ayrı qrupda.</p>
+  <div class="taxo">
+    <div class="tcard">
+      <div class="tn"><i>1</i><b>Hesab</b></div>
+      <ul>
+        <li><b>Ad və doğum tarixi</b> — redaktə <span class="src">mövcud</span></li>
+        <li><b>Telefon nömrəsi</b> — dəyişmək OTP ilə</li>
+        <li><b>Üzvlük kartı №</b> — oxunaqlı, uzun</li>
+        <li><b>Kart növü / səviyyə</b> — nişan kimi</li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>2</i><b>Tətbiq görünüşü</b></div>
+      <ul>
+        <li><b>Görünüş</b>: İşıqlı / Qaranlıq / Avtomatik <span class="src">mövcud</span></li>
+        <li><b>Dil</b>: AZ / EN / RU <span class="src">mövcud</span></li>
+        <li>Avtomatik seçim <span class="new">yeni: sistemə uyğunlaş</span></li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>3</i><b>Bildirişlər</b></div>
+      <ul>
+        <li><b>Sifariş hazırdır</b> — ən vacib, default açıq</li>
+        <li><b>Təkliflər və kampaniyalar</b></li>
+        <li><b>Möhür xatırladıcı</b> — "1 möhür qaldı"</li>
+        <li><b>Yeni məhsullar</b></li>
+        <li>Hamısı susdur <span class="new">yeni</span></li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>4</i><b>Kart &amp; ödəniş</b></div>
+      <ul>
+        <li><b>Sevimli filial</b> <span class="src">məlumat var</span> <span class="src">UI yeni</span></li>
+        <li><b>Apple Wallet kartı</b> — Əlavə et <span class="src">mövcud</span> <span class="src">UI yeni</span></li>
+        <li><b>Balans avtomatik artırma</b> — toggle</li>
+        <li><b>Ödəniş üsulu</b> — kassa / kart / balans</li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>5</i><b>Dəstək</b></div>
+      <ul>
+        <li><b>Bizimlə əlaqə</b> — telefon + ünvan <span class="src">payload-da var</span></li>
+        <li><b>Tez-tez verilən suallar</b></li>
+        <li><b>Rəy göndər</b> — mövcud feedback axını</li>
+        <li><b>Problem bildir</b> — sifariş nömrəsi ilə</li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>6</i><b>Hüquqi</b></div>
+      <ul>
+        <li><b>Məxfilik siyasəti</b> <span class="new">URL host etmək lazım</span></li>
+        <li><b>İstifadə şərtləri</b> <span class="new">URL host etmək lazım</span></li>
+        <li><b>Açıq mənbə lisenziyaları</b></li>
+        <li><b>Versiya</b> — build nömrəsi ilə</li>
+      </ul>
+    </div>
+    <div class="tcard">
+      <div class="tn"><i>7</i><b>Təhlükəli zona</b></div>
+      <ul>
+        <li><b>Çıxış</b> — adi əməliyyat, konfirmasiya ilə <span class="src">mexanizm hazır</span></li>
+        <li><b>Hesabı sil</b> — birdəfəlik, Apple 5.1.1 <span class="src">mövcud</span></li>
+        <li>İkisi ayrı qrupda və ən sonda</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note">
+    <h5>Nə üçün çıxış və silmə ayrı səviyyədədir</h5>
+    <p>İkisi də "hesabdan çıxma"dır, amma nəticəsi tam fərqlidir: <b>çıxış geri qaytarıla bilər</b> (yenidən daxil olursan, möhürlər qalır), <b>silmə geri qaytarılmır</b>. Ona görə çıxış adi sətirdir, silmə isə qırmızı və tək təsdiqlə. İkisini birlikdə qoysan istifadəçi səhvən silməyə basar.</p>
+  </div>
+</section>
+
+<!-- 03 -->
+<section class="doc-sec" id="screens">
+  <h2 class="doc"><span class="num">03 / Ekranlar</span>Hamısı işlək</h2>
+  <p class="doc">Açarlar (switch), seqmentlər, filial seçimi, çıxış təsdiqi — hamısı canlıdır. Şüşə materialı və kənar işığı v2/v3-dəki kimidir.</p>
+  <div class="stage">
+
+    <!-- ============ PHONE A ============ -->
+    <div class="pcol">
+      <h4>A · Profil<em>şəxsi kart + statistika + bütün sazlamalar</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="me" id="pA">
+          <div class="pbg" data-bg="1"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+
+            <div class="p-scr p-scr--me">
+              <!-- şəxsi kart -->
+              <div class="mecard g-solid">
+                <div class="top">
+                  <div class="ava">R</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="nm">Rəşad Məmmədov</div>
+                    <div class="ph">+994 ·· 4 12 ··</div>
+                    <div class="tier">Gümüş üzv</div>
+                  </div>
+                  <div class="id">№ 1042<br>2024-dən</div>
+                </div>
+              </div>
+
+              <!-- statistika -->
+              <div class="stats">
+                <button class="stat" data-go="wallet"><span class="sv2">6</span><span class="sl2">Möhür</span></button>
+                <button class="stat" data-go="wallet"><span class="sv2">12.50</span><span class="sl2">Balans ₼</span></button>
+                <button class="stat" data-go="wallet"><span class="sv2">3</span><span class="sl2">Kupon</span></button>
+              </div>
+
+              <!-- tez əməliyyatlar -->
+              <div class="quick">
+                <button class="pill solid" data-sheet="qr">QR göstər</button>
+                <button class="pill ghost" id="walletBtn">Wallet-ə əlavə et</button>
+              </div>
+
+              <!-- 1 Hesab -->
+              <div class="secttl">Hesab</div>
+              <div class="grp g-solid">
+                <button class="srow" data-sheet="edit">
+                  <span class="si blue">☺</span>
+                  <span class="sm"><span class="sn">Ad və doğum tarixi</span><span class="sd">Rəşad Məmmədov · 12 may</span></span>
+                  <span class="ch">›</span>
+                </button>
+                <button class="srow">
+                  <span class="si blue">✆</span>
+                  <span class="sm"><span class="sn">Telefon nömrəsi</span><span class="sd">Dəyişmək üçün SMS kodu tələb olunur</span></span>
+                  <span class="sv">+994 ·· 4 12 ··</span>
+                  <span class="ch">›</span>
+                </button>
+                <button class="srow">
+                  <span class="si">▤</span>
+                  <span class="sm"><span class="sn">Üzvlük kartı</span><span class="sd">Kassada göstər və ya skan et</span></span>
+                  <span class="sv">№ 1042</span>
+                  <span class="ch">›</span>
+                </button>
+              </div>
+
+              <!-- 2 Tətbiq -->
+              <div class="secttl">Tətbiq görünüşü</div>
+              <div class="grp g-solid">
+                <div class="seginrow">
+                  <span class="sl"><b>Görünüş</b><span id="themeSub">İşıqlı tema</span></span>
+                  <div class="seg g-inline" id="themeSeg">
+                    <button data-th="light" aria-selected="true">☀</button>
+                    <button data-th="dark" aria-selected="false">☾</button>
+                    <button data-th="auto" aria-selected="false">A</button>
+                  </div>
+                </div>
+                <div class="seginrow">
+                  <span class="sl"><b>Dil</b><span id="langSub">Azərbaycan dili</span></span>
+                  <div class="seg g-inline" id="langSeg">
+                    <button data-lg="az" aria-selected="true">AZ</button>
+                    <button data-lg="en" aria-selected="false">EN</button>
+                    <button data-lg="ru" aria-selected="false">RU</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3 Bildirişlər -->
+              <div class="secttl">Bildirişlər</div>
+              <div class="grp g-solid">
+                <div class="srow" style="cursor:default">
+                  <span class="si orange">♨</span>
+                  <span class="sm"><span class="sn">Sifariş hazırdır</span><span class="sd">Kofe hazır olanda xəbər ver</span></span>
+                  <button class="sw" role="switch" aria-checked="true" data-sw></button>
+                </div>
+                <div class="srow" style="cursor:default">
+                  <span class="si orange">%</span>
+                  <span class="sm"><span class="sn">Təkliflər və kampaniyalar</span><span class="sd">Həftəlik endirimlər</span></span>
+                  <button class="sw" role="switch" aria-checked="true" data-sw></button>
+                </div>
+                <div class="srow" style="cursor:default">
+                  <span class="si orange">★</span>
+                  <span class="sm"><span class="sn">Möhür xatırladıcı</span><span class="sd">1 möhür qalanda bildiriş</span></span>
+                  <button class="sw" role="switch" aria-checked="false" data-sw id="lastStampSw"></button>
+                </div>
+              </div>
+
+              <!-- 4 Kart -->
+              <div class="secttl">Kart &amp; ödəniş</div>
+              <div class="grp g-solid">
+                <button class="srow" data-sheet="branch">
+                  <span class="si green">◉</span>
+                  <span class="sm"><span class="sn">Sevimli filial</span><span class="sd">Sifarişlər üçün default filial</span></span>
+                  <span class="sv" id="branchVal">Nizami</span>
+                  <span class="ch">›</span>
+                </button>
+                <button class="srow" id="walletRow">
+                  <span class="si green">▮</span>
+                  <span class="sm"><span class="sn">Apple Wallet kartı</span><span class="sd" id="walletRowSub">Loyallıq kartını telefondaki Wallet-ə əlavə et</span></span>
+                  <span class="sv">Əlavə et</span>
+                  <span class="ch">›</span>
+                </button>
+                <div class="srow" style="cursor:default">
+                  <span class="si green">₼</span>
+                  <span class="sm"><span class="sn">Balans avtomatik artırma</span><span class="sd">12 ₼-dən aşağı düşəndə xatırlat</span></span>
+                  <button class="sw" role="switch" aria-checked="true" data-sw></button>
+                </div>
+              </div>
+
+              <!-- 5 Dəstək -->
+              <div class="secttl">Dəstək</div>
+              <div class="grp g-solid">
+                <button class="srow">
+                  <span class="si">✆</span>
+                  <span class="sm"><span class="sn">Bizimlə əlaqə</span><span class="sd">Emalat Coffee · Nizami küç. 24, Bakı</span></span>
+                  <span class="sv">Zəng et</span>
+                </button>
+                <button class="srow">
+                  <span class="si">?</span>
+                  <span class="sm"><span class="sn">Tez-tez verilən suallar</span><span class="sd">Möhür, balans, sifariş necə işləyir</span></span>
+                  <span class="ch">›</span>
+                </button>
+                <button class="srow">
+                  <span class="si">✎</span>
+                  <span class="sm"><span class="sn">Rəy göndər</span><span class="sd">Təklifiniz var? Yazın</span></span>
+                  <span class="ch">›</span>
+                </button>
+              </div>
+
+              <!-- 6 Hüquqi -->
+              <div class="secttl">Hüquqi</div>
+              <div class="grp g-solid">
+                <button class="srow" data-go="legal">
+                  <span class="si">§</span>
+                  <span class="sm"><span class="sn">Məxfilik və şərtlər</span></span>
+                  <span class="ch">›</span>
+                </button>
+              </div>
+
+              <!-- 7 Təhlükəli -->
+              <div class="secttl">Hesab əməliyyatları</div>
+              <div class="grp g-solid">
+                <button class="srow" data-sheet="logout">
+                  <span class="si">⇥</span>
+                  <span class="sm"><span class="sn">Çıxış</span><span class="sd">Möhürlər və balans qalır, yenidən daxil ola bilərsən</span></span>
+                  <span class="ch">›</span>
+                </button>
+                <button class="srow danger" data-sheet="del">
+                  <span class="si red">⌫</span>
+                  <span class="sm"><span class="sn">Hesabı sil</span><span class="sd">Birdəfəlik — möhürlər, balans və tarixçə silinir</span></span>
+                  <span class="ch">›</span>
+                </button>
+              </div>
+
+              <div class="verfoot g-solid">
+                <div class="vrow">Emalat Coffee · 1.4.0 (1460)</div>
+                <div class="vrow">© 2026 Emalat Coffee MMC</div>
+              </div>
+            </div>
+
+            <!-- ayarlar (tam siyahı) -->
+            <div class="p-scr p-scr--set">
+              <div class="secttl" style="padding-top:22px">Bütün sazlamalar</div>
+              <div class="grp g-solid">
+                <button class="srow" data-go="me"><span class="si blue">☺</span><span class="sm"><span class="sn">Hesab məlumatları</span></span><span class="ch">›</span></button>
+                <button class="srow" data-go="me"><span class="si orange">♨</span><span class="sm"><span class="sn">Bildirişlər</span></span><span class="sv">3 aktiv</span><span class="ch">›</span></button>
+                <button class="srow" data-go="me"><span class="si green">◉</span><span class="sm"><span class="sn">Filial və kart</span></span><span class="ch">›</span></button>
+                <button class="srow" data-go="me"><span class="si">?</span><span class="sm"><span class="sn">Dəstək</span></span><span class="ch">›</span></button>
+                <button class="srow" data-go="legal"><span class="si">§</span><span class="sm"><span class="sn">Hüquqi</span></span><span class="ch">›</span></button>
+              </div>
+              <p class="legalnote">Bu ekran bütün sazlamaları bir yerdə göstərir — profil ekranı qısadırsa buradan istifadə olunur.</p>
+            </div>
+
+            <!-- hüquqi -->
+            <div class="p-scr p-scr--legal">
+              <div class="secttl" style="padding-top:22px">Hüquqi</div>
+              <div class="grp g-solid">
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">Məxfilik siyasəti</span><span class="sd">Məlumatların necə işləndiyi</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">İstifadə şərtləri</span><span class="sd">Loyallıq proqramının qaydaları</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">Məlumatlarımı yüklə</span><span class="sd">Bütün məlumatların kopyası</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">Açıq mənbə lisenziyaları</span></span><span class="ch">›</span></button>
+              </div>
+              <div class="verfoot g-solid">
+                <div class="vrow">Emalat Coffee · 1.4.0 (1460)</div>
+                <div class="vrow">Build nömrəsi: 1460</div>
+              </div>
+              <p class="legalnote">Məxfilik siyasəti və şərtlər URL-i <b>App Store göndərişindən əvvəl</b> host olunmalıdır — bu, hazırda açıq blokerdir.</p>
+            </div>
+          </div>
+
+          <!-- SHEETLƏR -->
+          <div class="scrim" data-scrim></div>
+
+          <!-- filial seçimi -->
+          <div class="sheetwrap" data-sheetwrap="branch">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Sevimli filial</h3>
+              <p class="s">Sifariş verəndə bu filial avtomatik seçilir. Sonradan dəyişə bilərsən.</p>
+              <div class="sheetopts" data-branchopts>
+                <button class="sheetopt" aria-pressed="true">
+                  <span class="so"><b>Nizami filialı</b><span>Nizami küç. 24 · 08:00–22:00</span></span>
+                  <span class="ck">✓</span>
+                </button>
+                <button class="sheetopt" aria-pressed="false">
+                  <span class="so"><b>28 May filialı</b><span>28 May küç. 71 · 09:00–23:00</span></span>
+                  <span class="ck">✓</span>
+                </button>
+                <button class="sheetopt" aria-pressed="false">
+                  <span class="so"><b>Port Baku filialı</b><span>Neftçilər pr. 153 · 10:00–22:00</span></span>
+                  <span class="ck">✓</span>
+                </button>
+              </div>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Bağla</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ad & doğum tarixi redaktəsi -->
+          <div class="sheetwrap" data-sheetwrap="edit">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Ad və doğum tarixi</h3>
+              <p class="s">Doğum tarixi boş buraxılsa silinir. Ad gündəlik sifarişlərdə göstərilir.</p>
+              <div style="position:relative;margin-top:16px;display:flex;flex-direction:column;gap:11px">
+                <label style="display:block">
+                  <span style="font:600 10px/1 var(--doc-sans);letter-spacing:.12em;text-transform:uppercase;color:rgba(22,18,14,.55)">Adınız</span>
+                  <input value="Rəşad Məmmədov" style="width:100%;margin-top:7px;border-radius:12px;padding:12px 13px;font:500 13px/1 var(--doc-sans);color:#16120e;background:rgba(255,255,255,.72);border:1px solid rgba(20,16,12,.14);outline:none">
+                </label>
+                <label style="display:block">
+                  <span style="font:600 10px/1 var(--doc-sans);letter-spacing:.12em;text-transform:uppercase;color:rgba(22,18,14,.55)">Doğum tarixi</span>
+                  <input value="1994-05-12" style="width:100%;margin-top:7px;border-radius:12px;padding:12px 13px;font:500 13px/1 var(--doc-mono);color:#16120e;background:rgba(255,255,255,.72);border:1px solid rgba(20,16,12,.14);outline:none">
+                </label>
+                <p style="margin:2px 0 0;font-size:10.5px;line-height:1.55;color:rgba(22,18,14,.55)">Ad günün həftəsində avtomatik <b>30% endirim</b> kuponu verilir.</p>
+              </div>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Ləğv et</button>
+                <button class="pill solid" id="saveEdit">Yadda saxla</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- QR -->
+          <div class="sheetwrap" data-sheetwrap="qr">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Kassaya göstər</h3>
+              <p class="s">Kod yalnız skan üçündür. Kassa təsdiqləyəndən sonra möhür hesabına düşür.</p>
+              <div style="position:relative;margin:16px auto 0;width:148px;height:148px;border-radius:20px;background:#fff;padding:11px">
+                <svg viewBox="0 0 40 40" fill="#16120e" style="width:100%;height:100%"><path d="M0 0h12v12H0V0Zm2 2v8h8V2H2Zm1 1h6v6H3V3Z"/><path d="M28 0h12v12H28V0Zm2 2v8h8V2h-8Zm1 1h6v6h-6V3Z"/><path d="M0 28h12v12H0V28Zm2 2v8h8v-8H2Zm1 1h6v6H3v-6Z"/><path d="M16 0h3v3h-3zM21 0h2v5h-2zM16 5h4v2h-4zM16 9h2v3h-2zM20 8h3v2h-3zM16 16h3v3h-3zM21 17h4v2h-4zM27 15h3v3h-3zM33 16h4v2h-4zM16 22h2v4h-2zM21 22h3v2h-3zM26 22h5v2h-5zM34 21h3v4h-3zM16 30h4v3h-4zM22 29h2v5h-2zM27 30h3v3h-3zM33 30h4v4h-4zM22 36h3v4h-3zM28 36h2v4h-2z"/></svg>
+              </div>
+              <div class="sheetbtns"><button class="pill solid" data-close>Bitdi</button></div>
+            </div>
+          </div>
+
+          <!-- çıxış təsdiqi -->
+          <div class="sheetwrap" data-sheetwrap="logout">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Çıxış edilsin?</h3>
+              <p class="s">Möhürlərin, balansın və kuponların <b>qalır</b>. Yenidən telefon nömrənlə daxil ola bilərsən.</p>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Ləğv et</button>
+                <button class="pill solid" id="doLogout">Çıxış et</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- silmə təsdiqi (iki mərhələ) -->
+          <div class="sheetwrap" data-sheetwrap="del">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3 style="color:#a5231c">Hesab silinsin?</h3>
+              <p class="s">Bu <b>geri qaytarılmır</b>. Möhürlər, balans, kuponlar və sifariş tarixçəsi birdəfəlik silinir. Əvvəlcə balansı istifadə etməyi düşün.</p>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Ləğv et</button>
+                <button class="pill solid" style="background:#a5231c;color:#fff" id="delStep1">Davam et</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="toast" data-toast></div>
+
+          <div class="ptabs g-chrome" id="tabsA">
+            <span class="morph"></span>
+            <button data-t="me" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/><path d="M4 11h16"/></svg>Cüzdan</button>
+            <button data-t="me" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PHONE B ============ -->
+    <div class="pcol">
+      <h4>B · Gecə rejimi<em>eyni sazlamalar, tünd şüşə</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="dark" data-tab="me" id="pB">
+          <div class="pbg" data-bg="2"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--me">
+              <div class="mecard g-solid">
+                <div class="top">
+                  <div class="ava">R</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="nm">Rəşad Məmmədov</div>
+                    <div class="ph">+994 ·· 4 12 ··</div>
+                    <div class="tier">Gümüş üzv</div>
+                  </div>
+                  <div class="id">№ 1042</div>
+                </div>
+              </div>
+              <div class="secttl">Bildirişlər</div>
+              <div class="grp g-solid">
+                <div class="srow" style="cursor:default">
+                  <span class="si orange">♨</span>
+                  <span class="sm"><span class="sn">Sifariş hazırdır</span></span>
+                  <button class="sw" role="switch" aria-checked="true" data-sw></button>
+                </div>
+                <div class="srow" style="cursor:default">
+                  <span class="si orange">%</span>
+                  <span class="sm"><span class="sn">Təkliflər</span></span>
+                  <button class="sw" role="switch" aria-checked="false" data-sw></button>
+                </div>
+              </div>
+              <div class="secttl">Kart &amp; ödəniş</div>
+              <div class="grp g-solid">
+                <button class="srow" data-sheet="branch">
+                  <span class="si green">◉</span>
+                  <span class="sm"><span class="sn">Sevimli filial</span></span>
+                  <span class="sv" data-branchval>Nizami</span>
+                  <span class="ch">›</span>
+                </button>
+              </div>
+              <div class="secttl">Hesab əməliyyatları</div>
+              <div class="grp g-solid">
+                <button class="srow"><span class="si">⇥</span><span class="sm"><span class="sn">Çıxış</span></span><span class="ch">›</span></button>
+                <button class="srow danger"><span class="si red">⌫</span><span class="sm"><span class="sn">Hesabı sil</span></span><span class="ch">›</span></button>
+              </div>
+              <div class="verfoot g-solid"><div class="vrow">Emalat Coffee · 1.4.0 (1460)</div></div>
+            </div>
+            <div class="p-scr p-scr--legal">
+              <div class="secttl" style="padding-top:22px">Hüquqi</div>
+              <div class="grp g-solid">
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">Məxfilik siyasəti</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">İstifadə şərtləri</span></span><span class="ch">›</span></button>
+              </div>
+            </div>
+            <div class="p-scr p-scr--set">
+              <div class="secttl" style="padding-top:22px">Bütün sazlamalar</div>
+              <div class="grp g-solid">
+                <button class="srow" data-go="me"><span class="si blue">☺</span><span class="sm"><span class="sn">Hesab</span></span><span class="ch">›</span></button>
+                <button class="srow" data-go="legal"><span class="si">§</span><span class="sm"><span class="sn">Hüquqi</span></span><span class="ch">›</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="scrim" data-scrim></div>
+          <div class="sheetwrap" data-sheetwrap="branch">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Sevimli filial</h3>
+              <div class="sheetopts" data-branchopts>
+                <button class="sheetopt" aria-pressed="true"><span class="so"><b>Nizami filialı</b><span>08:00–22:00</span></span><span class="ck">✓</span></button>
+                <button class="sheetopt" aria-pressed="false"><span class="so"><b>28 May filialı</b><span>09:00–23:00</span></span><span class="ck">✓</span></button>
+              </div>
+              <div class="sheetbtns"><button class="pill ghost" data-close>Bağla</button></div>
+            </div>
+          </div>
+          <div class="ptabs g-chrome" id="tabsB">
+            <span class="morph"></span>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/></svg>Menyu</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/></svg>Cüzdan</button>
+            <button data-t="me" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PHONE C ============ -->
+    <div class="pcol">
+      <h4>C · Hüquqi &amp; hesab<em>App Store tələbləri + təhlükəli əməliyyatlar</em></h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="legal" id="pC">
+          <div class="pbg" data-bg="3"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--legal">
+              <div class="secttl" style="padding-top:22px">Hüquqi</div>
+              <div class="grp g-solid">
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">Məxfilik siyasəti</span><span class="sd">Hansı məlumat toplanır və nə üçün</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">§</span><span class="sm"><span class="sn">İstifadə şərtləri</span><span class="sd">Loyallıq proqramının qaydaları</span></span><span class="ch">›</span></button>
+                <button class="srow"><span class="si">⇩</span><span class="sm"><span class="sn">Məlumatlarımı yüklə</span><span class="sd">Bütün məlumatların kopyasını al</span></span><span class="ch">›</span></button>
+                <div class="srow" style="cursor:default"><span class="si">◎</span><span class="sm"><span class="sn">Marketinq razılığı</span><span class="sd">E-poçt və SMS ilə təkliflər</span></span><button class="sw" role="switch" aria-checked="true" data-sw></button></div>
+              </div>
+              <div class="secttl">Hesab əməliyyatları</div>
+              <div class="grp g-solid">
+                <button class="srow" data-sheet="logout"><span class="si">⇥</span><span class="sm"><span class="sn">Çıxış</span><span class="sd">Məlumatların qalır</span></span><span class="ch">›</span></button>
+                <button class="srow danger" data-sheet="del"><span class="si red">⌫</span><span class="sm"><span class="sn">Hesabı sil</span><span class="sd">Geri qaytarılmır · Apple 5.1.1</span></span><span class="ch">›</span></button>
+              </div>
+              <div class="verfoot g-solid">
+                <div class="vrow">Emalat Coffee · 1.4.0 (1460)</div>
+                <div class="vrow">Build 1460 · iOS 26.0</div>
+              </div>
+              <p class="legalnote">Bu ekran App Store göndərişi üçün vacibdir: məxfilik linki, məlumat yükləmə və hesab silmə — üçü də tələb olunur.</p>
+            </div>
+            <div class="p-scr p-scr--me">
+              <div class="mecard g-solid"><div class="top"><div class="ava">R</div><div style="flex:1"><div class="nm">Rəşad</div><div class="ph">+994 ·· 4 12 ··</div></div></div></div>
+            </div>
+            <div class="p-scr p-scr--set"><div class="secttl" style="padding-top:22px">Sazlamalar</div></div>
+          </div>
+          <div class="scrim" data-scrim></div>
+          <div class="sheetwrap" data-sheetwrap="logout">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3>Çıxış edilsin?</h3>
+              <p class="s">Möhürlərin və balansın qalır. Yenidən telefon nömrənlə daxil ola bilərsən.</p>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Ləğv et</button>
+                <button class="pill solid" id="doLogout2">Çıxış et</button>
+              </div>
+            </div>
+          </div>
+          <div class="sheetwrap" data-sheetwrap="del">
+            <div class="sheet g-sheet">
+              <div class="grab"></div>
+              <h3 style="color:#a5231c">Hesab silinsin?</h3>
+              <p class="s">Bu geri qaytarılmır. Möhürlər, balans və tarixçə birdəfəlik silinir.</p>
+              <div class="sheetbtns">
+                <button class="pill ghost" data-close>Ləğv et</button>
+                <button class="pill solid" style="background:#a5231c;color:#fff" id="delStep2">Davam et</button>
+              </div>
+            </div>
+          </div>
+          <div class="toast" data-toast></div>
+          <div class="ptabs g-chrome" id="tabsC">
+            <span class="morph"></span>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/></svg>Menyu</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16v12H4z"/></svg>Cüzdan</button>
+            <button data-t="me" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 04 -->
+<section class="doc-sec" id="rules">
+  <h2 class="doc"><span class="num">04 / Naxış</span>iOS Settings qaydaları</h2>
+  <table class="cmp">
+    <thead><tr><th>Qayda</th><th class="yes">Bizdə</th></tr></thead>
+    <tbody>
+      <tr><th>Qruplar məntiqi sıra ilə</th><td class="yes">Şəxsi → Tətbiq → Bildiriş → Kart → Dəstək → Hüquqi → Təhlükəli</td></tr>
+      <tr><th>Dəyər sağda, ox sağda</th><td class="yes">Cari dəyər sağa düzülür (<code>Nizami</code>, <code>+994 ··</code>), naviqasiya oxu ən sağda</td></tr>
+      <tr><th>Açarlar birbaşa sətirdə</th><td class="yes">Toggle üçün ekran açılmır — sətirin özündə dəyişir</td></tr>
+      <tr><th>Qruplar arası boşluq</th><td class="yes">22px başlıq boşluğu — sətirlər arası 0. Sərhəd boşluqla qurulur, xəttlə deyil</td></tr>
+      <tr><th>Təhlükəli əməliyyat ən sonda</th><td class="yes">Çıxış + silmə ayrı qrupda; silmə qırmızı və iki mərhələli təsdiq</td></tr>
+      <tr><th>Versiya ən aşağıda</th><td class="yes">"1.4.0 (1460)" — build nömrəsi ilə (dəstək üçün vacib)</td></tr>
+      <tr><th>Şüşə yalnız kontrolda</th><td class="yes">Sətirlər möhkəm səth; yalnız tab bar, sheet və seqment şüşədir</td></tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>İki mərhələli silmə nə üçün</h5>
+      <p>Çıxış bir toxunuşdur çünki <b>geri qaytarıla bilər</b>. Silmə iki mərhələlidir çünki <b>qaytarılmır</b>. İkinci ekranda "əvvəlcə balansı istifadə et" xəbərdarlığı var — istifadəçi 12.50 ₼-ni itirməsin. Apple-ın özü də bu naxışı işlədir.</p>
+    </div>
+    <div class="note">
+      <h5>Bildiriş açarları real işləyir</h5>
+      <p>Push token artıq qeydiyyatdan keçir. Açar bağlananda biz tokeni <b>silmirik</b>, yalnız müvafiq kategoriyanın göndərişini dayandırırıq — istifadəçi sonra açsa, yenidən icazə istəmək lazım gəlmir (iOS yalnız bir dəfə soruşur).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 05 -->
+<section class="doc-sec" id="handoff">
+  <h2 class="doc"><span class="num">05 / Keçid</span>İcra planı</h2>
+  <p class="doc">Bu, <b>v3-dən daha sadə</b> işdir: yeni data yoxdur, mövcud funksiyalar interfeysə bağlanır. Sıra belədir — 1-ci addım onsuz da 10 sətirdir.</p>
+  <ol class="steps">
+    <li><b>Çıxış + versiya + hüquqi sətirlər</b><p>Ən az iş, ən çox təsir. <code>clearCustomerSession()</code> çağırışı + təsdiq sheet-i. Versiya <code>package.json</code>-dan. Hüquqi URL-lər sonra doldurulacaq. Bununla App Store blokeri də bağlanır.</p></li>
+    <li><b>Profil kartı + statistika</b><p>Avatar, ad, telefon, üzvlük nömrəsi, səviyyə nişanı + 3 statistika (möhür/balans/kupon). Hamısı mövcud payload-dan.</p></li>
+    <li><b>Bildiriş açarları</b><p>4 açar. Yerli yaddaşda saxlanır, push göndərişində filtr kimi işlənir. Backend dəyişmir.</p></li>
+    <li><b>Filial seçimi</b><p><code>stores</code> + <code>selectedStoreId</code> hazırdır — profilə bağlanır ki, sifariş ekranından asılı olmasın.</p></li>
+    <li><b>Apple Wallet sətri</b><p><code>showWallet</code> bayrağı yoxlanır: sertifikat yoxsa sətir "Konfiq. olunmayıb" göstərir və söndürülür (F5-dəki davranışla eyni).</p></li>
+    <li><b>Dəstək + FAQ</b><p>Əlaqə <code>branding.phone</code>/<code>branding.address</code>-dən. FAQ mətn siyahısı — statik.</p></li>
+  </ol>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə qazanırıq</h5>
+      <ul>
+        <li>İstifadəçi hesabını dəyişə bilir — <b>bu, buraxılış blokeridir</b>.</li>
+        <li>App Store üçün hüquqi səhifələr hazır olur (URL host ediləndən sonra).</li>
+        <li>Apple Wallet kartı görünür — hazır funksiya nəhayət istifadə olunur.</li>
+        <li>Bildiriş seçimi → istifadəçi app-i silmir, sadəcə susdurur.</li>
+      </ul>
+    </div>
+    <div class="note warn">
+      <h5>Açıq qalan 2 iş (səndən)</h5>
+      <ul>
+        <li><b>Məxfilik siyasəti URL-i</b> — mətn hazırlaya bilərəm, host etmək lazımdır. App Store göndərişi üçün mütləqdir.</li>
+        <li><b>İstifadə şərtləri</b> — eyni.</li>
+        <li>İkisi hazır olana qədər sətirlər görünür, amma "hazırlanır" vəziyyətində qalır.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Emalat · Profil &amp; Saalamalar v4 · müştəri tətbiqi</span>
+  <span>docs/design-system/customer-ios-profile-settings.html</span>
+  <span>Import olunmayıb · deploy yoxdur</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ 1. FON ============ */
+  var W=360,H=640;
+  var canv=document.createElement('canvas'); canv.width=W; canv.height=H;
+  var cx=canv.getContext('2d',{willReadFrequently:true});
+  var BACKDROPS={
+    '1':{base:['#f0d8b8','#c98a4f','#7a4a22'],blobs:[[70,110,120,'rgba(255,214,160,.85)'],[300,70,110,'rgba(196,116,52,.6)'],[180,330,150,'rgba(255,236,205,.75)'],[40,500,140,'rgba(120,70,30,.55)'],[320,520,130,'rgba(255,190,120,.6)']]},
+    '2':{base:['#2a2118','#140f0a','#0a0705'],blobs:[[80,140,130,'rgba(255,168,86,.55)'],[300,110,100,'rgba(120,80,40,.5)'],[200,380,160,'rgba(70,48,28,.6)'],[50,560,140,'rgba(255,140,60,.35)']]},
+    '3':{base:['#ffffff','#e8e2d8','#cfc6b8'],blobs:[[100,120,150,'rgba(255,255,255,.9)'],[300,200,140,'rgba(255,248,235,.85)'],[180,450,170,'rgba(255,255,255,.8)']]}
+  };
+  var painted={}, holds=null;
+  function paint(id){
+    if(painted[id]) return painted[id];
+    var s=BACKDROPS[id]; if(!s) return '';
+    cx.setTransform(1,0,0,1,0,0); cx.filter='none'; cx.clearRect(0,0,W,H);
+    var g=cx.createLinearGradient(0,0,W*.4,H);
+    g.addColorStop(0,s.base[0]); g.addColorStop(.55,s.base[1]); g.addColorStop(1,s.base[2]);
+    cx.fillStyle=g; cx.fillRect(0,0,W,H);
+    cx.filter='blur(34px)';
+    s.blobs.forEach(function(b){cx.beginPath();cx.arc(b[0],b[1],b[2],0,Math.PI*2);cx.fillStyle=b[3];cx.fill();});
+    cx.filter='none';
+    var img=cx.getImageData(0,0,W,H),d=img.data;
+    for(var p=0;p<d.length;p+=4){var n=(Math.random()-.5)*9;d[p]+=n;d[p+1]+=n;d[p+2]+=n;}
+    cx.putImageData(img,0,0);
+    var u=canv.toDataURL('image/jpeg',.86); painted[id]=u; holds=id; return u;
+  }
+  function sample(xr,yr,id){
+    if(holds!==id) paint(id);
+    var x=Math.max(6,Math.min(W-6,Math.round(xr*W))), y=Math.max(6,Math.min(H-6,Math.round(yr*H)));
+    var d=cx.getImageData(x-5,y-5,10,10).data,r=0,g=0,b=0,n=0;
+    for(var i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+    return [r/n,g/n,b/n];
+  }
+  function lum(c){function f(v){v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);}return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2]);}
+  function contrast(a,b){var l1=lum(a),l2=lum(b);if(l1<l2){var t=l1;l1=l2;l2=t;}return (l1+.05)/(l2+.05);}
+  function comp(t,a,b){return [t[0]*a+b[0]*(1-a),t[1]*a+b[1]*(1-a),t[2]*a+b[2]*(1-a)];}
+  function css(c){return 'rgb('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+')';}
+
+  /* ============ 2. TOAST ============ */
+  function toast(scr,msg){
+    var t=scr.querySelector('[data-toast]'); if(!t) return;
+    t.textContent=msg; t.classList.add('on');
+    clearTimeout(t._tm); t._tm=setTimeout(function(){t.classList.remove('on');},1900);
+  }
+
+  /* ============ 3. TAB + MORPH ============ */
+  function morph(scr){
+    var bar=scr.querySelector('.ptabs'); if(!bar) return;
+    var act=bar.querySelector('button[aria-selected="true"]'), cap=bar.querySelector('.morph');
+    if(!act||!cap) return;
+    var br=bar.getBoundingClientRect(), ar=act.getBoundingClientRect();
+    cap.style.left=(ar.left-br.left)+'px'; cap.style.width=ar.width+'px';
+  }
+  var HIGHLIGHT={me:'me',set:'me',legal:'me'};
+  document.querySelectorAll('.pscr').forEach(function(scr){
+    var bar=scr.querySelector('.ptabs');
+    if(bar){
+      bar.querySelectorAll('button[data-t]').forEach(function(b){
+        b.addEventListener('click',function(){
+          bar.querySelectorAll('button[data-t]').forEach(function(x){x.setAttribute('aria-selected',x===b?'true':'false');});
+          morph(scr);
+        });
+      });
+      window.addEventListener('resize',function(){morph(scr);});
+      setTimeout(function(){morph(scr);},140);
+    }
+    /* data-go — alt ekranlar (tab bar saxlanılır) */
+    scr.querySelectorAll('[data-go]').forEach(function(el){
+      el.addEventListener('click',function(e){
+        e.preventDefault();
+        var name=el.getAttribute('data-go');
+        scr.setAttribute('data-tab',name);
+        var hl=HIGHLIGHT[name]||name, btn=bar?bar.querySelector('button[data-t="'+hl+'"]'):null;
+        if(btn){bar.querySelectorAll('button[data-t]').forEach(function(x){x.setAttribute('aria-selected',x===btn?'true':'false');});morph(scr);}
+        var body=scr.querySelector('.pbody'); if(body) body.scrollTop=0;
+      });
+    });
+  });
+
+  /* ============ 4. SWITCH + SEQMENT ============ */
+  document.querySelectorAll('[data-sw]').forEach(function(sw){
+    sw.addEventListener('click',function(e){
+      e.stopPropagation(); e.preventDefault();
+      sw.setAttribute('aria-checked', sw.getAttribute('aria-checked')==='true'?'false':'true');
+    });
+  });
+  function bindSeg(segId, subId, labels, onPick){
+    var seg=document.getElementById(segId); if(!seg) return;
+    seg.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click',function(){
+        seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-selected',x===b?'true':'false');});
+        var key=b.getAttribute('data-th')||b.getAttribute('data-lg');
+        var sub=document.getElementById(subId); if(sub&&labels[key]) sub.textContent=labels[key];
+        if(onPick) onPick(key, b);
+      });
+    });
+  }
+  var THEMES={light:'İşıqlı tema',dark:'Qaranlıq tema',auto:'Sistemə uyğun (avtomatik)'};
+  var LANGS={az:'Azərbaycan dili',en:'English',ru:'Русский'};
+  bindSeg('themeSeg','themeSub',THEMES,function(key){
+    var pA=document.getElementById('pA'); if(!pA) return;
+    /* canlı nümunə: yalnız A telefonunda tema dəyişir */
+    pA.setAttribute('data-theme', key==='dark'?'dark':(key==='auto'?'dark':'light'));
+  });
+  bindSeg('langSeg','langSub',LANGS);
+
+  /* ============ 5. SHEET MEXANİZMİ ============ */
+  function closeAll(scr){
+    scr.querySelectorAll('.sheetwrap').forEach(function(w){w.classList.remove('on');});
+    var sc=scr.querySelector('[data-scrim]'); if(sc) sc.classList.remove('on');
+  }
+  function openSheet(scr,name){
+    closeAll(scr);
+    var w=scr.querySelector('[data-sheetwrap="'+name+'"]');
+    if(w) w.classList.add('on');
+    var sc=scr.querySelector('[data-scrim]'); if(sc) sc.classList.add('on');
+  }
+  document.querySelectorAll('.pscr').forEach(function(scr){
+    scr.querySelectorAll('[data-sheet]').forEach(function(el){
+      el.addEventListener('click',function(e){ e.preventDefault(); openSheet(scr,el.getAttribute('data-sheet')); });
+    });
+    scr.querySelectorAll('[data-close]').forEach(function(b){
+      b.addEventListener('click',function(e){ e.preventDefault(); closeAll(scr); });
+    });
+    var sc=scr.querySelector('[data-scrim]');
+    if(sc) sc.addEventListener('click',function(){ closeAll(scr); });
+  });
+
+  /* ============ 6. FİLİAL SEÇİMİ ============ */
+  document.querySelectorAll('[data-branchopts]').forEach(function(box){
+    box.querySelectorAll('.sheetopt').forEach(function(o){
+      o.addEventListener('click',function(){
+        box.querySelectorAll('.sheetopt').forEach(function(x){x.setAttribute('aria-pressed','false');});
+        o.setAttribute('aria-pressed','true');
+        var nm=o.querySelector('.so b').textContent.replace(' filialı','');
+        document.querySelectorAll('[data-branchval]').forEach(function(v){v.textContent=nm;});
+        var bv=document.getElementById('branchVal'); if(bv) bv.textContent=nm;
+        var scr=o.closest('.pscr');
+        setTimeout(function(){ closeAll(scr); toast(scr,'Sevimli filial: '+nm); },200);
+      });
+    });
+  });
+
+  /* ============ 7. ÇIXIŞ / SİLMƏ ============ */
+  function doLogout(scr){
+    closeAll(scr);
+    toast(scr,'Çıxış edildi — yenidən daxil ola bilərsən');
+  }
+  var l1=document.getElementById('doLogout'); if(l1) l1.addEventListener('click',function(){doLogout(l1.closest('.pscr'));});
+  var l2=document.getElementById('doLogout2'); if(l2) l2.addEventListener('click',function(){doLogout(l2.closest('.pscr'));});
+  var d1=document.getElementById('delStep1'); if(d1) d1.addEventListener('click',function(){
+    var scr=d1.closest('.pscr'); closeAll(scr);
+    setTimeout(function(){
+      var t=scr.querySelector('[data-toast]'); if(t){ t.textContent='Silinmə üçün təsdiq tələb olunur — hesab silinmədi'; t.classList.add('on'); setTimeout(function(){t.classList.remove('on');},2200);}    },220);
+  });
+  var d2=document.getElementById('delStep2'); if(d2) d2.addEventListener('click',function(){
+    var scr=d2.closest('.pscr'); closeAll(scr);
+    setTimeout(function(){
+      var t=scr.querySelector('[data-toast]'); if(t){ t.textContent='Silinmə üçün təsdiq tələb olunur — hesab silinmədi'; t.classList.add('on'); setTimeout(function(){t.classList.remove('on');},2200);}    },220);
+  });
+  var se=document.getElementById('saveEdit'); if(se) se.addEventListener('click',function(){
+    var scr=se.closest('.pscr'); closeAll(scr);
+    setTimeout(function(){ toast(scr,'Yadda saxlanıldı'); },200);
+  });
+
+  /* ============ 8. APPLE WALLET SƏTRİ ============ */
+  function wireWallet(scr,btnId,rowId,subId){
+    var btn=document.getElementById(btnId), row=document.getElementById(rowId), sub=document.getElementById(subId);
+    if(!btn) return;
+    btn.addEventListener('click',function(){
+      sub.textContent='Apple Wallet bu cihazda konfiqurasiya olunmayıb (Pass Type ID sertifikatı yoxdur).';
+      sub.style.color='#9a5007';
+      toast(scr,'Pass Type ID sertifikatı olmadan əlavə olunmur');
+      if(row) row.classList.add('warnval');
+      var sv=row?row.querySelector('.sv'):null; if(sv) sv.textContent='Mövcud deyil';
+    });
+  }
+  var pA=document.getElementById('pA');
+  if(pA) wireWallet(pA,'walletBtn','walletRow','walletRowSub');
+  var wr=document.getElementById('walletRow');
+  if(wr) wr.addEventListener('click',function(){
+    var scr=wr.closest('.pscr');
+    var sub=document.getElementById('walletRowSub');
+    sub.textContent='Apple Wallet bu cihazda konfiqurasiya olunmayıb (Pass Type ID sertifikatı yoxdur).';
+    sub.style.color='#9a5007';
+    toast(scr,'Pass Type ID sertifikatı olmadan əlavə olunmur');
+    wr.classList.add('warnval');
+    var sv=wr.querySelector('.sv'); if(sv) sv.textContent='Mövcud deyil';
+  });
+
+  /* ============ 9. BAŞLA ============ */
+  document.querySelectorAll('.pbg').forEach(function(el){
+    el.style.backgroundImage='url('+paint(el.getAttribute('data-bg'))+')';
+  });
+  setTimeout(function(){ document.querySelectorAll('.pscr').forEach(morph); },240);
+})();
+</script>
+</body>
+</html>

@@ -169,27 +169,23 @@ def resolve_tier_multiplier(settings: Mapping[str, Any], multiplier: Any) -> Dec
     return min(value, Decimal(str(MAX_TIER_MULTIPLIER)))
 
 
-def find_tier_multiplier(settings: Mapping[str, Any] | None, lifetime_stars: Any) -> Decimal:
-    """`tiers` nərdivanında `lifetime_stars`-a uyğun pillənin xam `multiplier`-i.
-
-    Niyə burada: kassa tier sətrini özü seçməməlidir — panel, customer app və
-    accrual eyni nərdivanı eyni qayda ilə oxumalıdır.
+def _current_tier_row(settings: Mapping[str, Any] | None, lifetime_stars: Any) -> Mapping[str, Any] | None:
+    """`tiers` nərdivanından `lifetime_stars`-a uyğun pillə sətrini seçir.
 
     Qayda `operations.py::_compute_tier`-in **eynidir** (yoxsa tətbiq "Gold ×1.5"
     göstərib kassa ×1 sayar): sıralanmış pillələrdə `lifetime_stars`-dan böyük
     olmayan sonuncu pillə; heç biri uyğun gəlməsə ən aşağı pillə. Açarı olmayan
-    sətirlər orada da atılır.
+    sətirlər orada da atılır. Nərdivan yoxdursa/boşdursa `None`.
 
-    Bu funksiya `tier_multiplier_enabled` keçidini **yoxlamır** — o yoxlama
-    `resolve_tier_multiplier`-dədir. Buradan xam dəyər çıxır, oradan keçir.
+    Seçim buradadır: multiplier və endirim **eyni** pilləni seçməlidir.
     """
     cfg: Mapping[str, Any] = settings if isinstance(settings, Mapping) else {}
     raw = cfg.get("tiers")
     if not isinstance(raw, list):
-        return Decimal("1")
+        return None
     rows = [r for r in raw if isinstance(r, Mapping) and str(r.get("key") or "").strip()]
     if not rows:
-        return Decimal("1")
+        return None
     stars = _floor_int(_as_decimal(lifetime_stars, "0"))
     ordered = sorted(rows, key=lambda r: _floor_int(_as_decimal(r.get("threshold"), "0")))
     current = ordered[0]
@@ -198,7 +194,40 @@ def find_tier_multiplier(settings: Mapping[str, Any] | None, lifetime_stars: Any
             current = row
         else:
             break
-    return _as_decimal(current.get("multiplier"), "1")
+    return current
+
+
+def find_tier_multiplier(settings: Mapping[str, Any] | None, lifetime_stars: Any) -> Decimal:
+    """`tiers` nərdivanında `lifetime_stars`-a uyğun pillənin xam `multiplier`-i.
+
+    Niyə burada: kassa tier sətrini özü seçməməlidir — panel, customer app və
+    accrual eyni nərdivanı eyni qayda ilə oxumalıdır (seçim `_current_tier_row`).
+
+    Bu funksiya `tier_multiplier_enabled` keçidini **yoxlamır** — o yoxlama
+    `resolve_tier_multiplier`-dədir. Buradan xam dəyər çıxır, oradan keçir.
+    """
+    row = _current_tier_row(settings, lifetime_stars)
+    if row is None:
+        return Decimal("1")
+    return _as_decimal(row.get("multiplier"), "1")
+
+
+def find_tier_discount(settings: Mapping[str, Any] | None, lifetime_stars: Any) -> Decimal:
+    """Pillə üzrə endirim faizi — kassanın endirim `max()` yarışına qoşulur (P1.6).
+
+    Niyə burada: panel "Gold 5%" saxlayırsa, kassa da həmin 5%-i oxumalıdır —
+    nərdivan seçimi `find_tier_multiplier` ilə paylaşılan `_current_tier_row`-dır,
+    yoxsa iki yer ayrı düşər. Default 0-dır: tenant pillə faizi yazana qədər
+    satış heç vaxt dəyişmir. `tier_multiplier_enabled` keçidi bura aid deyil —
+    endirimin öz "keçidi" `discount_percent = 0`-dır (0 = sönülü).
+    """
+    row = _current_tier_row(settings, lifetime_stars)
+    if row is None:
+        return Decimal("0")
+    value = _as_decimal(row.get("discount_percent"), "0")
+    if value <= 0:
+        return Decimal("0")
+    return min(value, Decimal("100"))
 
 
 @dataclass(frozen=True)

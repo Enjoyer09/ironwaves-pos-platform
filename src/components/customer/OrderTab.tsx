@@ -299,6 +299,14 @@ export function CartSheet({
               : '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)'),
         }}>
 
+        {/* v3 .pbg — Səbət üçün AI fon (cart-beans). Panelin yuxarısında, üstündə örtük. */}
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[120px] pointer-events-none rounded-t-[28px] opacity-70"
+          style={{
+            backgroundImage: `linear-gradient(180deg, ${isLight ? 'rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.95) 100%' : 'rgba(13,11,10,0.2) 0%, rgba(13,11,10,0.95) 100%'}), url(/brand/backdrops/cart-beans.jpg)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }} />
+
         {/* Glossy highlight */}
         <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[32px]"
           style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.05), transparent)' }} />
@@ -425,6 +433,19 @@ export function CartSheet({
               </p>
             </div>
 
+            {/* v3 applylist — Təklif / Mükafat ayrı sətirlər (yalnız görünüş; məbləğ serverdən gəlir) */}
+            <div className={`rounded-2xl border overflow-hidden ${isLight ? 'bg-white border-black/5' : 'bg-white/4 border-white/8'}`}>
+              {[
+                { label: tx(safeLang, 'Təklif', 'Акция', 'Offer'), value: tx(safeLang, 'Tətbiq olunacaq', 'Будет применено', 'Applied at checkout') },
+                { label: tx(safeLang, 'Mükafat', 'Награда', 'Reward'), value: tx(safeLang, 'Seçilməyib', 'Не выбрано', 'Not selected') },
+              ].map((row, i) => (
+                <div key={i} className={`flex items-center justify-between px-3.5 py-3 ${i > 0 ? `border-t ${divider}` : ''}`}>
+                  <span className={`text-[12px] font-bold ${textPrimary}`}>{row.label}</span>
+                  <span className={`text-[11px] font-semibold ${textSecond}`}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+
             {/* Total + Checkout */}
             <div className={`pt-3 border-t ${divider}`}>
               {/* Highlighted total box */}
@@ -541,7 +562,7 @@ const ORDER_STATUS_STEPS: Array<{ key: string; label: [string, string, string]; 
   { key: 'READY',     label: ['Hazırdır', 'Готов', 'Ready'],             dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', ring: 'border-emerald-500/40' },
 ];
 
-function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]; safeLang: string; isLight: boolean; isRetro: boolean }) {
+export function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]; safeLang: string; isLight: boolean; isRetro: boolean }) {
   const active = orders.filter((o: any) => ORDER_STATUS_STEPS.some((s) => s.key === String(o.status || '')));
   if (active.length === 0) return null;
 
@@ -637,6 +658,8 @@ function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]
 type OrderTabProps = {
   safeLang: string;
   isLight: boolean;
+  /** Aktiv kampaniyalar — Menyuda uyğun məhsulları vurğulamaq üçün (kateqoriya əsasında). */
+  campaigns?: any[];
   menuItems: any[];
   menuLoading: boolean;
   selectedCategory: string;
@@ -688,9 +711,24 @@ export default function OrderTab({
   setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty,
   searchQuery, setSearchQuery, paymentMethod, setPaymentMethod, activeOrders, designMode = 'classic',
   stores = [], selectedStoreId = '', setSelectedStore,
-  brandLogoUrl = '', brandName = ''
+  brandLogoUrl = '', brandName = '', campaigns = []
 }: OrderTabProps) {
   const [showStorePicker, setShowStorePicker] = React.useState(false);
+  // Campaign-highlighted categories: items in these categories are shown at full
+  // strength, others are dimmed. Only the campaign's own `categories` field is used.
+  const campaignCats = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const c of campaigns as any[]) {
+      const list = Array.isArray(c?.categories) ? c.categories : [];
+      for (const raw of list) {
+        const key = String(raw || '').trim().toLowerCase();
+        if (key) set.add(key);
+      }
+    }
+    return set;
+  }, [campaigns]);
+  const isCampaignItem = (it: any) =>
+    campaignCats.size === 0 || campaignCats.has(String(it.category || '').trim().toLowerCase());
   const cats = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const it of menuItems) {
@@ -732,6 +770,7 @@ export default function OrderTab({
 
   return (
     <div className="space-y-6">
+      {/* v3 .pbg — fon indi CustomerApp şell-ində, tab keçidində dəyişir. */}
       <style>{`
         @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes scaleIn {
@@ -787,7 +826,8 @@ export default function OrderTab({
                   <span className={`text-xs font-bold truncate ${textPrimary}`}>
                     {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.name || stores[0]?.name || ''}
                   </span>
-                  <span className="text-[10px] text-emerald-500 font-semibold shrink-0">· Açıqdır</span>
+                  {/* F5.6 — sabit "· Açıqdır" silindi: açılış/saat məlumatı
+                      heç yerdə yoxdur, real data gələndə burada hesablanacaq. */}
                 </div>
               </div>
             </div>
@@ -934,6 +974,7 @@ export default function OrderTab({
             return (
               <div key={item.id}
                 onClick={() => handleOpenModifiers(item)}
+                style={isCampaignItem(item) ? undefined : { opacity: 0.45 }}
                 className={`relative group flex flex-col items-center rounded-[22px] border overflow-hidden cursor-pointer card-tilt stagger-fade-in stagger-${Math.min(itemIdx % 5 + 1, 5)} ${cardBg}`}>
                 {/* Product Image */}
                 <div className={`relative w-full aspect-square overflow-hidden ${isRetro ? 'border-b-[2px] border-[#2B1B1A] dark:border-[#3D2F2A]' : ''}`}>

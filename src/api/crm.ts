@@ -552,6 +552,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
           is_default: true,
         },
       ],
+      // F5.3 — lokal rejimdə backend/sertifikat yoxdur: Wallet düyməsi gizlənir.
+      wallet_pass_enabled: false,
       customer: {
         card_id: customer.card_id,
         type: customer.type,
@@ -562,6 +564,12 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         name: String((customer as any).name || ''),
         birth_date: (customer as any).birth_date || null,
         created_at: customer.created_at,
+        // P4.1 — lokal güzgü: backend session `customer.push_prefs` göndərir.
+        push_prefs: {
+          push: (customer as any).push_opt_in !== false,
+          email: (customer as any).email_opt_in === true,
+          sms: (customer as any).sms_opt_in === true,
+        },
       },
       wallet: {
         points_label: settings.points_label || (programMode === 'cashback' ? 'Cashback' : 'Ulduz'),
@@ -591,6 +599,9 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         start_time: row.start_time,
         end_time: row.end_time,
         categories: row.categories,
+        // P2.1 paritet — backend session payload-u `days_of_week` göndərir;
+        // vitrin (Günün təklifi) gün filterini buradan oxuyur.
+        days_of_week: row.days_of_week || [],
       })),
       notifications: settings.show_notifications === false ? [] : notifications,
       history: settings.show_history === false ? [] : sales,
@@ -651,6 +662,8 @@ export async function get_customer_app_bootstrap_live(tenant_id?: string) {
       tenant_id: tenantId,
       enabled: settings.enabled !== false,
       registration_mode: settings.registration_mode || 'full',
+      // F5.3 — lokal rejimdə backend/sertifikat yoxdur: Wallet düyməsi gizlənir.
+      wallet_pass_enabled: false,
       customer_app_settings: settings,
       branding: {
         company_name: profile?.company_name || 'iRonWaves POS',
@@ -688,6 +701,11 @@ export async function enroll_customer_app_live(params: {
   if (!params.consent) throw new Error('Consent must be accepted');
   if (!isBackendEnabled()) {
     const customers = getCustomersLocal(tenantId);
+    const cleanEmail = String(params.email || '').trim().toLowerCase();
+    if (cleanEmail && customers.some((c: any) => String(c.email || '').trim().toLowerCase() === cleanEmail)) {
+      // F5.1 — live backend-dəki eyni qayda: e-poçtu bilmək hesaba girmək demək deyil.
+      throw new Error('Bu e-poçt artıq qeydiyyatdan keçib. Giriş üçün telefon nömrənizlə SMS kodundan istifadə edin.');
+    }
     const card_id = `QR-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
     const token = uuidv4().replace(/-/g, '');
     const newCustomer: Customer = {
@@ -724,6 +742,28 @@ export async function enroll_customer_app_live(params: {
   });
 }
 
+/** F5.5 — App Store 5.1.1: tətbiq daxilində hesab silmə (lokal + live). */
+export async function delete_customer_account_live(cardId: string, token: string, tenantId?: string) {
+  const tId = tenantId || defaultTenant();
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tId).filter(
+      (c: any) => !(String(c.card_id || '') === cardId && String(c.secret_token || '') === token)
+    );
+    saveCustomersLocal(tId, customers);
+    const notes = (getDB<Notification>('notifications') || []).filter(
+      (n: any) => !(String(n.tenant_id || '') === tId && String(n.card_id || '') === cardId)
+    );
+    setDB('notifications', notes);
+    return Promise.resolve({ success: true });
+  }
+  return apiRequest<{ success: boolean }>('/api/v1/ops/customer-app/delete-account', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    body: { card_id: cardId, token },
+  });
+}
+
 export async function mark_customer_notification_read_live(notification_id: string, card_id: string, token: string, tenant_id?: string) {
   const tenantId = tenant_id || defaultTenant();
   const safeId = String(notification_id || '').trim();
@@ -748,6 +788,50 @@ export async function mark_customer_notification_read_live(notification_id: stri
     tenantId: null,
     auth: false,
   });
+}
+
+/** P4.1 — müştəri kanal razılığının dəyişdirilməsi (Profil → Bildirişlər). */
+export async function update_customer_preferences_live(
+  cardId: string,
+  token: string,
+  changes: { push?: boolean; email?: boolean; sms?: boolean },
+  tenant_id?: string,
+) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(cardId || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCard || !safeToken) {
+    throw new Error('Customer session is invalid');
+  }
+  const body: { push?: boolean; email?: boolean; sms?: boolean } = {};
+  if (changes.push !== undefined) body.push = changes.push;
+  if (changes.email !== undefined) body.email = changes.email;
+  if (changes.sms !== undefined) body.sms = changes.sms;
+
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tenantId);
+    const row = customers.find(
+      (c: any) => String(c.card_id || '').toLowerCase() === safeCard.toLowerCase() && c.secret_token === safeToken,
+    );
+    if (!row) throw new Error('Customer session is invalid');
+    if (body.push !== undefined) row.push_opt_in = body.push;
+    if (body.email !== undefined) row.email_opt_in = body.email;
+    if (body.sms !== undefined) row.sms_opt_in = body.sms;
+    saveCustomersLocal(tenantId, customers);
+    return {
+      success: true,
+      prefs: {
+        push: row.push_opt_in !== false,
+        email: row.email_opt_in === true,
+        sms: row.sms_opt_in === true,
+      },
+    };
+  }
+
+  return apiRequest<{ success: boolean; prefs: { push: boolean; email: boolean; sms: boolean } }>(
+    `/api/v1/ops/customer-app/preferences?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    { method: 'POST', tenantId: null, auth: false, body },
+  );
 }
 
 export async function claim_customer_reward_live(card_id: string, token: string, reward_id: string = LEGACY_REWARD_ID, tenant_id?: string) {
@@ -1004,6 +1088,38 @@ export async function save_push_token_live(card_id: string, push_token: string, 
       token: safeToken
     }
   });
+}
+
+/**
+ * P4.5 — bildirişə toxunma hadisəsini serverə bildirir (attribution hunisinin
+ * açılma pilləsi). Niyə buradan: hadisəni **tətbiq** göndərir, çünki OneSignal-ın
+ * web push webhook-ları mobil tətbiqi əhatə etmir və səhifə açıq olmalıdır.
+ *
+ * Uğursuzluq **səssizcə** udulur: statistika üçün vacib olsa da, müştərinin
+ * qarşısında heç nə pozmamalıdır (bildirişə toxunub tətbiq açılır, xəta
+ * pəncərəsi çıxmamalıdır). Telemetriya uğursuz olsa huni "izlənmir" yazır.
+ */
+export async function record_push_engagement_live(
+  card_id: string,
+  token: string,
+  delivery_id: string,
+  kind: string = 'opened',
+): Promise<{ success: boolean; recorded?: boolean }> {
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  const safeDelivery = String(delivery_id || '').trim();
+  if (!safeCard || !safeToken || !safeDelivery) return { success: false };
+  if (!isBackendEnabled()) return { success: false, recorded: false };
+
+  try {
+    return await apiRequest<{ success: boolean; recorded?: boolean }>(
+      `/api/v1/ops/customer-app/push-engagement?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+      { method: 'POST', tenantId: null, auth: false, body: { delivery_id: safeDelivery, kind } },
+    );
+  } catch {
+    // Telemetriya — səssiz. Huni "izlənmir"/az rəqəm göstərər, yalan danışmaz.
+    return { success: false };
+  }
 }
 
 export async function send_customer_otp_live(phone: string) {

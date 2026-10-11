@@ -33,6 +33,7 @@ from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
 from app.services.backup_scheduler import start_backup_scheduler
 from app.services.birthday_scheduler import start_birthday_scheduler
+from app.services.push_scheduler import start_push_scheduler
 from app.services.token_retention import purge_refresh_tokens
 from app.tenant import resolve_tenant_from_request
 
@@ -1337,6 +1338,9 @@ async def on_startup():
 
     # Start the per-tenant birthday reward scheduler
     start_birthday_scheduler()
+
+    # P4.3 — planlanmış kütləvi bildirişlərin göndəricisi (sükut saatı hörmət olunur)
+    start_push_scheduler()
 
     # Finance v2 shadow mode (no-op unless FINANCE_V2_SHADOW_ENABLED=true)
     start_gl_shadow_scheduler()

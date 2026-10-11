@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emalat Liquid Glass v2 — təkmilləşdirilmiş material sistemi</title>
+<style>
+/* ============================================================
+   Emalat · Liquid Glass v2 "Refined"
+   v1-in problemləri (aşağıda 01 bölməsində açıq göstərilib):
+     1. blur hər yerdə eyni və çox güclü → süd rəngi, kontrast itir
+     2. çox şüşə → şüşə şüşənin üstündə, iyerarxiya itir
+     3. statik naviqasiya → material canlı deyil
+     4. refraksiya (sındırma) yox → "şüşə" sadəcə bulanıqdır
+     5. tək tint → hər fon üçün eyni
+   v2 həlli: pilləli material (4 səviyyə), real specular kənar,
+     scroll-a reaksiya, kənar lens refraksiyası, kontekst tinti.
+   Heç bir fayl import olunmayıb. Bu sənəd/konseptdir.
+   ============================================================ */
+
+:root{
+  /* ---- sənəd özü ---- */
+  --doc-bg:#eceaf0;
+  --doc-panel:#fdfdff;
+  --doc-ink:#141317;
+  --doc-ink-2:#615f6b;
+  --doc-rule:#d9d6e0;
+  --doc-accent:#3b34c9;
+  --doc-warn:#a4570f;
+  --doc-ok:#1d6b40;
+  --doc-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --doc-sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;
+
+  /* ---- MƏHSUL: kontekst dəyişənləri (JS idarə edir) ---- */
+  --g-alpha:.58;         /* şüşə şəffaflığı */
+  --g-blur-chrome:30px;  /* naviqasiya/control — ən güclü */
+  --g-blur-sheet:20px;   /* bottom sheet — orta */
+  --g-blur-inline:12px;  /* inline pill/chip — yüngül */
+  --g-sat:1.8;           /* backdrop doyğunluq gücləndirmə */
+  --g-bright:1.04;       /* çox incə işıq artımı */
+  --g-edge:1;            /* specular kənar intensivliyi 0–1 */
+  --g-refract:1;         /* kənar lens refraksiyası 0–1 */
+  --g-rt:0;              /* Reduce Transparency əvəzləyicisi */
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--doc-bg);color:var(--doc-ink);font:400 15px/1.62 var(--doc-sans);
+  background-image:radial-gradient(circle at 8% -6%,rgba(59,52,201,.10),transparent 52%),
+                   radial-gradient(circle at 94% 3%,rgba(244,140,36,.10),transparent 46%)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px 96px}
+
+/* ---------------- sənəd ---------------- */
+header.doc{padding:58px 0 28px;border-bottom:2px solid var(--doc-ink)}
+.kicker{font:600 11px/1 var(--doc-mono);letter-spacing:.22em;text-transform:uppercase;color:var(--doc-accent)}
+h1.doc{font:700 clamp(34px,5.6vw,62px)/1.0 var(--doc-sans);margin:15px 0 0;letter-spacing:-.035em}
+h1.doc em{font-style:normal;font-weight:400;color:var(--doc-accent)}
+.lede{max-width:66ch;margin:18px 0 0;color:var(--doc-ink-2);font-size:16px}
+.meta-row{display:flex;flex-wrap:wrap;gap:9px 22px;margin-top:24px;font:500 11px/1.6 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2)}
+nav.toc{position:sticky;top:0;z-index:30;display:flex;gap:3px;flex-wrap:wrap;padding:11px 0;
+  background:color-mix(in srgb,var(--doc-bg) 90%,transparent);border-bottom:1px solid var(--doc-rule)}
+nav.toc a{font:600 10.5px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);
+  text-decoration:none;padding:7px 10px;border:1px solid transparent}
+nav.toc a:hover{color:var(--doc-ink);border-color:var(--doc-rule);background:var(--doc-panel)}
+section.doc-sec{padding:52px 0 8px;border-bottom:1px solid var(--doc-rule)}
+h2.doc{font:700 27px/1.12 var(--doc-sans);margin:0 0 10px;letter-spacing:-.025em}
+h2.doc .num{font:600 11px/1 var(--doc-mono);letter-spacing:.18em;color:var(--doc-accent);display:block;margin-bottom:11px}
+h3.doc{font:700 12px/1 var(--doc-mono);letter-spacing:.16em;text-transform:uppercase;margin:28px 0 12px;color:var(--doc-ink-2)}
+p.doc{max-width:74ch;color:var(--doc-ink-2);margin:0 0 15px}
+
+table.cmp{width:100%;border-collapse:collapse;margin:20px 0 6px;font-size:13.5px}
+table.cmp th,table.cmp td{text-align:left;vertical-align:top;padding:12px 13px;border-bottom:1px solid var(--doc-rule)}
+table.cmp thead th{font:700 10.5px/1.4 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-ink-2);border-bottom:2px solid var(--doc-ink)}
+table.cmp tbody th{font:600 13px/1.4 var(--doc-sans);width:22%}
+table.cmp .bad{color:var(--doc-warn)}
+table.cmp .good{color:var(--doc-ink);background:rgba(59,52,201,.05)}
+table.cmp thead .good{color:var(--doc-accent)}
+table.cmp code{font:500 11.5px/1 var(--doc-mono);background:rgba(20,19,23,.07);padding:2px 5px;border-radius:3px}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(296px,1fr));gap:17px;margin:20px 0}
+.note{background:var(--doc-panel);border:1px solid var(--doc-rule);padding:17px 19px;border-radius:4px}
+.note h5{margin:0 0 9px;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.note p{margin:0;font-size:13.5px;color:var(--doc-ink-2)}
+.note ul{margin:8px 0 0;padding-left:17px;font-size:13.5px;color:var(--doc-ink-2)}
+.note li{margin:6px 0}
+.note code{font:500 11.5px/1 var(--doc-mono);background:rgba(20,19,23,.07);padding:2px 5px;border-radius:3px}
+
+/* ---------------- telefonlar ---------------- */
+.stage{display:flex;gap:30px;flex-wrap:wrap;padding:30px 0 8px}
+.pcol{flex:1 1 296px;min-width:284px;max-width:344px}
+.pcol h4{font:700 11px/1 var(--doc-mono);letter-spacing:.15em;text-transform:uppercase;color:var(--doc-accent);margin:0 0 13px}
+.pdev{position:relative;border-radius:46px;padding:11px;background:#191720;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 34px 64px -30px rgba(20,19,23,.6)}
+.pdev::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);width:112px;height:4px;border-radius:99px;background:rgba(255,255,255,.3)}
+.pscr{position:relative;border-radius:35px;overflow:hidden;height:606px;display:flex;flex-direction:column;
+  font-family:var(--doc-sans);color:#16120e}
+.pscr[data-theme="dark"]{color:#f5f1ea}
+.pbg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0}
+.pnotch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:96px;height:25px;border-radius:99px;background:#0d0b10;z-index:20}
+.pstat{position:relative;z-index:22;display:flex;justify-content:space-between;align-items:center;padding:11px 20px 0;
+  font:600 11.5px/1 var(--doc-sans)}
+.pbody{position:relative;z-index:10;flex:1;overflow:auto;padding:6px 0 104px;scrollbar-width:none}
+.pbody::-webkit-scrollbar{display:none}
+.p-scr{display:none}
+.pscr[data-tab="home"] .p-scr--home,
+.pscr[data-tab="menu"] .p-scr--menu,
+.pscr[data-tab="sheet"] .p-scr--sheet,
+.pscr[data-tab="me"] .p-scr--me{display:block}
+
+/* ============ ŞÜŞƏ PİLLƏLƏRİ ============ */
+
+/* PİLLƏ 1 — CHROME (tab bar). Ən güclü şüşə. Yalnız naviqasiya üçün. */
+.g-chrome{
+  background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  backdrop-filter:blur(var(--g-blur-chrome)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  border:1px solid rgba(255,255,255,calc(.30 * var(--g-edge)));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,calc(.85 * var(--g-edge))),
+    inset 0 -1px 0 rgba(255,255,255,calc(.34 * var(--g-edge))),
+    0 .5px 0 rgba(16,12,8,.20),
+    0 10px 26px -10px rgba(16,12,8,.42);
+  position:relative;overflow:hidden;
+}
+/* specular üst parıltı qatı — şüşənin "işıq tutması" */
+.g-chrome::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:44%;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,calc(.30 * var(--g-edge))),rgba(255,255,255,0));
+}
+/* kenar lensi: sındırma effekti — şüşənin kənarında güclü blur, içində yox */
+.g-chrome::after{
+  content:"";position:absolute;left:0;right:0;top:0;height:9px;pointer-events:none;
+  -webkit-backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));
+  backdrop-filter:blur(calc(var(--g-blur-chrome) * 1.7));
+  opacity:var(--g-refract);
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent);
+  mask-image:linear-gradient(180deg,#000,transparent);
+}
+[data-theme="dark"] .g-chrome{
+  background:rgba(26,21,17,calc(var(--g-alpha) * .92));
+  border-color:rgba(255,255,255,calc(.16 * var(--g-edge)));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,calc(.22 * var(--g-edge))),
+    inset 0 -1px 0 rgba(255,255,255,calc(.08 * var(--g-edge))),
+    0 .5px 0 rgba(0,0,0,.5),
+    0 12px 30px -12px rgba(0,0,0,.7);
+}
+[data-theme="dark"] .g-chrome::before{background:linear-gradient(180deg,rgba(255,255,255,calc(.10 * var(--g-edge))),rgba(255,255,255,0))}
+
+/* PİLLƏ 2 — SHEET (bottom sheet). Orta şüşə, üstündə skrim var. */
+.g-sheet{
+  background:rgba(255,255,255,var(--g-alpha));
+  -webkit-backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  backdrop-filter:blur(var(--g-blur-sheet)) saturate(var(--g-sat)) brightness(var(--g-bright));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.8 * var(--g-edge))),0 -14px 40px -14px rgba(16,12,8,.45);
+}
+[data-theme="dark"] .g-sheet{background:rgba(26,21,17,calc(var(--g-alpha) * .94));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.18 * var(--g-edge))),0 -16px 44px -16px rgba(0,0,0,.75)}
+
+/* PİLLƏ 3 — INLINE (chip / kiçik pill). Yüngül şüşə. Yalnız məzmun MÖHKƏM olduqda. */
+.g-inline{
+  background:rgba(255,255,255,calc(var(--g-alpha) * .88));
+  -webkit-backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));
+  backdrop-filter:blur(var(--g-blur-inline)) saturate(calc(var(--g-sat) * .92));
+  border:1px solid rgba(255,255,255,calc(.34 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.6 * var(--g-edge))),0 4px 14px -6px rgba(16,12,8,.28);
+}
+[data-theme="dark"] .g-inline{background:rgba(30,24,19,calc(var(--g-alpha) * .9));border-color:rgba(255,255,255,calc(.14 * var(--g-edge)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.16 * var(--g-edge))),0 4px 16px -8px rgba(0,0,0,.6)}
+
+/* PİLLƏ 4 — CONTENT: MÖHKƏM. Şüşə YOX. Bu, sistemin ən vacib qaydasıdır. */
+.g-solid{background:#fffdfa;border:1px solid rgba(20,16,12,.08);box-shadow:0 1px 2px rgba(20,16,12,.05),0 12px 30px -18px rgba(20,16,12,.4)}
+[data-theme="dark"] .g-solid{background:#1e1914;border-color:rgba(255,255,255,.09);box-shadow:0 12px 34px -18px rgba(0,0,0,.8)}
+
+/* Reduce Transparency: hər şüşə möhkəm olur */
+[data-rt="1"] .g-chrome{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;border-color:rgba(20,16,12,.12)}
+[data-rt="1"] .g-chrome::before,[data-rt="1"] .g-chrome::after{display:none}
+[data-rt="1"] .g-sheet{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none}
+[data-rt="1"] .g-inline{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;border-color:rgba(20,16,12,.12)}
+[data-rt="1"] .pscr[data-theme="dark"] .g-chrome,
+[data-rt="1"] .pscr[data-theme="dark"] .g-sheet,
+[data-rt="1"] .pscr[data-theme="dark"] .g-inline{background:#1e1914;border-color:rgba(255,255,255,.14)}
+
+/* ---------------- tab bar ---------------- */
+.ptabs{position:absolute;left:11px;right:11px;bottom:20px;z-index:24;border-radius:20px;
+  display:flex;padding:6px;transition:box-shadow .2s}
+.ptabs.is-scrolled{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.9 * var(--g-edge))),
+    inset 0 -1px 0 rgba(255,255,255,calc(.36 * var(--g-edge))),
+    0 .5px 0 rgba(16,12,8,.24),0 18px 34px -14px rgba(16,12,8,.5);
+}
+.ptabs .morph{position:absolute;top:6px;bottom:6px;border-radius:15px;z-index:0;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 2px 8px -3px rgba(16,12,8,.35);
+  transition:left .34s cubic-bezier(.22,1.2,.36,1),width .34s cubic-bezier(.22,1.2,.36,1)}
+[data-theme="dark"] .ptabs .morph{background:rgba(255,255,255,.14);box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 2px 8px -3px rgba(0,0,0,.5)}
+.ptabs button{position:relative;z-index:1;flex:1;background:none;border:0;cursor:pointer;padding:9px 2px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;font:600 9.5px/1 var(--doc-sans);
+  letter-spacing:.06em;text-transform:uppercase;color:rgba(22,18,14,.62);font-family:var(--doc-sans);
+  transition:color .2s}
+.ptabs button[aria-selected="true"]{color:#0f0c09}
+[data-theme="dark"] .ptabs button{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .ptabs button[aria-selected="true"]{color:#fff}
+.ptabs svg{width:19px;height:19px;stroke-width:1.75}
+
+/* ============ HOME ============ */
+.hero{padding:22px 20px 0}
+.hero .greet{padding:14px 16px;border-radius:18px}
+.hero .greet .h{font:700 10px/1 var(--doc-sans);letter-spacing:.18em;text-transform:uppercase;color:rgba(22,18,14,.6)}
+.hero .greet .n{font:700 27px/1 var(--doc-sans);letter-spacing:-.03em;margin:8px 0 0}
+.hero .greet .s{font-size:12px;line-height:1.5;margin:7px 0 0;color:rgba(22,18,14,.66)}
+[data-theme="dark"] .hero .greet .h{color:rgba(245,241,234,.6)}
+[data-theme="dark"] .hero .greet .s{color:rgba(245,241,234,.68)}
+
+.stamp{margin:14px 20px 0;border-radius:22px;padding:17px 18px}
+.stamp .lbl{font:700 9.5px/1 var(--doc-sans);letter-spacing:.2em;text-transform:uppercase;color:rgba(22,18,14,.6)}
+.stamp .num{font:700 46px/1 var(--doc-sans);letter-spacing:-.045em;margin:9px 0 0}
+.stamp .num small{font:600 11px/1 var(--doc-sans);letter-spacing:.1em;color:rgba(22,18,14,.6);margin-left:6px}
+.dots{display:flex;gap:7px;margin:15px 0 0}
+.dots i{flex:1;height:7px;border-radius:99px;background:rgba(22,18,14,.13)}
+.dots i.f{background:#f48c24}
+.dots i.n{background:rgba(244,140,36,.45)}
+.stamp .foot{display:flex;justify-content:space-between;align-items:center;margin-top:15px;gap:10px}
+.stamp .foot p{margin:0;font-size:11.5px;color:rgba(22,18,14,.66);line-height:1.45}
+.pill{border:0;border-radius:99px;padding:10px 16px;font:700 10.5px/1 var(--doc-sans);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.pill.solid{background:#16120e;color:#fffdfa}
+.pill.ghost{border:1px solid rgba(22,18,14,.28);background:rgba(255,255,255,.5);color:#16120e}
+[data-theme="dark"] .stamp .lbl,[data-theme="dark"] .stamp .num small,[data-theme="dark"] .stamp .foot p{color:rgba(245,241,234,.62)}
+[data-theme="dark"] .dots i{background:rgba(255,255,255,.16)}
+[data-theme="dark"] .pill.solid{background:#f5f1ea;color:#16120e}
+[data-theme="dark"] .pill.ghost{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.1);color:#f5f1ea}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 20px 0}
+.tile{border-radius:18px;padding:14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:8px;
+  font-family:var(--doc-sans);color:inherit;transition:transform .14s}
+.tile:active{transform:scale(.985)}
+.tile .ic{width:25px;height:25px;color:#f48c24}
+.tile .t{font:700 13px/1.25 var(--doc-sans)}
+.tile .d{font-size:10.5px;color:rgba(22,18,14,.58)}
+[data-theme="dark"] .tile .d{color:rgba(245,241,234,.58)}
+.tile.wide{grid-column:1/-1;flex-direction:row;align-items:center;gap:13px}
+.tile.wide .t{flex:1}
+
+/* ============ MENU ============ */
+.mhead{padding:20px 20px 12px}
+.mhead h2{font:700 30px/1.06 var(--doc-sans);letter-spacing:-.035em;margin:0}
+.mhead .c{font:600 10px/1 var(--doc-sans);letter-spacing:.17em;text-transform:uppercase;color:rgba(22,18,14,.58);display:block;margin-top:10px}
+[data-theme="dark"] .mhead .c{color:rgba(245,241,234,.58)}
+.chips{display:flex;gap:7px;overflow:auto;padding:12px 20px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border-radius:99px;padding:8px 13px;font:600 9.5px/1 var(--doc-sans);
+  letter-spacing:.12em;text-transform:uppercase;cursor:pointer;font-family:var(--doc-sans);color:inherit}
+.chips button[aria-pressed="true"]{background:#16120e;border-color:#16120e;color:#fffdfa;backdrop-filter:none;-webkit-backdrop-filter:none}
+.mlist{list-style:none;margin:14px 20px 0;padding:0;border-radius:20px;overflow:hidden}
+.mlist li{display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid rgba(20,16,12,.07);cursor:pointer}
+.mlist li:last-child{border-bottom:0}
+[data-theme="dark"] .mlist li{border-bottom-color:rgba(255,255,255,.07)}
+.mlist .mid{flex:1;min-width:0}
+.mlist .nm{font:600 14.5px/1.25 var(--doc-sans)}
+.mlist .ds{font-size:10.5px;color:rgba(22,18,14,.56);margin-top:4px;line-height:1.45}
+[data-theme="dark"] .mlist .ds{color:rgba(245,241,234,.56)}
+.mlist .pr{font:700 15px/1 var(--doc-sans);white-space:nowrap}
+.mlist .pr small{font-size:11px;color:rgba(22,18,14,.55)}
+[data-theme="dark"] .mlist .pr small{color:rgba(245,241,234,.55)}
+
+/* ============ SHEET ============ */
+.scrim{position:absolute;inset:0;z-index:15;background:rgba(14,10,7,.34)}
+[data-theme="dark"] .scrim{background:rgba(0,0,0,.5)}
+.sheetwrap{position:absolute;left:0;right:0;bottom:0;z-index:16;padding:0 0 0}
+.sheet{border-radius:28px 28px 35px 35px;padding:10px 20px 30px;position:relative;overflow:hidden}
+.sheet::before{content:"";position:absolute;left:0;right:0;top:0;height:38%;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,calc(.26 * var(--g-edge))),rgba(255,255,255,0))}
+.grab{width:38px;height:5px;border-radius:99px;background:rgba(22,18,14,.24);margin:2px auto 16px;position:relative}
+[data-theme="dark"] .grab{background:rgba(255,255,255,.28)}
+.sheet h3{margin:0;font:700 20px/1.15 var(--doc-sans);letter-spacing:-.025em;position:relative}
+.sheet p.s{margin:9px 0 0;font-size:12px;line-height:1.6;color:rgba(22,18,14,.66);position:relative}
+[data-theme="dark"] .sheet p.s{color:rgba(245,241,234,.66)}
+.qzone{position:relative;margin:18px auto 0;width:150px;height:150px;border-radius:20px;background:#fff;padding:11px}
+[data-theme="dark"] .qzone{background:#f7f4ee}
+.qzone svg{width:100%;height:100%;color:#16120e}
+.sheetrow{position:relative;display:flex;gap:9px;margin-top:18px}
+.sheetrow .pill{flex:1;text-align:center}
+
+/* ============ ME ============ */
+.metop{padding:22px 20px 16px}
+.ava{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font:700 22px/1 var(--doc-sans);color:#8c4a06;
+  background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.7);position:relative;z-index:12;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px -3px rgba(16,12,8,.35)}
+[data-theme="dark"] .ava{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:#ffb877}
+.metop .nm{font:700 24px/1.1 var(--doc-sans);letter-spacing:-.03em;margin:13px 0 3px;
+  text-shadow:0 1px 1px rgba(255,255,255,.35)}
+.metop .ph{font:600 11.5px/1 var(--doc-mono);opacity:.72}
+.rows{list-style:none;margin:14px 20px 0;padding:0;border-radius:20px;overflow:hidden}
+.rows li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 15px;
+  border-bottom:1px solid rgba(20,16,12,.07);font:600 13px/1.3 var(--doc-sans);cursor:pointer}
+.rows li:last-child{border-bottom:0}
+[data-theme="dark"] .rows li{border-bottom-color:rgba(255,255,255,.07)}
+.rows .v{font-weight:500;font-size:11.5px;color:rgba(22,18,14,.58)}
+[data-theme="dark"] .rows .v{color:rgba(245,241,234,.58)}
+.danger{margin:14px 20px 0;border-radius:18px;padding:15px;background:rgba(255,255,255,.55);
+  border:1px solid rgba(186,37,49,.35);backdrop-filter:none}
+[data-theme="dark"] .danger{background:rgba(30,24,19,.75);border-color:rgba(255,145,152,.32)}
+.danger .dt{font:700 10px/1 var(--doc-sans);letter-spacing:.17em;text-transform:uppercase;color:#b3261e}
+[data-theme="dark"] .danger .dt{color:#ff9198}
+.danger p{margin:8px 0 12px;font-size:11px;line-height:1.55;color:rgba(22,18,14,.66)}
+[data-theme="dark"] .danger p{color:rgba(245,241,234,.66)}
+
+/* ==================== LABORATORİYA ==================== */
+.lab{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:22px 0;
+  background:var(--doc-panel);border:1px solid var(--doc-rule);padding:20px;border-radius:6px}
+.ctl{display:flex;flex-direction:column;gap:7px}
+.ctl label{font:600 10.5px/1 var(--doc-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doc-ink-2);
+  display:flex;justify-content:space-between;gap:10px}
+.ctl label b{color:var(--doc-ink);font-weight:700}
+.ctl input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:99px;background:var(--doc-rule);outline:none}
+.ctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+  background:var(--doc-accent);cursor:pointer;box-shadow:0 1px 3px rgba(20,19,23,.3)}
+.btns{display:flex;gap:7px;flex-wrap:wrap}
+.btns button{font:600 10.5px/1 var(--doc-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--doc-rule);background:#fff;color:var(--doc-ink);padding:9px 12px;border-radius:4px}
+.btns button[aria-pressed="true"]{background:var(--doc-ink);color:#fff;border-color:var(--doc-ink)}
+
+.meter{margin:22px 0;border:1px solid var(--doc-rule);background:var(--doc-panel);border-radius:6px;overflow:hidden}
+.meter .hd{padding:13px 17px;border-bottom:1px solid var(--doc-rule);display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap}
+.meter .hd h5{margin:0;font:700 11px/1 var(--doc-mono);letter-spacing:.13em;text-transform:uppercase;color:var(--doc-accent)}
+.meter .hd span{font:500 11px/1.5 var(--doc-mono);color:var(--doc-ink-2)}
+.mrow{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;padding:12px 17px;border-bottom:1px solid var(--doc-rule)}
+.mrow:last-child{border-bottom:0}
+.mrow .mi{font:600 12.5px/1.35 var(--doc-sans)}
+.mrow .mi em{display:block;font-style:normal;font:500 10.5px/1.5 var(--doc-mono);color:var(--doc-ink-2);margin-top:3px}
+.swatchrow{display:flex;gap:5px;align-items:center}
+.sw-sm{width:22px;height:22px;border-radius:4px;border:1px solid rgba(20,19,23,.14)}
+.badge{font:700 10px/1 var(--doc-mono);letter-spacing:.08em;padding:5px 8px;border-radius:4px;white-space:nowrap}
+.badge.pass{background:rgba(29,107,64,.12);color:var(--doc-ok)}
+.badge.fail{background:rgba(164,87,15,.15);color:var(--doc-warn)}
+.score{font:700 13px/1 var(--doc-mono);min-width:56px;text-align:right}
+.score.pass{color:var(--doc-ok)}
+.score.fail{color:var(--doc-warn)}
+
+.tiers{list-style:none;padding:0;margin:20px 0}
+.tiers li{display:flex;gap:15px;align-items:flex-start;padding:15px 0;border-bottom:1px solid var(--doc-rule)}
+.tiers .tg{flex:none;width:84px;font:700 10px/1.5 var(--doc-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--doc-accent);padding-top:3px}
+.tiers .tb{flex:1}
+.tiers .tb b{display:block;font-size:14px;margin-bottom:4px}
+.tiers .tb p{margin:0;font-size:13px;color:var(--doc-ink-2)}
+.tiers .tnum{flex:none;font:400 26px/1 var(--doc-mono);color:var(--doc-rule);padding-top:0}
+
+/* ==================== HANDOFF ==================== */
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}
+.steps li{counter-increment:s;position:relative;padding:0 0 19px 42px;border-left:1px solid var(--doc-rule);margin-left:12px}
+.steps li:last-child{border-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-13px;top:-3px;width:26px;height:26px;border-radius:50%;
+  background:var(--doc-ink);color:#fff;display:grid;place-items:center;font:700 11px/1 var(--doc-mono)}
+.steps b{display:block;font-size:14px;margin-bottom:3px}
+.steps p{margin:0;font-size:13px;color:var(--doc-ink-2)}
+.steps code{font:500 11.5px/1 var(--doc-mono);background:rgba(20,19,23,.07);padding:2px 5px;border-radius:3px}
+
+footer.doc{margin-top:48px;padding-top:20px;border-top:2px solid var(--doc-ink);display:flex;justify-content:space-between;
+  gap:18px;flex-wrap:wrap;font:500 11px/1.7 var(--doc-mono);letter-spacing:.08em;color:var(--doc-ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Emalat Coffee — Liquid Glass <em>v2</em> · refined material system · 9 oktyabr 2026</div>
+  <h1 class="doc">Glass qalır. <em>İndi düzgün işləyir.</em></h1>
+  <p class="lede">Birinci konsepti açıq şəkildə tənqid etdim: blur hər yerdə eyni idi, çox şüşə vardı, naviqasiya fona reaksiya vermirdi. Bu versiyada material <b>dörd pilləyə</b> bölünüb, şüşənin kənarına real işıq və sındırma (refraksiya) əlavə olunub, naviqasiya scroll-a cavab verir. Aşağıda hər düyməni sən özün çevirə bilərsən — nəticəni dərhal görürsən.</p>
+  <div class="meta-row">
+    <span>İstiqamət: Apple Liquid Glass, təkmilləşdirilmiş</span>
+    <span>Material pilləsi: 4</span>
+    <span>Blur: pilləli 12 → 30px</span>
+    <span>Canlı laboratoriya: 6 nəzarət</span>
+    <span>Kontrast ölçən: real piksel</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#diff">01 Nə dəyişdi</a>
+  <a href="#tiers">02 Material pillələri</a>
+  <a href="#screens">03 Ekranlar</a>
+  <a href="#lab">04 Laboratoriya</a>
+  <a href="#motion">05 Hərəkət</a>
+  <a href="#handoff">06 Keçid</a>
+</nav>
+
+<!-- 01 -->
+<section class="doc-sec" id="diff">
+  <h2 class="doc"><span class="num">01 / Dürüst tənqid</span>v1-də nə səhv idi</h2>
+  <p class="doc">Şüşə özü pis deyil — <b>onun tətbiqi</b> səhv idi. Apple-ın öz qaydası budur: şüşə yalnız naviqasiya və kontrollar üçündür, məzmun altında möhkəm səth qalır. Mən v1-də bunu pozmuşdum.</p>
+  <table class="cmp">
+    <thead><tr><th>Problem</th><th class="bad">v1 (zəif)</th><th class="good">v2 (həll)</th></tr></thead>
+    <tbody>
+      <tr><th>Blur miqyası</th><td class="bad">Hər şüşə eyni — <code>24px</code></td><td class="good">4 pillə: <code>12 / 20 / 30px</code> + kənar lensi <code>×1.7</code></td></tr>
+      <tr><th>Şüşə miqdarı</th><td class="bad">Kartlar da şüşə → iyerarxiya yox</td><td class="good">Kartlar <b>möhkəm</b>; şüşə yalnız 3 səviyyədə, üst-üstə yığılmır</td></tr>
+      <tr><th>Kənar</th><td class="bad">Sadəcə <code>1px</code> ağ haşiyə</td><td class="good">Üçqat specular: üst işıq + alt işıq + xarici qara rim + üst parıltı qatı</td></tr>
+      <tr><th>Refraksiya</th><td class="bad">Yox — şüşə sadəcə bulanıq</td><td class="good">Kənar lensi: şüşənin yuxarı 9px-ində güclü blur, mask ilə içəri sönür</td></tr>
+      <tr><th>Naviqasiya</th><td class="bad">Statik, scroll-a biganə</td><td class="good">Scroll edəndə material <b>qatılaşır</b> + kölgə dərinləşir</td></tr>
+      <tr><th>Tab keçidi</th><td class="bad">Rəng dəyişir</td><td class="good">Yumşaq kapsul <b>morphing</b> edir (spring əyrisi)</td></tr>
+      <tr><th>Kontrast</th><td class="bad">Gözlə təxmin</td><td class="good">Ölçülür: real fondan piksel götürülür, WCAG hesablanır</td></tr>
+    </tbody>
+  </table>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Ən vacib düzəliş</h5>
+      <p>Şüşə <b>effekt deyil, material pilləsidir</b>. Dörd səviyyə var və hansının nə üçün olduğu qatı qaydadır. Bunu qarışdırsan, sistem "AI ilə hazırlanmış şablon" görünür; ayrılsa, Apple səviyyəsində görünür.</p>
+    </div>
+    <div class="note">
+      <h5>Nə üçün şüşəni tam atmaq lazım deyil</h5>
+      <p>Kofe fotoşəkilləri, isti işıq, mərmər səth — bunlar şüşənin <b>içindən</b> görünəndə məhsul "premium" hiss olunur. Problem şüşə deyildi, onun <b>həddindən artıq istifadəsi</b> idi.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 02 -->
+<section class="doc-sec" id="tiers">
+  <h2 class="doc"><span class="num">02 / Material</span>Dörd pillə, bir qayda</h2>
+  <p class="doc">Qayda: <b>şüşə şüşənin üstünə qoyulmur.</b> Sheet açılanda altındaki məzmun şüşə deyil — möhkəm səth + qaranlıq pərdə (scrim) olur. Bu, v1-in ən böyük xətası idi.</p>
+  <ul class="tiers">
+    <li>
+      <div class="tg">Pillə 1</div>
+      <div class="tb"><b>Chrome — naviqasiya və kontrollar</b><p>Tab bar, axtarış zolağı, üst başlıq. Ən güclü şüşə: <code>blur 30px</code>, doyğunluq <code>1.8</code>, üçqat kənar işığı. Yeganə yer ki, "canlı" görünməlidir.</p></div>
+      <div class="tnum">01</div>
+    </li>
+    <li>
+      <div class="tg">Pillə 2</div>
+      <div class="tb"><b>Sheet — üzən panellər</b><p>Bottom sheet, detal pəncərəsi. Orta şüşə: <code>blur 20px</code>. Altında <b>scrim</b> var — yəni altındaki məzmun qaralır, şüşə şüşəni göstərmir.</p></div>
+      <div class="tnum">02</div>
+    </li>
+    <li>
+      <div class="tg">Pillə 3</div>
+      <div class="tb"><b>Inline — kiçik çiplər</b><p>Kateqoriya çipi, filtr, nişan. Yüngül şüşə: <code>blur 12px</code>. Yalnız <b>möhkəm səthin üstündə</b> görünür. Seçilmiş çip şüşə olmur — möhkəm qara olur.</p></div>
+      <div class="tnum">03</div>
+    </li>
+    <li>
+      <div class="tg">Pillə 4</div>
+      <div class="tb"><b>Content — məzmun</b><p>Menyu siyahısı, kartlar, mətn blokları. <b>Şüşə deyil, heç vaxt.</b> Tam möhkəm səth. Oxunaqlılıq buradan gəlir.</p></div>
+      <div class="tnum">04</div>
+    </li>
+  </ul>
+  <div class="note">
+    <h5>Yoxlama sualı</h5>
+    <p>Yeni element əlavə edəndə soruş: <em>"Bu, naviqasiyadır, panel, yoxsa məzmun?"</em> Cavabı "məzmun"dursa — şüşə işlətmə. Sistemin bütün keyfiyyəti bu bir qərarın ardıcıllığından gəlir.</p>
+  </div>
+</section>
+
+<!-- 03 -->
+<section class="doc-sec" id="screens">
+  <h2 class="doc"><span class="num">03 / Ekranlar</span>Canlı sistem</h2>
+  <p class="doc">Telefonlar işləkdir: tab-lar morphing edir, scroll edəndə naviqasiya qatılaşır, menyu axtarışı işləyir, sheet açılıb-bağlanır. Arxa fon <b>prosedural</b> çəkilir (kofe bokeh) — yəni şüşənin içindən real rəng görünür.</p>
+  <div class="stage">
+
+    <!-- PHONE 1 -->
+    <div class="pcol">
+      <h4>1 · Əsas — şüşə kontrollar, möhkəm məzmun</h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="home" id="p1">
+          <div class="pbg" data-bg="1" data-follow="1"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home">
+              <div class="hero">
+                <div class="greet g-inline">
+                  <div class="h">Cümə · Nizami filialı</div>
+                  <div class="n">Salam, Rəşad</div>
+                  <div class="s">Növbəti pulsuz kofeyə <b>2 möhür</b> qalıb. Filial 08:00–22:00 açıqdır.</div>
+                </div>
+              </div>
+              <div class="stamp g-solid">
+                <div class="lbl">Loyallıq möhürü</div>
+                <div class="num">6<small>/ 10</small></div>
+                <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div>
+                <div class="foot">
+                  <p>1 möhür = 1 kofe.<br>Kassa tərəfindən vurulur.</p>
+                  <button class="pill solid">Möhür bas</button>
+                </div>
+              </div>
+              <div class="duo">
+                <button class="tile g-solid" id="toMenu">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>
+                  <span class="t">Sifariş et</span><span class="d">Menyu · 34 məhsul</span>
+                </button>
+                <button class="tile g-solid" id="toSheet">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M3 12h18"/></svg>
+                  <span class="t">QR ilə ödə</span><span class="d">Kassada skan et</span>
+                </button>
+                <button class="tile wide g-solid">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+                  <span class="t">Balans 12.50 ₼</span>
+                  <span class="d">Son əməliyyat: bu gün</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-scr p-scr--menu">
+              <div class="mhead">
+                <h2>Menyu</h2>
+                <span class="c" id="mCount1">34 məhsul · 5 kateqoriya</span>
+              </div>
+              <div class="chips" id="chips1"></div>
+              <ul class="mlist g-solid" id="list1"></ul>
+            </div>
+
+            <div class="p-scr p-scr--me">
+              <div class="metop">
+                <div class="ava">R</div>
+                <div class="nm">Rəşad Məmmədov</div>
+                <div class="ph">+994 ·· 4 12 ··</div>
+              </div>
+              <ul class="rows g-solid">
+                <li>Şəxsi məlumatlar <span class="v">Redaktə</span></li>
+                <li>Sevimli filial <span class="v">Nizami</span></li>
+                <li>Dil <span class="v">AZ · EN · RU</span></li>
+                <li>Bildirişlər <span class="v">Açıq</span></li>
+                <li>Apple Wallet kartı <span class="v">Konfiq. olunmayıb</span></li>
+              </ul>
+              <div class="danger">
+                <div class="dt">Təhlükəli zona</div>
+                <p>Hesabı siləndə möhürlər, balans və sifariş tarixçəsi birdəfəlik silinir.</p>
+                <button class="pill ghost">Hesabı sil</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- sheet: pillə 2 şüşə + scrim -->
+          <div class="p-scr p-scr--sheet">
+            <div class="scrim"></div>
+            <div class="sheetwrap">
+              <div class="sheet g-sheet">
+                <div class="grab"></div>
+                <h3>Kassaya göstər</h3>
+                <p class="s">Kod yalnız skan üçündür. Kassa təsdiqləyəndən sonra möhür hesabına düşür.</p>
+                <div class="qzone">
+                  <svg viewBox="0 0 40 40" fill="currentColor"><path d="M0 0h12v12H0V0Zm2 2v8h8V2H2Zm1 1h6v6H3V3Z"/><path d="M28 0h12v12H28V0Zm2 2v8h8V2h-8Zm1 1h6v6h-6V3Z"/><path d="M0 28h12v12H0V28Zm2 2v8h8v-8H2Zm1 1h6v6H3v-6Z"/><path d="M16 0h3v3h-3zM21 0h2v5h-2zM16 5h4v2h-4zM16 9h2v3h-2zM20 8h3v2h-3zM16 16h3v3h-3zM21 17h4v2h-4zM27 15h3v3h-3zM33 16h4v2h-4zM16 22h2v4h-2zM21 22h3v2h-3zM26 22h5v2h-5zM34 21h3v4h-3zM16 30h4v3h-4zM22 29h2v5h-2zM27 30h3v3h-3zM33 30h4v4h-4zM22 36h3v4h-3zM28 36h2v4h-2z"/></svg>
+                </div>
+                <div class="sheetrow">
+                  <button class="pill solid">Bitdi</button>
+                  <button class="pill ghost" id="closeSheet">Bağla</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ptabs g-chrome" id="tabs1">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="sheet" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Kart</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHONE 2 — dark -->
+    <div class="pcol">
+      <h4>2 · Gecə rejimi — tünd şüşə</h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="dark" data-tab="home" id="p2">
+          <div class="pbg" data-bg="2"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home">
+              <div class="hero">
+                <div class="greet g-inline">
+                  <div class="h">Cümə · Nizami filialı</div>
+                  <div class="n">Salam, Rəşad</div>
+                  <div class="s">Növbəti pulsuz kofeyə <b>2 möhür</b> qalıb.</div>
+                </div>
+              </div>
+              <div class="stamp g-solid">
+                <div class="lbl">Loyallıq möhürü</div>
+                <div class="num">6<small>/ 10</small></div>
+                <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i></div>
+                <div class="foot">
+                  <p>1 möhür = 1 kofe.</p>
+                  <button class="pill solid">Möhür bas</button>
+                </div>
+              </div>
+              <div class="duo">
+                <button class="tile g-solid">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>
+                  <span class="t">Sifariş et</span><span class="d">Menyu · 34 məhsul</span>
+                </button>
+                <button class="tile g-solid">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+                  <span class="t">Balans</span><span class="d">12.50 ₼</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-scr p-scr--menu">
+              <div class="mhead"><h2>Menyu</h2><span class="c" id="mCount2">3 məhsul</span></div>
+              <div class="chips" id="chips2"></div>
+              <ul class="mlist g-solid" id="list2"></ul>
+            </div>
+
+            <div class="p-scr p-scr--me">
+              <div class="metop"><div class="ava">R</div><div class="nm">Rəşad Məmmədov</div><div class="ph">+994 ·· 4 12 ··</div></div>
+              <ul class="rows g-solid">
+                <li>Sevimli filial <span class="v">Nizami</span></li>
+                <li>Dil <span class="v">AZ · EN · RU</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="ptabs g-chrome" id="tabs2">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHONE 3 — contrast stress test -->
+    <div class="pcol">
+      <h4>3 · Stress test — ən parlaq fon</h4>
+      <div class="pdev">
+        <div class="pscr" data-theme="light" data-tab="menu" id="p3">
+          <div class="pbg" data-bg="3"></div>
+          <div class="pnotch"></div>
+          <div class="pstat"><b>9:41</b><span>●●● ⌁ ▮</span></div>
+          <div class="pbody">
+            <div class="p-scr p-scr--home"><div class="hero"><div class="greet g-inline"><div class="h">Test</div><div class="n">Bax</div><div class="s">Bu telefon ən parlaq fonu göstərir.</div></div></div></div>
+            <div class="p-scr p-scr--menu">
+              <div class="mhead"><h2>Menyu</h2><span class="c" id="mCount3">3 məhsul</span></div>
+              <div class="chips" id="chips3"></div>
+              <ul class="mlist g-solid" id="list3"></ul>
+            </div>
+            <div class="p-scr p-scr--me">
+              <div class="metop"><div class="ava">R</div><div class="nm">Rəşad</div><div class="ph">+994 ·· 4 12 ··</div></div>
+              <ul class="rows g-solid"><li>Filial <span class="v">Nizami</span></li></ul>
+            </div>
+          </div>
+          <div class="ptabs g-chrome" id="tabs3">
+            <span class="morph"></span>
+            <button data-t="home" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Əsas</button>
+            <button data-t="menu" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/></svg>Menyu</button>
+            <button data-t="me" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>Profil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 04 -->
+<section class="doc-sec" id="lab">
+  <h2 class="doc"><span class="num">04 / Laboratoriya</span>Düymələri özün çevir</h2>
+  <p class="doc">Bu dəyərlər tətbiqdə <b>token</b> olacaq. Aşağıda canlı ölçülür: arxa fondan real piksel götürülür, şüşə qatı hesablanır, mətn kontrastı WCAG düsturu ilə tapılır. Balaca ekranlarda necə görünəcəyini gözlə təxmin etmək əvəzinə — rəqəm görürsən.</p>
+
+  <div class="lab">
+    <div class="ctl">
+      <label>Blur (chrome) <b id="vBlur">30px</b></label>
+      <input type="range" id="sBlur" min="0" max="48" value="30">
+    </div>
+    <div class="ctl">
+      <label>Şəffaflıq <b id="vAlpha">58%</b></label>
+      <input type="range" id="sAlpha" min="10" max="95" value="58">
+    </div>
+    <div class="ctl">
+      <label>Doyğunluq (saturate) <b id="vSat">1.8</b></label>
+      <input type="range" id="sSat" min="100" max="240" value="180">
+    </div>
+    <div class="ctl">
+      <label>Specular kənar <b id="vEdge">100%</b></label>
+      <input type="range" id="sEdge" min="0" max="100" value="100">
+    </div>
+    <div class="ctl">
+      <label>Kənar refraksiyası <b id="vRef">100%</b></label>
+      <input type="range" id="sRef" min="0" max="100" value="100">
+    </div>
+    <div class="ctl">
+      <label>Arxa fon</label>
+      <div class="btns" id="bgBtns">
+        <button data-bgid="1" aria-pressed="true">İsti bokeh</button>
+        <button data-bgid="2" aria-pressed="false">Gecə</button>
+        <button data-bgid="3" aria-pressed="false">Parlaq pəncərə</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Əlçatanlıq</label>
+      <div class="btns">
+        <button id="btnRT" aria-pressed="false">Reduce Transparency</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Hazır presetlər</label>
+      <div class="btns">
+        <button data-preset="apple">Apple balansı</button>
+        <button data-preset="calm">Sakit</button>
+        <button data-preset="bold">Cəsarətli</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="meter">
+    <div class="hd">
+      <h5>Kontrast ölçən — canlı</h5>
+      <span id="meterNote">Fondan real piksel götürülür · hədəf ≥ 4.5:1 (AA)</span>
+    </div>
+    <div id="meterRows"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="note">
+      <h5>Nə üçün bu ölçən vacibdir</h5>
+      <p>Şüşənin ən böyük riski <b>düşük kontrastdır</b>. Şüşə üzərindəki mətn altındaki fon dəyişəndə oxunaqlılıq itir. Bu ölçən həmin riski gözlə deyil, rəqəmlə göstərir. Aşağıdaki rəqəm <b>4.5</b>-dən kiçik olarsa, həmin ekranda şüşəni qatılaşdırmaq və ya mətni möhkəm panelə keçirmək lazımdır.</p>
+    </div>
+    <div class="note">
+      <h5>Tövsiyə olunan preset</h5>
+      <ul>
+        <li><b>Blur:</b> 28–32px (chrome), 18–22px (sheet), 10–14px (inline)</li>
+        <li><b>Şəffaflıq:</b> 0.55–0.65 aydın gündüz; gecə 0.72–0.82</li>
+        <li><b>Doyğunluq:</b> 1.6–1.9 — daha yuxarısı rəngləri zəhərli edir</li>
+        <li><b>Kənar:</b> tam güc, lakin parıltı qatı 45%-dən çox olmasın</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 05 -->
+<section class="doc-sec" id="motion">
+  <h2 class="doc"><span class="num">05 / Hərəkət</span>Material canlıdır</h2>
+  <div class="grid-2">
+    <div class="note">
+      <h5>1 · Morphing tab keçidi <span style="font-weight:400;text-transform:none;letter-spacing:0">(340ms)</span></h5>
+      <p>Seçilmiş tab rənglənmir — <b>ağ kapsul</b> bir tabdan digərinə sürüşür. Əyri <code>cubic-bezier(.22,1.2,.36,1)</code>: əvvəlcə sürətli, sonda yumşaq "oturma". Telefonlarda tab dəyiş, görəcəksən.</p>
+    </div>
+    <div class="note">
+      <h5>2 · Scroll-a reaksiya <span style="font-weight:400;text-transform:none;letter-spacing:0">(200ms)</span></h5>
+      <p>Məzmun altda qalanda naviqasiya açıq şüşədir. Məzmun altına girəndə material <b>qatılaşır</b> və kölgəsi dərinləşir — oxunaqlılıq qorunur. Menyu siyahısını aşağı sürüşdür, fərqi gör.</p>
+    </div>
+    <div class="note">
+      <h5>3 · Sheet açılışı <span style="font-weight:400;text-transform:none;letter-spacing:0">(morph)</span></h5>
+      <p>Sheet gələndə arxada <b>scrim</b> düşür: məzmun qaralır, şüşə şüşəni göstərmir. Bu, "qat" hissi verən yeganə düzgün yoldur. "Kart" tabını aç, görəcəksən.</p>
+    </div>
+    <div class="note">
+      <h5>4 · Reduce Motion</h5>
+      <p>Sistem ayarı açıqdırsa, morphing <b>keçidsiz</b> olur, sheet animasiyasız açılır. Heç bir hərəkət məcburi deyil. <code>prefers-reduced-motion</code> ilə idarə olunur.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 06 -->
+<section class="doc-sec" id="handoff">
+  <h2 class="doc"><span class="num">06 / Keçid</span>Bunu tətbiqə necə salırıq</h2>
+  <p class="doc">Yenə eyni qayda: yeni kod <b>heç bir yerə import olunmur</b>, POS/admin toxunulmur. Bu dəfə material sistemi hazır olduğu üçün addımlar daha konkretdir.</p>
+  <ol class="steps">
+    <li><b>Glass token qatı</b><p><code>src/theme/glass-tokens.css</code> — bu səhifədə gördüyün 4 pillə, specular kənar, refraksiya, reduce-transparency əvəzləyicisi. <code>.customer-glass</code> scope-u ilə; mövcud Quiet UI v2 ilə yan-yana yaşayır.</p></li>
+    <li><b>Tab bar (pillə 1)</b><p>Morphing kapsul + scroll-a reaksiya + specular kənar. İlk real fərq burada görünür. Telefonda yoxlayırsan.</p></li>
+    <li><b>Əsas ekran</b><p>Şüşə kontrollar + <b>möhkəm</b> möhür kartı + möhkəm tile-lar. Kofe fotoşəkili arxa fonda (şüşənin içindən görünəcək).</p></li>
+    <li><b>Menyu + sheet (pillə 2–4)</b><p>Möhkəm siyahı səthi, çiplər yalnız səthin üstündə, sheet üçün scrim + orta şüşə.</p></li>
+    <li><b>Gecə rejimi</b><p>Ayrı token dəsti sıfırdan sınanır. Tünd şüşə fərqli şəffaflıq tələb edir (<code>.72–.82</code>).</p></li>
+    <li><b>Ölçmə</b><p>Hər ekranda kontrast ölçülür. 4.5-dən aşağı olan heç bir hal qalmır. Sonra: typecheck → smoke → parity → build → telefon → sən yoxlayırsan.</p></li>
+  </ol>
+  <div class="grid-2">
+    <div class="note">
+      <h5>Risk və geri dönüş</h5>
+      <ul>
+        <li>Hər addım ayrı commit → bəyənməsən geri qaytarmaq asandır.</li>
+        <li>Backend, ödəniş, loyallıq məntiqi <b>heç toxunulmur</b>.</li>
+        <li>Köhnə Quiet UI v2 faylları silinmir — paralel qalır.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Qərar sənin</h5>
+      <ul>
+        <li>Bu versiyanı bəyənsən → 1-ci addımdan başlayıram, hər addımı telefonda yoxlayırsan.</li>
+        <li>Laboratoriyada öz presetini tapıbsan? Onu mənə de — həmin dəyərləri tokenlərə yazacam.</li>
+        <li>Hələ də "daha fərqli" istəyirsənsə, de — amma bu versiyada şüşə artıq düzgün qurulub, fərqi gözə çarpacaq.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="doc">
+  <span>Emalat · Liquid Glass v2 (refined) · müştəri tətbiqi</span>
+  <span>docs/design-system/customer-ios-liquid-glass-v2.html</span>
+  <span>Import olunmayıb · deploy yoxdur</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============================================================
+     1. PROSEDURAL ARXA FON — canvas ilə "kofe bokeh"
+        Şüşənin içindən real rəng görünsün deyə lazımdır.
+        Həm də kontrast ölçən bu canvas-dan real piksel götürür.
+     ============================================================ */
+  var W = 360, H = 640;
+  var canv = document.createElement('canvas');
+  canv.width = W; canv.height = H;
+  var cx = canv.getContext('2d', { willReadFrequently: true });
+
+  var BACKDROPS = {
+    /* 1 — isti gündüz bokeh */
+    '1': { base:['#f0d8b8','#c98a4f','#7a4a22'], blobs:[
+            [70,110,120,'rgba(255,214,160,.85)'],[300,70,110,'rgba(196,116,52,.6)'],
+            [180,330,150,'rgba(255,236,205,.75)'],[40,500,140,'rgba(120,70,30,.55)'],
+            [320,520,130,'rgba(255,190,120,.6)'],[200,600,120,'rgba(90,52,22,.45)'] ] },
+    /* 2 — gecə kofe pəncərəsi */
+    '2': { base:['#2a2118','#140f0a','#0a0705'], blobs:[
+            [80,140,130,'rgba(255,168,86,.55)'],[300,110,100,'rgba(120,80,40,.5)'],
+            [200,380,160,'rgba(70,48,28,.6)'],[50,560,140,'rgba(255,140,60,.35)'],
+            [330,560,120,'rgba(40,28,18,.7)'] ] },
+    /* 3 — parlaq pəncərə (stress test) */
+    '3': { base:['#ffffff','#e8e2d8','#cfc6b8'], blobs:[
+            [100,120,150,'rgba(255,255,255,.9)'],[300,200,140,'rgba(255,248,235,.85)'],
+            [180,450,170,'rgba(255,255,255,.8)'],[60,600,140,'rgba(240,232,218,.7)'] ] }
+  };
+
+  var painted = {};
+  var canvasHolds = null;   /* canv hazırda hansı fonu saxlayır */
+
+  function paintBackdrop(id){
+    if (painted[id]) return painted[id];
+    var spec = BACKDROPS[id];
+    if (!spec) return '';
+    cx.setTransform(1,0,0,1,0,0);
+    cx.filter = 'none';
+    cx.clearRect(0,0,W,H);
+    var g = cx.createLinearGradient(0,0,W*0.4,H);
+    g.addColorStop(0, spec.base[0]);
+    g.addColorStop(0.55, spec.base[1]);
+    g.addColorStop(1, spec.base[2]);
+    cx.fillStyle = g;
+    cx.fillRect(0,0,W,H);
+    cx.filter = 'blur(34px)';
+    for (var i=0;i<spec.blobs.length;i++){
+      var b = spec.blobs[i];
+      cx.beginPath();
+      cx.arc(b[0], b[1], b[2], 0, Math.PI*2);
+      cx.fillStyle = b[3];
+      cx.fill();
+    }
+    cx.filter = 'none';
+    /* incə dənə (grain) — düz qradiyent "plastik" görünür */
+    var img = cx.getImageData(0,0,W,H), d = img.data;
+    for (var p=0;p<d.length;p+=4){
+      var n = (Math.random()-0.5)*9;
+      d[p]+=n; d[p+1]+=n; d[p+2]+=n;
+    }
+    cx.putImageData(img,0,0);
+    var url = canv.toDataURL('image/jpeg', 0.86);
+    painted[id] = url;
+    canvasHolds = id;          /* canv indi bu fonu saxlayır */
+    return url;
+  }
+
+  function sampleBackdrop(xr, yr, id){
+    /* canv son paint olunan fonu saxlayır → yalnız fərqli olanda yenidən çək */
+    if (canvasHolds !== id) paintBackdrop(id);
+    var x = Math.round(xr * W), y = Math.round(yr * H);
+    x = Math.max(6, Math.min(W-6, x));
+    y = Math.max(6, Math.min(H-6, y));
+    var d = cx.getImageData(x-5, y-5, 10, 10).data;
+    var r=0,g=0,b=0,n=0;
+    for (var i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+    return [r/n, g/n, b/n];
+  }
+
+  /* ============================================================
+     2. RƏNG RİYAZİYYATI — WCAG kontrast
+     ============================================================ */
+  function relLum(c){
+    function f(v){ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }
+    return 0.2126*f(c[0]) + 0.7152*f(c[1]) + 0.0722*f(c[2]);
+  }
+  function contrast(a,b){
+    var l1 = relLum(a), l2 = relLum(b);
+    if (l1 < l2){ var t=l1; l1=l2; l2=t; }
+    return (l1+0.05)/(l2+0.05);
+  }
+  function saturate(rgb, s){
+    var r=rgb[0]/255, g=rgb[1]/255, b=rgb[2]/255;
+    var mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2;
+    if (mx===mn) return [rgb[0],rgb[1],rgb[2]];
+    var d=mx-mn;
+    var sat = l>0.5 ? d/(2-mx-mn) : d/(mx+mn);
+    var h;
+    if (mx===r) h=((g-b)/d + (g<b?6:0))/6;
+    else if (mx===g) h=((b-r)/d + 2)/6;
+    else h=((r-g)/d + 4)/6;
+    sat = Math.min(1, sat*s);
+    var q = l<0.5 ? l*(1+sat) : l+sat-l*sat;
+    var p = 2*l-q;
+    function h2c(t){
+      if (t<0) t+=1; if (t>1) t-=1;
+      if (t<1/6) return p+(q-p)*6*t;
+      if (t<1/2) return q;
+      if (t<2/3) return p+(q-p)*(2/3-t)*6;
+      return p;
+    }
+    return [Math.round(h2c(h+1/3)*255), Math.round(h2c(h)*255), Math.round(h2c(h-1/3)*255)];
+  }
+  function composite(tint, alpha, back){
+    return [
+      tint[0]*alpha + back[0]*(1-alpha),
+      tint[1]*alpha + back[1]*(1-alpha),
+      tint[2]*alpha + back[2]*(1-alpha)
+    ];
+  }
+  function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
+  function hex(c){
+    function h(v){ v=Math.max(0,Math.min(255,Math.round(v))).toString(16); return v.length<2?'0'+v:v; }
+    return '#' + h(c[0]) + h(c[1]) + h(c[2]);
+  }
+
+  /* ============================================================
+     3. TOKENLAR — canlı dəyərlər
+     ============================================================ */
+  var state = {
+    blur:30, alpha:0.58, sat:1.8, edge:1, refract:1, rt:0, bg:'1'
+  };
+
+  function applyTokens(){
+    var s = document.documentElement.style;
+    s.setProperty('--g-blur-chrome', state.blur + 'px');
+    s.setProperty('--g-blur-sheet', Math.round(state.blur*0.66) + 'px');
+    s.setProperty('--g-blur-inline', Math.round(state.blur*0.4) + 'px');
+    s.setProperty('--g-alpha', String(state.alpha));
+    s.setProperty('--g-sat', String(state.sat));
+    s.setProperty('--g-edge', String(state.edge));
+    s.setProperty('--g-refract', String(state.refract));
+    document.body.setAttribute('data-rt', String(state.rt));
+    document.querySelectorAll('.pscr').forEach(function(p){
+      p.setAttribute('data-rt', String(state.rt));
+    });
+    /* Arxa fonu dəyiş — data-follow yoxdursa (sabit telefonlar) toxunma */
+    document.querySelectorAll('.pbg').forEach(function(el){
+      if (el.getAttribute('data-follow') === '1'){
+        el.style.backgroundImage = 'url(' + paintBackdrop(state.bg) + ')';
+      }
+    });
+    /* oxunuşlar */
+    document.getElementById('vBlur').textContent = state.blur + 'px';
+    document.getElementById('vAlpha').textContent = Math.round(state.alpha*100) + '%';
+    document.getElementById('vSat').textContent = state.sat.toFixed(2);
+    document.getElementById('vEdge').textContent = Math.round(state.edge*100) + '%';
+    document.getElementById('vRef').textContent = Math.round(state.refract*100) + '%';
+    document.querySelectorAll('#bgBtns [data-bgid]').forEach(function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-bgid') === state.bg ? 'true' : 'false');
+    });
+    document.getElementById('btnRT').setAttribute('aria-pressed', state.rt ? 'true' : 'false');
+    renderMeter();
+  }
+
+  /* ============================================================
+     4. KONTRAST ÖLÇƏN
+        Hər sətir: şüşəni altındaki fondan kompozisiya edir,
+        sonra mətn rəngi ilə WCAG nisbətini hesablayır.
+     ============================================================ */
+  var PROBES = [
+    { n:'Tab bar — aktiv yazı',  where:'tab',   text:[15,12,9],   tint:[255,255,255], min:4.5 },
+    { n:'Tab bar — passiv yazı', where:'tab',   text:[86,82,78],  tint:[255,255,255], min:4.5 },
+    { n:'Sheet başlığı',         where:'sheet', text:[22,18,14],  tint:[255,255,255], min:4.5 },
+    { n:'Sheet izah mətni',      where:'sheet', text:[112,105,98],tint:[255,255,255], min:4.5 },
+    { n:'Status ikonu (şüşəsiz)',where:'top',   text:[22,18,14],  tint:null,          min:3.0 }
+  ];
+
+  function renderMeter(){
+    var host = document.getElementById('meterRows');
+    if (!host) return;
+    var rows = '';
+
+    PROBES.forEach(function(pr){
+      /* Fondan real piksel: tab bar / sheet / yuxarı status zolağı */
+      var back = pr.where === 'tab'   ? sampleBackdrop(0.42, 0.965, state.bg)
+               : pr.where === 'sheet' ? sampleBackdrop(0.50, 0.780, state.bg)
+                                      : sampleBackdrop(0.50, 0.030, state.bg);
+
+      var glass;
+      if (!pr.tint)       glass = back;              /* şüşə yox — mətn birbaşa foto üzərində */
+      else if (state.rt)  glass = pr.tint.slice();   /* Reduce Transparency → tam möhkəm */
+      else                glass = composite(pr.tint, state.alpha, saturate(back, state.sat));
+
+      var ratio = contrast(pr.text, glass);
+      var pass = ratio >= pr.min;
+      rows +=
+        '<div class="mrow">' +
+          '<div class="mi">' + pr.n + '<em>' + pr.where + ' · hədəf ≥ ' + pr.min.toFixed(1) + ':1</em></div>' +
+          '<div class="swatchrow">' +
+            '<span class="sw-sm" style="background:' + css(glass) + '" title="şüşə kompozit"></span>' +
+            '<span class="sw-sm" style="background:' + css(back) + '" title="alt fon"></span>' +
+            '<span class="sw-sm" style="background:' + css(pr.text) + '" title="mətn"></span>' +
+          '</div>' +
+          '<span class="badge ' + (pass?'pass':'fail') + '">' + (pass?'KEÇİR':'ZƏİF') + '</span>' +
+          '<span class="score ' + (pass?'pass':'fail') + '">' + ratio.toFixed(2) + ':1</span>' +
+        '</div>';
+    });
+
+    var note = document.getElementById('meterNote');
+    if (note){
+      var mode = state.rt ? 'Reduce Transparency aktiv — bütün şüşə möhkəm'
+                          : 'Şüşə ' + Math.round(state.alpha*100) + '% · blur ' + state.blur + 'px · saturate ' + state.sat.toFixed(2);
+      note.textContent = mode;
+    }
+    host.innerHTML = rows;
+  }
+
+  /* ============================================================
+     5. NƏZARƏTLƏR
+     ============================================================ */
+  function bindRange(id, key, transform, inverse){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', function(){
+      state[key] = transform(parseFloat(el.value));
+      applyTokens();
+    });
+    if (inverse) inverse();
+  }
+  bindRange('sBlur','blur', function(v){ return v; });
+  bindRange('sAlpha','alpha', function(v){ return v/100; });
+  bindRange('sSat','sat', function(v){ return v/100; });
+  bindRange('sEdge','edge', function(v){ return v/100; });
+  bindRange('sRef','refract', function(v){ return v/100; });
+
+  document.querySelectorAll('#bgBtns [data-bgid]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.bg = b.getAttribute('data-bgid');
+      applyTokens();
+    });
+  });
+
+  var btnRT = document.getElementById('btnRT');
+  if (btnRT) btnRT.addEventListener('click', function(){
+    state.rt = state.rt ? 0 : 1;
+    applyTokens();
+  });
+
+  var PRESETS = {
+    apple: { blur:30, alpha:0.58, sat:1.80, edge:1,   refract:1 },
+    calm:  { blur:22, alpha:0.70, sat:1.40, edge:0.7, refract:0.6 },
+    bold:  { blur:38, alpha:0.44, sat:2.20, edge:1,   refract:1 }
+  };
+  document.querySelectorAll('[data-preset]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = PRESETS[b.getAttribute('data-preset')];
+      if (!p) return;
+      state.blur = p.blur; state.alpha = p.alpha; state.sat = p.sat;
+      state.edge = p.edge; state.refract = p.refract;
+      var set = function(id, v){ var e = document.getElementById(id); if (e) e.value = v; };
+      set('sBlur', p.blur); set('sAlpha', Math.round(p.alpha*100));
+      set('sSat', Math.round(p.sat*100)); set('sEdge', Math.round(p.edge*100));
+      set('sRef', Math.round(p.refract*100));
+      applyTokens();
+    });
+  });
+
+  /* ============================================================
+     6. TELEFON DAVRANIŞI — tab morph, scroll reaksiyası
+     ============================================================ */
+  function moveMorph(scr){
+    var bar = scr.querySelector('.ptabs');
+    var act = bar.querySelector('button[aria-selected="true"]');
+    var cap = bar.querySelector('.morph');
+    if (!act || !cap) return;
+    var br = bar.getBoundingClientRect();
+    var ar = act.getBoundingClientRect();
+    cap.style.left = (ar.left - br.left) + 'px';
+    cap.style.width = ar.width + 'px';
+  }
+
+  function initPhone(scr){
+    var bar = scr.querySelector('.ptabs');
+    if (!bar) return;
+
+    bar.querySelectorAll('button[data-t]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var t = btn.getAttribute('data-t');
+        scr.setAttribute('data-tab', t);
+        bar.querySelectorAll('button[data-t]').forEach(function(b){
+          b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+        });
+        moveMorph(scr);
+        var body = scr.querySelector('.pbody');
+        if (body && t !== 'sheet') body.scrollTop = 0;
+      });
+    });
+
+    /* scroll → naviqasiya qatılaşır */
+    var body = scr.querySelector('.pbody');
+    if (body){
+      body.addEventListener('scroll', function(){
+        bar.classList.toggle('is-scrolled', body.scrollTop > 18);
+      }, { passive:true });
+    }
+
+    moveMorph(scr);
+    window.addEventListener('resize', function(){ moveMorph(scr); });
+    /* şrift yüklənəndən sonra da bir dəfə */
+    setTimeout(function(){ moveMorph(scr); }, 120);
+  }
+
+  document.querySelectorAll('.pscr').forEach(initPhone);
+
+  /* əsas ekrandaki keçidlər */
+  var toMenu = document.getElementById('toMenu');
+  if (toMenu) toMenu.addEventListener('click', function(){
+    var b = document.querySelector('#tabs1 button[data-t="menu"]'); if (b) b.click();
+  });
+  var toSheet = document.getElementById('toSheet');
+  if (toSheet) toSheet.addEventListener('click', function(){
+    var b = document.querySelector('#tabs1 button[data-t="sheet"]'); if (b) b.click();
+  });
+  var closeSheet = document.getElementById('closeSheet');
+  if (closeSheet) closeSheet.addEventListener('click', function(){
+    var b = document.querySelector('#tabs1 button[data-t="home"]'); if (b) b.click();
+  });
+
+  /* ============================================================
+     7. MENYU MƏLUMATI
+     ============================================================ */
+  var MENU = [
+    { n:'Flat White',      d:'İpək süd, ikiqat espresso · 250ml', p:'5.00', c:'İsti' },
+    { n:'Fındıq Latte',    d:'Ev fındıq şərbəti · 350ml',         p:'6.00', c:'İsti' },
+    { n:'Kakao & Portağal',d:'Yeni · mürəbbə qatı',               p:'6.50', c:'İsti' },
+    { n:'Südlü Çay',       d:'Qara çay, darçın',                  p:'3.50', c:'İsti' },
+    { n:'Iced Latte',      d:'Soyuq espresso, buz · 350ml',       p:'5.00', c:'Soyuq' },
+    { n:'Cold Brew',       d:'12 saat dəmlənmiş · 300ml',         p:'5.50', c:'Soyuq' },
+    { n:'Limonad',         d:'Nanə, buz',                         p:'3.80', c:'Soyuq' },
+    { n:'Fındıq Kruassan', d:'Hər səhər təzə',                     p:'4.20', c:'Çörək' },
+    { n:'Tərəvəzli Sendviç',d:'Focaccia, feta',                    p:'6.80', c:'Çörək' },
+    { n:'Tira Misu',       d:'Maskarpone, espresso',              p:'5.60', c:'Şirin' }
+  ];
+  var CATS = ['Hamısı','İsti','Soyuq','Çörək','Şirin'];
+  var shown = ['İsti','Soyuq','Çörək'];
+
+  function buildMenu(listId, chipsId, countId){
+    var listEl = document.getElementById(listId);
+    var chipsEl = document.getElementById(chipsId);
+    var countEl = document.getElementById(countId);
+    if (!listEl || !chipsEl) return;
+    var st = { q:'', c:'Hamısı' };
+
+    function renderChips(){
+      chipsEl.innerHTML = '';
+      CATS.forEach(function(c){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'g-inline';
+        b.textContent = c;
+        b.setAttribute('aria-pressed', c === st.c ? 'true' : 'false');
+        b.addEventListener('click', function(){ st.c = c; renderChips(); renderList(); });
+        chipsEl.appendChild(b);
+      });
+    }
+    function renderList(){
+      var rows = MENU.filter(function(m){
+        var okC = st.c === 'Hamısı' || m.c === st.c;
+        var okQ = !st.q || m.n.toLowerCase().indexOf(st.q) !== -1 || m.d.toLowerCase().indexOf(st.q) !== -1;
+        return okC && okQ;
+      });
+      listEl.innerHTML = '';
+      if (!rows.length){
+        var li0 = document.createElement('li');
+        li0.textContent = 'Heç nə tapılmadı.';
+        li0.style.cssText = 'justify-content:center;color:rgba(120,112,104,.9);font-size:12px';
+        listEl.appendChild(li0);
+      } else {
+        rows.forEach(function(m){
+          var li = document.createElement('li');
+          var mid = document.createElement('div'); mid.className = 'mid';
+          var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = m.n;
+          var ds = document.createElement('div'); ds.className = 'ds'; ds.textContent = m.d;
+          mid.appendChild(nm); mid.appendChild(ds);
+          var pr = document.createElement('span'); pr.className = 'pr'; pr.textContent = m.p + ' ';
+          var sm = document.createElement('small'); sm.textContent = '₼';
+          pr.appendChild(sm);
+          li.appendChild(mid); li.appendChild(pr);
+          listEl.appendChild(li);
+        });
+      }
+      if (countEl) countEl.textContent = rows.length + ' məhsul · ' + (st.c === 'Hamısı' ? '5' : '1') + ' kateqoriya';
+    }
+    renderChips();
+    renderList();
+  }
+
+  buildMenu('list1','chips1','mCount1');
+  buildMenu('list2','chips2','mCount2');
+  buildMenu('list3','chips3','mCount3');
+
+  /* ============================================================
+     8. BAŞLA
+     ============================================================ */
+  applyTokens();
+  /* hər telefon öz arxa fonunu bir dəfə alır (laboratoriya yalnız 1-ci telefonu dəyişir) */
+  document.querySelectorAll('.pbg').forEach(function(el){
+    el.style.backgroundImage = 'url(' + paintBackdrop(el.getAttribute('data-bg')) + ')';
+  });
+  /* şrift/render hazır olandan sonra morph mövqeyini düzəlt */
+  setTimeout(function(){
+    document.querySelectorAll('.pscr').forEach(function(s){ moveMorph(s); });
+  }, 250);
+})();
+</script>
+</body>
+</html>

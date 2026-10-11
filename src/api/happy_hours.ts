@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { HappyHour } from '../types/pos';
@@ -6,33 +5,6 @@ import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 
 const defaultTenant = () => getActiveTenantId();
-
-export function create_happy_hour(payload: Omit<HappyHour, 'id' | 'tenant_id' | 'created_at'>) {
-  const tenantId = defaultTenant();
-  const happyHours = getDB<HappyHour>('happy_hours');
-
-  const newHH: HappyHour = {
-    id: uuidv4(),
-    tenant_id: tenantId,
-    ...payload,
-    created_at: new Date().toISOString()
-  };
-
-  happyHours.push(newHH);
-  setDB('happy_hours', happyHours);
-
-  logEvent('system', 'HAPPY_HOUR_CREATE', { name: newHH.name, discount: newHH.discount_percent, categories: newHH.categories });
-  return newHH;
-}
-
-export async function create_happy_hour_live(payload: Omit<HappyHour, 'id' | 'tenant_id' | 'created_at'>) {
-  if (!isBackendEnabled()) return create_happy_hour(payload);
-  return apiRequest<any>('/api/v1/ops/happy-hours', {
-    method: 'POST',
-    tenantId: null,
-    body: payload,
-  });
-}
 
 export function get_active_happy_hour() {
   const tenantId = defaultTenant();
@@ -75,31 +47,6 @@ export function get_active_happy_hour() {
 export async function get_active_happy_hour_live() {
   if (!isBackendEnabled()) return get_active_happy_hour();
   return apiRequest<any>('/api/v1/ops/happy-hours/active', { tenantId: null });
-}
-
-export function toggle_happy_hour(happy_hour_id: string, is_active: boolean) {
-  const happyHours = getDB<HappyHour>('happy_hours');
-  const hh = happyHours.find(h => h.id === happy_hour_id);
-  
-  if (!hh) throw new Error('Happy Hour tapılmadı');
-
-  hh.is_active = is_active;
-  setDB('happy_hours', happyHours);
-
-  const action = is_active ? 'HAPPY_HOUR_ACTIVATE' : 'HAPPY_HOUR_DEACTIVATE';
-  logEvent('system', action, { id: happy_hour_id });
-  
-  return hh;
-}
-
-export async function toggle_happy_hour_live(happy_hour_id: string, is_active: boolean) {
-  if (!isBackendEnabled()) return toggle_happy_hour(happy_hour_id, is_active);
-  await apiRequest(`/api/v1/ops/happy-hours/${encodeURIComponent(happy_hour_id)}`, {
-    method: 'PATCH',
-    tenantId: null,
-    body: { is_active },
-  });
-  return { success: true };
 }
 
 export function delete_happy_hour(happy_hour_id: string) {

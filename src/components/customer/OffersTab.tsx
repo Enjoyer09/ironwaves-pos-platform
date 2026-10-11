@@ -76,30 +76,54 @@ export default function OffersTab({
   const emptyBorder = isLight ? 'border-black/8 bg-[#F5F5F7]' : 'border-white/10 bg-white/4';
   const circleBg    = isLight ? 'bg-[#F5F5F7]' : 'bg-[#0D0B0A]';
 
+  // P2.1 — "Günün təklifi": bu günün (1=B.e … 7=Bazar) ən yüksək faizli
+  // kampaniyası. `days_of_week` köhnə payload-da yoxdursa gün filteri atlanır
+  // (vitrin boş qalmaqdansa ən yüksək faizli aktiv kampaniya göstərilir).
+  const _now = new Date();
+  const _weekday = _now.getDay() === 0 ? 7 : _now.getDay();
+  const deal = [...campaigns]
+    .filter((row: any) => {
+      const days = Array.isArray(row?.days_of_week) ? row.days_of_week : null;
+      return !days || days.length === 0 || days.includes(_weekday);
+    })
+    .sort((a: any, b: any) => Number(b?.discount_percent || 0) - Number(a?.discount_percent || 0))[0];
+
   return (
     <div className="space-y-4">
-      {/* Featured Offer Hero Banner — Apple Style */}
-      <div
-        className="rounded-[24px] p-5 relative overflow-hidden text-white shadow-md stagger-fade-in"
-        style={{
-          background: 'linear-gradient(135deg, #FF8B26 0%, #E06D10 100%)',
-        }}
-      >
-        <div className="relative z-10 max-w-[78%]">
-          <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-white/20 text-white backdrop-blur-sm mb-2">
-            🔥 {tx(safeLang, 'Xüsusi Təklif', 'Спецпредложение', 'Featured Offer')}
-          </span>
-          <h3 className="text-[17px] font-black leading-tight text-white">
-            {tx(safeLang, 'İkinci Qəhvəyə 50% Endirim', 'Скидка 50% на второй кофе', '50% Off Second Coffee')}
-          </h3>
-          <p className="text-[11px] font-medium text-white/85 mt-1">
-            {tx(safeLang, 'Saat 14:00 - 18:00 arası bütün filiallarda', 'С 14:00 до 18:00 во всех филиалах', 'From 14:00 to 18:00 at all branches')}
-          </p>
+      {/* Günün təklifi — real kampaniya vitrini (əvvəl sabit 50% mətni idi) */}
+      {deal && (
+        <div
+          className="rounded-[24px] p-5 relative overflow-hidden text-white shadow-md stagger-fade-in"
+          style={{
+            background: 'linear-gradient(135deg, #FF8B26 0%, #E06D10 100%)',
+          }}
+        >
+          <div className="relative z-10 max-w-[78%]">
+            <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-white/20 text-white backdrop-blur-sm mb-2">
+              {tx(safeLang, 'Günün Təklifi', 'Предложение дня', 'Deal of the Day')}
+            </span>
+            <h3 className="text-[17px] font-black leading-tight text-white">
+              {tx(
+                safeLang,
+                `${deal.name} — ${deal.discount_percent}% endirim`,
+                `${deal.name} — скидка ${deal.discount_percent}%`,
+                `${deal.name} — ${deal.discount_percent}% off`,
+              )}
+            </h3>
+            <p className="text-[11px] font-medium text-white/85 mt-1">
+              {tx(
+                safeLang,
+                `Saat ${deal.start_time} - ${deal.end_time} arası`,
+                `С ${deal.start_time} до ${deal.end_time}`,
+                `From ${deal.start_time} to ${deal.end_time}`,
+              )}
+            </p>
+          </div>
+          <div className="absolute -right-2 -bottom-2 text-7xl opacity-20 pointer-events-none select-none">
+            ☕
+          </div>
         </div>
-        <div className="absolute -right-2 -bottom-2 text-7xl opacity-20 pointer-events-none select-none">
-          ☕
-        </div>
-      </div>
+      )}
 
       {/* Active Campaigns */}
       <section className={`rounded-[24px] p-5 border ${bgCard}`}>
@@ -223,7 +247,7 @@ export default function OffersTab({
                           background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
                           boxShadow: `0 6px 18px ${primaryColor}45`,
                         }}>
-                        ✨ {tx(safeLang, 'Aktivləşdir', 'Активировать', 'Activate')}
+                        ✨ {tx(safeLang, 'Kassada göstər', 'Показать на кассе', 'Show at counter')}
                       </button>
                     </div>
                   )}

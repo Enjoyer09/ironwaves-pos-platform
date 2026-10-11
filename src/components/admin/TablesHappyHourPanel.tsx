@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { get_tables_live, create_table_live, delete_table_live } from '../../api/tables';
-import { get_active_happy_hour_live, create_happy_hour_live, toggle_happy_hour_live } from '../../api/happy_hours';
+import { get_active_happy_hour_live } from '../../api/happy_hours';
 import { update_table_layout_live } from '../../api/restaurant';
 import { LayoutGrid, Clock, Plus, Trash2, Pencil } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_logs_live } from '../../api/logs';
 
-export default function TablesHappyHourPanel() {
+// P2.4 — kampaniya idarəsi tək paneldə (CustomerAppPanel). Burada yalnız
+// status + keçid qalır: yaratmaq/redaktə etmək başqa paneldən gedir, çünki
+// eyni əməliyyat 2 yerdə idi (audit gap-i).
+export default function TablesHappyHourPanel({ onManageCampaigns }: { onManageCampaigns?: () => void }) {
   const { user, lang } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [tables, setTables] = useState<any[]>([]);
@@ -123,38 +126,18 @@ export default function TablesHappyHourPanel() {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold flex items-center gap-2"><Clock/> {tx(lang, 'Happy Hour (Endirim Saatları)', 'Happy Hour (часы скидок)')}</h2>
-          <button onClick={() => {
-             void create_happy_hour_live({
-               name: 'Səhər Kofesi', 
-               start_time: '08:00', 
-               end_time: '11:00', 
-               discount_percent: 20, 
-               days_of_week: [1,2,3,4,5], 
-               categories: 'ALL',
-               is_active: true
-             }).then(() => {
-               void loadData();
-               alert(tx(lang, 'Nümunə Səhər Kofesi 20% Happy Hour yaradıldı!', 'Создан пример Happy Hour: утренний кофе 20%!'));
-             });
-          }} className="bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600">
-            <Plus size={20} /> {tx(lang, 'Nümunə Yarat', 'Создать пример')}
-          </button>
         </div>
         <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
           <div>
             <h3 className="font-bold text-lg">{activeHH ? activeHH.name : tx(lang, 'Aktiv Happy Hour yoxdur', 'Нет активного Happy Hour')}</h3>
             {activeHH && <p className="text-gray-500 text-sm">{tx(lang, 'Bitmə vaxtı', 'Окончание')}: {activeHH.end_time} • {tx(lang, 'Endirim', 'Скидка')}: {activeHH.discount_percent}%</p>}
           </div>
-          {activeHH && (
-            <button
-              onClick={() => {
-                void toggle_happy_hour_live(activeHH.id, false).then(() => void loadData());
-              }}
-              className="animate-pulse bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-sm"
-            >
-              LIVE
-            </button>
-          )}
+          <button
+            onClick={() => onManageCampaigns?.()}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700"
+          >
+            {tx(lang, 'İdarə et', 'Управлять', 'Manage')}
+          </button>
         </div>
       </div>
 

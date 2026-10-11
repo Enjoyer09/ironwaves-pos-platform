@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coffee, Gift, Home, Languages, MessageSquare, QrCode, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
+import { Clock, Coffee, Gift, Home, Languages, MessageSquare, QrCode, ShoppingBag, Sparkles } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -7,18 +7,20 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { activate_customer_campaign_live, claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live, sortStoresByDistance, get_nearest_branches_live } from '../api/crm';
+import { activate_customer_campaign_live, claim_customer_reward_live, delete_customer_account_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, update_customer_preferences_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live, sortStoresByDistance, get_nearest_branches_live } from '../api/crm';
+import '../customer.css';
 import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
+import { LEGAL_PAGES_HOSTED, LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from '../lib/legal';
 import HomeTab from './customer/HomeTab';
-import OrderTab from './customer/OrderTab';
+import OrderTab, { LiveOrderStatus } from './customer/OrderTab';
 import ProfileTab from './customer/ProfileTab';
 import BaristaTab from './customer/BaristaTab';
 import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
 import FeedbackTab from './customer/FeedbackTab';
 import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
-import { updateCartItemQty } from '../lib/cartMath';
+import { updateCartItemQty, cartItemCount, cartSubtotal } from '../lib/cartMath';
 import { buildReorderItem, mergeReorderItem } from '../lib/reorderItem';
 import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from '../lib/live_activity';
@@ -30,6 +32,14 @@ type Props = {
 };
 
 const CUSTOMER_DEBUG_TOOLS_ENABLED = Boolean((import.meta as any)?.env?.DEV) && !Capacitor.isNativePlatform();
+
+/* v3 .pbg — hər tab üçün AI fon şəkli. Şell səviyyəsində tək qat render olunur. */
+const TAB_BACKDROP: Record<string, string> = {
+  home: '/brand/backdrops/home-ambient.jpg',
+  order: '/brand/backdrops/menu-espresso.jpg',
+  track: '/brand/backdrops/track-iced.jpg',
+  profile: '/brand/backdrops/profile-interior.jpg',
+};
 
 type OneSignalRuntime = {
   push: (callback: () => void | Promise<void>) => void;
@@ -101,6 +111,20 @@ const ONBOARD_SLIDES: Array<{ icon: string; title: TriLang; body: TriLang }> = [
 export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
   const { lang, setLang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
+  const [slideDir, setSlideDir] = React.useState<'forward' | 'backward'>('forward');
+
+  // Pause the infinite aurora drift while the app is backgrounded (GPU/battery).
+  React.useEffect(() => {
+    const sync = () => {
+      document.documentElement.dataset.custHidden = document.hidden ? '1' : '0';
+    };
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      document.removeEventListener('visibilitychange', sync);
+      delete document.documentElement.dataset.custHidden;
+    };
+  }, []);
 
   // Theme: Apple white-first default, with manual toggle in Profile
   const [themeMode, setThemeMode] = React.useState<'light' | 'dark'>(() => {
@@ -141,6 +165,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   });
   // C2: which AI experience is shown inside the combined "AI" hub tab
   const [aiSubTab, setAiSubTab] = React.useState<'barista' | 'falci'>('barista');
+  // v3 — nav materialı məzvan sürüşdükcə sıxlaşır (capture: daxili scroll konteynerləri də tutur)
+  const [navScrolled, setNavScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 8);
+    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
   // C9: explicit payment-method step before checkout
   const [paymentMethod, setPaymentMethod] = React.useState<'counter' | 'card' | 'wallet'>('counter');
   // C11: first-launch 3-slide onboarding
@@ -645,7 +676,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const accentColor = String(branding?.accent_color || '#1A4329');
   const programMode = String(wallet?.program_mode || 'points').toLowerCase();
   const showQrCard = branding?.show_qr_card !== false;
-  const showWallet = branding?.show_wallet !== false;
+  // F5.3 — Pass Type ID sertifikatı yoxdursa (backend wallet_pass_enabled=false)
+  // Wallet düyməsi gizlənir: saxta imzalı pass iOS tərəfindən rədd edilir.
+  const showWallet = branding?.show_wallet !== false && data?.wallet_pass_enabled !== false;
   const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
   const heroImage = String(branding?.hero_image_url || '');
   const aiBaristaEnabled = branding?.ai_barista_enabled === true;
@@ -1019,8 +1052,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }
   };
 
-  const markRead = async (notificationId: string) => {
-    try {
+  // P4.1 — kanal razılığı (Profil → Bildirişlər). Server cavabı sessiya
+  // keşinə də yazılır ki, tətbiq yenidən açıldıqda köhnə seçim görünməsin.
+  const handleTogglePref = async (changes: { push?: boolean; email?: boolean; sms?: boolean }) => {
+    const { cardId, token } = sessionCreds;
+    if (!cardId || !token) throw new Error('Customer session is invalid');
+    const res = await update_customer_preferences_live(cardId, token, changes, data?.tenant_id);
+    setData((prev: any) => ({
+      ...prev,
+      customer: { ...(prev?.customer || {}), push_prefs: res.prefs },
+    }));
+  };
+
+  const markRead = async (notificationId: string) => {    try {
       await mark_customer_notification_read_live(notificationId, sessionCreds.cardId, sessionCreds.token);
       setData((prev: any) => ({
         ...prev,
@@ -1160,6 +1204,38 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     if (updates.birth_date !== undefined) await update_customer_birthday_live(cardId, token, updates.birth_date);
     await load();
   };
+
+  // F5.5 — App Store 5.1.1: tətbiq daxilində hesab silmə. Backend şəxsi
+  // məlumatları silir; sessiya sıfırlananda qeydiyyat ekranı qayıdır.
+  const handleDeleteAccount = async () => {
+    const { cardId, token } = sessionCreds;
+    if (!cardId || !token) return;
+    await delete_customer_account_live(cardId, token, data?.tenant_id);
+    clearCustomerSession();
+    setSessionCreds({ cardId: '', token: '' });
+  };
+
+  // E6.1 — Çıxış. Hesab silmədən fərqli olaraq heç nə serverdə silinmir:
+  // yalnız cihazdaki sessiya tokeni təmizlənir → OTP ekranı qayıdır və
+  // eyni nömrə ilə yenidən girmək möhürləri/balansı olduğu kimi saxlayır.
+  const handleLogout = async () => {
+    clearCustomerSession();
+    setSessionCreds({ cardId: '', token: '' });
+  };
+
+  // E6.1 — Hüquqi səhifələr. App Store 5.1.1 üçün məxfilik siyasəti və
+  // istifadə şərtləri tətbiqdən açıla bilməlidir. Səhifələr hələ host
+  // olunmayıbsa sətir "hazırlanır" göstərir (legalPending → düymə deaktiv).
+  const handleOpenLegal = (kind: 'privacy' | 'terms') => {
+    if (!LEGAL_PAGES_HOSTED) return;
+    const url = kind === 'privacy' ? LEGAL_PRIVACY_URL : LEGAL_TERMS_URL;
+    if (Capacitor.isNativePlatform()) {
+      window.open(url, '_system');
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+  const legalPending = !LEGAL_PAGES_HOSTED;
 
   const sendBaristaMessage = async () => {
     const prompt = baristaInput.trim();
@@ -1407,24 +1483,52 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (loading) {
     return (
-      <div className="customer-app-wrapper flex min-h-dvh items-center justify-center" style={{ background: '#0b1220' }}>
-        <div className="flex flex-col items-center gap-6">
-          {/* Premium shimmer spinner */}
-          <div className="relative h-16 w-16">
-            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-t-transparent opacity-30"
-              style={{ borderColor: 'rgba(244,140,36,0.15)', borderTopColor: '#F48C24' }} />
-            <div className="absolute inset-2 animate-spin rounded-full border-[2px] border-t-transparent opacity-50"
-              style={{ borderColor: 'rgba(255,179,102,0.1)', borderTopColor: '#ffb366', animationDirection: 'reverse', animationDuration: '1.2s' }} />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg animate-bounce-subtle">☕</span>
-            </div>
-          </div>
-          {/* Shimmer text */}
-          <div className="space-y-2 text-center">
-            <div className="h-3 w-32 animate-shimmer rounded-full mx-auto" />
-            <div className="h-2.5 w-24 animate-shimmer rounded-full mx-auto" style={{ animationDelay: '0.3s' }} />
-          </div>
+      <div className="customer-app-wrapper flex min-h-dvh flex-col items-center justify-center" style={{ background: '#FF8B26' }}>
+        <style>{`
+          @keyframes ewLogoBreathe {
+            0%, 100% { transform: scale(0.94); opacity: 0.92; }
+            50%      { transform: scale(1.04); opacity: 1; }
+          }
+          @keyframes ewRingPulse {
+            0%   { transform: scale(0.9); opacity: 0.55; }
+            100% { transform: scale(1.35); opacity: 0; }
+          }
+          @keyframes ewBarFill {
+            0%   { transform: scaleX(0.05); }
+            50%  { transform: scaleX(0.75); }
+            100% { transform: scaleX(0.05); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .ew-logo, .ew-ring, .ew-bar { animation: none !important; }
+          }
+        `}</style>
+        {/* Loqo: dairəvi nəfəs alan halqa + loqonun özü */}
+        <div className="relative flex h-[200px] w-[200px] items-center justify-center">
+          <span
+            className="ew-ring absolute inset-0 rounded-full border-2 border-white/60"
+            style={{ animation: 'ewRingPulse 2.2s ease-out infinite' }}
+          />
+          <span
+            className="ew-ring absolute inset-0 rounded-full border-2 border-white/40"
+            style={{ animation: 'ewRingPulse 2.2s ease-out 1.1s infinite' }}
+          />
+          <img
+            src="/brand/logo-large.jpg"
+            alt="Emalatkhana"
+            className="ew-logo relative h-[168px] w-[168px] rounded-[36px] object-cover shadow-[0_18px_40px_-12px_rgba(90,40,0,0.45)]"
+            style={{ animation: 'ewLogoBreathe 2.4s ease-in-out infinite' }}
+          />
         </div>
+        {/* Dinamik yükləmə zolağı */}
+        <div className="mt-10 h-[3px] w-[140px] overflow-hidden rounded-full bg-white/30">
+          <div
+            className="ew-bar h-full w-full origin-left rounded-full bg-white"
+            style={{ animation: 'ewBarFill 1.8s ease-in-out infinite' }}
+          />
+        </div>
+        <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.22em] text-white/85">
+          Emalatkhana
+        </p>
       </div>
     );
   }
@@ -1437,12 +1541,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           isLight ? 'bg-[#F2F2F7] text-[#1D1D1F]' : 'bg-[#0D0B0A] text-slate-100'
         }`}
       >
-        {!isLight && (
-          <>
-            <div className="customer-app-aurora" />
-            <div className="customer-app-noise" />
-          </>
-        )}
+        {/* v3 kofe bokeh fonu — şüşə chrome-un refraksiya etdiyi arxa plan */}
+        <div className={isLight ? 'cust-bokeh cust-bokeh--light' : 'cust-bokeh'} />
 
         {/* Top Header bar with Lang switch */}
         <div className="flex justify-between items-center relative z-10 w-full max-w-md mx-auto">
@@ -1822,11 +1922,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
-  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
-    { key: 'home' as CustomerTab, label: tx(safeLang, 'Əsas', 'Главная', 'Home'), icon: <Home size={19} /> },
+  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [    { key: 'home' as CustomerTab, label: tx(safeLang, 'Əsas', 'Главная', 'Home'), icon: <Home size={19} /> },
     { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={19} /> },
-    { key: 'offers' as CustomerTab, label: tx(safeLang, 'Təkliflər', 'Акции', 'Offers'), icon: <Gift size={19} /> },
-    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={19} /> },
   ];
 
   const resolvedActiveTab: CustomerTab =
@@ -1837,28 +1934,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const switchTabWithTransition = (newTab: CustomerTab) => {
     if (newTab === resolvedActiveTab) return;
 
+    // Slide direction follows the tab order (left -> right = forward).
+    // Plain state switch: the View Transitions API was removed because on iOS WebKit
+    // its snapshot made the fixed bottom nav disappear and reappear during tab changes.
     const tabKeys = bottomTabs.map(t => t.key);
     const oldIdx = tabKeys.indexOf(resolvedActiveTab);
     const newIdx = tabKeys.indexOf(newTab);
-    const direction = newIdx > oldIdx ? 'forward' : 'backward';
-
-    if (!(document as any).startViewTransition) {
-      setActiveTab(newTab);
-      return;
-    }
-
-    try {
-      (document as any).startViewTransition({
-        update: () => {
-          setActiveTab(newTab);
-        },
-        types: [direction]
-      });
-    } catch (e) {
-      (document as any).startViewTransition(() => {
-        setActiveTab(newTab);
-      });
-    }
+    setSlideDir(newIdx >= oldIdx ? 'forward' : 'backward');
+    setActiveTab(newTab);
   };
 
   return (
@@ -1925,6 +2008,24 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         .animate-tabEnter {
           animation: tabEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
+        /* Home <-> Menu slide: new tab enters from the side it is coming from. */
+        @keyframes tabSlideFwd {
+          from { transform: translateX(28px); opacity: 0; }
+          to   { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes tabSlideBack {
+          from { transform: translateX(-28px); opacity: 0; }
+          to   { transform: translateX(0); opacity: 1; }
+        }
+        .tab-slide-forward {
+          animation: tabSlideFwd 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .tab-slide-back {
+          animation: tabSlideBack 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .tab-slide-forward, .tab-slide-back { animation: none; }
+        }
 
         /* Bottom nav bounce */
         @keyframes navDotPulse {
@@ -1941,6 +2042,28 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           animation: navDotPulse 2.5s infinite ease-in-out;
         }
       `}</style>
+
+      {/* v3 .pbg — aktiv tabın AI fonu. Şell səviyyəsindədir (scroller-in qardaşı),
+          çünki `fixed` tab div-i içində işləməz: slide animasiyası `transform`
+          saxlayır və o, fixed elementi həmin qutuya bağlayır. Referansda da
+          .pbg scroll konteynerinin xaricindədir. */}
+      {!hasTenantBg && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed -top-[120px] left-0 right-0 z-0 h-[520px]"
+          style={{
+            /* Yoğun örtük yuxarıda (oxunaqlılıq), sonra yumşaq şəkildə şəffafa
+               keçir — beləcə kəskin sərhəd yaranmır və səhifə fonu/aurora davam edir. */
+            backgroundImage: `linear-gradient(180deg, ${
+              isLight
+                ? 'rgba(247,239,228,0.30) 0%, rgba(247,239,228,0.94) 55%, rgba(247,239,228,0.92) 68%, rgba(247,239,228,0) 100%'
+                : 'rgba(13,11,10,0.30) 0%, rgba(13,11,10,0.92) 55%, rgba(13,11,10,0.90) 68%, rgba(13,11,10,0) 100%'
+            }), url(${TAB_BACKDROP[resolvedActiveTab] || TAB_BACKDROP.home})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+          }}
+        />
+      )}
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-lg flex-col px-3.5 sm:px-4 pb-36 pt-[max(env(safe-area-inset-top,0px)+16px,54px)]">
         {offlineMode && (
@@ -1970,7 +2093,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         {/* Tab content */}
         <div className="tab-content-wrapper flex-1 flex flex-col">
         {resolvedActiveTab === 'home' && (
-          <div key="home" className="animate-tabEnter">
+          <div key="home" className={slideDir === 'forward' ? 'tab-slide-forward' : 'tab-slide-back'}>
           <HomeTab
             safeLang={safeLang}
             customer={customer}
@@ -2014,10 +2137,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
         )}
         {resolvedActiveTab === 'order' && (
-          <div key="order" className="animate-tabEnter">
+          <div key="order" className={slideDir === 'forward' ? 'tab-slide-forward' : 'tab-slide-back'}>
           <OrderTab
             safeLang={safeLang}
             isLight={isLight}
+            campaigns={Array.isArray(campaigns) ? campaigns : []}
             menuItems={menuItems}
             menuLoading={menuLoading}
             selectedCategory={selectedCategory}
@@ -2057,6 +2181,25 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             brandName={brandDisplayName}
           />
           </div>
+        )}
+        {resolvedActiveTab === 'order' && customerCart.length > 0 && !showCartSheet && (
+          <button
+            type="button"
+            onClick={() => setShowCartSheet(true)}
+            aria-label={tx(safeLang, 'Səbətə bax', 'Открыть корзину', 'View cart')}
+            className={`fixed left-4 right-4 z-40 flex items-center justify-between gap-3 rounded-2xl px-5 py-3.5 text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] active:scale-[0.98] transition-transform ${isLight ? 'bg-[#E4572E]' : 'bg-[#E4572E]'}`}
+            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 92px)' }}
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-white/25 px-1.5 text-xs font-bold">
+                {cartItemCount(customerCart)}
+              </span>
+              {tx(safeLang, 'Səbət', 'Корзина', 'Cart')}
+            </span>
+            <span className="text-sm font-bold">
+              {cartSubtotal(customerCart).toFixed(2)} ₼
+            </span>
+          </button>
         )}
         {resolvedActiveTab === 'offers' && (
           <div key="offers" className="animate-tabEnter">
@@ -2142,11 +2285,61 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             )}
           </div>
         )}
+        {resolvedActiveTab === 'track' && (
+          <div key="track" className="animate-tabEnter px-5 pt-6 pb-32">
+            {/* v3 .pbg — fon indi şell səviyyəsindədir (yuxarıdakı fixed qat). */}
+            <h2 className={`relative text-[26px] font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              {tx(safeLang, 'Sifarişim', 'Мой заказ', 'My order')}
+            </h2>
+            {(() => {
+              // v3 "İndiki mərhələ" — ən son aktiv sifariş üçün böyük kart
+              const live = (activeOrders || []).filter((o: any) => ['NEW', 'PREPARING', 'READY'].includes(String(o.status || '')));
+              if (live.length === 0) return null;
+              const o = live[0];
+              const idx = ['NEW', 'PREPARING', 'READY'].indexOf(String(o.status));
+              const stageLabel = [
+                tx(safeLang, 'Qəbul edildi', 'Принят', 'Confirmed'),
+                tx(safeLang, 'Hazırlanır', 'Готовится', 'Preparing'),
+                tx(safeLang, 'Hazırdır', 'Готов', 'Ready'),
+              ];
+              const pct = ((idx + 1) / 3) * 100;
+              return (
+                <div className={`relative mt-4 rounded-[20px] p-4 border ${isLight ? 'bg-white border-black/5 shadow-[0_12px_30px_-18px_rgba(20,16,12,0.4)]' : 'bg-[#1C1C1E] border-white/10'}`}>
+                  <p className="text-[9.5px] font-bold uppercase tracking-[0.17em] text-[#c96a08]">
+                    {tx(safeLang, 'İndiki mərhələ', 'Текущий этап', 'Current stage')}
+                  </p>
+                  <p className={`mt-1 text-[22px] font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{stageLabel[idx]}</p>
+                  <div className={`mt-3 h-[6px] w-full overflow-hidden rounded-full ${isLight ? 'bg-black/8' : 'bg-white/10'}`}>
+                    <div className="h-full rounded-full bg-[#FF8B26] transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className={`mt-2 text-[12px] font-semibold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                    #{String(o.id || '').slice(0, 8)}
+                  </p>
+                </div>
+              );
+            })()}
+            <div className="relative mt-4">
+              <LiveOrderStatus orders={activeOrders} safeLang={safeLang} isLight={isLight} isRetro={false} />
+            </div>
+            {activeOrders.filter((o: any) => ['NEW', 'PREPARING', 'READY'].includes(String(o.status || ''))).length === 0 && (
+              <div className={`mt-6 rounded-[18px] p-5 text-center ${isLight ? 'bg-white shadow-[0_12px_30px_-18px_rgba(20,16,12,0.4)]' : 'bg-[#1C1C1E]'}`}>
+                <p className={`text-[14px] font-semibold ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                  {tx(safeLang, 'Hazırda aktiv sifariş yoxdur', 'Нет активных заказов', 'No active orders')}
+                </p>
+                <p className={`mt-1.5 text-[12px] ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                  {tx(safeLang, 'Sifariş verəndə statusu burada izləyə bilərsən.', 'Когда сделаете заказ, статус будет здесь.', 'Once you place an order, you can track it here.')}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         {resolvedActiveTab === 'profile' && (
           <div key="profile" className="animate-tabEnter">
           <ProfileTab
             safeLang={safeLang}
+            onShowQr={() => setShowFullQr(true)}
             customer={customer}
+            wallet={wallet}
             notifications={notifications}
             history={history}
             chartData={chartData}
@@ -2158,102 +2351,87 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             onToggleTheme={(mode) => setThemeMode(mode)}
             designMode={designMode}
             onSaveProfile={handleSaveProfile}
+            onDeleteAccount={handleDeleteAccount}
+            onLogout={handleLogout}
+            onOpenLegal={handleOpenLegal}
+            legalPending={legalPending}
+            supportPhone={String(branding?.phone || '')}
+            supportAddress={String(branding?.address || '')}
+            companyName={String(branding?.company_name || '')}
+            storeName={String(selectedStore?.name || '')}
+            onOpenFeedback={() => switchTabWithTransition('feedback')}
+            onTogglePref={handleTogglePref}
           />
           </div>
         )}
         </div>
       </div>
 
-      {/* Bottom Navigation — compact glassmorphism capsule */}
+      {/* Bottom Navigation — üzən şüşə panel (.ptabs + .morph).
+          Mənbə: docs/design-system/customer-ios-profile-settings.html */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
+        className={`fixed left-3 right-3 z-30 mx-auto max-w-md ${isLight ? '' : 'cust-dark'}`}
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
       >
-        <div className="mx-auto max-w-md px-4 pb-2">
-          <div
-            className={`flex items-center justify-between rounded-[32px] py-1.5 px-3 border ${
-              isLight
-                ? 'border-black/6 bg-white/90 text-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-md'
-                : 'border-white/10 bg-[#121214]/90 text-white shadow-[0_16px_36px_rgba(0,0,0,0.6)] backdrop-blur-md'
-            }`}
+        <div className="cust-ptabs" style={{ gridTemplateColumns: `repeat(${bottomTabs.length + 1}, 1fr)` }}>
+          {/* [Əsas] [boşluq — QR] [Menyu] */}
+          <button
+            type="button"
+            aria-selected={resolvedActiveTab === bottomTabs[0]?.key}
+            onClick={async () => {
+              switchTabWithTransition(bottomTabs[0].key);
+              if (Capacitor.isNativePlatform()) {
+                try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
+              }
+            }}
+            className="cust-ptab"
           >
-            {/* Left 2 tabs: Home & Order */}
-            {bottomTabs.slice(0, 2).map((tab) => {
-              const active = tab.key === resolvedActiveTab;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={async () => {
-                    switchTabWithTransition(tab.key);
-                    if (Capacitor.isNativePlatform()) {
-                      try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
-                    }
-                  }}
-                  className="flex-1 flex flex-col items-center justify-center py-1.5 gap-1 transition-transform active:scale-95"
-                >
-                  <div className={`transition-colors duration-200 ${active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-white/40 hover:text-white/80'}`}>
-                    {tab.icon}
-                  </div>
-                  <span className={`text-[10px] font-bold tracking-tight transition-colors duration-200 ${
-                    active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400' : 'text-white/40'
-                  }`}>
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
+            {bottomTabs[0]?.icon}
+            <span>{bottomTabs[0]?.label}</span>
+          </button>
 
-            {/* Central Elevated Quick-Pay Button */}
-            <div className="flex-none px-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  setShowFullQr(true);
-                  if (Capacitor.isNativePlatform()) {
-                    try { await Haptics.impact({ style: ImpactStyle.Heavy }); } catch {}
-                  }
-                }}
-                className="relative -top-3.5 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-[#FF8B26] to-orange-400 text-white shadow-[0_6px_20px_rgba(255,139,38,0.55)] active:scale-90 transition-all hover:scale-105 border-2 border-white/25"
-                aria-label="Quick Pay QR"
-              >
-                <QrCode size={22} className="drop-shadow-sm" />
-              </button>
-            </div>
+          {/* Orta sütun: üzən QR düyməsi */}
+          <button
+            type="button"
+            onClick={async () => {
+              setShowFullQr(true);
+              if (Capacitor.isNativePlatform()) {
+                try { await Haptics.impact({ style: ImpactStyle.Heavy }); } catch {}
+              }
+            }}
+            className="relative z-10 mx-auto -mt-6 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-[#FF8B26] to-orange-400 text-white shadow-[0_6px_20px_rgba(255,139,38,0.55)] active:scale-90 transition-all border-2 border-white/40"
+            aria-label="Quick Pay QR"
+          >
+            <QrCode size={22} className="drop-shadow-sm" />
+          </button>
 
-            {/* Right 2 tabs: Offers & Profile */}
-            {bottomTabs.slice(2, 4).map((tab) => {
-              const active = tab.key === resolvedActiveTab;
-              const unreadCount = tab.key === 'profile' ? notifications.filter((n: any) => !n.is_read).length : 0;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={async () => {
-                    switchTabWithTransition(tab.key);
-                    if (Capacitor.isNativePlatform()) {
-                      try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
-                    }
-                  }}
-                  className="relative flex-1 flex flex-col items-center justify-center py-1.5 gap-1 transition-transform active:scale-95"
-                >
-                  <div className={`transition-colors duration-200 ${active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-white/40 hover:text-white/80'}`}>
-                    {tab.icon}
-                  </div>
-                  <span className={`text-[10px] font-bold tracking-tight transition-colors duration-200 ${
-                    active ? 'text-[#FF8B26]' : isLight ? 'text-slate-400' : 'text-white/40'
-                  }`}>
-                    {tab.label}
-                  </span>
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 right-3 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            aria-selected={resolvedActiveTab === bottomTabs[1]?.key}
+            onClick={async () => {
+              switchTabWithTransition(bottomTabs[1].key);
+              if (Capacitor.isNativePlatform()) {
+                try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {}
+              }
+            }}
+            className="cust-ptab"
+          >
+            {bottomTabs[1]?.icon}
+            <span>{bottomTabs[1]?.label}</span>
+          </button>
+
+          {/* Hərəkətli ağ kapsul — aktiv tabın arxasında sürüşür.
+              Sütun düzeni: [tab0] [QR] [tab1] → tab0 = 0, tab1 = 2 sütun addımı. */}
+          {(() => {
+            const idx = Math.max(0, bottomTabs.findIndex(t => t.key === resolvedActiveTab));
+            const col = `(100% - 12px) / ${bottomTabs.length + 1}`;
+            return (
+              <div
+                className="cust-morph"
+                style={{ width: `calc(${col})`, left: `calc(6px + ${col} * ${idx * 2})` }}
+              />
+            );
+          })()}
         </div>
       </nav>
 

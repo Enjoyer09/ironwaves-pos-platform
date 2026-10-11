@@ -47,9 +47,10 @@ export const normalizeRewardThreshold = (raw: unknown): number => {
  *
  * Backend güzgüsü: `operations.py::DEFAULT_TIERS`. Rəqəmlər dəyişsə hər iki
  * tərəf dəyişməlidir, yoxsa lokal rejim ilə canlı rejim fərqli nərdivan göstərər.
- * `discount_percent` burada 0-dır: sahə saxlanılır, amma **kassada hələ tətbiq
- * olunmur** (satış endirimi `customer.discount_percent`-dən gəlir) — yığılma
- * qaydası P1.6-dır.
+ * `discount_percent` burada 0-dır — **default**. Kassa artıq oxuyur (P1.6/P2.3):
+ * `pos.py::create_sale` `find_tier_discount` ilə eyni pilləni seçib endirimi
+ * `max(manual, customer, campaign, tier)` yarışına qoşur; 0 yazıldığında heç
+ * nə dəyişmir. Yığılma qaydası: max-wins (üst-üstə yığım yoxdur).
  * ------------------------------------------------------------------ */
 
 export interface LoyaltyTier {

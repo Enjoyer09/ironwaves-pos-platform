@@ -54,9 +54,36 @@ tests/.build/
 
 # iOS build output
 ios/build/
+# SPM build artifacts land under App/CapApp-SPM/build (P4.5/.gitignore gap — 8.3M, must never be committed)
+ios/App/CapApp-SPM/build/
+build/
+# Xcode module-cache / precompiled artifact directory (v5 records) — local build cache, never commit
+ios/App/App.xcodeproj/-Xcc/
 
 # Print agent local build outputs
 tools/print-agent/build/*.exe
 tools/print-agent/*.zip
 tools/print-agent/*.exe
+
+# Agent QA artifacts / review scratch — local only, not part of the product
+.agents/
+semantic-review/
+
+# Local render/export scratch — 474M, never commit
+outputs/
+
+# Local test-device brand profile — personal dev bundle-id, not product config.
+# The tracked brand profiles are default.json and emalatcoffee.json.
+brand/testdevice.json
+
+# Third-party legal texts / translations — internal reference only.
+# This repo is PUBLIC; a full translation of another company's ToS is a
+# derivative work and must never be published. File stays on disk locally.
+docs/legal/starbucks-*.html
+
+# Android release signing (F4.4) — heç vaxt commit etmə
+android/keystore.properties
+android/release.keystore
+*.jks
+android/local.properties
 

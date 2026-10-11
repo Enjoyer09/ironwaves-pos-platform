@@ -219,7 +219,7 @@ def test_audience_dict_never_leaks_tokens():
     data = audience.as_dict()
     assert "tokens" not in data
     assert SUB_A not in str(data)
-    assert set(data) == {"recipients", "matched", "with_token", "undeliverable", "capped", "total", "label", "note"}
+    assert set(data) == {"recipients", "matched", "with_token", "undeliverable", "no_consent", "capped", "total", "label", "note"}
 
 
 @pytest.mark.parametrize("rows", [None, [], [None, "zibil", 5], [{}, {"push_token": None}]])
@@ -345,3 +345,52 @@ def test_audience_note_is_empty_when_nothing_is_wrong():
 def test_audience_defaults_to_all_when_spec_missing():
     rows = [row(card_id="1"), row(card_id="2", push_token=SUB_B)]
     assert resolve_push_audience(rows, None, now=NOW).recipients == 2
+
+# ---------------------------------------------------------------------------
+# P4.1 — kanal razılığı (opt-out)
+# ---------------------------------------------------------------------------
+
+def test_consent_excludes_explicit_opt_out_from_recipients():
+    """Açıq `push_opt_in=False` olan müştəri seqmentə uyğun gəlsə də siyahıya
+    düşmür — əks halda "razılığı geri götür" düyməsi heç nə etməzdi."""
+    rows = [
+        row(card_id="razı", push_opt_in=True),
+        row(card_id="razı-deyil", push_opt_in=False, push_token=SUB_B),
+    ]
+    audience = resolve_push_audience(rows, {"segment": "all"}, now=NOW)
+    assert (audience.recipients, audience.matched) == (1, 1)
+    assert audience.no_consent == 1
+    assert audience.tokens == [SUB_A]
+
+def test_consent_missing_column_counts_as_opted_in():
+    """Sxemdə `push_opt_in` olmayan köhnə sətir (miqrasiya dövrü) itməməlidir.
+    Yalnız açıq `False` atılır — `.get()` `None` qaytaranda razılıq verilmiş sayılır."""
+    audience = resolve_push_audience([row(card_id="köhnə")], {"segment": "all"}, now=NOW)
+    assert (audience.recipients, audience.no_consent) == (1, 0)
+
+def test_consent_opt_out_is_not_counted_as_matched():
+    """`matched` panelin "X müştəri uyğun" mətnidir; razılığı olmayanı orada
+    saymaq göndərilən rəqəmi şişirdərdi."""
+    audience = resolve_push_audience([row(push_opt_in=False)], {"segment": "all"}, now=NOW)
+    assert (audience.matched, audience.with_token, audience.recipients) == (0, 0, 0)
+
+def test_consent_opt_out_never_hides_behind_the_cap():
+    """Hədd (cap) yalnız razılıqlı tokenlərə tətbiq olunur — razılığı olmayan
+    müştəri "sonra gələr" deyə növbəyə düşməməlidir."""
+    rows = [row(card_id=f"opt-out-{i}", push_token=SUB_C, push_opt_in=False) for i in range(50)]
+    rows.append(row(card_id="razı", push_token=SUB_A, push_opt_in=True))
+    audience = resolve_push_audience(rows, {"segment": "all"}, now=NOW, limit=10)
+    assert (audience.recipients, audience.no_consent, audience.capped) == (1, 50, False)
+
+def test_consent_note_reports_how_many_were_skipped():
+    """Panel istifadəçiyə "124 göndərildi, 8 nəfər razılığı geri götürüb"
+    deyə bilməlidir — səssiz atlama hesabatı yalana çevirərdi."""
+    rows = [row(card_id="a"), row(card_id="b", push_opt_in=False), row(card_id="c", push_opt_in=False)]
+    audience = resolve_push_audience(rows, {"segment": "all"}, now=NOW)
+    assert "2 müştəri bildiriş razılığını geri götürüb." in audience.note
+    assert audience.as_dict()["no_consent"] == 2
+
+def test_consent_no_note_when_everybody_agreed():
+    audience = resolve_push_audience([row(push_opt_in=True)], {"segment": "all"}, now=NOW)
+    assert audience.no_consent == 0
+    assert audience.note == ""

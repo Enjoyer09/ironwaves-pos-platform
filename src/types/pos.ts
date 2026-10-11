@@ -101,6 +101,10 @@ export interface Customer {
   discount_percent?: number;
   secret_token: string;
   created_at: string;
+  /** P4.1 — kanal razılığı. Yoxdursa razılıq verilmiş sayılır (miqrasiya dövrü). */
+  push_opt_in?: boolean;
+  email_opt_in?: boolean;
+  sms_opt_in?: boolean;
 }
 
 export interface Notification {
