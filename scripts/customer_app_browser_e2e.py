@@ -200,11 +200,20 @@ try {
        `before=${before.sms} after=${after.sms}`);
 
   // ── 6. bare root must NOT show the customer app ───────────────────────────
+  // It must show the staff/admin surface. Super has device_authorization_enabled=true
+  // with 0 authorized terminals, so on super the correct screen is the "unapproved
+  // terminal" gate (with a path to authorize) rather than the PIN keypad. Live
+  // tenants with device auth off get the keypad. Assert the union, and assert the
+  // brand is the real tenant — the actual regression this suite guards.
   await p.goto(SITE, { waitUntil: 'networkidle', timeout: 60000 });
-  await p.waitForTimeout(2500);
+  await p.waitForTimeout(3000);
   const bare = await text();
-  step('bare root shows staff PIN (customer app needs the query)',
-       /PİN Kodunuzu daxil edin|PIN/i.test(bare), bare.slice(0, 90));
+  const isCustomerApp = /KASSAYA TƏQDİM EDİN|CASHBACK CLUB/i.test(bare);
+  const staffSurface = /PİN Kodunuzu daxil edin/i.test(bare) || /Təsdiqlənməmiş Terminal|Bu Cihazı Təsdiqlə/i.test(bare);
+  out.bare_root_text = bare.slice(0, 200);
+  step('bare root is staff/admin surface, not the customer app', !isCustomerApp && staffSurface, bare.slice(0, 120));
+  step('bare root shows the real tenant brand (not "Default Tenant")',
+       !/Default Tenant/i.test(bare), bare.slice(0, 90));
   await shot('07-bare-root');
 
   out.final_storage = await store();
