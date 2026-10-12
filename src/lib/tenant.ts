@@ -70,6 +70,26 @@ export function isKnownTenantHost(inputHost?: string): boolean {
   return Boolean(getResolvedTenantIdFromHost(inputHost));
 }
 
+/**
+ * Tenant id that may be sent as an **explicit** `?tenant_id=` to
+ * `/api/v1/ops/public-branding`.
+ *
+ * Why this is not `getActiveTenantId()`: that function *fabricates* `tenant_default`
+ * for any host it cannot map (e.g. `super.ironwaves.store` in a fresh browser).
+ * The backend honours an explicit `tenant_id` **over** the host, so sending the
+ * fabricated value made every production host render the "Default Tenant" brand
+ * and adopt its `device_authorization_enabled` policy — on super the staff PIN
+ * screen then offered no device-authorization path while the backend (which
+ * resolves from `x-tenant-domain`) still enforced it, i.e. a dead end at 403.
+ *
+ * Empty string means "don't send the param and let the backend resolve from the
+ * host". Localhost keeps its literal `tenant_default` because local dev databases
+ * are seeded with that row and the backend cannot map `localhost`.
+ */
+export function getExplicitBrandingTenantId(inputHost?: string): string {
+  return getResolvedTenantIdFromHost(inputHost) || '';
+}
+
 export function getActiveTenantId(): string {
   if (SINGLE_TENANT_MODE && SINGLE_TENANT_ID) return SINGLE_TENANT_ID;
   const hostMapped = getResolvedTenantIdFromHost();

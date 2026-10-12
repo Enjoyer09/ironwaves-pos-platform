@@ -4,7 +4,7 @@ import { i18n, tx } from '../i18n';
 import { Delete, Maximize2, Minimize2, ShieldAlert, Smartphone, CheckCircle2, Lock, X } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live, get_settings_live, get_settings } from '../api/settings';
-import { getResolvedTenantIdFromHost, getActiveTenantId } from '../lib/tenant';
+import { getActiveTenantId, getExplicitBrandingTenantId } from '../lib/tenant';
 import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
 import { updateDynamicPwaManifest } from '../lib/pwa_manifest';
@@ -52,7 +52,12 @@ export default function PinLogin() {
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
   const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
-  const tenantId = getResolvedTenantIdFromHost() || getActiveTenantId() || '';
+  // Must NOT fall back to getActiveTenantId(): that returns a fabricated
+  // `tenant_default` for any host it cannot map (all production tenant hosts in a
+  // fresh browser). Sending that as `?tenant_id=` to public-branding overrides the
+  // host on the backend → wrong brand + wrong device-auth policy.
+  // Empty = let the backend resolve the tenant from `x-tenant-domain`.
+  const tenantId = getExplicitBrandingTenantId();
   const [branding, setBranding] = useState(() => (tenantId ? get_business_profile(tenantId) : null));
   const [tenantAccessState, setTenantAccessState] = useState<'ok' | 'not_found' | 'suspended'>('ok');
   const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
@@ -85,7 +90,10 @@ export default function PinLogin() {
       setAuthorizedTerminal(null);
       return;
     }
-    const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
+    // `tenantId` omitted on purpose: for an unmapped host it is '' and
+    // `getActiveTenantId()` fabricates `tenant_default`, which is not this tenant.
+    // The branding response carries the authoritative tenant_id.
+    const targetTenant = String(branding?.tenant_id || getActiveTenantId() || '').trim();
     if (!targetTenant) {
       setIsDeviceAuthorized(true);
       return;
@@ -363,7 +371,10 @@ export default function PinLogin() {
     }
     setIsAuthorizingDevice(true);
     setAuthError('');
-    const targetTenant = String(branding?.tenant_id || tenantId || getActiveTenantId() || '').trim();
+    // Same reasoning as checkDeviceAuth: never trust the fabricated `tenant_default`.
+    // On super this previously authorized the device against the wrong tenant, so the
+    // terminal token could never match the terminal list the backend checks.
+    const targetTenant = String(branding?.tenant_id || getActiveTenantId() || '').trim();
     try {
       // 1. Verify admin credentials
       await authApi.password_login(
