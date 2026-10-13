@@ -2373,10 +2373,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         className={`fixed left-3 right-3 z-30 mx-auto max-w-md ${isLight ? '' : 'cust-dark'}`}
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
       >
-        <div className="cust-ptabs" style={{ gridTemplateColumns: `repeat(${bottomTabs.length + 1}, 1fr)` }}>
+        <div role="tablist" aria-label={tx(safeLang, 'Əsas naviqasiya', 'Основная навигация', 'Main navigation')} className="cust-ptabs" style={{ gridTemplateColumns: `repeat(${bottomTabs.length + 1}, 1fr)` }}>
           {/* [Əsas] [boşluq — QR] [Menyu] */}
           <button
             type="button"
+            role="tab"
             aria-selected={resolvedActiveTab === bottomTabs[0]?.key}
             onClick={async () => {
               switchTabWithTransition(bottomTabs[0].key);
@@ -2407,6 +2408,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
           <button
             type="button"
+            role="tab"
             aria-selected={resolvedActiveTab === bottomTabs[1]?.key}
             onClick={async () => {
               switchTabWithTransition(bottomTabs[1].key);

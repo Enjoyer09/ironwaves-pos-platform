@@ -112,10 +112,10 @@ export default function FeedbackTab({
     <div className="space-y-4">
       <section className={`rounded-[28px] p-5 border ${bgCard}`}>
         <div className="flex items-center justify-between gap-3 mb-5">
-          <p className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
+          <h1 className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
             <MessageSquare size={16} className="text-[#F48C24]" />
             {tx(safeLang, 'Rəy bildirin', 'Оставьте отзыв', 'Share feedback')}
-          </p>
+          </h1>
           {submitted && (
             <button
               type="button"

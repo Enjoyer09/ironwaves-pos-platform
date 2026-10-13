@@ -131,10 +131,10 @@ export default function OffersTab({
       {/* Active Campaigns */}
       <section className={`rounded-[24px] p-5 border ${bgCard}`}>
         <div className="flex items-center justify-between gap-3 mb-5">
-          <p className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
+          <h1 className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
             <Gift size={16} className="text-[#FF8B26]" />
             {tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}
-          </p>
+          </h1>
           <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black text-white shadow-sm bg-[#FF8B26]">
             {campaigns.length}
           </span>

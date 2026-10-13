@@ -79,7 +79,7 @@ export default function BaristaTab({
             🤖
           </div>
           <div>
-            <div className={`text-[15px] font-black tracking-tight ${textPrimary}`}>AI Barista</div>
+            <h1 className={`text-[15px] font-black tracking-tight ${textPrimary}`}>AI Barista</h1>
             <div className={`text-[10px] font-semibold ${textSecond}`}>
               {tx(safeLang, 'Söhbət et, tövsiyə al.', 'Поговори и получи совет.', 'Chat and get recommendations.')}
             </div>

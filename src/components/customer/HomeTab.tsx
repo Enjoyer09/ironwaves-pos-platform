@@ -431,9 +431,9 @@ export default function HomeTab({
             <p className={`text-[11px] font-medium ${isLight ? 'text-[#5C5C61]' : 'text-white/40'}`}>
               {coffeeGreeting(safeLang)}
             </p>
-            <h2 className={`text-[15px] font-bold leading-tight tracking-[-0.3px] ${textPrimary}`}>
+            <h1 className={`text-[15px] font-bold leading-tight tracking-[-0.3px] ${textPrimary}`}>
               {customer.name || brandName || 'IronWaves'}
-            </h2>
+            </h1>
           </div>
         </div>
 

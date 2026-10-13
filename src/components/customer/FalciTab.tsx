@@ -46,7 +46,7 @@ export default function FalciTab({
       <div className="flex items-center gap-2">
         <span className="text-xl">🔮</span>
         <div>
-          <div className={`text-md font-black tracking-tight ${textPrimary}`}>AI Falçı</div>
+          <h1 className={`text-md font-black tracking-tight ${textPrimary}`}>AI Falçı</h1>
           <div className={`text-[11px] font-semibold ${textSecond}`}>{tx(safeLang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</div>
         </div>
       </div>

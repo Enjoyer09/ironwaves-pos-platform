@@ -192,9 +192,9 @@ export default function ProfileTab({
             {customer?.name ? String(customer.name).charAt(0).toUpperCase() : 'M'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className={`cust-nm ${textPrimary} truncate`}>
+            <h1 className={`cust-nm ${textPrimary} truncate`}>
               {customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}
-            </div>
+            </h1>
             <div className="cust-ph">{customer.card_id}</div>
             <span className="cust-tier" style={{ '--tier': tierColor } as React.CSSProperties}>
               {tierLabel}
