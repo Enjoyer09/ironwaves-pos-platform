@@ -3,7 +3,7 @@ import { Star, MessageSquare, SendHorizontal, Bookmark, CheckCircle2 } from 'luc
 import { ImpactStyle } from '@capacitor/haptics';
 import QRCode from 'qrcode';
 import { tx } from '../../i18n';
-import { playShimmerSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
+import { playShimmerSound, Haptic, nativeHapticImpact, brandSurface, brandShade } from '../../lib/customer_utils';
 import { submit_feedback_live } from '../../api/feedback';
 import { get_settings } from '../../api/settings';
 
@@ -100,13 +100,13 @@ export default function FeedbackTab({
   };
 
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
-  const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/60';
+  const textMuted   = isLight ? 'text-slate-600' : 'text-white/40';
   const bgCard      = isLight ? 'cust-glass-light' : 'cust-glass premium-shadow';
   const divider     = isLight ? 'border-black/5' : 'border-white/8';
   const chipActive  = isLight ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-white';
   const chipIdle    = isLight ? 'bg-white/60 text-slate-700 border-black/10' : 'bg-white/6 text-white/80 border-white/10';
-  const taBg        = isLight ? 'bg-white/70 text-slate-900 placeholder:text-slate-400 border-black/10' : 'bg-white/5 text-white placeholder:text-white/30 border-white/10';
+  const taBg        = isLight ? 'bg-white/70 text-slate-900 placeholder:text-slate-600 border-black/10' : 'bg-white/5 text-white placeholder:text-white/30 border-white/10';
 
   return (
     <div className="space-y-4">
@@ -153,7 +153,7 @@ export default function FeedbackTab({
                       <Star
                         size={34}
                         fill={active ? primaryColor : 'transparent'}
-                        stroke={active ? primaryColor : (isLight ? '#94a3b8' : 'rgba(255,255,255,0.35)')}
+                        stroke={active ? (isLight ? brandShade(primaryColor, '#ffffff') : primaryColor) : (isLight ? brandShade('#94a3b8', '#ffffff') : 'rgba(255,255,255,0.5)')}
                         strokeWidth={1.5}
                         style={{ filter: active ? `drop-shadow(0 4px 12px ${primaryColor}80)` : 'none' }}
                       />
@@ -162,7 +162,8 @@ export default function FeedbackTab({
                 })}
               </div>
               {score > 0 && (
-                <p className="text-[11px] font-bold" style={{ color: primaryColor }}>
+                <p className="text-[11px] font-bold"
+                   style={{ color: brandShade(primaryColor, isLight ? '#ffffff' : '#0f172a', 4.5) }}>
                   {score <= 1
                     ? tx(safeLang, 'Çox pis', 'Очень плохо', 'Very bad')
                     : score === 2
@@ -191,7 +192,7 @@ export default function FeedbackTab({
                         type="button"
                         onClick={() => toggleTag(tag)}
                         className={`rounded-full px-3 py-1.5 text-[12px] font-semibold border transition-all active:scale-95 ${active ? chipActive : chipIdle}`}
-                        style={active ? { background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`, borderColor: 'transparent', color: '#0f172a' } : {}}
+                        style={active ? { ...brandSurface(primaryColor, accentColor), borderColor: 'transparent' } : {}}
                       >
                         {tag}
                       </button>
@@ -212,7 +213,7 @@ export default function FeedbackTab({
                 rows={3}
                 maxLength={500}
                 placeholder={tx(safeLang, 'Fikirlərinizi bölüşün...', 'Поделитесь мыслями...', 'Share your thoughts...')}
-                className={`w-full rounded-2xl p-3 text-[13px] border outline-none focus:ring-2 transition ${taBg}`}
+                className={`w-full rounded-2xl p-3 text-base border outline-none focus:ring-2 transition ${taBg}`}
                 style={{ boxShadow: isLight ? 'inset 0 1px 2px rgba(0,0,0,0.04)' : 'inset 0 1px 2px rgba(0,0,0,0.3)' }}
               />
               <p className={`mt-1 text-[10px] text-right ${textMuted}`}>{comment.length}/500</p>
@@ -228,15 +229,17 @@ export default function FeedbackTab({
               type="button"
               disabled={submitting || score === 0}
               onClick={submit}
-              className="relative w-full overflow-hidden rounded-2xl py-3.5 text-[13px] font-black text-slate-900 transition-all active:scale-[0.98] shimmer-btn disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="relative w-full overflow-hidden rounded-2xl py-3.5 text-[13px] font-black transition-all active:scale-[0.98] shimmer-btn disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               style={{
-                background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`,
+                // `text-slate-900` sabit idi: `#F48C24 → #1A4329` qradiyentində mətn yaşıl ucunda
+                // 1.60:1 verirdi. Fon və mətn rəngi indi birlikdə, palitradan törədilir.
+                ...brandSurface(primaryColor, accentColor),
                 boxShadow: `0 10px 28px ${primaryColor}40`,
               }}
             >
               {submitting ? (
                 <span className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full border-2 border-slate-900/40 border-t-slate-900 animate-spin" />
+                  <span className="h-3 w-3 rounded-full border-2 border-current/40 border-t-current animate-spin" />
                   {tx(safeLang, 'Göndərilir...', 'Отправка...', 'Sending...')}
                 </span>
               ) : (
@@ -263,7 +266,7 @@ export default function FeedbackTab({
                   boxShadow: `0 0 0 8px ${primaryColor}10`,
                 }}
               >
-                <CheckCircle2 size={34} style={{ color: primaryColor }} />
+                <CheckCircle2 size={34} style={{ color: isLight ? brandShade(primaryColor, '#ffffff') : primaryColor }} />
               </div>
               <div>
                 <p className={`text-[15px] font-black ${textPrimary}`}>

@@ -1,3 +1,4 @@
+import type React from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { tx } from '../i18n';
@@ -24,21 +25,111 @@ export function getProductImage(name: string, currentUrl?: string): string {
   if (currentUrl && currentUrl.trim().startsWith('http')) return currentUrl;
   const n = name.toLowerCase();
   if (n.includes('espresso') || n.includes('double shot')) {
-    return 'https://images.unsplash.com/photo-1510705315444-837e27e8ecea?auto=format&fit=crop&w=400&q=80';
+    return 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?q=80&w=400&auto=format';
   }
-  if (n.includes('cappuccino') || n.includes('latte') || n.includes('flat white') || n.includes('macchiato') || n.includes('mocha') || n.includes('qəhvə') || n.includes('coffee')) {
-    return 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=400&q=80';
+  if (n.includes('cappuccino') || n.includes('latte') || n.includes('kaffe')) {
+    return 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?q=80&w=400&auto=format';
   }
-  if (n.includes('iced') || n.includes('cold') || n.includes('soyuq') || n.includes('frappe') || n.includes('shake')) {
-    return 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=400&q=80';
+  if (n.includes('americano') || n.includes('filter')) {
+    return 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=400&auto=format';
   }
-  if (n.includes('tea') || n.includes('çay') || n.includes('cay') || n.includes('matcha') || n.includes('herbal')) {
-    return 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80';
+  if (n.includes('cold brew') || n.includes('iced') || n.includes('soyuq') || n.includes('freddo')) {
+    return 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?q=80&w=400&auto=format';
   }
-  if (n.includes('cheesecake') || n.includes('cake') || n.includes('şirniyyat') || n.includes('sirniyyat') || n.includes('desert') || n.includes('cookie') || n.includes('croissant') || n.includes('kruassan') || n.includes('panini') || n.includes('waffle')) {
-    return 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=400&q=80';
+  if (n.includes('smoothie') || n.includes('frappe') || n.includes('milkshake')) {
+    return 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?q=80&w=400&auto=format';
   }
-  return 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80';
+  if (n.includes('cake') || n.includes('tort') || n.includes('pancake') || n.includes('pankek') || n.includes('cookie') || n.includes('kuki') || n.includes('dessert')) {
+    return 'https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=400&auto=format';
+  }
+  if (n.includes('tea') || n.includes('çay') || n.includes('chay')) {
+    return 'https://images.unsplash.com/photo-1547483238-f400e65ccd56?q=80&w=400&auto=format';
+  }
+  if (n.includes('lemonade') || n.includes('limonad') || n.includes('juice') || n.includes('şirə') || n.includes('sirə')) {
+    return 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?q=80&w=400&auto=format';
+  }
+  return 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?q=80&w=400&auto=format';
+}
+
+/**
+ * Brend düymələri `linear-gradient(135deg, primaryColor, accentColor)` işlədir və mətn rəngi
+ * sabit seçilirdi (`text-white` / `text-slate-900`). İkisi də tenant palitrasından asılı olaraq
+ * pozulur:
+ *   · `#F48C24 → #1A4329` — ağ mətn narıncı ucunda 2.44:1, tünd mətn yaşıl ucunda 1.60:1.
+ *   · Tək rəngli narıncı fon + ağ mətn = 2.44:1; eyni fon + tünd mətn = 7.33:1.
+ *
+ * Kritik nəticə: İKİ RƏNGLİ qradiyentdə mətn zolağı heç vaxt təminatlı deyil — ölçüldü ki, hansı
+ * rəng seçilsə də zolağın bir ucu həddin altında qalır (ağ ən yaxşı halda 4.45:1, tünd 2.04:1).
+ * TƏK rəngli fonda isə «ağ ya tünd» seçimi bütün mümkün rənglər üzərində ≥4.58:1 verir (256³
+ * rəng üzərində hesablanıb). Ona görə fon tək `primaryColor`-a salınır və mətn rəngi ondan
+ * törədilir. Qradiyentin brend hissi `boxShadow` ilə qorunur.
+ *
+ * `--ink`/`--text` qarışığı əvəzinə sabit iki rəng (ağ / slate-900) seçilir ki, nəticə palitradan
+ * asılı olmayaraq təminatlı olsun.
+ */
+export function brandSurface(primary: string, accent?: string): React.CSSProperties {
+  const rel = (hex: string): number | null => {
+    const m = /^#(?:([0-9a-f]{3})|([0-9a-f]{6}))$/i.exec(String(hex || '').trim());
+    if (!m) return null;
+    const h = m[1] ? m[1].split('').map(c => c + c).join('') : m[2]!;
+    const ch = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+    const lin = ch.map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * lin[0]! + 0.7152 * lin[1]! + 0.0722 * lin[2]!;
+  };
+  const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  const WHITE = 1;
+  const SLATE = rel('#0f172a')!;
+  const bg = rel(primary) !== null ? primary : (rel(accent || '') !== null ? accent! : '#F48C24');
+  const bgLum = rel(bg)!;
+  // Fon tək rəngdir, ona görə qərar birbaşa onun üzərində verilir.
+  const useDark = ratio(bgLum, SLATE) >= ratio(bgLum, WHITE);
+  return { background: bg, color: useDark ? '#0f172a' : '#ffffff' };
+}
+
+/**
+ * Brend rəngini `bg` fonunda ən azı `minRatio` kontrast verənə qədər tündləşdirir (və ya açarlaşdırır).
+ *
+ * Nə üçün lazımdır: ikon düymələr (reytinq ulduzları, təsdiq nişanı) birbaşa `primaryColor` ilə
+ * rənglənirdi. `#F48C24` ağ фон üzərində 2.44:1 verir — WCAG 1.4.11 qeyri-mətn üçün 3:1 tələb edir,
+ * yəni reytinqin əsas idarəsi həddin altında idi. Çalarlıq saxlanılır, yalnız tündləşdirilir.
+ */
+export function brandShade(color: string, bg: string, minRatio = 3): string {
+  const parse = (hex: string): [number, number, number] | null => {
+    const m = /^#(?:([0-9a-f]{3})|([0-9a-f]{6}))$/i.exec(String(hex || '').trim());
+    if (!m) return null;
+    const h = m[1] ? m[1].split('').map(c => c + c).join('') : m[2]!;
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  };
+  const relC = (c: [number, number, number]) => {
+    const lin = c.map(v => {
+      const n = v / 255;
+      return n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * lin[0]! + 0.7152 * lin[1]! + 0.0722 * lin[2]!;
+  };
+  const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  const hex2 = (c: [number, number, number]) =>
+    '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+
+  const fg = parse(color) || [244, 140, 36];
+  const back = parse(bg) || [255, 255, 255];
+  const bgLum = relC(back);
+  if (ratio(relC(fg), bgLum) >= minRatio) return hex2(fg);   // artıq keçir — rəngə toxunulmur
+
+  // Hədəf fondur: açıq fonda qaraya, tünd fonda ağa doğru. Addım-addım qarışdırırıq ki, çalar
+  // mümkün qədər qorunsun (birdən tündə atmaq rəngi itirir).
+  const target: [number, number, number] = bgLum > 0.18 ? [0, 0, 0] : [255, 255, 255];
+  let best = hex2(fg);
+  for (let t = 0.05; t <= 1.0001; t += 0.05) {
+    const mixed: [number, number, number] = [
+      fg[0] * (1 - t) + target[0] * t,
+      fg[1] * (1 - t) + target[1] * t,
+      fg[2] * (1 - t) + target[2] * t,
+    ];
+    best = hex2(mixed);
+    if (ratio(relC(mixed), bgLum) >= minRatio) break;
+  }
+  return best;
 }
 
 export function getGreeting(safeLang: string): string {

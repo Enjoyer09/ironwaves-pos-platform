@@ -2,7 +2,7 @@ import React from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Camera as CameraIcon } from 'lucide-react';
 import { tx } from '../../i18n';
-import { Haptic } from '../../lib/customer_utils';
+import { Haptic, brandSurface } from '../../lib/customer_utils';
 
 type Props = {
   safeLang: string;
@@ -25,8 +25,8 @@ export default function FalciTab({
 }: Props) {
 
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
-  const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/50';
+  const textMuted   = isLight ? 'text-slate-600' : 'text-white/40';
   const bgCard      = isLight ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.06)]' : 'bg-white/5 border-white/10 backdrop-blur-md';
   const innerBoxBg  = isLight ? 'bg-slate-50 border-black/5' : 'bg-slate-950/20 border-white/5';
   const loaderBg    = isLight ? 'bg-slate-100/80 border-black/5' : 'bg-slate-950/30 border-white/5';
@@ -55,9 +55,9 @@ export default function FalciTab({
         <button
           type="button"
           onClick={async () => { await Haptic.light(); fileRef.current?.click(); }}
-          className="rounded-2xl px-5 py-3 font-black text-[12px] text-white active:scale-95 transition-transform"
+          className="rounded-2xl px-5 py-3 font-black text-[12px] active:scale-95 transition-transform"
           style={{
-            background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+            ...brandSurface(primaryColor, accentColor),
             boxShadow: `0 4px 12px ${primaryColor}33`
           }}
         >
@@ -67,9 +67,9 @@ export default function FalciTab({
           <button
             type="button"
             onClick={async () => { await Haptic.medium(); takePhotoWithCamera(); }}
-            className="flex items-center gap-2 rounded-2xl px-5 py-3 font-black text-[12px] text-white active:scale-95 transition-transform animate-pulse"
+            className="flex items-center gap-2 rounded-2xl px-5 py-3 font-black text-[12px] active:scale-95 transition-transform animate-pulse"
             style={{
-              background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+              ...brandSurface(accentColor, primaryColor),
               boxShadow: `0 4px 12px ${accentColor}33`
             }}
           >

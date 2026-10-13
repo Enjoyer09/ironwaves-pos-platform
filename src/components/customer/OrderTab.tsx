@@ -97,7 +97,7 @@ export function ModifierSheet({
     ? (isLight ? 'border-[2.5px] border-[#1C2029]' : 'border-[2.5px] border-[#2F2622]')
     : (isLight ? 'border-black/8' : 'border-white/12');
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/50';
   const chipBase    = isRetro
     ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#1C2029]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#2F2622]')
     : (isLight ? 'bg-black/5 border-black/10 text-slate-700 hover:bg-black/8' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12');
@@ -276,14 +276,14 @@ export function CartSheet({
     ? (isLight ? 'border-[2.5px] border-[#1C2029]' : 'border-[2.5px] border-[#2F2622]')
     : (isLight ? 'border-black/8' : 'border-white/12');
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/50';
   const itemBg      = isRetro
     ? 'retro-card p-3'
     : (isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/5 border-white/6');
   const divider     = isRetro ? (isLight ? 'border-[#1C2029]' : 'border-[#2F2622]') : (isLight ? 'border-black/6' : 'border-white/8');
   const inputCls    = isRetro
-    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-400 focus:ring-[#F48C24]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30 focus:ring-[#F48C24]')
-    : (isLight ? 'border-black/10 bg-black/4 text-slate-900 placeholder-slate-400 focus:ring-[#F48C24]' : 'border-white/10 bg-white/5 text-white placeholder-white/30 focus:ring-[#F48C24]');
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-600 focus:ring-[#F48C24]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30 focus:ring-[#F48C24]')
+    : (isLight ? 'border-black/10 bg-black/4 text-slate-900 placeholder-slate-600 focus:ring-[#F48C24]' : 'border-white/10 bg-white/5 text-white placeholder-white/30 focus:ring-[#F48C24]');
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
@@ -350,7 +350,7 @@ export function CartSheet({
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div>
                     <p className={`text-[13px] font-black truncate ${textPrimary}`}>{item.name}</p>
-                    <p className={`text-[11px] font-semibold mt-0.5 ${isLight ? 'text-slate-400' : 'text-white/35'}`}>{subTitle}</p>
+                    <p className={`text-[11px] font-semibold mt-0.5 ${isLight ? 'text-slate-600' : 'text-white/35'}`}>{subTitle}</p>
                   </div>
 
                   {/* Size and price chip */}
@@ -506,7 +506,7 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
   if (!preOrderSuccess) return null;
   const dlgBg = isLight ? 'bg-white/96 backdrop-blur-md' : 'bg-[#0D0B0A]/96 backdrop-blur-md';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/60';
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
@@ -571,7 +571,7 @@ export function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders
     : (isLight ? 'bg-white/85 border-black/8 shadow-sm backdrop-blur-md' : 'bg-white/6 border-white/10 backdrop-blur-md');
   const cardBorder = isRetro ? '' : 'border';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/60';
 
   return (
     <div className="space-y-2.5">
@@ -755,8 +755,8 @@ export default function OrderTab({
 
   const isRetro = designMode === 'retro';
   const textPrimary = isLight ? 'text-[#1D1D1F]'   : 'text-white';
-  const textSecond  = isLight ? 'text-[#6E6E73]'   : 'text-white/60';
-  const textMuted   = isLight ? 'text-[#8E8E93]'   : 'text-white/40';
+  const textSecond  = isLight ? 'text-[#5C5C61]'   : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#5C5C61]'   : 'text-white/40';
   const catInactive = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#3D2F2A]')
     : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] hover:bg-[#EBEBF0]' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12');
@@ -765,7 +765,7 @@ export default function OrderTab({
     : (isLight
       ? 'bg-white border-black/[0.05] shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)]'
       : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:border-white/20');
-  const loadingText = isLight ? 'text-[#8E8E93]'   : 'text-white/40';
+  const loadingText = isLight ? 'text-[#5C5C61]'   : 'text-white/40';
   const emptyBorder = isLight ? 'border-black/8 bg-[#F5F5F7]' : 'border-white/10 bg-white/4';
 
   return (
@@ -850,7 +850,7 @@ export default function OrderTab({
                       {s.address ? <span className={`block truncate text-[11px] ${textSecond}`}>{s.address}</span> : null}
                     </span>
                     {typeof s.distance_km === 'number' && (
-                      <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-bold ${isLight ? 'bg-black/5 text-slate-500' : 'bg-white/8 text-white/50'}`}>
+                      <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-bold ${isLight ? 'bg-black/5 text-slate-600' : 'bg-white/8 text-white/50'}`}>
                         {s.distance_km < 1 ? `${Math.round(s.distance_km * 1000)} m` : `${s.distance_km.toFixed(1)} km`}
                       </span>
                     )}
@@ -879,9 +879,9 @@ export default function OrderTab({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={tx(safeLang, 'Menyudan axtarın...', 'Поиск по меню...', 'Search the menu...')}
-          className={`w-full rounded-[14px] py-2.5 pl-10 pr-4 text-xs transition focus:outline-none ${
+          className={`w-full rounded-[14px] py-2.5 pl-10 pr-4 text-base transition focus:outline-none ${
             isLight
-              ? 'bg-[#F5F5F7] text-slate-900 placeholder-slate-400'
+              ? 'bg-[#F5F5F7] text-slate-900 placeholder-slate-600'
               : 'bg-white/[0.05] border border-white/10 text-white placeholder-white/30'
           }`}
         />
@@ -954,12 +954,17 @@ export default function OrderTab({
           {filtered.map((item: any, itemIdx: number) => {
             const itemName  = (item.item_name || item.name || '').toLowerCase();
             const isHot     = itemName.includes('isti') || itemName.includes('hot') || (item.category || '').toLowerCase().includes('isti');
-            const badgeText = isHot ? 'HOT' : itemName.includes('iced') || itemName.includes('soyuq') ? 'ICED' : 'NEW';
-            const badgeColor = badgeText === 'HOT'
-              ? 'bg-[#F48C24]/20 border border-[#F48C24]/40 text-[#F48C24]'
-              : badgeText === 'ICED'
-                ? 'bg-cyan-500/15 border border-cyan-500/30 text-cyan-500'
-                : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600';
+            const isIced    = itemName.includes('iced') || itemName.includes('soyuq');
+            // Only badge a product when there is a real signal. The previous `: 'NEW'`
+            // fallback was not a filter but a default, so it labelled 110 of 130 products
+            // "NEW" and made the word meaningless. No signal → no badge.
+            // ponytail: a real "new" badge needs a created_at/is_new field; add when the
+            // admin panel exposes one.
+            const badgeText = isHot ? 'HOT' : isIced ? 'ICED' : '';
+            // One pill for every variant: the old tinted variants (emerald/cyan/orange at 15%
+            // alpha) sat on the product photo, where emerald-600 measured 1.05:1. A dark
+            // translucent pill keeps white text readable over ANY photo.
+            const badgeColor = 'bg-black/70 text-white';
             const isFav = localFavorites.includes(item.id);
 
             // Determine dynamic description subtitle based on name and category
@@ -981,17 +986,22 @@ export default function OrderTab({
                   <img
                     src={getProductImage(item.item_name || item.name || '', item.image_url)}
                     alt={item.item_name || item.name || ''}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-106 transition-transform duration-500"
                   />
                   {/* Subtle Image bottom vignette */}
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20 pointer-events-none" />
 
-                  {/* Badge */}
-                  <span className={`absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md ${badgeColor}`}>
-                    {badgeText}
-                  </span>
+                  {/* Badge — only rendered when the product carries a real signal */}
+                  {badgeText && (
+                    <span className={`absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider backdrop-blur-md ${badgeColor}`}>
+                      {badgeText}
+                    </span>
+                  )}
 
-                  {/* Favorite */}
+                  {/* Favorite — 44x44 so the thumb hits the heart, not the card behind it.
+                      Missing the old 28x32 target landed on the card, which adds to cart. */}
                   <button type="button" onClick={async (e) => {
                     e.stopPropagation();
                     playTickSound();
@@ -999,12 +1009,12 @@ export default function OrderTab({
                     setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
                   }}
                     aria-label={isFav ? tx(safeLang, 'Sevimlilərdən çıxar', 'Убрать из избранного', 'Remove from favorites') : tx(safeLang, 'Sevimlilərə əlavə et', 'В избранное', 'Add to favorites')}
-                    className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
+                    className={`absolute top-1 right-1 z-10 h-11 w-11 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
                       isFav
                         ? 'bg-[#FF8B26]/30 border-[#FF8B26]/50 text-[#FF8B26]'
-                        : isLight ? 'bg-white/80 border-black/10 text-slate-500' : 'bg-black/40 border-white/15 text-white/70'
+                        : isLight ? 'bg-white/80 border-black/10 text-slate-600' : 'bg-black/40 border-white/15 text-white/70'
                     }`}>
-                    <Heart size={11} fill={isFav ? '#FF8B26' : 'none'} />
+                    <Heart size={15} fill={isFav ? '#FF8B26' : 'none'} />
                   </button>
                 </div>
 
@@ -1015,7 +1025,7 @@ export default function OrderTab({
                   </h3>
                   
                   {/* Recipe Subtitle */}
-                  <p className={`text-[10px] font-medium leading-tight truncate ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+                  <p className={`text-[10px] font-medium leading-tight truncate ${isLight ? 'text-slate-600' : 'text-white/50'}`}>
                     {subTitleText}
                   </p>
 

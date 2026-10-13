@@ -196,7 +196,7 @@ export default function ProfileTab({
               {customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}
             </div>
             <div className="cust-ph">{customer.card_id}</div>
-            <span className="cust-tier" style={{ background: `${tierColor}26`, color: tierColor }}>
+            <span className="cust-tier" style={{ '--tier': tierColor } as React.CSSProperties}>
               {tierLabel}
             </span>
           </div>

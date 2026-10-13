@@ -205,7 +205,7 @@ export default function SimpleAreaChart({ data, primaryColor }: Props) {
             transform: 'translate(-50%, -115%)',
           }}
         >
-          <div className="font-bold text-slate-400">{points[hoveredIndex].date}</div>
+          <div className="font-bold text-slate-600">{points[hoveredIndex].date}</div>
           <div className="mt-0.5 flex items-center gap-1 font-semibold text-white">
             <span style={{ color: primaryColor }}>●</span>
             {points[hoveredIndex].amount.toFixed(2)} ₼

@@ -1557,10 +1557,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             </span>
           </div>
           <div className={`flex items-center gap-1 rounded-full p-1 text-xs font-semibold ${isLight ? 'bg-[#E5E5EA]' : 'border border-white/10 bg-white/5 text-white/80'}`}>
-            <Languages size={13} className={`ml-1 mr-0.5 ${isLight ? 'text-[#8E8E93]' : 'text-white/60'}`} />
+            <Languages size={13} className={`ml-1 mr-0.5 ${isLight ? 'text-[#5C5C61]' : 'text-white/60'}`} />
             {(['az', 'en', 'ru'] as const).map(l => (
               <button key={l} type="button" onClick={() => setLang(l)} 
-                className={`px-2 py-0.5 rounded-full transition-all ${safeLang === l ? (isLight ? 'bg-white text-[#1D1D1F] shadow-sm font-bold scale-100' : 'text-[#F48C24] font-bold scale-105') : (isLight ? 'text-[#6E6E73] hover:text-[#1D1D1F]' : 'text-white/40 hover:text-white/70')}`}>
+                className={`px-2 py-0.5 rounded-full transition-all ${safeLang === l ? (isLight ? 'bg-white text-[#1D1D1F] shadow-sm font-bold scale-100' : 'text-[#F48C24] font-bold scale-105') : (isLight ? 'text-[#5C5C61] hover:text-[#1D1D1F]' : 'text-white/40 hover:text-white/70')}`}>
                 {l.toUpperCase()}
               </button>
             ))}
@@ -1574,7 +1574,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <h1 className={`text-3xl font-bold tracking-tight leading-tight ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
               {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
             </h1>
-            <p className={`text-sm leading-relaxed max-w-[320px] ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
+            <p className={`text-sm leading-relaxed max-w-[320px] ${isLight ? 'text-[#5C5C61]' : 'text-white/60'}`}>
               {bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyallıq klubuna qoşulun, növbə gözləmədən sifariş edin və qazanın.', 'Присоединяйтесь к клубу лояльности и заказывайте без очереди.', 'Join the loyalty club, order ahead, and earn rewards.')}
             </p>
           </div>
@@ -1587,14 +1587,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
             <div className="space-y-4">
               {registrationMode === 'simple' && (
-                <div className={`text-sm ${isLight ? 'text-[#6E6E73]' : 'text-white/70'} mb-3`}>
+                <div className={`text-sm ${isLight ? 'text-[#5C5C61]' : 'text-white/70'} mb-3`}>
                   {tx(safeLang, 'Sadəcə razılaşmanı təsdiq edib başlaya bilərsiniz.', 'Просто подтвердите согласие и начните.', 'Just confirm consent and start.')}
                 </div>
               )}
 
               {registrationMode !== 'simple' && (
                 <div>
-                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
+                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#5C5C61]' : 'text-white/60'}`}>
                     {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1605,7 +1605,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     onChange={(e) => setCustomerName(e.target.value)}
                     className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
                       isLight 
-                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#5C5C61] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
                         : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
                     }`}
                   />
@@ -1614,7 +1614,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
               {registrationMode === 'full' && (
                 <div>
-                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#6E6E73]' : 'text-white/60'}`}>
+                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-[#5C5C61]' : 'text-white/60'}`}>
                     {tx(safeLang, 'Email adresiniz', 'Ваш email', 'Your email')} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1624,7 +1624,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     onChange={(e) => setEmail(e.target.value)}
                     className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
                       isLight 
-                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#5C5C61] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
                         : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
                     }`}
                   />
@@ -1633,7 +1633,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
               {registrationMode !== 'simple' && (
                 <div>
-                  <label className={`block text-[10px] font-bold uppercase tracking-wider mb-1.5 ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
+                  <label className={`block text-[10px] font-bold uppercase tracking-wider mb-1.5 ${isLight ? 'text-[#5C5C61]' : 'text-white/40'}`}>
                     {tx(safeLang, 'Doğum tarixi (istəyə bağlı — doğum günü bonusu üçün 🎂)', 'Дата рождения (необязательно — для бонуса ко дню рождения 🎂)', 'Birth date (optional — for a birthday bonus 🎂)')}
                   </label>
                   <input
@@ -1644,7 +1644,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     style={{ colorScheme: isLight ? 'light' : 'dark' }}
                     className={`w-full rounded-2xl px-4 py-3.5 text-sm transition focus:outline-none ${
                       isLight 
-                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#8E8E93] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
+                        ? 'bg-[#F5F5F7] border border-black/[0.06] text-[#1D1D1F] placeholder-[#5C5C61] focus:bg-white focus:ring-2 focus:ring-[#2C1810]/20' 
                         : 'border border-white/8 bg-white/5 text-white placeholder-white/20 focus:ring-1 focus:ring-[#F48C24]/30'
                     }`}
                   />
@@ -1660,7 +1660,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   onChange={(e) => setConsentChecked(e.target.checked)}
                   className={`mt-0.5 h-4 w-4 rounded flex-shrink-0 ${isLight ? 'accent-[#2C1810]' : 'accent-[#F48C24]'}`}
                 />
-                <span className={`text-[11px] leading-relaxed ${isLight ? 'text-[#6E6E73]' : 'text-white/55'}`}>
+                <span className={`text-[11px] leading-relaxed ${isLight ? 'text-[#5C5C61]' : 'text-white/55'}`}>
                   <span className={`font-bold block mb-0.5 ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
                     {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
                   </span>
@@ -1802,7 +1802,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
         {/* Footer info text */}
         <div className={`text-center text-[10px] font-medium mt-auto relative z-10 w-full max-w-md mx-auto ${
-          isLight ? 'text-[#8E8E93]' : 'text-white/20'
+          isLight ? 'text-[#5C5C61]' : 'text-white/20'
         }`}>
           {bootstrapBranding.app_name || 'iRonWaves'} App v1.2.0 · {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
         </div>
@@ -1824,7 +1824,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <h1 className={`text-lg font-bold ${isLight ? 'text-[#1D1D1F]' : 'text-white'}`}>
             {tx(safeLang, 'Tətbiq açıla bilmədi', 'Приложение не открылось', 'App could not be opened')}
           </h1>
-          <p className={`mt-2 text-xs leading-relaxed ${isLight ? 'text-[#6E6E73]' : 'text-red-200/70'}`}>
+          <p className={`mt-2 text-xs leading-relaxed ${isLight ? 'text-[#5C5C61]' : 'text-red-200/70'}`}>
             {error || 'Invalid customer link'}
           </p>
 
@@ -2312,7 +2312,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   <div className={`mt-3 h-[6px] w-full overflow-hidden rounded-full ${isLight ? 'bg-black/8' : 'bg-white/10'}`}>
                     <div className="h-full rounded-full bg-[#FF8B26] transition-all duration-500" style={{ width: `${pct}%` }} />
                   </div>
-                  <p className={`mt-2 text-[12px] font-semibold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                  <p className={`mt-2 text-[12px] font-semibold ${isLight ? 'text-slate-600' : 'text-white/60'}`}>
                     #{String(o.id || '').slice(0, 8)}
                   </p>
                 </div>
@@ -2326,7 +2326,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 <p className={`text-[14px] font-semibold ${isLight ? 'text-slate-800' : 'text-white'}`}>
                   {tx(safeLang, 'Hazırda aktiv sifariş yoxdur', 'Нет активных заказов', 'No active orders')}
                 </p>
-                <p className={`mt-1.5 text-[12px] ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                <p className={`mt-1.5 text-[12px] ${isLight ? 'text-slate-600' : 'text-white/60'}`}>
                   {tx(safeLang, 'Sifariş verəndə statusu burada izləyə bilərsən.', 'Когда сделаете заказ, статус будет здесь.', 'Once you place an order, you can track it here.')}
                 </p>
               </div>
@@ -2536,7 +2536,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[32px]"
               style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.05), transparent)' }} />
             <button onClick={finishOnboarding}
-              className={`absolute top-4 right-4 z-10 text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}
+              className={`absolute top-4 right-4 z-10 text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-white/40'}`}
               aria-label={tx(safeLang, 'Keç', 'Пропустить', 'Skip')}>
               {tx(safeLang, 'Keç', 'Пропустить', 'Skip')}
             </button>
@@ -2549,7 +2549,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <div className="relative text-6xl mt-2">{ONBOARD_SLIDES[onboardStep].icon}</div>
             <div className="relative space-y-2">
               <h2 className="text-xl font-black leading-tight">{ONBOARD_SLIDES[onboardStep].title[safeLang as 'az' | 'ru' | 'en']}</h2>
-              <p className={`text-xs leading-relaxed font-semibold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{ONBOARD_SLIDES[onboardStep].body[safeLang as 'az' | 'ru' | 'en']}</p>
+              <p className={`text-xs leading-relaxed font-semibold ${isLight ? 'text-slate-600' : 'text-white/60'}`}>{ONBOARD_SLIDES[onboardStep].body[safeLang as 'az' | 'ru' | 'en']}</p>
             </div>
 
             <div className="relative flex items-center justify-center gap-2">

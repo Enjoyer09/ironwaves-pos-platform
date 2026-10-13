@@ -3,7 +3,7 @@ import { Gift, Sparkles, Clock } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import QRCode from 'qrcode';
 import { tx } from '../../i18n';
-import { playShimmerSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
+import { playShimmerSound, Haptic, nativeHapticImpact, brandSurface } from '../../lib/customer_utils';
 import { hasActiveCampaign, campaignCountdown, formatCountdown } from '../../lib/campaignTimer';
 
 type Props = {
@@ -69,8 +69,8 @@ export default function OffersTab({
   };
 
   const textPrimary = isLight ? 'text-[#1D1D1F]' : 'text-white';
-  const textSecond  = isLight ? 'text-[#6E6E73]' : 'text-white/60';
-  const textMuted   = isLight ? 'text-[#8E8E93]' : 'text-white/40';
+  const textSecond  = isLight ? 'text-[#5C5C61]' : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#5C5C61]' : 'text-white/40';
   const bgCard      = isLight ? 'bg-white border-black/[0.05] shadow-[0_2px_12px_rgba(0,0,0,0.04)]' : 'bg-[#1C1C1E] border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.3)]';
   const divider     = isLight ? 'border-black/5' : 'border-white/8';
   const emptyBorder = isLight ? 'border-black/8 bg-[#F5F5F7]' : 'border-white/10 bg-white/4';
@@ -93,9 +93,12 @@ export default function OffersTab({
       {/* Günün təklifi — real kampaniya vitrini (əvvəl sabit 50% mətni idi) */}
       {deal && (
         <div
-          className="rounded-[24px] p-5 relative overflow-hidden text-white shadow-md stagger-fade-in"
+          className="rounded-[24px] p-5 relative overflow-hidden shadow-md stagger-fade-in"
           style={{
-            background: 'linear-gradient(135deg, #FF8B26 0%, #E06D10 100%)',
+            // Sabit iki rəngli qradiyent + `text-white` = 2.34:1 (ağ narıncı üzərində).
+            // Fon/mətn indi sabit `#FF8B26` üzərindən törədilir; qradiyent hissi boxShadow ilə.
+            ...brandSurface('#FF8B26'),
+            boxShadow: '0 8px 22px rgba(255,139,38,.35)',
           }}
         >
           <div className="relative z-10 max-w-[78%]">
@@ -242,9 +245,9 @@ export default function OffersTab({
                       <button
                         type="button"
                         onClick={async () => { await Haptic.medium(); activateCampaign(row.id); }}
-                        className="relative overflow-hidden rounded-xl px-5 py-2.5 text-[11px] font-black text-white transition-all active:scale-[0.97] shimmer-btn"
+                        className="relative overflow-hidden rounded-xl px-5 py-2.5 text-[11px] font-black transition-all active:scale-[0.97] shimmer-btn"
                         style={{
-                          background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                          ...brandSurface(primaryColor, accentColor),
                           boxShadow: `0 6px 18px ${primaryColor}45`,
                         }}>
                         ✨ {tx(safeLang, 'Kassada göstər', 'Показать на кассе', 'Show at counter')}

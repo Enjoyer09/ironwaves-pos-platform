@@ -155,13 +155,13 @@ export default function HomeTab({
     : (isLight ? 'bg-[#F5F5F7] border-transparent text-slate-700 shadow-none' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
   const headerText  = isLight ? 'text-[#1D1D1F]' : 'text-white';
   const textPrimary = headerText;
-  const subText     = isLight ? 'text-[#6E6E73]' : 'text-white/60';
-  const textMuted   = isLight ? 'text-[#8E8E93]' : 'text-white/40';
+  const subText     = isLight ? 'text-[#5C5C61]' : 'text-white/60';
+  const textMuted   = isLight ? 'text-[#5C5C61]' : 'text-white/40';
   const borderSec   = isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-[#E5E5EA]' : 'border-white/8');
   const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
   const inputSearch = isRetro
-    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
-    : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] placeholder-[#8E8E93]' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
+    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-600' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
+    : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] placeholder-[#5C5C61]' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
   const walletBtn   = isRetro
     ? 'retro-btn font-black text-center flex items-center justify-center'
     : (isLight ? 'bg-[#F5F5F7] border-transparent text-[#1D1D1F] shadow-none hover:bg-[#EBEBF0]' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm');
@@ -311,9 +311,9 @@ export default function HomeTab({
       return { label: tx(safeLang, 'Aktiv', 'Активен', 'Active'), dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' };
     }
     if (status === 'REDEEMED') {
-      return { label: tx(safeLang, 'İstifadə olundu', 'Использовано', 'Used'), dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-400' : 'bg-white/5 border-white/10 text-white/40' };
+      return { label: tx(safeLang, 'İstifadə olundu', 'Использовано', 'Used'), dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-600' : 'bg-white/5 border-white/10 text-white/40' };
     }
-    return { label: status, dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-400' : 'bg-white/5 border-white/10 text-white/40' };
+    return { label: status, dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-600' : 'bg-white/5 border-white/10 text-white/40' };
   };
 
   const formatCardIdFn = (id: string) => {
@@ -428,7 +428,7 @@ export default function HomeTab({
             <div className={`h-[38px] w-[38px] rounded-[10px] flex items-center justify-center text-base shadow-sm ${isLight ? 'bg-[#FF8B26]/10' : 'bg-white/10'}`}>☕</div>
           )}
           <div>
-            <p className={`text-[11px] font-medium ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
+            <p className={`text-[11px] font-medium ${isLight ? 'text-[#5C5C61]' : 'text-white/40'}`}>
               {coffeeGreeting(safeLang)}
             </p>
             <h2 className={`text-[15px] font-bold leading-tight tracking-[-0.3px] ${textPrimary}`}>
@@ -591,7 +591,7 @@ export default function HomeTab({
                 <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
               </div>
             ) : (
-              <div className="text-slate-400 text-xs">QR Code</div>
+              <div className="text-slate-600 text-xs">QR Code</div>
             )}
             <p
               className={`mt-3 text-[10px] font-extrabold uppercase tracking-[0.2em] ${
@@ -602,7 +602,7 @@ export default function HomeTab({
             </p>
             <p
               className={`mt-0.5 font-mono text-[10px] tracking-wider ${
-                isLight ? 'text-slate-500' : 'text-white/50'
+                isLight ? 'text-slate-600' : 'text-white/50'
               }`}
             >
               {formatCardIdFn(customer.card_id)}
@@ -754,11 +754,11 @@ export default function HomeTab({
               }
             }}
             placeholder={tx(safeLang, 'Qəhvə, çay, desert axtarın...', 'Поиск по меню...', 'Search coffee, tea, dessert...')}
-            className={`w-full rounded-[14px] px-10 py-3 text-[13px] transition duration-200 focus:outline-none ${inputSearch}`}
+            className={`w-full rounded-[14px] px-10 py-3 text-base transition duration-200 focus:outline-none ${inputSearch}`}
             onClick={() => setActiveTab('order')}
             aria-label={tx(safeLang, 'Menyuda axtarış', 'Поиск в меню', 'Search the menu')}
           />
-          <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-[#8E8E93]' : 'text-white/40'}`}>
+          <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-[#5C5C61]' : 'text-white/40'}`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -1020,7 +1020,7 @@ export default function HomeTab({
                         </div>
                         <p className={`mt-1.5 text-2xl font-black tracking-tight font-mono ${isLight ? 'text-slate-800' : 'text-white'}`}>{row.claim_code}</p>
                       </div>
-                      <div className={`mt-3 pt-2 border-t text-[10px] truncate font-semibold ${isLight ? 'border-black/5 text-slate-500' : 'border-white/10 text-white/60'}`}>{row.reward_name}</div>
+                      <div className={`mt-3 pt-2 border-t text-[10px] truncate font-semibold ${isLight ? 'border-black/5 text-slate-600' : 'border-white/10 text-white/60'}`}>{row.reward_name}</div>
                     </div>
                   );
                 })}
@@ -1046,7 +1046,7 @@ export default function HomeTab({
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end">
-                        <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
+                        <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-white/40'}`}>
                           <span className={`h-1 w-1 rounded-full ${meta.dot}`} />
                           {meta.label}
                         </span>

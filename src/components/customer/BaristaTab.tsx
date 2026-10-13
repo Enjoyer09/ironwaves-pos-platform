@@ -2,7 +2,7 @@ import React from 'react';
 import { Mic, Volume2, VolumeX, Send } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
-import { BARISTA_QUICK_PROMPTS, nativeHapticImpact } from '../../lib/customer_utils';
+import { BARISTA_QUICK_PROMPTS, nativeHapticImpact, brandSurface } from '../../lib/customer_utils';
 
 type Props = {
   safeLang: string;
@@ -34,7 +34,7 @@ export default function BaristaTab({
 
   const isRetro = designMode === 'retro';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
-  const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
+  const textSecond  = isLight ? 'text-slate-600' : 'text-white/50';
   const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
   const chatAreaBg  = isRetro
     ? (isLight ? 'bg-white border-2 border-[#1C2029] shadow-inner' : 'bg-[#1E1714] border-2 border-[#2F2622] shadow-inner')
@@ -91,7 +91,7 @@ export default function BaristaTab({
           className={`h-9 w-9 rounded-xl flex items-center justify-center border transition-all ${
             voiceEnabled
               ? 'bg-emerald-500/12 border-emerald-500/30 text-emerald-400 animate-green-glow'
-              : isLight ? 'bg-black/5 border-black/8 text-slate-400' : 'bg-white/5 border-white/10 text-white/40'
+              : isLight ? 'bg-black/5 border-black/8 text-slate-600' : 'bg-white/5 border-white/10 text-white/40'
           }`}>
           {voiceEnabled ? <Volume2 size={16} className="animate-pulse" /> : <VolumeX size={16} />}
         </button>
@@ -108,7 +108,7 @@ export default function BaristaTab({
                     <span key={delay} className={`h-2 w-2 rounded-full animate-dotBounce ${isLight ? 'bg-amber-600' : 'bg-[#F48C24]'}`} style={{ animationDelay: `${delay}ms` }} />
                   ))}
                 </div>
-                <span className={`text-[11px] font-semibold italic ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                <span className={`text-[11px] font-semibold italic ${isLight ? 'text-slate-600' : 'text-white/60'}`}>
                   {tx(safeLang, 'Barista tövsiyələr hazırlayır...', 'Бариста готовит рекомендации...', 'Barista is brewing recommendations...')}
                 </span>
               </div>
@@ -124,7 +124,7 @@ export default function BaristaTab({
                       : 'rounded-tl-none font-medium'
                 } ${msg.role !== 'user' ? botBubble : ''}`}
                 style={(msg.role === 'user' && !isRetro) ? {
-                  background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                  ...brandSurface(primaryColor, accentColor),
                   boxShadow: `0 4px 12px ${primaryColor}40`,
                 } : undefined}>
                 {msg.text}
@@ -159,10 +159,10 @@ export default function BaristaTab({
             className={`rounded-2xl border px-4 py-3 text-[13px] outline-none w-full transition ${
               isRetro
                 ? isLight
-                  ? 'border-[2.5px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-400 shadow-inner'
+                  ? 'border-[2.5px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-600 shadow-inner'
                   : 'border-[2.5px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30 shadow-inner'
                 : isLight
-                  ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 focus:ring-1 focus:ring-[#F48C24] shadow-sm'
+                  ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-600 focus:ring-1 focus:ring-[#F48C24] shadow-sm'
                   : 'bg-white/6 border-white/10 text-white placeholder-white/30 focus:ring-1 focus:ring-[#F48C24] backdrop-blur-sm'
             }`}
             style={{ paddingRight: '48px' }}
@@ -174,7 +174,7 @@ export default function BaristaTab({
             className={`absolute right-3 p-1.5 rounded-lg transition-all ${
               isListening
                 ? 'bg-red-500 text-white mic-ring relative'
-                : isLight ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70'
+                : isLight ? 'text-slate-600 hover:text-slate-600' : 'text-white/40 hover:text-white/70'
             }`}>
             <Mic size={16} />
           </button>
@@ -184,10 +184,10 @@ export default function BaristaTab({
           aria-label={tx(safeLang, 'Göndər', 'Отправить', 'Send')}
           onClick={sendBaristaMessage}
           className={`px-5 py-3 font-black text-[12px] transition-all flex items-center gap-1.5 ${
-            isRetro ? 'retro-btn shadow-[3px_3px_0px_0px_#1C2029] dark:shadow-[3px_3px_0px_0px_#2F2622]' : 'rounded-2xl text-white active:scale-95 shimmer-btn'
+            isRetro ? 'retro-btn shadow-[3px_3px_0px_0px_#1C2029] dark:shadow-[3px_3px_0px_0px_#2F2622]' : 'rounded-2xl active:scale-95 shimmer-btn'
           }`}
           style={isRetro ? undefined : {
-            background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+            ...brandSurface(accentColor, primaryColor),
             boxShadow: `0 6px 18px ${accentColor}45`,
           }}>
           <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><line x1='22' y1='2' x2='11' y2='13'></line><polygon points='22 2 15 22 11 13 2 9 22 2'></polygon></svg>" className="h-3.5 w-3.5" style={{ filter: isLight && isRetro ? 'none' : 'invert(1)' }} />
