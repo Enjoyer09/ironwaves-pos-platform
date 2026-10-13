@@ -125,9 +125,70 @@ def test_enroll_duplicate_email_does_not_return_token():
     engine.dispose()
 
 
-# ──────────────────────────────────────────────────────────────
-# F5.2 — server qiyməti + filial məcburi + store_id saxlanır
-# ──────────────────────────────────────────────────────────────
+def test_enroll_duplicate_email_rejected_in_simple_mode_too():
+    """F5.1 boşluğu: `simple` rejimdə təkrar e-poçt əvvəl YENİ kart verirdi.
+    Account-takeover qorunması rejimdən asılı olmamalıdır."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = Tenant(id="t-e2", name="X", slug="x-e2", domain="e2.store")
+    db.add(tenant)
+    db.commit()
+
+    first = operations.enroll_customer_app(
+        payload={"consent_accepted": True, "registration_mode": "simple", "email": "sade@emalat.az"},
+        request=_fake_request(),
+        db=db,
+        tenant=tenant,
+    )
+    assert first["success"] is True
+
+    with pytest.raises(HTTPException) as exc:
+        operations.enroll_customer_app(
+            payload={"consent_accepted": True, "registration_mode": "simple", "email": "sade@emalat.az"},
+            request=_fake_request(),
+            db=db,
+            tenant=tenant,
+        )
+    assert exc.value.status_code == 409
+    assert db.query(Customer).filter(Customer.tenant_id == tenant.id).count() == 1
+
+    db.close()
+    engine.dispose()
+
+
+def test_enroll_rate_limit_blocks_ip_after_five_attempts():
+    """İctimai join QR spam vektoru: eyni IP-dən 10 dəq-də 5+ qeydiyyat → 429."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = Tenant(id="t-e3", name="X", slug="x-e3", domain="e3.store")
+    db.add(tenant)
+    db.commit()
+
+    for i in range(5):
+        res = operations.enroll_customer_app(
+            payload={"consent_accepted": True, "registration_mode": "simple", "email": f"u{i}@emalat.az"},
+            request=_fake_request(),
+            db=db,
+            tenant=tenant,
+        )
+        assert res["success"] is True
+
+    with pytest.raises(HTTPException) as exc:
+        operations.enroll_customer_app(
+            payload={"consent_accepted": True, "registration_mode": "simple", "email": "spam@emalat.az"},
+            request=_fake_request(),
+            db=db,
+            tenant=tenant,
+        )
+    assert exc.value.status_code == 429
+    assert db.query(Customer).filter(Customer.tenant_id == tenant.id).count() == 5
+
+    db.close()
+    engine.dispose()
 
 
 def _pre_order(operations, **item_overrides):

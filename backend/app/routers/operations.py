@@ -5544,6 +5544,23 @@ def enroll_customer_app(
     if app_settings.customer_consent_required and not bool(payload.get("consent_accepted", False)):
         raise HTTPException(status_code=400, detail="Consent must be accepted")
 
+    # HƏDD: eyni IP-dən 10 dəqiqədə 5+ qeydiyyat → 429. slowapi əlavə etməmək üçün
+    # mövcud CustomerConsent sətirləri üzərindən sayılır (işçi sayından asılı deyil,
+    # bütün proseslərdə eyni DB-dən oxunur). İctimai join QR kodu ilə spam vektoru.
+    enroll_ip = _request_ip(request)
+    if enroll_ip:
+        recent_enrolls = db.query(func.count(CustomerConsent.id)).filter(
+            CustomerConsent.tenant_id == tenant.id,
+            CustomerConsent.source == "qr_customer_app",
+            CustomerConsent.ip_address == enroll_ip,
+            CustomerConsent.accepted_at >= datetime.utcnow() - timedelta(minutes=10),
+        ).scalar()
+        if recent_enrolls and recent_enrolls >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail="Çox sayda qeydiyyat cəhdi. Bir neçə dəqiqə sonra yenidən cəhd edin.",
+            )
+
     tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
     if not bool(tenant_app_settings.get("enabled", True)):
         raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
@@ -5555,12 +5572,13 @@ def enroll_customer_app(
     else:
         email = None
 
-    if registration_mode == "full" and email:
+    # F5.1 — e-poçt bilmək hesaba girmək üçün kifayət etmirdi (account takeover).
+    # Bu qapı əvvəl YALNIZ `full` rejimində işləyirdi; `simple` rejimində təkrar e-poçt
+    # yeni kart verirdi ki, sızdırma və hesab çoxaltma yoludur. İndi hər iki rejimdə
+    # eyni qayda: token qaytarılmır, giriş yalnız telefon OTP ilədir.
+    if email:
         existing_customer = db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.email == email).first()
         if existing_customer:
-            # F5.1 — təhlükəsizlik: yalnız e-poçu bilmək hesaba girmək üçün
-            # kifayət etmirdi (account takeover). Token qaytarılmır; giriş
-            # yalnız telefon OTP yolu ilədir (`/customer-app/otp/verify`).
             raise HTTPException(
                 status_code=409,
                 detail="Bu e-poçt artıq qeydiyyatdan keçib. Giriş üçün telefon nömrənizlə SMS kodundan istifadə edin.",
