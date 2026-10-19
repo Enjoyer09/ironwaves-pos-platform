@@ -44,80 +44,7 @@ const loadInventoryForAI = async (tenant_id: string) => {
   return localInventoryForTenant(tenant_id);
 };
 
-const scoreIngredient = (menuName: string, ingredientName: string) => {
-  const m = menuName.toLowerCase();
-  const i = ingredientName.toLowerCase();
-  let score = 0;
-  if (i.includes('kofe') || i.includes('qehve') || i.includes('qəhvə') || i.includes('coffee')) score += 5;
-  if (i.includes('su') || i.includes('water')) score += 2;
-  if (i.includes('sut') || i.includes('süd') || i.includes('milk')) score += 3;
-  if (i.includes('sirop') || i.includes('syrup')) score += 2;
-  if (i.includes('choco') || i.includes('şokolad')) score += 2;
 
-  if (m.includes('americano')) {
-    if (i.includes('kofe') || i.includes('qəhvə') || i.includes('coffee')) score += 4;
-    if (i.includes('su') || i.includes('water')) score += 4;
-  }
-  if (m.includes('çay') || m.includes('cay') || m.includes('tea') || m.includes('jasmine') || m.includes('yasmin')) {
-    if (i.includes('kofe') || i.includes('coffee') || i.includes('qəhvə')) score -= 10;
-    if (i.includes('dondurma') || i.includes('ice cream')) score -= 10;
-    if (i.includes('çay') || i.includes('tea') || i.includes('yasmin') || i.includes('jasmine')) score += 8;
-    if (i.includes('su') || i.includes('water')) score += 4;
-    if (i.includes('limon')) score += 2;
-  }
-  if (m.includes('latte') || m.includes('cappuccino') || m.includes('flat white')) {
-    if (i.includes('süd') || i.includes('sut') || i.includes('milk')) score += 4;
-    if (i.includes('kofe') || i.includes('coffee')) score += 3;
-  }
-  if (m.includes('mocha')) {
-    if (i.includes('şokolad') || i.includes('choco')) score += 4;
-  }
-  return score;
-};
-
-const suggestQty = (ingredient: any) => {
-  const name = String(ingredient?.name || '').toLowerCase();
-  const unit = String(ingredient?.unit || '').toLowerCase();
-  const isKg = unit.includes('kq') || unit.includes('kg');
-  const isL = unit === 'l' || unit.includes(' litr') || unit.includes('liter');
-  const isMl = unit.includes('ml');
-  const isPiece = unit.includes('ədəd') || unit.includes('adet');
-
-  if (name.includes('dondurma') || name.includes('ice cream')) {
-    if (isL) return new Decimal(0.06); // 60 ml
-    if (isMl) return new Decimal(60);
-    return new Decimal(1);
-  }
-  if (name.includes('kofe') || name.includes('coffee') || name.includes('qəhvə')) {
-    if (isKg) return new Decimal(0.018);
-    if (isMl) return new Decimal(18);
-    return new Decimal(18);
-  }
-  if (name.includes('süd') || name.includes('milk')) {
-    if (isL) return new Decimal(0.12);
-    if (isMl) return new Decimal(120);
-    return new Decimal(0.12);
-  }
-  if (name.includes('su') || name.includes('water')) {
-    if (isL) return new Decimal(0.2);
-    if (isMl) return new Decimal(200);
-    return new Decimal(0.2);
-  }
-  if (name.includes('sirop') || name.includes('syrup')) {
-    if (isL) return new Decimal(0.015);
-    if (isMl) return new Decimal(15);
-    return new Decimal(0.015);
-  }
-  if (name.includes('çay') || name.includes('tea') || name.includes('yasmin') || name.includes('jasmine')) {
-    if (isKg) return new Decimal(0.003);
-    return new Decimal(0.003);
-  }
-  if (isPiece) return new Decimal(1);
-  if (isMl) return new Decimal(10);
-  if (isL) return new Decimal(0.01);
-  if (isKg) return new Decimal(0.01);
-  return new Decimal(0.01);
-};
 
 const normalizeQtyForUnit = (menuName: string, ingredient: any, rawQty: number) => {
   const unit = String(ingredient?.unit || '').toLowerCase();
@@ -186,7 +113,7 @@ const menuSizeToken = (menuName: string) => {
   return '';
 };
 
-const findInventoryByKeywords = (inventory: any[], keywords: string[], sizeToken: string) => {
+const findInventoryByKeywords = (inventory: any[], keywords: string[], sizeToken: string = '') => {
   const normalizedRows = (inventory || []).map((item: any) => ({
     item,
     n: normalizeText(String(item?.name || '')),
@@ -229,6 +156,226 @@ const ensureAffogatoPackagingRows = (
   }
   return nextRows;
 };
+
+function buildDeterministicFallbackRecipe(
+  menu_item_name: string,
+  inventory: any[],
+  category?: string,
+): Array<{ ingredient: string; qty: number; qty_unit?: string }> {
+  const m = normalizeText(menu_item_name);
+  const cat = normalizeText(category || '');
+  const sizeToken = menuSizeToken(menu_item_name);
+  const isCold = /\b(ice|iced|soyuq|cold)\b/i.test(m);
+
+  const findItem = (keywords: string[], size: string = '') =>
+    findInventoryByKeywords(inventory, keywords, size || sizeToken);
+
+  const rows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
+
+  // Check if menu item matches an inventory item directly (e.g. "Sprite", "Fanta")
+  const directMatch = inventory.find((inv: any) => {
+    const invN = normalizeText(String(inv?.name || ''));
+    return invN === m || invN.replace(/\s+/g, '') === m.replace(/\s+/g, '');
+  });
+  if (directMatch) {
+    return [{
+      ingredient: String(directMatch.name),
+      qty: 1,
+      qty_unit: String(directMatch.unit || 'ədəd'),
+    }];
+  }
+
+  // 1. DESSERTS / PASTRIES / SNACKS:
+  if (/cheesecake|kete|kətə|tort|cake|pankek|kuki|cookie|magnolia|şekerbura|sekerbura|paxlava|donut|kruasan|croissant|desert|şirniyyat/i.test(m) || /desert|pastry|bakery/i.test(cat)) {
+    const dessertItem = inventory.find((inv: any) => {
+      const invN = normalizeText(String(inv?.name || ''));
+      return m.includes(invN) || invN.includes(m);
+    });
+    if (dessertItem) {
+      return [{ ingredient: String(dessertItem.name), qty: 1, qty_unit: String(dessertItem.unit || 'ədəd') }];
+    }
+    // Absolutely NO coffee or milk on desserts!
+    return [];
+  }
+
+  // 2. PACKAGED DRINKS / SODAS / WATERS:
+  if (/fanta|sprite|cola|kola|redbull|red bull|fuse|ayran|su|water|soda|kompot|cappy|sirab|badamli/i.test(m) || /hazir|packaged/i.test(cat)) {
+    const sodaItem = inventory.find((inv: any) => {
+      const invN = normalizeText(String(inv?.name || ''));
+      return m.includes(invN) || invN.includes(m);
+    });
+    if (sodaItem) {
+      return [{ ingredient: String(sodaItem.name), qty: 1, qty_unit: String(sodaItem.unit || 'ədəd') }];
+    }
+    const coldCup = findItem(['ped', 'stekan']) || findItem(['stekan']);
+    if (coldCup) {
+      return [{ ingredient: String(coldCup.name), qty: 1, qty_unit: String(coldCup.unit || 'ədəd') }];
+    }
+    return [];
+  }
+
+  // 3. TEA:
+  if (/çay|cay|tea|jasmine|yasmin|hibiscus|berqamot/i.test(m)) {
+    const teaItem = inventory.find((inv: any) => /çay|cay|tea|jasmine/i.test(normalizeText(String(inv?.name || ''))));
+    if (teaItem) {
+      const isKg = String(teaItem.unit || '').toLowerCase().includes('k');
+      rows.push({ ingredient: String(teaItem.name), qty: isKg ? 0.003 : 3, qty_unit: String(teaItem.unit || 'qram') });
+    }
+    const hotCup = findItem(['karton', 'stakan']) || findItem(['stakan']);
+    const lid = findItem(['isti', 'qapaq']) || findItem(['qapaq']);
+    if (hotCup) rows.push({ ingredient: String(hotCup.name), qty: 1, qty_unit: String(hotCup.unit || 'ədəd') });
+    if (lid) rows.push({ ingredient: String(lid.name), qty: 1, qty_unit: String(lid.unit || 'ədəd') });
+    return rows;
+  }
+
+  // 4. AFFOGATO:
+  if (isAffogatoLike(m)) {
+    const coffeeItem = findItem(['kofe']) || findItem(['qehve']) || findItem(['coffee']);
+    if (coffeeItem) {
+      const isKg = String(coffeeItem.unit || '').toLowerCase().includes('k');
+      rows.push({ ingredient: String(coffeeItem.name), qty: isKg ? 0.018 : 18, qty_unit: String(coffeeItem.unit || 'qram') });
+    }
+    const iceCream = findItem(['dondurma']) || findItem(['ice cream']);
+    if (iceCream) {
+      rows.push({ ingredient: String(iceCream.name), qty: 1, qty_unit: String(iceCream.unit || 'ədəd') });
+    }
+    const cup = findItem(['karton', 'stakan'], sizeToken) || findItem(['stakan']);
+    const lid = findItem(['isti', 'qapaq'], sizeToken) || findItem(['qapaq']);
+    if (cup) rows.push({ ingredient: String(cup.name), qty: 1, qty_unit: String(cup.unit || 'ədəd') });
+    if (lid) rows.push({ ingredient: String(lid.name), qty: 1, qty_unit: String(lid.unit || 'ədəd') });
+    return rows;
+  }
+
+  // 5. MILKSHAKES / SMOOTHIES:
+  if (/milkseyk|milkşeyk|milkshake|smudi|smoothie/i.test(m)) {
+    const milk = findItem(['sud']) || findItem(['süd']) || findItem(['milk']);
+    if (milk) {
+      const isL = String(milk.unit || '').toLowerCase().startsWith('l');
+      const milkQty = sizeToken === 'l' ? 0.25 : sizeToken === 'm' ? 0.20 : 0.15;
+      rows.push({ ingredient: String(milk.name), qty: isL ? milkQty : milkQty * 1000, qty_unit: String(milk.unit || 'ml') });
+    }
+    const santi = findItem(['krem', 'santi']) || findItem(['santi']);
+    if (santi) {
+      const santiQty = sizeToken === 'l' ? 25 : sizeToken === 'm' ? 20 : 15;
+      rows.push({ ingredient: String(santi.name), qty: santiQty, qty_unit: String(santi.unit || 'qram') });
+    }
+    const coldCup = findItem(['ped', 'stekan']) || findItem(['stekan']);
+    if (coldCup) rows.push({ ingredient: String(coldCup.name), qty: 1, qty_unit: String(coldCup.unit || 'ədəd') });
+    return rows;
+  }
+
+  // 6. HOT CHOCOLATE / CACAO / MOCHA:
+  if (/cacao|kakao|sokolad|şokolad|hot chocolate/i.test(m)) {
+    const choco = findItem(['sokalad', 'tozu']) || findItem(['şokolad']) || findItem(['choco']);
+    if (choco) {
+      const isKg = String(choco.unit || '').toLowerCase().includes('k');
+      const chocoQty = sizeToken === 'l' ? 0.03 : sizeToken === 'm' ? 0.025 : 0.02;
+      rows.push({ ingredient: String(choco.name), qty: isKg ? chocoQty : chocoQty * 1000, qty_unit: String(choco.unit || 'qram') });
+    }
+    const milk = findItem(['sud']) || findItem(['süd']) || findItem(['milk']);
+    if (milk) {
+      const isL = String(milk.unit || '').toLowerCase().startsWith('l');
+      const milkQty = sizeToken === 'l' ? 0.25 : sizeToken === 'm' ? 0.20 : 0.15;
+      rows.push({ ingredient: String(milk.name), qty: isL ? milkQty : milkQty * 1000, qty_unit: String(milk.unit || 'ml') });
+    }
+    if (/mocha/i.test(m)) {
+      const coffeeItem = findItem(['kofe']) || findItem(['qehve']);
+      if (coffeeItem) {
+        const isKg = String(coffeeItem.unit || '').toLowerCase().includes('k');
+        rows.push({ ingredient: String(coffeeItem.name), qty: isKg ? 0.018 : 18, qty_unit: String(coffeeItem.unit || 'qram') });
+      }
+    }
+    const hotCup = findItem(['karton', 'stakan']) || findItem(['stakan']);
+    const lid = findItem(['isti', 'qapaq']) || findItem(['qapaq']);
+    if (hotCup) rows.push({ ingredient: String(hotCup.name), qty: 1, qty_unit: String(hotCup.unit || 'ədəd') });
+    if (lid) rows.push({ ingredient: String(lid.name), qty: 1, qty_unit: String(lid.unit || 'ədəd') });
+    return rows;
+  }
+
+  // 7. SPECIALTY EXTRA ITEMS:
+  if (/extra badam|badamli/i.test(m)) {
+    const almondMilk = findItem(['badam', 'sudu']) || findItem(['badam']);
+    if (almondMilk) {
+      const isL = String(almondMilk.unit || '').toLowerCase().startsWith('l');
+      const almondQty = sizeToken === 'l' ? 0.10 : sizeToken === 'm' ? 0.08 : 0.05;
+      return [{ ingredient: String(almondMilk.name), qty: isL ? almondQty : almondQty * 1000, qty_unit: String(almondMilk.unit || 'ml') }];
+    }
+  }
+
+  // 8. COFFEE DRINKS:
+  const isMilkCoffee = /latte|cappuccino|kapucino|flat white|cortado|macchiato|raf/i.test(m);
+  const isCoffee = isMilkCoffee || /espresso|americano|ristretto|lungo|doppio|filter|filtir|kofe|qehve|qəhvə|coffee/i.test(m) || /qehve|qəhvə|kofe|coffee/i.test(cat);
+
+  if (isCoffee) {
+    // A) Coffee dosage
+    const coffeeItem = findItem(['kofe']) || findItem(['qehve']) || findItem(['coffee']);
+    if (coffeeItem) {
+      const isKg = String(coffeeItem.unit || '').toLowerCase().includes('k');
+      let coffeeDose = sizeToken === 'l' ? 0.024 : 0.018;
+      if (/ristretto|espresso/i.test(m) && !/double|doppio/i.test(m)) {
+        coffeeDose = 0.018;
+      }
+      rows.push({ ingredient: String(coffeeItem.name), qty: isKg ? coffeeDose : coffeeDose * 1000, qty_unit: String(coffeeItem.unit || 'qram') });
+    }
+
+    // B) Milk for Milk-Coffee — STRICTLY PICK ONE MILK!
+    if (isMilkCoffee) {
+      let chosenMilk: any = null;
+      if (/badam/i.test(m)) {
+        chosenMilk = findItem(['badam', 'sudu']) || findItem(['badam']);
+      } else if (/laktoz/i.test(m)) {
+        chosenMilk = findItem(['laktozasiz', 'sud']) || findItem(['laktoz']);
+      } else {
+        chosenMilk = inventory.find((inv: any) => {
+          const n = normalizeText(String(inv?.name || ''));
+          return (n === 'sud' || n === 'süd') && !n.includes('badam') && !n.includes('laktoz');
+        }) || findItem(['sud']) || findItem(['süd']);
+      }
+
+      if (chosenMilk) {
+        const isL = String(chosenMilk.unit || '').toLowerCase().startsWith('l');
+        const milkQty = sizeToken === 'l' ? 0.24 : sizeToken === 'm' ? 0.18 : 0.12;
+        rows.push({ ingredient: String(chosenMilk.name), qty: isL ? milkQty : milkQty * 1000, qty_unit: String(chosenMilk.unit || 'ml') });
+      }
+
+      if (/raf/i.test(m)) {
+        const cream = findItem(['qaymaq']);
+        if (cream) {
+          const isL = String(cream.unit || '').toLowerCase().startsWith('l');
+          const creamQty = sizeToken === 'l' ? 0.08 : sizeToken === 'm' ? 0.06 : 0.04;
+          rows.push({ ingredient: String(cream.name), qty: isL ? creamQty : creamQty * 1000, qty_unit: String(cream.unit || 'ml') });
+        }
+      }
+    }
+
+    // C) Packaging:
+    if (isCold) {
+      const coldCup = findItem(['ped', 'stekan'], sizeToken) || findItem(['ped']) || findItem(['stekan']);
+      if (coldCup) rows.push({ ingredient: String(coldCup.name), qty: 1, qty_unit: String(coldCup.unit || 'ədəd') });
+    } else if (/espresso|ristretto/i.test(m)) {
+      const espCup = findItem(['espresso', 'cup']) || findItem(['karton', 'stakan'], 's');
+      if (espCup) rows.push({ ingredient: String(espCup.name), qty: 1, qty_unit: String(espCup.unit || 'ədəd') });
+    } else {
+      const hotCup = findItem(['karton', 'stakan'], sizeToken) || findItem(['stakan']);
+      const lid = findItem(['isti', 'qapaq'], sizeToken) || findItem(['qapaq']);
+      if (hotCup) rows.push({ ingredient: String(hotCup.name), qty: 1, qty_unit: String(hotCup.unit || 'ədəd') });
+      if (lid) rows.push({ ingredient: String(lid.name), qty: 1, qty_unit: String(lid.unit || 'ədəd') });
+    }
+
+    return rows;
+  }
+
+  // 9. OTHER ITEMS:
+  const words = m.split(/\s+/).filter((w) => w.length >= 3);
+  for (const word of words) {
+    const match = inventory.find((inv: any) => normalizeText(String(inv?.name || '')).includes(word));
+    if (match && !rows.some((r) => r.ingredient === match.name)) {
+      rows.push({ ingredient: String(match.name), qty: 1, qty_unit: String(match.unit || 'ədəd') });
+    }
+  }
+
+  return rows;
+}
 
 const convertQtyToInventoryUnit = (qty: Decimal, qtyUnit: string, inventoryUnit: string) => {
   const from = normalizeUnit(qtyUnit);
@@ -280,10 +427,18 @@ export function get_recipe(menu_item_name: string, tenant_id: string = 'tenant_d
 
 export async function get_recipe_live(menu_item_name: string, tenant_id: string = 'tenant_default') {
   if (!isBackendEnabled()) return get_recipe(menu_item_name, tenant_id);
-  const rows = await apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, { tenantId: null });
-  const all = getDB<any>('recipes').filter((r) => r.tenant_id && r.tenant_id !== tenant_id);
-  const othersForMenu = getDB<any>('recipes').filter((r) => !(String(r.tenant_id || '') === tenant_id && String(r.menu_item_name || '') === menu_item_name));
-  setDB('recipes', [...all, ...othersForMenu.filter((r) => !r.tenant_id), ...rows.map((r) => ({ ...r, tenant_id: r?.tenant_id || tenant_id }))]);
+  const rows = await apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, {
+    tenantId: null,
+    headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+  });
+  const currentDb = getDB<any>('recipes') || [];
+  const otherTenants = currentDb.filter((r) => r.tenant_id && r.tenant_id !== tenant_id);
+  const otherItems = currentDb.filter(
+    (r) => r.tenant_id === tenant_id && String(r.menu_item_name || '').trim().toLowerCase() !== String(menu_item_name).trim().toLowerCase(),
+  );
+  const untennanted = currentDb.filter((r) => !r.tenant_id);
+  const updatedTenantRows = rows.map((r) => ({ ...r, tenant_id: r?.tenant_id || tenant_id }));
+  setDB('recipes', [...otherTenants, ...untennanted, ...otherItems, ...updatedTenantRows]);
   return rows;
 }
 
@@ -419,10 +574,12 @@ export async function replace_recipe_live(
     });
     return { success: true, count: ingredients.length };
   }
+  let res: { success: boolean; count: number };
   try {
-    return await apiRequest<{ success: boolean; count: number }>('/api/v1/catalog/recipes', {
+    res = await apiRequest<{ success: boolean; count: number }>('/api/v1/catalog/recipes', {
       method: 'PUT',
       tenantId: null,
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       body: {
         menu_item_name,
         ingredients: ingredients.map((row) => ({
@@ -436,6 +593,27 @@ export async function replace_recipe_live(
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Recipe backend replace failed: ${message}`);
   }
+
+  // Synchronize local DB simulation so cached state stays consistent
+  const currentDb = getDB<any>('recipes') || [];
+  const otherTenants = currentDb.filter((r) => r.tenant_id && r.tenant_id !== tenant_id);
+  const otherItems = currentDb.filter(
+    (r) => r.tenant_id === tenant_id && String(r.menu_item_name || '').trim().toLowerCase() !== String(menu_item_name).trim().toLowerCase(),
+  );
+  const untennanted = currentDb.filter((r) => !r.tenant_id);
+  const updatedTenantRows = ingredients.map((item) => ({
+    id: uuidv4(),
+    tenant_id,
+    menu_item_name,
+    ingredient_name: item.ingredient_name,
+    quantity_required: new Decimal(item.quantity_required).toFixed(4),
+    unit: item.quantity_unit || 'qram',
+    unit_cost: '0',
+    line_cost: '0',
+  }));
+  setDB('recipes', [...otherTenants, ...untennanted, ...otherItems, ...updatedTenantRows]);
+
+  return res;
 }
 
 export async function generate_recipe_ai(
@@ -695,26 +873,7 @@ async function generate_recipe_ai_rows(
 
   // Fallback: AI cavabı boş/yanlış olarsa deterministik seçim.
   if (aiRows.length === 0) {
-    const ranked = [...inventory]
-      .map((item: any) => ({ item, score: scoreIngredient(menu_item_name, item.name) }))
-      .sort((a: any, b: any) => b.score - a.score);
-    const picked = ranked.filter((r: any) => r.score > 0).slice(0, 4).map((r: any) => r.item);
-    const finalPicked = picked.length > 0 ? picked : inventory.slice(0, 3);
-    aiRows = finalPicked.map((item: any) => ({
-      ingredient: item.name,
-      qty: Number(suggestQty(item).toString()),
-      qty_unit: String(item.unit || ''),
-    }));
-  }
-
-  // Tea-like məhsullarda alakasız ingredientləri çıxaraq.
-  if (/çay|cay|tea|jasmine|yasmin/i.test(menu_item_name)) {
-    aiRows = aiRows.filter((r) => {
-      const n = r.ingredient.toLowerCase();
-      if (n.includes('kofe') || n.includes('coffee') || n.includes('qəhvə')) return false;
-      if (n.includes('dondurma') || n.includes('ice cream')) return false;
-      return true;
-    });
+    aiRows = buildDeterministicFallbackRecipe(menu_item_name, inventory, context?.category);
   }
 
   const normalizedAIRows = ensureAffogatoPackagingRows(menu_item_name, inventory, aiRows);
@@ -741,7 +900,7 @@ async function generate_recipe_ai_rows(
   });
 
   if (generatedRows.length === 0) {
-    throw new Error('AI uyğun xammal seçə bilmədi. Əvvəl anbarda uyğun ingredient əlavə edin.');
+    throw new Error(`AI '${menu_item_name}' üçün anbarda uyğun xammal tapmadı. Əvvəlcə anbara uyğun xammal əlavə edin.`);
   }
 
   return {

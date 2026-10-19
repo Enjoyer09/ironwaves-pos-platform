@@ -906,23 +906,39 @@ def delete_inventory_item(
     return {"success": True}
 
 
-@router.get("/recipes/{menu_item_name}", response_model=list[RecipeIngredientOut])
+@router.get("/recipes/{menu_item_name:path}", response_model=list[RecipeIngredientOut])
 def list_recipe_ingredients(
     menu_item_name: str,
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    clean_name = str(menu_item_name or "").strip()
     rows = (
         db.query(Recipe, InventoryItem)
         .outerjoin(
             InventoryItem,
             (InventoryItem.tenant_id == tenant.id) & (func.lower(InventoryItem.name) == func.lower(Recipe.ingredient_name)),
         )
-        .filter(Recipe.tenant_id == tenant.id, Recipe.menu_item_name == menu_item_name)
+        .filter(Recipe.tenant_id == tenant.id, func.trim(Recipe.menu_item_name) == clean_name)
         .order_by(Recipe.ingredient_name.asc())
         .all()
     )
+    if not rows and clean_name:
+        rows = (
+            db.query(Recipe, InventoryItem)
+            .outerjoin(
+                InventoryItem,
+                (InventoryItem.tenant_id == tenant.id) & (func.lower(InventoryItem.name) == func.lower(Recipe.ingredient_name)),
+            )
+            .filter(Recipe.tenant_id == tenant.id, func.lower(func.trim(Recipe.menu_item_name)) == clean_name.lower())
+            .order_by(Recipe.ingredient_name.asc())
+            .all()
+        )
     return [
         {
             "id": recipe.id,
@@ -940,10 +956,18 @@ def list_recipe_ingredients(
 
 @router.get("/recipes")
 def list_recipe_menu_names(
+    menu_item_name: str | None = None,
+    response: Response = None,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    if response:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    if menu_item_name:
+        return list_recipe_ingredients(menu_item_name=menu_item_name, response=response, db=db, tenant=tenant, user=user)
     rows = (
         db.query(Recipe.menu_item_name)
         .filter(Recipe.tenant_id == tenant.id)
@@ -1029,19 +1053,41 @@ def replace_recipe(
     if len(menu_item_name) < 2:
         raise HTTPException(status_code=400, detail="Menu item is required")
 
-    db.query(Recipe).filter(Recipe.tenant_id == tenant.id, Recipe.menu_item_name == menu_item_name).delete()
+    db.query(Recipe).filter(
+        Recipe.tenant_id == tenant.id,
+        func.lower(func.trim(Recipe.menu_item_name)) == menu_item_name.lower()
+    ).delete(synchronize_session=False)
 
+    saved_count = 0
     for item in payload.ingredients:
         ingredient_name = str(item.ingredient_name or "").strip()
         if len(ingredient_name) < 2:
             continue
         inventory = (
             db.query(InventoryItem)
-            .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == ingredient_name.lower())
+            .filter(InventoryItem.tenant_id == tenant.id, func.lower(func.trim(InventoryItem.name)) == ingredient_name.lower())
             .first()
         )
         if not inventory:
-            raise HTTPException(status_code=404, detail=f"Inventory ingredient not found: {ingredient_name}")
+            inventory = (
+                db.query(InventoryItem)
+                .filter(InventoryItem.tenant_id == tenant.id, InventoryItem.name.ilike(f"%{ingredient_name}%"))
+                .first()
+            )
+        if not inventory:
+            inventory = InventoryItem(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant.id,
+                name=ingredient_name,
+                unit=str(item.quantity_unit or "ədəd"),
+                stock_qty=Decimal("0.000"),
+                unit_cost=Decimal("0.0000"),
+                min_limit=Decimal("0.000"),
+                category="Xammal",
+            )
+            db.add(inventory)
+            db.flush()
+
         db.add(
             Recipe(
                 tenant_id=tenant.id,
@@ -1054,9 +1100,10 @@ def replace_recipe(
                 ).quantize(Decimal("0.0001")),
             )
         )
+        saved_count += 1
 
     db.commit()
-    return {"success": True, "count": len(payload.ingredients)}
+    return {"success": True, "count": saved_count}
 
 
 @router.post("/clear-inventory")

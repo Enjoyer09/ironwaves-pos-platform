@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store';
 import { get_menu_items_live } from '../../api/menu';
 import { get_recipe_live, calculate_recipe_cost_live, generate_recipe_ai_live, getDefaultRecipeEntryUnit, getRecipeEntryUnitOptions, get_recipe_menu_names_live, replace_recipe_live } from '../../api/recipes';
 import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
-import { ChefHat, Plus, Trash2, Calculator, Sparkles, Bot, X } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Calculator, Sparkles, Bot, X, Loader2 } from 'lucide-react';
 import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
 import CombosPanel from './CombosPanel';
@@ -58,6 +58,8 @@ export default function RecipesPanel() {
   const [draftRecipeItems, setDraftRecipeItems] = useState<any[]>([]);
   const [recipeStats, setRecipeStats] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
+  const activeFetchIdRef = useRef(0);
   
   // Xammal əlavə etmək üçün
   const [ingredients, setIngredients] = useState<any[]>([]);
@@ -221,22 +223,42 @@ export default function RecipesPanel() {
   };
 
   useEffect(() => {
-    if (!selectedMenu) return;
+    if (!selectedMenu) {
+      setRecipeItems([]);
+      setDraftRecipeItems([]);
+      setRecipeStats(null);
+      setIsLoadingRecipe(false);
+      return;
+    }
+
+    const fetchId = ++activeFetchIdRef.current;
+    setIsLoadingRecipe(true);
+    setRecipeItems([]);
+    setDraftRecipeItems([]);
+    setRecipeStats(null);
+
     void (async () => {
       try {
         const items = await get_recipe_live(selectedMenu, tenant_id);
+        if (activeFetchIdRef.current !== fetchId) return;
         setRecipeItems(items);
         setDraftRecipeItems(items);
         const stats = await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id);
+        if (activeFetchIdRef.current !== fetchId) return;
         setRecipeStats(stats);
       } catch (error) {
-        console.error(error);
+        if (activeFetchIdRef.current !== fetchId) return;
+        console.error('Failed to load recipe:', error);
         setRecipeItems([]);
         setDraftRecipeItems([]);
         setRecipeStats({ total_cost: 0, margin: 0, margin_percent: 0 });
+      } finally {
+        if (activeFetchIdRef.current === fetchId) {
+          setIsLoadingRecipe(false);
+        }
       }
     })();
-  }, [selectedMenu, menuItems, tenant_id]);
+  }, [selectedMenu, tenant_id]);
 
   const handleAddIngredient = async () => {
     if (!selectedMenu || !newIngredient || !newQty) return;
@@ -704,44 +726,76 @@ export default function RecipesPanel() {
                 </p>
               ) : null}
 
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full">
-                  <thead className="bg-slate-900/40 text-left text-xs font-semibold text-slate-300 uppercase">
-                    <tr>
-                      <th className="px-4 py-3">{tx(lang, 'Xammal', 'Ингредиент')}</th>
-                      <th className="px-4 py-3">{tx(lang, 'Miqdar', 'Количество')}</th>
-                      <th className="px-4 py-3">{tx(lang, 'Ölçü Vahidi', 'Ед. измерения')}</th>
-                      <th className="px-4 py-3">{tx(lang, 'Xətt Maliyyəti', 'Стоимость строки')}</th>
-                      <th className="px-4 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {draftRecipeItems.map(item => (
-                      <tr key={item.id} className="border-t border-slate-700/60">
-                        <td className="px-4 py-3 font-medium text-slate-100">{item.ingredient_name}</td>
-                        <td className="px-4 py-3 text-slate-300">{item.quantity_required}</td>
-                        <td className="px-4 py-3 text-slate-300">{item.quantity_unit || item.unit}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-100">{item.line_cost} ₼</td>
-                        <td className="px-4 py-3 text-right">
-                          <button 
-                            onClick={() => setDeleteRecipeId(item.id)}
-                            className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/20"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {draftRecipeItems.length === 0 && (
+              {isLoadingRecipe ? (
+                <div className="flex flex-col items-center justify-center p-12 text-slate-400 flex-1">
+                  <Loader2 size={36} className="animate-spin mb-3 text-yellow-400" />
+                  <p className="text-sm font-medium">{tx(lang, 'Resept yüklənir...', 'Загрузка рецепта...', 'Loading recipe...')}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto flex-1">
+                  <table className="w-full">
+                    <thead className="bg-slate-900/40 text-left text-xs font-semibold text-slate-300 uppercase">
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                          {tx(lang, 'Bu məhsul üçün resept əlavə edilməyib', 'Для этого продукта рецепт не добавлен', 'No recipe has been added for this item')}
-                        </td>
+                        <th className="px-4 py-3">{tx(lang, 'Xammal', 'Ингредиент')}</th>
+                        <th className="px-4 py-3">{tx(lang, 'Miqdar', 'Количество')}</th>
+                        <th className="px-4 py-3">{tx(lang, 'Ölçü Vahidi', 'Ед. измерения')}</th>
+                        <th className="px-4 py-3">{tx(lang, 'Xətt Maliyyəti', 'Стоимость строки')}</th>
+                        <th className="px-4 py-3"></th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {draftRecipeItems.map(item => (
+                        <tr key={item.id} className="border-t border-slate-700/60">
+                          <td className="px-4 py-3 font-medium text-slate-100">{item.ingredient_name}</td>
+                          <td className="px-4 py-3 text-slate-300">
+                            <input
+                              type="number"
+                              step="0.001"
+                              value={item.quantity_required}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setLastSavedByAI(false);
+                                setDraftRecipeItems((prev) =>
+                                  prev.map((r) => {
+                                    if (r.id !== item.id) return r;
+                                    const qty = new Decimal(val || 0);
+                                    const unitCost = new Decimal(r.unit_cost || 0);
+                                    const invItem = ingredients.find((i) => i.name === r.ingredient_name);
+                                    const normalizedQty = convertToInventoryUnit(qty, r.quantity_unit || r.unit, String(invItem?.unit || r.unit));
+                                    return {
+                                      ...r,
+                                      quantity_required: val,
+                                      line_cost: normalizedQty.mul(unitCost).toFixed(4),
+                                    };
+                                  }),
+                                );
+                              }}
+                              className="neon-input w-24 py-1 px-2 text-xs"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">{item.quantity_unit || item.unit}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-100">{item.line_cost} ₼</td>
+                          <td className="px-4 py-3 text-right">
+                            <button 
+                              onClick={() => setDeleteRecipeId(item.id)}
+                              className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/20"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {draftRecipeItems.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                            {tx(lang, 'Bu məhsul üçün resept əlavə edilməyib', 'Для этого продукта рецепт не добавлен', 'No recipe has been added for this item')}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </div>
