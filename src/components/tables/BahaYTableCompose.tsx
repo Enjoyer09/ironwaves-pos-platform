@@ -80,53 +80,9 @@ const DraftRowItem = memo(({
   const courseNo = Number(row.course_no || 1);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/70 bg-amber-500/15 p-3 shadow-md shadow-amber-500/10 transition-all duration-200 hover:border-amber-400/80 hover:bg-amber-500/20">
-      {/* P2-4: Draft rows have amber border + warm highlight to distinguish from sent (grey, o-50).
-          Sent items in the slide-up panel render with opacity-50 and slate border. */}
-      {/* Top row: Item Name, Total Price & Large Finger Stepper */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Name and Price */}
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-white truncate leading-tight">
-            {row.item_name}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs font-extrabold text-amber-400">
-            <span>{itemTotal} ₼</span>
-            {Number(row.qty || 1) > 1 && (
-              <span className="text-[10px] font-medium text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/ədəd)</span>
-            )}
-          </div>
-        </div>
-
-        {/* Large Finger-Friendly Stepper (44px min touch target) */}
-        <div className="flex items-center gap-1.5 shrink-0 bg-slate-950/80 p-1 rounded-2xl border border-slate-800">
-          <button
-            type="button"
-            aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-slate-200 border border-slate-700/80 text-lg font-black transition taktil-target active:scale-90 hover:bg-slate-700"
-            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
-          >
-            −
-          </button>
-          <div className="w-7 text-center text-sm font-black text-white select-none">
-            {row.qty}
-          </div>
-          <button
-            type="button"
-            aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 text-lg font-black transition taktil-target active:scale-90 shadow-md shadow-yellow-400/20 hover:brightness-105"
-            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
-          >
-            +
-          </button>
-        </div>
-      </div>
-
-      {/* Bottom Sub-row: Course Selector, Note Button & Delete Button
-          P2-3: WCAG 44px touch targets. These buttons were h-8 (~32px); now all are
-          min-h-11 (44px) and vertically centered. */}
-      <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
-        {/* Course indicator/toggle */}
+    <div className="group relative flex items-center justify-between gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-2.5 py-2 transition hover:border-amber-400/80 hover:bg-amber-500/15">
+      {/* Left: Course badge + Clickable Item Name & Note */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {onUpdateCourse && (
           <button
             type="button"
@@ -142,7 +98,7 @@ const DraftRowItem = memo(({
               const next = courseNo === 1 ? 2 : courseNo === 2 ? 3 : 1;
               onUpdateCourse(String(row.id), next);
             }}
-            className={`flex min-h-11 px-3 items-center justify-center rounded-xl border text-[11px] font-black transition taktil-target active:scale-90 shrink-0 ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[10px] font-black transition active:scale-90 ${
               courseNo === 1
                 ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                 : courseNo === 2
@@ -150,33 +106,67 @@ const DraftRowItem = memo(({
                 : 'border-purple-500/40 bg-purple-500/15 text-purple-300'
             }`}
           >
-            <span>C{courseNo}</span>
+            C{courseNo}
           </button>
         )}
 
-        {/* Note trigger */}
         <button
           type="button"
           onClick={() => onEditNote(row)}
-          className={`flex min-h-11 min-w-0 flex-1 items-center gap-1.5 px-3 rounded-xl border text-xs font-semibold transition taktil-target active:scale-95 truncate ${
-            row.note
-              ? 'border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-xs'
-              : 'border-slate-800 bg-slate-800/60 text-slate-400 hover:text-slate-200'
-          }`}
+          className="min-w-0 flex-1 text-left"
+          title={tx(lang, 'Qeyd əlavə etmək üçün toxunun', 'Нажмите, чтобы добавить примечание', 'Tap to add note')}
         >
-          <span className="text-xs shrink-0">✎</span>
-          <span className="truncate">{row.note || tx(lang, 'Qeyd əlavə et', 'Добавить примечание', 'Add note')}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-xs sm:text-[13px] font-bold text-white leading-tight">
+              {row.item_name}
+            </span>
+            <span className="shrink-0 text-[11px] text-slate-400 hover:text-amber-300">✎</span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] tabular-nums">
+            <span className="font-extrabold text-amber-400">{itemTotal} ₼</span>
+            {Number(row.qty || 1) > 1 && (
+              <span className="text-[10px] text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/əd)</span>
+            )}
+            {row.note && (
+              <span className="truncate rounded bg-amber-400/20 px-1.5 py-0.2 text-[10px] font-semibold text-amber-200">
+                ✎ {row.note}
+              </span>
+            )}
+          </div>
         </button>
+      </div>
 
-        {/* Dedicated Delete Button */}
+      {/* Right: Compact Touch Stepper & Remove */}
+      <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 rounded-xl bg-slate-950/85 p-0.5 border border-slate-800">
+          <button
+            type="button"
+            aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700/80 text-sm font-black transition active:scale-90 hover:bg-slate-700"
+            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
+          >
+            −
+          </button>
+          <div className="w-6 text-center text-xs font-black text-white select-none tabular-nums">
+            {row.qty}
+          </div>
+          <button
+            type="button"
+            aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-slate-950 text-sm font-black transition active:scale-90 hover:bg-amber-300"
+            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
+          >
+            +
+          </button>
+        </div>
         <button
           type="button"
           aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
           onClick={() => onUpdateQty(String(row.id), 0)}
-          className="flex min-h-11 items-center justify-center gap-1.5 px-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-300 taktil-target active:scale-90 hover:bg-rose-500/20 shrink-0"
+          className="flex h-8 w-7 items-center justify-center rounded-lg border border-rose-500/25 bg-rose-500/10 text-xs font-bold text-rose-300 transition active:scale-90 hover:bg-rose-500/20"
+          title={tx(lang, 'Sətiri sil', 'Удалить строку', 'Remove line')}
         >
-          <span className="text-sm">🗑️</span>
-          <span className="hidden sm:inline">{tx(lang, 'Sil', 'Удалить', 'Delete')}</span>
+          ✕
         </button>
       </div>
     </div>
@@ -199,23 +189,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   } = props;
 
   const setLang = useAppStore((s) => s.setLang);
-  const notify = useAppStore((s) => s.notify);
-  const currentRole = useAppStore((s) => String(s.user?.role || '').toLowerCase());
-  // P1-6: discounts are a manager decision. Waiters could freely cycle 0-20% with
-  // no check; now the button is disabled for staff/kitchen and explains why.
-  const canApplyDiscount = ['admin', 'manager', 'super_admin'].includes(currentRole);
-  const [sentPanelOpen, setSentPanelOpen] = useState(false);
+  const [sentSectionExpanded, setSentSectionExpanded] = useState(true);
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
   const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash');
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [showGuestPicker, setShowGuestPicker] = useState(false);
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
-  // P1-2/P1-3: on an occupied table the cart/actions pane must always be reachable,
-  // even with zero drafts and zero sent items, so Pre-Check / Hesabı Al / Köçür /
-  // guest count / Masanı ləğv et are never hidden. Draft-only used to gate it.
   const showCartPane = hasCartContent || tableOccupied;
 
   const sentTotal = useMemo(() => {
@@ -230,13 +209,13 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     return sentTotal.plus(new Decimal(draftTotal || 0)).toFixed(2);
   }, [sentTotal, draftTotal]);
 
-  const discountedGrandTotal = useMemo(() => {
-    const raw = new Decimal(grandTotal);
-    if (discountPercent > 0) {
-      return raw.times(100 - discountPercent).dividedBy(100).toFixed(2);
-    }
-    return raw.toFixed(2);
-  }, [grandTotal, discountPercent]);
+  const draftItemCount = useMemo(() => {
+    return draftRows.reduce((sum, r) => sum + Number(r.qty || 0), 0);
+  }, [draftRows]);
+
+  const activeSentCount = useMemo(() => {
+    return sentItems.filter((it: any) => !['VOIDED', 'COMPED', 'WASTE'].includes(String(it.status || '').toUpperCase())).length;
+  }, [sentItems]);
 
   // Close note editor if the edited item was removed from draft
   useEffect(() => {
@@ -253,16 +232,16 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     resetToDefault,
   } = useResizableSplitPane({
     storageKey: 'iw_tables_compose_cart_width',
-    defaultWidth: 460,
+    defaultWidth: 400,
     minWidth: 320,
-    maxWidth: 680,
+    maxWidth: 600,
   });
 
   return (
     <div
       ref={containerRef}
       style={{ '--cart-width': `${cartWidth}px` } as React.CSSProperties}
-      className={`flex flex-col min-h-0 flex-1 gap-3 md:gap-0 overflow-hidden relative ${
+      className={`flex flex-col min-h-0 flex-1 gap-2 md:gap-0 overflow-hidden relative ${
         showCartPane ? 'md:flex md:flex-row' : ''
       }`}
     >
@@ -283,31 +262,28 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onLangChange={setLang}
         />
 
-        {/* Floating Mobile Bar. P1-2: with drafts it's a cart+send bar; with none it
-            still opens the cart pane so Pre-Check / Hesab / Köçür / Servis stay reachable
-            on a phone (previously this bar only rendered when draftRows>0, trapping the
-            waiter with only the header back button once everything was sent). */}
+        {/* Floating Mobile Bar */}
         {mobileActiveTab !== 'cart' && (draftRows.length > 0 || showCartPane) && (
           <div className="md:hidden shrink-0 mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => setMobileActiveTab('cart')}
-              className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(250,204,21,0.25)] taktil-target"
+              className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-sm rounded-2xl active:scale-[0.97] shadow-lg taktil-target"
             >
               {draftRows.length > 0 ? (
                 <>
                   <span className="flex items-center gap-2">
-                    🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
-                    <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-semibold">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
+                    🛒 {tx(lang, 'Çek', 'Чек', 'Check')}
+                    <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-bold tabular-nums">{draftItemCount}</span>
                   </span>
-                  <span className="text-base font-bold">{draftTotal} ₼</span>
+                  <span className="text-base font-black tabular-nums">{grandTotal} ₼</span>
                 </>
               ) : (
                 <>
                   <span className="flex items-center gap-2">
-                    🧾 {tx(lang, 'Sifariş və Hesab', 'Заказ и счёт', 'Order & Bill')}
+                    🧾 {tx(lang, 'Cari Çek və Hesab', 'Чек и счёт', 'Check & Bill')}
                   </span>
-                  <span className="text-base font-bold">{sentTotal.toFixed(2)} ₼</span>
+                  <span className="text-base font-black tabular-nums">{sentTotal.toFixed(2)} ₼</span>
                 </>
               )}
             </button>
@@ -319,9 +295,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   playHapticSuccess();
                   await onSend();
                 }}
-                className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
+                className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-4 py-3.5 font-black text-sm rounded-2xl active:scale-[0.97] shadow-lg taktil-target"
               >
-                🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
+                <Send size={15} />
+                <span>{tx(lang, 'Göndər', 'Отправить', 'Send')}</span>
               </button>
             )}
           </div>
@@ -337,8 +314,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         />
       )}
 
-      {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel (iOS-style Bottom Sheet on mobile) ─── */}
-      {/* Backdrop overlay for mobile bottom sheet */}
+      {/* ─── RIGHT: Unified Live Check Panel (Cari Çek) ─── */}
       <div
         className={`md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-xs transition-opacity duration-300 ${
           mobileActiveTab === 'cart' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -347,204 +323,69 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       />
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
+        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[28px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/65 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
         } ${!showCartPane ? 'md:hidden' : ''}`}
       >
         {/* Mobile drag handle */}
-        <div 
-          className="md:hidden shrink-0 w-full py-3 flex justify-center cursor-pointer bg-slate-900/50 active:bg-slate-800/60 transition"
+        <div
+          className="md:hidden shrink-0 w-full py-2.5 flex justify-center cursor-pointer bg-slate-900/50 active:bg-slate-800/60 transition"
           onClick={() => setMobileActiveTab('menu')}
         >
           <div className="h-1.5 w-14 rounded-full bg-slate-600/80" />
         </div>
 
-        {/* Mobile Cart Header */}
-        <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-slate-900/70">
-          <div>
-            <span className="text-sm font-semibold text-white">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</span>
-            <span className="ml-2 text-sm font-semibold text-yellow-400">{draftTotal} ₼</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileActiveTab('menu')}
-            className="rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
-          >
-            ← {tx(lang, 'Menyu', 'Меню', 'Menu')}
-          </button>
-        </div>
-
-        {/* Desktop & Tablet Cart Header (Screenshot 1 Style) */}
-        <div className="hidden md:flex shrink-0 items-center justify-between border-b border-slate-700/60 p-2.5 2xl:p-3.5 bg-slate-900/80">
+        {/* Compact Check Header (Single 40px bar — no duplicate table info!) */}
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-800 px-3 py-2 bg-slate-900/80">
           <div className="flex items-center gap-2 min-w-0">
-            {/* Table / Customer Avatar Badge */}
-            <div className="h-8 w-8 2xl:h-10 2xl:w-10 shrink-0 rounded-xl 2xl:rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 text-xs 2xl:text-sm shadow-md shadow-amber-400/20">
-              <LayoutGrid size={17} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs 2xl:text-sm font-black text-white truncate flex items-center gap-1.5">
-                <span>{tableLabel || tx(lang, 'Masa Sifarişi', 'Заказ стола', 'Table Order')}</span>
-                <span className="rounded-md bg-slate-800 border border-slate-700 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
-                  {tx(lang, 'Zal', 'Зал', 'Dine-in')}
-                </span>
-              </div>
-              <div className="text-[10px] 2xl:text-[11px] font-semibold text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                {waiterName && <span><User size={10} /> {waiterName} · </span>}
-                <span><Users size={10} /> {guestCount || 2} {tx(lang, 'nəfər', 'гостей', 'guests')}</span>
-              </div>
-            </div>
-          </div>
-          {draftRows.length > 0 && (
-            <button
-              type="button"
-              onClick={onClearDrafts}
-              className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/25 px-2.5 py-1.5 rounded-xl transition active:scale-95 flex items-center gap-1"
-            >
-              <Trash2 size={12} />
-              <span>{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</span>
-            </button>
-          )}
-        </div>
-
-        {/* AeroTable Quick Action Bar */}
-        <div className="grid grid-cols-5 gap-1 2xl:gap-1.5 border-b border-slate-800/80 bg-slate-900/50 p-1.5 2xl:p-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              tapFeedback();
-              onTabChange('service');
-            }}
-            className={`relative flex flex-col items-center justify-center min-h-10 2xl:min-h-12 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
-              readyCount > 0
-                ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-sm shadow-emerald-500/10'
-                : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
-            }`}
-            title={tx(lang, 'Mətbəx Servis Statusu', 'Сервис кухни', 'Kitchen Service')}
-          >
-            <Bell size={14} className={readyCount > 0 ? 'animate-bounce text-emerald-400' : ''} />
-            <span className="truncate mt-0.5">{tx(lang, 'Servis', 'Сервис', 'Service')}</span>
-            {readyCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-black text-slate-950 shadow-md">
-                {readyCount}
+            <Receipt size={15} className="text-amber-400 shrink-0" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200 truncate">
+              {tx(lang, 'Cari Çek', 'Текущий чек', 'Current Check')}
+            </span>
+            {(draftItemCount > 0 || activeSentCount > 0) && (
+              <span className="rounded-md bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-300 tabular-nums">
+                {draftItemCount > 0
+                  ? `+${draftItemCount} ${tx(lang, 'yeni', 'нов.', 'new')}`
+                  : `${activeSentCount} ${tx(lang, 'məhsul', 'поз.', 'items')}`}
               </span>
             )}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              tapFeedback();
-              onOpenOperations?.();
-            }}
-            className="flex flex-col items-center justify-center min-h-10 2xl:min-h-12 px-1 rounded-xl bg-slate-800/70 hover:bg-blue-600/20 border border-blue-500/40 text-[10px] font-bold text-blue-300 transition taktil-target active:scale-95"
-            title={tx(lang, 'Masanı köçür və ya birləşdir', 'Перенести или объединить стол', 'Transfer or combine table')}
-          >
-            <ArrowRightLeft size={15} />
-            <span className="truncate mt-0.5">{tx(lang, 'Köçür', 'Перенос', 'Transfer')}</span>
-          </button>
-          <button
-            type="button"
-            disabled={!canApplyDiscount}
-            onClick={() => {
-              tapFeedback();
-              if (!canApplyDiscount) {
-                notify('error', tx(lang, 'Endirim yalnız menecer icazəsi ilə tətbiq olunur', 'Скидку применяет только менеджер', 'Discounts require a manager'));
-                return;
-              }
-              setDiscountPercent((prev) => (prev === 0 ? 5 : prev === 5 ? 10 : prev === 10 ? 15 : prev === 15 ? 20 : 0));
-            }}
-            className={`flex flex-col items-center justify-center min-h-10 2xl:min-h-12 px-1 rounded-xl border text-[10px] font-bold transition taktil-target active:scale-95 ${
-              !canApplyDiscount
-                ? 'bg-slate-900/50 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                : discountPercent > 0
-                ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-sm'
-                : 'bg-slate-800/70 hover:bg-slate-700/70 border-slate-700/60 text-slate-300'
-            }`}
-            title={canApplyDiscount ? tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount') : tx(lang, 'Menecer icazəsi tələb olunur', 'Требуется менеджер', 'Manager approval required')}
-          >
-            <Tag size={15} />
-            <span className="truncate mt-0.5">{discountPercent > 0 ? `-${discountPercent}%` : tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              tapFeedback();
-              setShowGuestPicker((prev) => !prev);
-            }}
-            className="flex flex-col items-center justify-center min-h-10 2xl:min-h-12 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
-            title={tx(lang, 'Qonaq sayını dəyiş', 'Изменить кол-во гостей', 'Change guest count')}
-          >
-            <Users size={15} />
-            <span className="truncate mt-0.5">{guestCount || 2} {tx(lang, 'Nəfər', 'Гостя', 'Guests')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (draftRows.length > 0) {
-                setEditingRowForNote(draftRows[0]);
-                setCurrentNoteText(draftRows[0]?.note || '');
-              }
-            }}
-            className="flex flex-col items-center justify-center min-h-10 2xl:min-h-12 px-1 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/60 text-[10px] font-bold text-slate-300 transition taktil-target active:scale-95"
-          >
-            <FileText size={15} />
-            <span className="truncate mt-0.5">{tx(lang, 'Qeyd', 'Заметка', 'Note')}</span>
-          </button>
-        </div>
-
-        {/* Quick Guest Count Selector popup */}
-        {showGuestPicker && (
-          <div className="flex items-center justify-between gap-1 p-2 bg-slate-900 border-b border-slate-800/80 animate-scaleIn">
-            <span className="text-[11px] font-bold text-slate-400 px-1">{tx(lang, 'Qonaq sayı:', 'Гости:', 'Guests:')}</span>
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              {[1, 2, 3, 4, 5, 6, 8, 10].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => {
-                    tapFeedback();
-                    onUpdateGuestCount?.(num);
-                    setShowGuestPicker(false);
-                  }}
-                  className={`h-7 min-w-[28px] px-1.5 rounded-lg text-xs font-black transition active:scale-90 ${
-                    Number(guestCount || 2) === num
-                      ? 'bg-amber-400 text-slate-950 shadow-sm'
-                      : 'bg-slate-800 text-slate-200 border border-slate-700/70 hover:bg-slate-700'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {draftRows.length > 0 && (
+              <button
+                type="button"
+                onClick={onClearDrafts}
+                className="text-[11px] font-bold text-rose-300 hover:text-rose-200 bg-rose-500/10 border border-rose-500/25 px-2 py-1 rounded-lg transition active:scale-95 flex items-center gap-1"
+              >
+                <Trash2 size={12} />
+                <span>{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setShowGuestPicker(false)}
-              className="h-7 w-7 rounded-lg bg-slate-800 text-slate-400 text-xs font-bold hover:text-white"
+              onClick={() => setMobileActiveTab('menu')}
+              className="md:hidden rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-bold text-slate-200 active:scale-95"
             >
-              ✕
+              ← {tx(lang, 'Menyu', 'Меню', 'Menu')}
             </button>
           </div>
-        )}
+        </div>
 
-        {/* Scrollable draft items area */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 pb-1">
-          {/* Draft error */}
+        {/* ─── UNIFIED SCROLLABLE CHECK LIST (Both Draft & Sent Items Visible Together!) ─── */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-2.5 space-y-2.5">
           {draftSendError && (
-            <div className="mb-2 rounded-lg border border-rose-300/35 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-100">{draftSendError}</div>
+            <div className="rounded-lg border border-rose-300/35 bg-rose-500/10 px-2.5 py-1.5 text-[11px] text-rose-100">
+              {draftSendError}
+            </div>
           )}
 
-          {/* Draft items list */}
-          {draftRows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-700/60 p-6 text-center text-xs font-bold text-slate-500 flex flex-col items-center justify-center gap-2 my-auto">
-              <span className="text-2xl">🍽️</span>
-              {sentItems.length > 0 ? (
-                // P1-1 follow-up: don't imply the order is empty when items were already sent.
-                <span>{tx(lang, 'Yeni məhsul əlavə edin — göndərilənlər aşağıdadır', 'Добавьте новые позиции — отправленные ниже', 'Add new items — sent items are below')}</span>
-              ) : (
-                <span>{tx(lang, 'Sifariş üçün məhsul seçin', 'Выберите блюдо из меню', 'Select items from menu')}</span>
-              )}
-            </div>
-          ) : (
+          {/* 1. NEW DRAFTS SECTION (Yeni əlavələr) */}
+          {draftRows.length > 0 && (
             <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                <span>{tx(lang, 'Yeni əlavələr (göndərilməyib)', 'Новые позиции (не отправлены)', 'New items (unsent)')}</span>
+                <span className="tabular-nums">{draftTotal} ₼</span>
+              </div>
               {draftRows.map((row: any) => (
                 <DraftRowItem
                   key={row.id}
@@ -560,130 +401,145 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               ))}
             </div>
           )}
-        </div>
 
-        {/* Fixed bottom: sent button + actions (never scrolls away) */}
-        <div className="shrink-0 border-t border-slate-700/50 p-2.5 2xl:p-3 pt-1.5 2xl:pt-2 bg-slate-900/40">
-          {/* Sent items toggle button */}
+          {/* 2. SENT KITCHEN ITEMS SECTION (Mətbəxə göndərilmişlər — Inline in the same receipt!) */}
           {sentItems.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSentPanelOpen(true)}
-              className="mb-1.5 2xl:mb-2 flex w-full items-center justify-between rounded-xl border border-slate-600/50 bg-slate-800/50 px-2.5 2xl:px-3 py-1.5 2xl:py-2 text-left transition hover:bg-slate-700/50 active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-1">
-                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'READY') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-emerald-400" />}
-                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'PREPARING') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-orange-400" />}
-                  {sentItems.some((it: any) => ['SENT', 'NEW'].includes(String(it.status || '').toUpperCase())) && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-blue-400" />}
-                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'VOID_REQUESTED') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-yellow-400" />}
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setSentSectionExpanded((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-lg bg-slate-900/90 border border-slate-800 px-2.5 py-1.5 text-left transition hover:bg-slate-800/80"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-300">
+                    {tx(lang, 'Mətbəxə göndərilmişlər', 'Отправлено на кухню', 'Sent to kitchen')} ({sentItems.length})
+                  </span>
+                  {(() => {
+                    const readyItemCount = sentItems.filter((it: any) => String(it.status || '').toUpperCase() === 'READY').length;
+                    if (readyItemCount > 0) {
+                      return (
+                        <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-black text-emerald-300">
+                          ✓ {readyItemCount} {tx(lang, 'Hazır', 'Готово', 'Ready')}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
-                <span className="text-xs font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
-                {(() => {
-                  const readyItemCount = sentItems.filter((it: any) => String(it.status || '').toUpperCase() === 'READY').length;
-                  if (readyItemCount > 0) {
-                    return (
-                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.2 text-[10px] font-black text-emerald-300 animate-pulse">
-                        ✓ {readyItemCount}/{sentItems.length} {tx(lang, 'Hazır', 'Готово', 'Ready')}
-                      </span>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-full bg-slate-700/80 px-2 py-0.5 text-xs font-bold text-slate-200">{sentItems.length}</span>
-                <span className="text-slate-400">↑</span>
-              </div>
-            </button>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 tabular-nums">
+                  <span>{sentTotal.toFixed(2)} ₼</span>
+                  {sentSectionExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </div>
+              </button>
+
+              {sentSectionExpanded && (
+                <div className="space-y-1 pt-0.5">
+                  {(() => {
+                    const statusOrder = ['READY', 'PREPARING', 'SENT', 'NEW', 'VOID_REQUESTED', 'SERVED', 'VOIDED', 'COMPED', 'WASTE'];
+                    const sorted = [...sentItems].sort((a: any, b: any) => {
+                      const aIdx = statusOrder.indexOf(String(a.status || 'SENT').toUpperCase());
+                      const bIdx = statusOrder.indexOf(String(b.status || 'SENT').toUpperCase());
+                      return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+                    });
+                    return sorted.map((it: any, idx: number) => {
+                      const status = String(it.status || 'SENT').toUpperCase();
+                      const isTerminal = ['VOIDED', 'COMPED', 'WASTE'].includes(status);
+                      const dotColor =
+                        status === 'READY' ? 'bg-emerald-400' :
+                        status === 'PREPARING' ? 'bg-orange-400' :
+                        status === 'VOID_REQUESTED' ? 'bg-yellow-400' :
+                        status === 'SERVED' ? 'bg-violet-400' :
+                        isTerminal ? 'bg-slate-600' :
+                        'bg-sky-400';
+                      const statusLabel =
+                        status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
+                        status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Prep') :
+                        status === 'VOID_REQUESTED' ? tx(lang, 'Gözləyir', 'Ожидает', 'Pending') :
+                        status === 'SERVED' ? tx(lang, 'Verilib', 'Подано', 'Served') :
+                        status === 'VOIDED' ? tx(lang, 'Ləğv', 'Отменено', 'Void') :
+                        status === 'COMPED' ? tx(lang, 'Silinib', 'Списано', 'Comp') :
+                        status === 'WASTE' ? tx(lang, 'İsraf', 'Списано', 'Waste') :
+                        tx(lang, 'Mətbəxdə', 'На кухне', 'Kitchen');
+                      const canVoid = ['SENT', 'PREPARING', 'READY'].includes(status) && it.id;
+                      const price = new Decimal(it.price || 0).times(it.qty || 0).toFixed(2);
+                      return (
+                        <div
+                          key={`sent_${it.id || idx}`}
+                          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
+                            isTerminal
+                              ? 'border-slate-800/40 bg-slate-900/20 opacity-40 line-through'
+                              : 'border-slate-800/80 bg-slate-900/45'
+                          }`}
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`} title={statusLabel} />
+                            <span className="font-black text-slate-300 tabular-nums shrink-0">{it.qty}×</span>
+                            <span className="truncate font-semibold text-slate-200">{it.item_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-medium text-slate-400 hidden sm:inline">{statusLabel}</span>
+                            <span className="font-bold text-slate-200 tabular-nums">{price} ₼</span>
+                            {canVoid && onVoidItem && (
+                              <button
+                                type="button"
+                                onClick={() => onVoidItem(it)}
+                                className="rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300 transition active:scale-90 hover:bg-rose-500/20"
+                              >
+                                {tx(lang, 'Ləğv', 'Отм.', 'Void')}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
           )}
 
-          {/* Payment Method Selector */}
-          <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            {tx(lang, 'Hesabı Al üçün ödəniş üsulu', 'Способ оплаты для счёта', 'Payment method for the bill')}
-          </div>
-          <div className="mb-1.5 2xl:mb-2 grid grid-cols-3 gap-1 2xl:gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-slate-800/80">
-            <button
-              type="button"
-              onClick={() => { tapFeedback(); setSelectedPaymentMethod('cash'); }}
-              className={`flex items-center justify-center gap-1 2xl:gap-1.5 h-9 2xl:h-11 px-1.5 2xl:px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
-                selectedPaymentMethod === 'cash'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              <Banknote size={14} />
-              <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { tapFeedback(); setSelectedPaymentMethod('card'); }}
-              className={`flex items-center justify-center gap-1 2xl:gap-1.5 h-9 2xl:h-11 px-1.5 2xl:px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
-                selectedPaymentMethod === 'card'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              <CreditCard size={14} />
-              <span>{tx(lang, 'Kart', 'Карта', 'Card')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { tapFeedback(); setSelectedPaymentMethod('qr'); }}
-              className={`flex items-center justify-center gap-1 2xl:gap-1.5 h-9 2xl:h-11 px-1.5 2xl:px-2 rounded-xl text-xs font-bold transition taktil-target active:scale-95 ${
-                selectedPaymentMethod === 'qr'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              <QrCode size={14} />
-              <span>{tx(lang, 'QR ödəniş', 'QR оплата', 'QR pay')}</span>
-            </button>
-          </div>
+          {/* Empty Check State */}
+          {draftRows.length === 0 && sentItems.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-800 p-8 text-center text-xs font-semibold text-slate-500 flex flex-col items-center justify-center gap-2 my-auto">
+              <Receipt size={24} className="text-slate-600" />
+              <span>{tx(lang, 'Sifariş əlavə etmək üçün sol menyudan məhsula toxunun', 'Нажмите на блюдо слева, чтобы добавить в заказ', 'Tap an item on the left menu to add to the check')}</span>
+            </div>
+          )}
+        </div>
 
-          {/* Total financial breakdown & action buttons */}
-          <div className="space-y-1 2xl:space-y-1.5 py-0.5 2xl:py-1 px-0.5">
-            {sentItems.length > 0 && (
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{tx(lang, 'Əvvəlki sifarişlər', 'Предыдущие заказы', 'Previous orders')}</span>
-                <span className="font-semibold text-slate-300">{sentTotal.toFixed(2)} ₼</span>
+        {/* ─── CLEAN, TASK-FOCUSED FOOTER (Order Send + Bill Checkout ONLY) ─── */}
+        <div className="shrink-0 border-t border-slate-800 p-2.5 bg-slate-900/85 space-y-2">
+          {/* Compact Financial Summary */}
+          <div className="space-y-1 px-1">
+            {sentItems.length > 0 && draftRows.length > 0 && (
+              <div className="flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
+                <span>{tx(lang, 'Cari hesab', 'Текущий счёт', 'Current bill')}: {sentTotal.toFixed(2)} ₼</span>
+                <span className="text-amber-300 font-semibold">+{tx(lang, 'Yeni', 'Новые', 'New')}: {draftTotal} ₼</span>
               </div>
             )}
-            {draftRows.length > 0 && (
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{tx(lang, 'Yeni əlavələr (Qaralama)', 'Новые добавления', 'New items')} ({draftRows.reduce((sum, r) => sum + (r.qty || 0), 0)})</span>
-                <span className="font-semibold text-amber-300">{draftTotal} ₼</span>
-              </div>
-            )}
-            {discountPercent > 0 && (
-              <div className="flex items-center justify-between text-xs text-amber-400 font-semibold">
-                <span>{tx(lang, 'Endirim', 'Скидка', 'Discount')} (-{discountPercent}%)</span>
-                <span>-{new Decimal(grandTotal).times(discountPercent).dividedBy(100).toFixed(2)} ₼</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between border-t border-slate-800/80 pt-1 2xl:pt-1.5 text-sm font-bold text-slate-100">
-              <span className="text-slate-300">{tx(lang, 'Yekun Cəm', 'Итоговая сумма', 'Grand Total')}</span>
-              <span className="text-sm 2xl:text-base font-black text-amber-400">{discountedGrandTotal} ₼</span>
+            <div className="flex items-center justify-between text-sm font-bold text-slate-100 tabular-nums">
+              <span className="text-slate-300">{tx(lang, 'Yekun Cəm', 'Итого к оплате', 'Grand Total')}</span>
+              <span className="text-lg font-black text-amber-400">{grandTotal} ₼</span>
             </div>
           </div>
 
-          {/* ─── CTA Buttons — Clear Hierarchy ─── */}
-          <div className="mt-1.5 2xl:mt-2.5 flex flex-col gap-1.5 2xl:gap-2">
-            {/* Primary CTA: Mətbəxə Göndər (if drafts exist) */}
+          {/* Primary Actions: 1. Mətbəxə Göndər (when drafts exist)  2. Aralıq Hesab & Hesabı Al */}
+          <div className="flex flex-col gap-1.5">
             {draftRows.length > 0 && (
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="relative inline-flex min-h-10 2xl:min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2 2xl:py-3 text-xs font-black text-slate-950 shadow-[0_6px_20px_rgba(250,204,21,0.35)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden hover:brightness-105"
+                className="relative inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 text-sm font-black text-slate-950 shadow-lg shadow-amber-500/20 transition active:scale-[0.98] disabled:opacity-50 taktil-target hover:brightness-105"
               >
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
-                <Send size={15} />
-                <span>{tx(lang, 'Mətbəxə Göndər', 'В кухню', 'Place Order')}</span>
+                <Send size={16} />
+                <span>{tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send to Kitchen')}</span>
+                <span className="rounded-md bg-slate-950/15 px-2 py-0.5 text-xs font-black tabular-nums">
+                  {draftTotal} ₼
+                </span>
               </button>
             )}
 
-            {/* Settle & Pre-Check Row */}
             {tableOccupied && (
               <div className="flex gap-2">
                 {onPrintPreCheck && (
@@ -693,25 +549,29 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                       tapFeedback();
                       void onPrintPreCheck();
                     }}
-                    className="inline-flex min-h-10 2xl:min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-cyan-400/40 bg-cyan-500/15 px-3 py-2 2xl:py-3 text-xs font-bold text-cyan-200 transition active:scale-[0.97] taktil-target hover:bg-cyan-500/25 hover:text-white shadow-sm"
-                    title={tx(lang, 'Aralıq hesab çıxar', 'Печать предчека', 'Print interim pre-check')}
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 px-3 text-xs font-bold text-slate-200 transition active:scale-[0.98] taktil-target hover:bg-slate-700 hover:text-white"
+                    title={tx(lang, 'Müştəri üçün aralıq hesab (pre-check) çap et', 'Печать предчека', 'Print interim pre-check')}
                   >
-                    <Printer size={15} />
+                    <Printer size={15} className="text-cyan-400" />
                     <span>{tx(lang, 'Aralıq hesab', 'Предчек', 'Pre-check')}</span>
                   </button>
                 )}
                 <button
                   type="button"
-                  disabled={!userCanEdit}
+                  disabled={!userCanEdit || (sentItems.length === 0 && draftRows.length === 0)}
                   onClick={() => {
-                    const mapped: 'Nəğd' | 'Kart' | 'Split' =
-                      selectedPaymentMethod === 'cash' ? 'Nəğd' : selectedPaymentMethod === 'card' ? 'Kart' : 'Kart';
-                    onSettle(mapped, discountPercent);
+                    tapFeedback();
+                    onSettle('Nəğd', 0);
                   }}
-                  className="inline-flex min-h-10 2xl:min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border-2 border-slate-600 bg-slate-800/80 px-3 py-2 2xl:py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] disabled:opacity-50 taktil-target hover:border-slate-500 hover:text-white"
+                  className={`inline-flex flex-[1.35] items-center justify-center gap-1.5 rounded-xl px-3 text-xs sm:text-sm font-black transition active:scale-[0.98] disabled:opacity-40 taktil-target ${
+                    draftRows.length === 0
+                      ? 'h-12 bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20'
+                      : 'h-11 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                  }`}
                 >
-                  <Receipt size={15} />
-                  <span>{tx(lang, 'Hesabı Al', 'Счет', 'Bill')}</span>
+                  <Banknote size={16} />
+                  <span>{tx(lang, 'Hesabı Al', 'Оплата / Счёт', 'Pay / Settle')}</span>
+                  <span className="tabular-nums">({grandTotal} ₼)</span>
                 </button>
               </div>
             )}
@@ -720,139 +580,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               <button
                 type="button"
                 onClick={onBack}
-                className="inline-flex min-h-10 2xl:min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-2 2xl:py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-slate-700 bg-slate-800/70 px-3 text-xs font-bold text-slate-200 transition active:scale-[0.98]"
               >
-                ← {tx(lang, 'Masalar', 'Столы', 'Tables')}
+                ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
               </button>
             )}
-          </div>
-
-          {/* P2-2: the duplicate "← Masalara qayıt" link was removed — the header already has a
-              large ← back button. Only the single destructive action remains here. */}
-          {tableOccupied && (
-            <div className="mt-1.5 2xl:mt-2.5 flex items-center justify-end pt-1 border-t border-slate-800/40">
-              <button
-                type="button"
-                disabled={!userCanEdit}
-                onClick={() => {
-                  if (window.confirm(tx(lang, '⚠️ Masanı boşaltmaq istədiyinizdən əminsiniz?\n\nBu əməliyyat bütün sifarişləri ləğv edir və geri qaytarıla bilməz!', '⚠️ Уверены, что хотите освободить стол?\n\nЭто действие отменит все заказы и необратимо!', '⚠️ Void and clear table?\n\nThis cancels all items and cannot be undone!'))) {
-                    onCancelTable?.();
-                  }
-                }}
-                className="text-[11px] font-bold text-rose-400/80 hover:text-rose-300 transition py-1 px-2 rounded-lg bg-rose-500/10 border border-rose-500/20 active:scale-95"
-              >
-                🗑️ {tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel Table')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ─── Slide-up Sent Items Panel ─── */}
-        <div
-          className={`absolute bottom-0 left-0 right-0 top-0 z-10 flex flex-col rounded-2xl bg-slate-950 transition-transform duration-300 ease-out ${
-            sentPanelOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
-          }`}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
-            <div>
-              <div className="text-sm font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
-              <div className="text-[11px] text-slate-400">{sentItems.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => { playKitchenReadyAlert(); }}
-                title={tx(lang, 'Mətbəx zəngini səsləndir', 'Звуковой сигнал кухни', 'Test kitchen chime')}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-amber-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
-              >
-                <Volume2 size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setSentPanelOpen(false)}
-                aria-label={tx(lang, 'Bağla', 'Закрыть', 'Close')}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-300 transition hover:bg-slate-700/60 active:scale-90 taktil-target"
-              >
-                <ChevronDown size={18} />
-              </button>
-            </div>
-          </div>
-
-          {/* Items list */}
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3">
-            <div className="space-y-1.5">
-              {(() => {
-                const statusOrder = ['READY', 'PREPARING', 'SENT', 'NEW', 'VOID_REQUESTED', 'SERVED', 'VOIDED', 'COMPED', 'WASTE'];
-                const sorted = [...sentItems].sort((a: any, b: any) => {
-                  const aIdx = statusOrder.indexOf(String(a.status || 'SENT').toUpperCase());
-                  const bIdx = statusOrder.indexOf(String(b.status || 'SENT').toUpperCase());
-                  return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-                });
-                return sorted.map((it: any, idx: number) => {
-                  const status = String(it.status || 'SENT').toUpperCase();
-                  const isTerminal = ['VOIDED', 'COMPED', 'WASTE'].includes(status);
-                  const dotColor =
-                    status === 'READY' ? 'bg-emerald-400' :
-                    status === 'PREPARING' ? 'bg-orange-400' :
-                    status === 'VOID_REQUESTED' ? 'bg-yellow-400 animate-pulse' :
-                    status === 'SERVED' ? 'bg-violet-400' :
-                    isTerminal ? 'bg-slate-600' :
-                    'bg-blue-400';
-                  const statusLabel =
-                    status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
-                    status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Preparing') :
-                    status === 'VOID_REQUESTED' ? tx(lang, 'Ləğv gözləyir', 'Ожидает', 'Pending') :
-                    status === 'SERVED' ? tx(lang, 'Verilib', 'Подано', 'Served') :
-                    status === 'VOIDED' ? tx(lang, 'Ləğv', 'Отменено', 'Voided') :
-                    status === 'COMPED' ? tx(lang, 'Silinib', 'Списано', 'Comped') :
-                    status === 'WASTE' ? tx(lang, 'İsraf', 'Списано', 'Waste') :
-                    tx(lang, 'Göndərilib', 'Отправлено', 'Sent');
-                  const canVoid = ['SENT', 'PREPARING', 'READY'].includes(status) && it.id;
-                  const price = new Decimal(it.price || 0).times(it.qty || 0).toFixed(2);
-                  return (
-                    <div
-                      key={`sent_${it.id || idx}`}
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-                        isTerminal ? 'border-slate-800/50 bg-slate-900/20 opacity-40' : 'border-slate-700/50 bg-slate-900/40'
-                      }`}
-                    >
-                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColor}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-semibold text-slate-100">{it.item_name}</div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                          <span>×{it.qty}</span>
-                          <span>·</span>
-                          <span>{price} ₼</span>
-                          <span>·</span>
-                          <span className="font-medium">{statusLabel}</span>
-                        </div>
-                      </div>
-                      {canVoid && onVoidItem && (
-                        <button
-                          type="button"
-                          onClick={() => onVoidItem(it)}
-                          className="shrink-0 rounded-xl border border-rose-300/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-bold text-rose-200 transition active:scale-90 taktil-target"
-                        >
-                          {tx(lang, 'Ləğv', 'Отмена', 'Void')}
-                        </button>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-
-          {/* Footer - close */}
-          <div className="border-t border-slate-700/60 px-4 py-2.5">
-            <button
-              type="button"
-              onClick={() => setSentPanelOpen(false)}
-              className="w-full rounded-xl border border-slate-600/60 bg-slate-800/60 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700/60 active:scale-[0.98]"
-            >
-              ↓ {tx(lang, 'Qapat', 'Закрыть', 'Close')}
-            </button>
           </div>
         </div>
 

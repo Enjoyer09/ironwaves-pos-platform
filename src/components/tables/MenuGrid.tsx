@@ -387,15 +387,15 @@ function MenuGrid({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-2.5"
+      className="flex min-h-0 flex-1 flex-col gap-2"
       onTouchStart={handleSwipeStart}
       onTouchEnd={handleSwipeEnd}
     >
       {/* Search & Fast Mode Toggle Bar */}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center shrink-0">
         <div className="relative flex-1 min-w-0">
           <input
-            className="neon-input w-full pr-8"
+            className="neon-input !min-h-10 h-10 w-full pr-8 text-xs sm:text-sm"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
@@ -415,7 +415,7 @@ function MenuGrid({
           )}
         </div>
 
-        {/* ⚡ Fast mode toggle */}
+        {/* ⚡ Fast mode toggle — always reachable on all Touch POS screens */}
         <button
           type="button"
           onClick={() => {
@@ -423,20 +423,20 @@ function MenuGrid({
             setHideImages(next);
             localStorage.setItem('pos_hide_images', String(next));
           }}
-          className={`hidden sm:flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition shrink-0 ${
+          className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition shrink-0 taktil-target active:scale-95 ${
             hideImages
-              ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
-              : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
+              ? 'border-yellow-400/60 bg-yellow-400/15 text-yellow-300 shadow-sm'
+              : 'border-slate-700/60 bg-slate-800/50 text-slate-300 hover:bg-slate-800/80'
           }`}
-          title={tx(lang, 'Şəkilləri göstər/gizlə', 'Показать/скрыть фото', 'Toggle images')}
+          title={tx(lang, 'Şəkilləri göstər/gizlə (Sürətli rejim)', 'Показать/скрыть фото', 'Toggle images (Fast mode)')}
         >
           <Zap size={14} />
           <span>{tx(lang, 'Sürətli', 'Быстрый', 'Fast')}</span>
         </button>
       </div>
 
-      {/* Category tabs — Frosted Glass modern pill scroll */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
+      {/* Category tabs — Compact Touch POS horizontal scroll */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none -mx-0.5 px-0.5 shrink-0">
         {categories.map((cat) => {
           const meta = getCategoryMeta(cat, lang);
           const isSelected = selectedCategory === cat;
@@ -449,16 +449,16 @@ function MenuGrid({
                 playHapticTouch();
                 onCategoryChange(cat);
               }}
-              className={`group flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 transition-all pos-category-btn taktil-target active:scale-95 border backdrop-blur-md ${
+              className={`group flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 transition-all pos-category-btn taktil-target active:scale-95 border backdrop-blur-md whitespace-nowrap ${
                 isSelected
-                  ? `${meta.bgActive} font-black scale-[1.02] ring-2 ring-white/30 shadow-lg`
+                  ? `${meta.bgActive} font-black ring-1 ring-white/30 shadow-md`
                   : `${meta.bgNormal} font-bold`
               }`}
             >
-              <span className="text-base leading-none">{meta.icon}</span>
-              <span className="text-xs sm:text-sm tracking-wide whitespace-nowrap">{meta.label}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                isSelected ? 'bg-white/25 text-white' : 'bg-slate-800/90 text-slate-400 border border-slate-700/50'
+              <span className="text-sm leading-none">{meta.icon}</span>
+              <span className="text-xs tracking-wide whitespace-nowrap">{meta.label}</span>
+              <span className={`rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums ${
+                isSelected ? 'bg-black/20 text-white' : 'bg-slate-800/90 text-slate-400'
               }`}>
                 {count}
               </span>
@@ -467,11 +467,11 @@ function MenuGrid({
         })}
       </div>
 
-      {/* Product grid - Frosted Glass cards */}
-      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/40 backdrop-blur-xl p-2 sm:p-2.5 touch-pan-y ${
+      {/* Product grid — High-density Touch POS tiles (3-4 cols on Touch POS, 12-16 items visible without scrolling) */}
+      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/40 backdrop-blur-xl p-2 touch-pan-y ${
         hideImages
-          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7'
-          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6'
+          ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
+          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5'
       }`} style={{ WebkitOverflowScrolling: 'touch' }}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
@@ -481,33 +481,29 @@ function MenuGrid({
           return (
             <div key={group.key} className="relative">
               <div
-                className={`relative flex w-full flex-col overflow-hidden rounded-2xl transition-all duration-300 pos-product-card backdrop-blur-md ${
+                className={`group relative flex w-full flex-col overflow-hidden rounded-xl transition-all duration-150 pos-product-card select-none ${
                   totalQtyInDraft > 0
-                    ? 'ring-2 ring-yellow-400 shadow-xl shadow-yellow-400/20 scale-[1.02] card-pulsing-glow bg-slate-900/90 border border-yellow-400/50'
-                    : 'bg-slate-900/70 hover:bg-slate-800/90 hover:border-amber-400/40 hover:shadow-lg hover:shadow-amber-500/10 border border-slate-800/80 hover:-translate-y-0.5'
+                    ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-400/15 bg-slate-900/95 border border-amber-400/60'
+                    : 'bg-slate-900/75 hover:bg-slate-800/90 hover:border-amber-400/40 border border-slate-800/90'
                 }`}
               >
                 {/* Promo / Popular Badges */}
-                <div className="absolute left-1.5 top-1.5 z-20 flex flex-wrap gap-1 items-center pointer-events-none">
-                  {isPromo && (
-                    <span className="rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
-                      ⚡ {tx(lang, 'Kampaniya', 'Промо', 'Promo')}
-                    </span>
-                  )}
-                  {isPopular && !isPromo && (
-                    <span className="rounded bg-gradient-to-r from-rose-500 to-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white shadow shadow-rose-500/20">
-                      🔥 {tx(lang, 'Populyar', 'Хит', 'Best')}
-                    </span>
-                  )}
-                </div>
-
-                {/* Top-Right Quick Add Cart Badge */}
-                {totalQtyInDraft === 0 && isBahaYLab && (
-                  <div className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs pointer-events-none backdrop-blur-xs">
-                    🛒
+                {(isPromo || isPopular) && (
+                  <div className="absolute left-1.5 top-1.5 z-20 flex flex-wrap gap-1 items-center pointer-events-none">
+                    {isPromo && (
+                      <span className="rounded bg-amber-500 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow">
+                        ⚡ {tx(lang, 'Promo', 'Промо', 'Promo')}
+                      </span>
+                    )}
+                    {isPopular && !isPromo && (
+                      <span className="rounded bg-rose-500/90 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-white shadow">
+                        🔥 {tx(lang, 'Hit', 'Хит', 'Best')}
+                      </span>
+                    )}
                   </div>
                 )}
-                {/* Main clickable area: adds default/first variant */}
+
+                {/* Main clickable area: 1-tap adds default/first variant */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -548,72 +544,96 @@ function MenuGrid({
                     }
                   }}
                   aria-label={`${group.base}, ${group.minPrice.toFixed(2)} AZN${group.hasVariants ? ', ' + group.items.length + ' variant' : ''}`}
-                  className={`flex flex-1 flex-col cursor-pointer transition taktil-target`}
+                  className="flex flex-1 flex-col cursor-pointer transition active:scale-[0.98]"
                 >
                   {!hideImages ? (
-                    group.image_url ? (
-                      // Real image — adaptive 4:3 on laptops, square on large displays
-                      <div className="aspect-[4/3] 2xl:aspect-square w-full min-h-[92px] 2xl:min-h-[130px] overflow-hidden bg-slate-800 relative">
-                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
+                    <div className="relative h-20 sm:h-22 2xl:h-28 w-full overflow-hidden bg-slate-800/90">
+                      {group.image_url ? (
+                        <img
+                          src={group.image_url}
+                          alt={group.base}
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                          <span className="text-xl 2xl:text-2xl font-black text-slate-500 select-none">
+                            {String(group.base || '').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/15 to-transparent pointer-events-none" />
+
+                      {/* Overlaid Price Badge on bottom-right of image (saves vertical height!) */}
+                      <div className="absolute bottom-1.5 right-1.5 z-10 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 bg-slate-950/90 px-2 py-0.5 text-[11px] font-black text-amber-300 shadow-md tabular-nums backdrop-blur-xs">
+                        <span>{group.minPrice.toFixed(2)} ₼</span>
+                        {group.hasVariants && <span className="text-[9px] font-bold text-slate-300">▾</span>}
                       </div>
-                    ) : (
-                      // No image placeholder — adaptive 4:3 on laptops, square on large displays
-                      <div className="aspect-[4/3] 2xl:aspect-square w-full min-h-[92px] 2xl:min-h-[130px] flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-800/60">
-                        <span className="text-2xl 2xl:text-3xl font-bold text-slate-500 select-none">
-                          {String(group.base || '').charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )
+
+                      {/* Overlaid Inline Stepper when in Draft (prevents card height jumping!) */}
+                      {!group.hasVariants && totalQtyInDraft > 0 && (
+                        <div
+                          className="absolute inset-x-1 bottom-1 z-20 flex items-center justify-between rounded-lg bg-slate-950/95 border border-amber-400/60 p-0.5 shadow-lg"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playHapticTouch();
+                              void onSelectItem(group.items[0], -1);
+                            }}
+                            className="flex h-7 w-8 items-center justify-center rounded-md bg-slate-800 text-slate-100 font-black text-sm active:scale-90 hover:bg-slate-700"
+                          >
+                            −
+                          </button>
+                          <span className="font-black text-xs text-amber-300 tabular-nums px-1">
+                            {totalQtyInDraft}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playHapticTouch();
+                              void onSelectItem(group.items[0], 1);
+                            }}
+                            className="flex h-7 w-8 items-center justify-center rounded-md bg-amber-400 text-slate-950 font-black text-sm active:scale-90"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : null}
-                  {/* Text info — centered for image mode, left for fast mode */}
-                  <div className={`flex flex-col ${hideImages ? 'p-2 pb-2.5' : 'p-1.5 2xl:p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
-                    <div className={`line-clamp-2 font-bold leading-snug text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
+
+                  {/* Compact Title Bar */}
+                  <div className={`flex flex-col justify-between ${hideImages ? 'p-2.5 min-h-[68px]' : 'px-2 py-1.5 min-h-[38px] justify-center'}`}>
+                    <div className={`font-bold leading-tight text-slate-100 ${hideImages ? 'line-clamp-2 text-xs' : 'line-clamp-1 text-xs text-center'}`}>
                       {group.base}
                     </div>
-                    <div className={`mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-slate-950/85 px-2.5 py-0.5 text-xs font-black text-amber-300 shadow-sm`}>
-                      <span>{group.minPrice.toFixed(2)} ₼</span>
-                      {group.hasVariants && <span className="text-[9px] font-semibold text-slate-400">({group.items.length} variant)</span>}
-                    </div>
+                    {hideImages && (
+                      <div className="mt-1.5 flex items-center justify-between gap-1">
+                        <span className="text-xs font-black text-amber-300 tabular-nums">
+                          {group.minPrice.toFixed(2)} ₼
+                        </span>
+                        {group.hasVariants && (
+                          <span className="text-[9px] font-semibold text-slate-400">
+                            {group.items.length} var.
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
+                {/* Top-right quantity badge */}
                 {totalQtyInDraft > 0 && (
-                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-slate-900 shadow-lg pointer-events-none">
+                  <div className="absolute right-1.5 top-1.5 z-20 flex h-6 min-w-6 px-1.5 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-slate-950 shadow-md tabular-nums pointer-events-none">
                     {totalQtyInDraft}
-                  </div>
-                )}
-
-                {/* Bottom quantity stepper on single items */}
-                {!group.hasVariants && totalQtyInDraft > 0 && (
-                  <div className={`flex items-center justify-between gap-1.5 border-t border-slate-800/50 bg-slate-950/60 ${hideImages ? 'p-1' : 'p-1.5'}`}>
-                    <button
-                      type="button"
-                      aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playHapticTouch();
-                        void onSelectItem(group.items[0], -1);
-                      }}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm active:scale-90 hover:bg-slate-700"
-                    >
-                      −
-                    </button>
-                    <span className="font-extrabold text-xs text-yellow-300">
-                      {totalQtyInDraft}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playHapticTouch();
-                        void onSelectItem(group.items[0], 1);
-                      }}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm active:scale-90 shadow-sm shadow-yellow-400/20"
-                    >
-                      +
-                    </button>
                   </div>
                 )}
               </div>

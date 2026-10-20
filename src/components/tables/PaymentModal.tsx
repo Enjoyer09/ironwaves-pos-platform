@@ -1,12 +1,8 @@
-/**
- * PaymentModal — Table check settlement modal.
- * Renders discount controls, payment method selection, cash/split inputs, and settle button.
- * All business logic (settle API call, receipt generation) is delegated via onSettle callback.
- */
-import React from 'react';
+import React, { useState } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
+import { Banknote, CreditCard, Split, Tag, Check, X } from 'lucide-react';
 import {
   buildEqualSplitParts,
   getMaxSplitCount,
@@ -16,7 +12,7 @@ import {
   type BillBreakdown,
 } from '../../utils/tables/paymentUtils';
 
-const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
+const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 50] as const;
 
 export interface PaymentModalProps {
   lang: string;
@@ -47,142 +43,356 @@ export default function PaymentModal(props: PaymentModalProps) {
     onSettle, onCancel,
   } = props;
 
-  const { itemsTotal, discountPercent, discountAmount, discountedItemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount, depositPerGuestShare } = breakdown;
+  const { itemsTotal, discountPercent, discountAmount, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount } = breakdown;
   const participantCount = normalizeSplitCount(table, splitCount, splitCount);
-  // P1-6: discounts are manager-gated. Waiters settle the exact bill; the discount
-  // block is hidden for staff/kitchen so it can't be applied at settle time either.
   const currentRole = useAppStore((s) => String(s.user?.role || '').toLowerCase());
   const canApplyDiscount = ['admin', 'manager', 'super_admin'].includes(currentRole);
+  const [showDiscountPanel, setShowDiscountPanel] = useState(() => Number(tableDiscountPercent || 0) > 0);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
-      <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
+    <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/75 backdrop-blur-xs p-0 md:items-center md:p-4" onClick={onCancel}>
+      <div
+        className="metal-panel w-full max-w-lg max-h-[94dvh] overflow-y-auto rounded-t-[28px] p-5 md:rounded-3xl shadow-2xl border border-slate-700/80"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
-        <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Hesabı bağla', 'Закрыть счёт', 'Close the bill')}</h3>
-        <div className="mt-3 text-sm text-slate-300">
-          {table.label} - {finalTotal.toFixed(2)} ₼ ({tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: {dueNow.toFixed(2)} ₼)
+
+        {/* Header: Table Label + Due Now Total */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              {tx(lang, 'Hesabı Bağla · Ödəniş Ekranı', 'Оплата счёта', 'Checkout & Payment')}
+            </div>
+            <h3 className="text-xl font-black text-white mt-0.5">{table.label}</h3>
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {tx(lang, 'Ödəniləcək Yekun', 'К оплате', 'Amount Due')}
+            </div>
+            <div className="text-2xl font-black text-amber-400 tabular-nums">
+              {dueNow.toFixed(2)} ₼
+            </div>
+          </div>
         </div>
 
-        {/* Bill breakdown */}
-        <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-          <div className="flex justify-between"><span>{tx(lang, 'Sifariş cəmi', 'Сумма заказа', 'Items total')}</span><span>{itemsTotal.toFixed(2)} ₼</span></div>
+        {/* Compact Bill Breakdown */}
+        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 px-3.5 py-2.5 text-xs text-slate-300 space-y-1 tabular-nums">
+          <div className="flex justify-between">
+            <span>{tx(lang, 'Sifariş cəmi', 'Сумма заказа', 'Items subtotal')}</span>
+            <span className="font-semibold text-slate-200">{itemsTotal.toFixed(2)} ₼</span>
+          </div>
           {discountAmount.greaterThan(0) && (
-            <>
-              <div className="mt-1 flex justify-between text-amber-200"><span>{tx(lang, `Endirim (${discountPercent.toFixed(0)}%)`, `Скидка (${discountPercent.toFixed(0)}%)`, `Discount (${discountPercent.toFixed(0)}%)`)}</span><span>-{discountAmount.toFixed(2)} ₼</span></div>
-              <div className="mt-1 flex justify-between"><span>{tx(lang, 'Endirimdən sonra', 'После скидки', 'After discount')}</span><span>{discountedItemsTotal.toFixed(2)} ₼</span></div>
-            </>
-          )}
-          <div className="mt-1 flex justify-between"><span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span><span>{serviceFee.toFixed(2)} ₼</span></div>
-          <div className="mt-1 flex justify-between"><span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>{deposit.toFixed(2)} ₼</span></div>
-          <div className="mt-1 flex justify-between font-semibold text-slate-100"><span>{tx(lang, 'Yekun hesab', 'Итоговый счет', 'Final bill')}</span><span>{finalTotal.toFixed(2)} ₼</span></div>
-          <div className="mt-1 flex justify-between text-emerald-200"><span>{tx(lang, 'Hazırda alınacaq', 'К оплате сейчас', 'Due now')}</span><span>{dueNow.toFixed(2)} ₼</span></div>
-        </div>
-
-        {/* Discount section */}
-        {canApplyDiscount && (
-        <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-400/10 p-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">{tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount')}</div>
-            <select className="neon-input max-w-[132px] py-2 text-sm" value={tableDiscountPercent} onChange={(e) => onDiscountChange(e.target.value)}>
-              <option value="0">{tx(lang, 'Endirim yox', 'Без скидки', 'No discount')}</option>
-              {TABLE_DISCOUNT_PRESETS.map((preset) => (<option key={preset} value={preset}>{preset}%</option>))}
-            </select>
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            {TABLE_DISCOUNT_PRESETS.map((preset) => (
-              <button key={preset} type="button" onClick={() => onDiscountChange(preset)} className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${Number(tableDiscountPercent) === preset ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-amber-300/25 bg-slate-950/25 text-amber-100 hover:border-amber-200/70'}`}>{preset}%</button>
-            ))}
-          </div>
-          {Number(tableDiscountPercent) > 0 && (
-            <div className="mt-3">
-              <input type="text" value={tableDiscountReason} onChange={(e) => onDiscountReasonChange(e.target.value)} placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')} className="neon-input h-10 w-full text-xs" required />
+            <div className="flex justify-between text-amber-300 font-semibold">
+              <span>{tx(lang, `Endirim (-${discountPercent.toFixed(0)}%)`, `Скидка (-${discountPercent.toFixed(0)}%)`, `Discount (-${discountPercent.toFixed(0)}%)`)}</span>
+              <span>-{discountAmount.toFixed(2)} ₼</span>
             </div>
           )}
-          <button type="button" className="mt-2 text-xs font-semibold text-slate-300 hover:text-white" onClick={() => onDiscountChange(0)}>{tx(lang, 'Endirimi sıfırla', 'Сбросить скидку', 'Reset discount')}</button>
-        </div>
-        )}
-
-        {/* Payment method */}
-        <div className="mt-4">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Ödəniş ssenarisi', 'Сценарий оплаты', 'Payment scenario')}</div>
-          <div className="grid grid-cols-3 gap-2">
-            {(['Nəğd', 'Kart', 'Split'] as const).map((m) => (
-              <button key={m} onClick={() => { onPaymentMethodChange(m); if (m === 'Split') { const count = normalizeSplitCount(table, splitCount, splitCount); onSplitCountChange(String(count)); onSplitPartsChange(buildEqualSplitParts(count, splitBasis)); } }} className={`pay-btn h-11 ${paymentMethod === m ? 'pay-btn-active' : ''}`}>
-                {m === 'Nəğd' ? tx(lang, 'Tam nəğd', 'Полностью наличными', 'All cash') : m === 'Kart' ? tx(lang, 'Tam kart', 'Полностью картой', 'All card') : tx(lang, 'Split ödə', 'Split оплата', 'Split payment')}
-              </button>
-            ))}
+          {serviceFee.greaterThan(0) && (
+            <div className="flex justify-between">
+              <span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span>
+              <span>+{serviceFee.toFixed(2)} ₼</span>
+            </div>
+          )}
+          {deposit.greaterThan(0) && (
+            <div className="flex justify-between text-cyan-300">
+              <span>{tx(lang, 'Öncədən depozit', 'Депозит', 'Deposit paid')}</span>
+              <span>-{deposit.toFixed(2)} ₼</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-slate-800/80 pt-1.5 text-sm font-black text-white">
+            <span>{tx(lang, 'Yekun hesab', 'Итоговый счёт', 'Final bill')}</span>
+            <span className="text-emerald-400">{finalTotal.toFixed(2)} ₼</span>
           </div>
         </div>
 
-        {/* Cash section */}
+        {/* Manager Discount Toggle & Presets */}
+        {canApplyDiscount && (
+          <div className="mt-3">
+            {!showDiscountPanel && Number(tableDiscountPercent || 0) === 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowDiscountPanel(true)}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 px-3.5 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800/80 hover:text-amber-300 transition"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Tag size={14} className="text-amber-400" />
+                  <span>{tx(lang, 'Menecer Endirimi əlavə et (%)', 'Добавить скидку менеджера (%)', 'Add Manager Discount (%)')}</span>
+                </span>
+                <span className="text-slate-400">+</span>
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-200 flex items-center gap-1.5">
+                    <Tag size={13} />
+                    {tx(lang, 'Endirim faizi', 'Процент скидки', 'Discount %')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDiscountChange(0);
+                      setShowDiscountPanel(false);
+                    }}
+                    className="text-[11px] font-bold text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-900/60"
+                  >
+                    {tx(lang, 'Sıfırla', 'Сбросить', 'Reset')}
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {TABLE_DISCOUNT_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => onDiscountChange(preset)}
+                      className={`h-9 rounded-xl border text-xs font-black transition active:scale-95 tabular-nums ${
+                        Number(tableDiscountPercent) === preset
+                          ? 'border-amber-200 bg-amber-400 text-slate-950 shadow-sm'
+                          : 'border-amber-300/25 bg-slate-950/50 text-amber-100 hover:border-amber-300/60'
+                      }`}
+                    >
+                      {preset}%
+                    </button>
+                  ))}
+                </div>
+                {Number(tableDiscountPercent) > 0 && (
+                  <input
+                    type="text"
+                    value={tableDiscountReason}
+                    onChange={(e) => onDiscountReasonChange(e.target.value)}
+                    placeholder={tx(lang, 'Endirim səbəbi (məs. Daimi müştəri)', 'Причина скидки', 'Discount reason')}
+                    className="neon-input !min-h-9 h-9 w-full text-xs"
+                    required
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Large Touch Payment Method Selector */}
+        <div className="mt-4">
+          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+            {tx(lang, 'Ödəniş üsulunu seçin', 'Выберите способ оплаты', 'Select payment method')}
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => onPaymentMethodChange('Nəğd')}
+              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                paymentMethod === 'Nəğd'
+                  ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200 shadow-lg shadow-emerald-500/15'
+                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+              }`}
+            >
+              <Banknote size={20} className={paymentMethod === 'Nəğd' ? 'text-emerald-300' : 'text-slate-400'} />
+              <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onPaymentMethodChange('Kart')}
+              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                paymentMethod === 'Kart'
+                  ? 'border-sky-400 bg-sky-500/20 text-sky-200 shadow-lg shadow-sky-500/15'
+                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+              }`}
+            >
+              <CreditCard size={20} className={paymentMethod === 'Kart' ? 'text-sky-300' : 'text-slate-400'} />
+              <span>{tx(lang, 'Kart / POS', 'Карта / POS', 'Card / POS')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onPaymentMethodChange('Split');
+                const count = normalizeSplitCount(table, splitCount, splitCount);
+                onSplitCountChange(String(count));
+                onSplitPartsChange(buildEqualSplitParts(count, splitBasis));
+              }}
+              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                paymentMethod === 'Split'
+                  ? 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-lg shadow-amber-500/15'
+                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+              }`}
+            >
+              <Split size={20} className={paymentMethod === 'Split' ? 'text-amber-300' : 'text-slate-400'} />
+              <span>{tx(lang, 'Hissəli / Split', 'Разделить', 'Split Bill')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Cash Denomination & Change Calculator */}
         {paymentMethod === 'Nəğd' && (() => {
           const cashPaid = new Decimal(Number(splitCash) || 0);
           const change = cashPaid.greaterThan(dueNow) ? cashPaid.minus(dueNow) : new Decimal(0);
           const exact = dueNow.toNumber();
           const presets: number[] = [exact];
           [5, 10, 20, 50, 100].forEach((val) => { if (val > exact && presets.length < 5) presets.push(val); });
-          while (presets.length < 5) { const last = presets[presets.length - 1] || exact; presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50); }
+          while (presets.length < 5) {
+            const last = presets[presets.length - 1] || exact;
+            presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50);
+          }
           return (
-            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 space-y-3">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">{tx(lang, 'Müştəridən alınan nəğd pul', 'Полученные наличные', 'Cash received')}</label>
-              <div className="flex gap-2">
-                <input className="neon-input flex-1 h-11 text-base font-bold text-white" type="number" step="0.01" min="0" value={splitCash === '0' ? '' : splitCash} placeholder={dueNow.toFixed(2)} onChange={(e) => onSplitCashChange(e.target.value || '0')} />
-                <button type="button" onClick={() => onSplitCashChange(dueNow.toFixed(2))} className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 taktil-target active:scale-95">{tx(lang, 'Dəqiq', 'Точно', 'Exact')}</button>
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300">
+                  {tx(lang, 'Müştəridən alınan nəğd pul', 'Полученные наличные', 'Cash received')}
+                </label>
+                {cashPaid.greaterThan(0) && (
+                  <button
+                    type="button"
+                    onClick={() => onSplitCashChange('0')}
+                    className="text-[11px] font-bold text-amber-400 hover:text-amber-300"
+                  >
+                    {tx(lang, 'Təmizlə', 'Сброс', 'Clear')}
+                  </button>
+                )}
               </div>
-              <div className="flex flex-wrap gap-1.5">
+
+              {/* Quick Touch Banknote Buttons */}
+              <div className="grid grid-cols-5 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSplitCashChange(dueNow.toFixed(2))}
+                  className={`h-10 rounded-xl border text-xs font-black transition active:scale-95 ${
+                    cashPaid.equals(dueNow) && splitCash !== '0'
+                      ? 'border-emerald-400 bg-emerald-400 text-slate-950'
+                      : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
+                </button>
                 {presets.slice(1).map((val) => (
-                  <button key={val} type="button" onClick={() => onSplitCashChange(val.toFixed(2))} className={`flex-1 min-w-[50px] rounded-lg border py-1.5 px-2 text-xs font-semibold transition taktil-target active:scale-95 ${Number(splitCash) === val ? 'border-amber-200 bg-amber-300 text-slate-950' : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:bg-slate-800/70'}`}>{val} ₼</button>
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => onSplitCashChange(val.toFixed(2))}
+                    className={`h-10 rounded-xl border text-xs font-black transition active:scale-95 tabular-nums ${
+                      Number(splitCash) === val
+                        ? 'border-amber-300 bg-amber-400 text-slate-950'
+                        : 'border-slate-700/80 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    {val} ₼
+                  </button>
                 ))}
               </div>
-              <div className="flex items-center justify-between border-t border-slate-800/50 pt-2 text-sm">
-                <span className="font-semibold text-slate-400">{tx(lang, 'Qalıq pul', 'Сдача', 'Change')}</span>
-                <span className={`text-base font-bold ${cashPaid.greaterThan(dueNow) ? 'text-emerald-400 animate-pulse' : 'text-slate-100'}`}>{change.toFixed(2)} ₼</span>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  className="neon-input flex-1 h-11 text-base font-black text-white tabular-nums"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={splitCash === '0' ? '' : splitCash}
+                  placeholder={dueNow.toFixed(2)}
+                  onChange={(e) => onSplitCashChange(e.target.value || '0')}
+                />
+                <div className="flex flex-col items-end justify-center rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 h-11 min-w-[135px]">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">
+                    {tx(lang, 'Qalıq (Sdaca)', 'Сдача', 'Change')}
+                  </span>
+                  <span className={`text-sm font-black tabular-nums ${cashPaid.greaterThan(dueNow) ? 'text-emerald-400' : 'text-slate-200'}`}>
+                    {change.toFixed(2)} ₼
+                  </span>
+                </div>
               </div>
             </div>
           );
         })()}
 
-        {/* Split section */}
+        {/* Split Bill Section */}
         {paymentMethod === 'Split' && (() => {
           const partsTotal = splitParts.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2);
           const diff = splitBasis.minus(partsTotal).toDecimalPlaces(2);
           return (
-            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
-              <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
-                <div className="flex justify-between gap-3"><span>{tx(lang, 'Qonaq sayı', 'Количество гостей', 'Guest count')}</span><span>{guestCount}</span></div>
-                <div className="mt-1 flex justify-between gap-3"><span>{tx(lang, 'Depozit (cəmi)', 'Депозит (итого)', 'Deposit total')}</span><span>{deposit.toFixed(2)} ₼</span></div>
-                <div className="mt-1 flex justify-between gap-3"><span>{tx(lang, '1 qonaq üçün depozit payı', 'Доля депозита на 1 гостя', 'Deposit share per guest')}</span><span>{depositPerGuestShare.toFixed(2)} ₼</span></div>
-                <div className="mt-1 flex justify-between gap-3"><span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span><span>{serviceFee.toFixed(2)} ₼</span></div>
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-300">
+                  {tx(lang, 'Neçə hissəyə bölünsün?', 'На сколько частей разделить?', 'Split into how many parts?')} ({guestCount} {tx(lang, 'qonaq', 'гостей', 'guests')})
+                </span>
+                <div className="flex items-center gap-1">
+                  {[2, 3, 4, 5].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        const norm = normalizeSplitCount(table, c, splitCount);
+                        onSplitCountChange(String(norm));
+                        onSplitPartsChange(buildEqualSplitParts(norm, splitBasis));
+                      }}
+                      className={`h-8 w-8 rounded-lg text-xs font-black transition ${
+                        participantCount === c
+                          ? 'bg-amber-400 text-slate-950'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <label className="block text-sm text-slate-300">
-                {tx(lang, 'Hesab neçə hissəyə bölünsün?', 'На сколько частей разделить счёт?', 'How many parts?')}
-                <input className="neon-input mt-2" type="number" min={2} max={getMaxSplitCount(table)} value={splitCount} onChange={(e) => { const c = normalizeSplitCount(table, e.target.value, splitCount); onSplitCountChange(String(c)); onSplitPartsChange(buildEqualSplitParts(c, splitBasis)); }} />
-              </label>
-              <div className="mt-3 space-y-2">
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, splitBasis)).map((part, idx) => (
-                  <div key={`split_part_${idx}`} className="grid grid-cols-[1fr_120px] gap-2">
-                    <input className="neon-input" type="number" min={0} step="0.01" value={part.amount} onChange={(e) => { const next = splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis); onSplitPartsChange(rebalanceSplitParts(next, splitBasis, idx, e.target.value)); }} placeholder={`${tx(lang, 'Hissə', 'Часть', 'Part')} ${idx + 1}`} />
-                    <select className="neon-input" value={part.method} onChange={(e) => { const next = splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis); next[idx] = { ...next[idx], method: e.target.value as 'Nəğd' | 'Kart' }; onSplitPartsChange(next); }}>
+                  <div key={`split_part_${idx}`} className="grid grid-cols-[1fr_110px] gap-2">
+                    <input
+                      className="neon-input !min-h-10 h-10 text-sm font-bold tabular-nums"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={part.amount}
+                      onChange={(e) => {
+                        const next = splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis);
+                        onSplitPartsChange(rebalanceSplitParts(next, splitBasis, idx, e.target.value));
+                      }}
+                      placeholder={`${tx(lang, 'Hissə', 'Часть', 'Part')} ${idx + 1}`}
+                    />
+                    <select
+                      className="neon-input !min-h-10 h-10 text-xs font-bold"
+                      value={part.method}
+                      onChange={(e) => {
+                        const next = splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis);
+                        next[idx] = { ...next[idx], method: e.target.value as 'Nəğd' | 'Kart' };
+                        onSplitPartsChange(next);
+                      }}
+                    >
                       <option value="Nəğd">{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</option>
                       <option value="Kart">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
                     </select>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-800/80 tabular-nums">
                 <span>{tx(lang, 'Bölünəcək məbləğ', 'Сумма к разделению', 'Amount to split')}: {splitBasis.toFixed(2)} ₼</span>
-                <span className={diff.abs().greaterThan(0.01) ? 'text-rose-300' : 'text-emerald-300'}>{tx(lang, 'Fərq', 'Разница', 'Diff')}: {diff.toFixed(2)} ₼</span>
+                <span className={diff.abs().greaterThan(0.01) ? 'text-rose-300 font-bold' : 'text-emerald-300 font-bold'}>
+                  {tx(lang, 'Fərq', 'Разница', 'Diff')}: {diff.toFixed(2)} ₼
+                </span>
               </div>
             </div>
           );
         })()}
 
-        {/* Action buttons */}
-        <div className="mt-4 flex justify-end gap-2">
-          {/* P2-1: "İmtina" (not "Ləğv et", which collides with cancelling the whole table).
-              "Ödənişi tamamla" matches the POS wording instead of the ambiguous "Bağla". */}
-          <button className="neon-btn rounded-lg px-4 py-2" onClick={onCancel}>{tx(lang, 'İmtina', 'Отмена', 'Cancel')}</button>
-          <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={onSettle}>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</button>
+        {/* Bottom Primary CTA Row */}
+        <div className="mt-5 flex items-center gap-2.5">
+          <button
+            type="button"
+            className="flex h-13 items-center justify-center gap-1.5 rounded-2xl border border-slate-700 bg-slate-800/90 px-5 text-sm font-bold text-slate-200 hover:bg-slate-700 active:scale-95 transition"
+            onClick={onCancel}
+          >
+            <X size={16} />
+            <span>{tx(lang, 'Geri', 'Назад', 'Back')}</span>
+          </button>
+          <button
+            type="button"
+            className="flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-6 text-base font-black text-slate-950 shadow-lg shadow-emerald-500/25 hover:brightness-105 active:scale-[0.98] transition taktil-target"
+            onClick={onSettle}
+          >
+            <Check size={20} />
+            <span>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
+            <span className="rounded-lg bg-slate-950/15 px-2 py-0.5 text-sm font-black tabular-nums">
+              {dueNow.toFixed(2)} ₼
+            </span>
+          </button>
         </div>
       </div>
     </div>

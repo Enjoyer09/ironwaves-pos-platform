@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Check, Minus, Plus, ScanLine, Search, ShoppingCart } from 'lucide-react';
 
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -133,31 +133,71 @@ export function StaffProductCard(props: {
     .join('');
 
   return (
-    <article className={`staff-product-card ${qtyInCart > 0 ? 'staff-product-card-active' : ''}`}>
-      <button type="button" aria-label={group.base} className="staff-product-image-wrap" onClick={onPlus}>
+    <article
+      onClick={() => {
+        if (hasVariants) onOpenVariant();
+        else onPlus();
+      }}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-2 text-left transition cursor-pointer select-none active:scale-[0.98] ${
+        qtyInCart > 0
+          ? 'border-amber-400/80 bg-slate-900/90 ring-1 ring-amber-400/35'
+          : 'border-slate-700/75 bg-slate-900/65 hover:border-slate-600'
+      }`}
+    >
+      <div className="relative h-20 w-full overflow-hidden rounded-xl bg-slate-950/80 shrink-0">
         {group.image_url ? (
-          <img src={group.image_url} alt={group.base} className="staff-product-image" />
+          <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
         ) : (
-          <div className="staff-product-fallback">
-            <span className="staff-product-fallback-mark">{initials || fallbackLabel}</span>
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800/90 to-slate-950 text-lg font-black text-slate-400">
+            {initials || fallbackLabel}
           </div>
         )}
-      </button>
-      <div className="staff-product-body">
-        <div className="staff-product-name">{group.base}</div>
-        <div className="staff-product-sub">{group.description || group.category}</div>
-        <div className="staff-product-price">{minPrice.toFixed(2)} ₼</div>
+        <div className="absolute bottom-1.5 left-1.5 rounded-lg bg-slate-950/90 backdrop-blur-xs border border-amber-400/40 px-2 py-0.5 text-xs font-extrabold text-amber-300 tabular-nums shadow-md">
+          {minPrice.toFixed(2)} ₼
+        </div>
+        {qtyInCart > 0 && (
+          <div className="absolute top-1.5 right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-xs font-black text-slate-950 shadow-md tabular-nums">
+            {qtyInCart}
+          </div>
+        )}
       </div>
-      <div className="staff-qty-row">
-        <button type="button" aria-label={`${group.base} - 1`} className="staff-qty-btn" onClick={onMinus} disabled={qtyInCart <= 0}>
-          <Minus size={15} />
-        </button>
-        <div className="staff-qty-value">{qtyInCart}</div>
-        <button type="button" aria-label={`${group.base} + 1`} className="staff-qty-btn" onClick={onPlus}>
-          <Plus size={15} />
-        </button>
-        {hasVariants ? (
-          <button type="button" aria-label={`${group.base} variant seçimi`} className="staff-variant-btn" onClick={onOpenVariant}>
+      <div className="mt-1.5 flex items-center justify-between gap-1.5 min-h-[34px]">
+        <div className="line-clamp-2 text-xs sm:text-[13px] font-bold leading-tight text-slate-100 flex-1 min-w-0">
+          {group.base}
+        </div>
+        {qtyInCart > 0 && !hasVariants ? (
+          <div
+            className="flex items-center gap-1 shrink-0 bg-slate-950/90 border border-slate-700/80 rounded-lg p-0.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label={`${group.base} - 1`}
+              onClick={onMinus}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-800 text-xs font-black text-slate-200 active:scale-90"
+            >
+              −
+            </button>
+            <span className="min-w-[16px] text-center text-xs font-black text-amber-300 tabular-nums">{qtyInCart}</span>
+            <button
+              type="button"
+              aria-label={`${group.base} + 1`}
+              onClick={onPlus}
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-400 text-xs font-black text-slate-950 active:scale-90"
+            >
+              +
+            </button>
+          </div>
+        ) : hasVariants ? (
+          <button
+            type="button"
+            aria-label={`${group.base} variant seçimi`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenVariant();
+            }}
+            className="shrink-0 rounded-md border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-200"
+          >
             Variant
           </button>
         ) : null}
@@ -267,10 +307,15 @@ export function StaffCheckoutButton(props: { disabled: boolean; onClick: () => v
 export function StaffCartPanel(props: StaffPosModeProps) {
   const {
     tx, lang, t, activeCart, checkoutBaseTotal, cart, ctx, patchCtx, handleFindCustomer, handleRewardCodeEnter,
-    feedbackCouponPreview, hasClaimCode, tables, selectedPayment, setSelectedPayment, isLoading, splitCashInput,
+    feedbackCouponPreview, hasClaimCode, selectedPayment, setSelectedPayment, isLoading, splitCashInput,
     setSplitCashInput, rawTotal, discountAmount, updateCartItem, shouldLockTableCheckoutInPos,
     handleSendToKitchen, handleCheckout,
   } = props;
+  const [showCustomerBox, setShowCustomerBox] = useState(false);
+  const [showDiscountBox, setShowDiscountBox] = useState(false);
+  const hasActiveCustomer = Boolean(ctx.customer || ctx.customerQR || ctx.rewardClaimCode);
+  const hasActiveDiscount = parseFloat(ctx.discount || '0') > 0 || Boolean(feedbackCouponPreview);
+
   return (
     <aside className="staff-cart-panel">
       <div className="staff-cart-head">
@@ -278,82 +323,120 @@ export function StaffCartPanel(props: StaffPosModeProps) {
         <div className="staff-cart-total-head">{checkoutBaseTotal.toFixed(2)} ₼</div>
       </div>
 
-      <div className="staff-customer-controls">
+      {(!showCustomerBox && !hasActiveCustomer && !showDiscountBox && !hasActiveDiscount) ? (
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1 min-w-0">
-            <ScanLine className="staff-search-icon" size={14} />
-            <input
-              placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
-              className="staff-search-input !min-h-9 h-9 pl-9 pr-2 text-xs"
-              value={ctx.customerQR}
-              onChange={(e) => patchCtx({ customerQR: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
-            />
-          </div>
-          <button onClick={handleFindCustomer} className="staff-head-btn !min-h-9 h-9 px-2.5 py-1 text-xs shrink-0">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-          <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="staff-head-btn !min-h-9 h-9 px-2 py-1 text-xs shrink-0">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+          <button
+            type="button"
+            onClick={() => setShowCustomerBox(true)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          >
+            <ScanLine size={13} className="text-cyan-400" />
+            <span>{tx(lang, 'Müştəri / Bonus', 'Клиент / Бонус', 'Customer / Bonus')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDiscountBox(true)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          >
+            <span>🏷️ {tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+          </button>
         </div>
-        <input
-          placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
-          className="staff-search-input !min-h-9 h-9 text-xs"
-          value={ctx.rewardClaimCode || ''}
-          onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleRewardCodeEnter();
-            }
-          }}
-        />
-        {feedbackCouponPreview ? (
-          <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
-            {feedbackCouponPreview.status === 'PENDING'
-              ? tx(lang, `Feedback kuponu aktivdir: -${feedbackCouponPreview.percent}%`, `Купон feedback активен: -${feedbackCouponPreview.percent}%`, `Feedback coupon active: -${feedbackCouponPreview.percent}%`)
-              : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
 
-      <div className="staff-mode-group">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="staff-group-label" style={{ margin: 0 }}>{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
-            {ctx.discount && parseFloat(ctx.discount) > 0 && (
-              <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                {ctx.discount}%
-              </span>
-            )}
+      {(showCustomerBox || hasActiveCustomer) && (
+        <div className="staff-customer-controls">
+          <div className="flex items-center gap-1.5">
+            <div className="relative flex-1 min-w-0">
+              <ScanLine className="staff-search-icon" size={14} />
+              <input
+                placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+                className="staff-search-input !min-h-8 h-8 pl-9 pr-2 text-xs"
+                value={ctx.customerQR}
+                onChange={(e) => patchCtx({ customerQR: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+              />
+            </div>
+            <button onClick={handleFindCustomer} className="staff-head-btn !min-h-8 h-8 px-2.5 py-1 text-xs shrink-0">{tx(lang, 'Oxu', 'ОК', 'Read')}</button>
+            <button
+              onClick={() => {
+                patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' });
+                setShowCustomerBox(false);
+              }}
+              className="staff-head-btn !min-h-8 h-8 px-2 py-1 text-xs shrink-0"
+            >
+              ✕
+            </button>
           </div>
-          {!hasClaimCode && (
-            <div className="grid grid-cols-5 gap-1 flex-1 max-w-[235px]">
-              {['0', '5', '10', '15', '20'].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => patchCtx({ discount: val })}
-                  className={`!min-h-8 h-8 rounded-lg border text-xs font-semibold transition ${
-                    (ctx.discount || '0') === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
-                  }`}
-                >
-                  {val}%
-                </button>
-              ))}
+          <input
+            placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
+            className="staff-search-input !min-h-8 h-8 text-xs"
+            value={ctx.rewardClaimCode || ''}
+            onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleRewardCodeEnter();
+              }
+            }}
+          />
+          {feedbackCouponPreview ? (
+            <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
+              {feedbackCouponPreview.status === 'PENDING'
+                ? tx(lang, `Feedback kuponu aktivdir: -${feedbackCouponPreview.percent}%`, `Купон feedback активен: -${feedbackCouponPreview.percent}%`, `Feedback coupon active: -${feedbackCouponPreview.percent}%`)
+                : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {(showDiscountBox || hasActiveDiscount) && (
+        <div className="staff-mode-group">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-400 shrink-0">{tx(lang, 'Endirim', 'Скидка', 'Disc.')}</span>
+            {!hasClaimCode && (
+              <div className="grid grid-cols-5 gap-1 flex-1">
+                {['0', '5', '10', '15', '20'].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => {
+                      patchCtx({ discount: val });
+                      if (val === '0') setShowDiscountBox(false);
+                    }}
+                    className={`!min-h-7 h-7 rounded-lg border text-xs font-semibold transition ${
+                      (ctx.discount || '0') === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
+                    }`}
+                  >
+                    {val}%
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                patchCtx({ discount: '0', discountReason: '' });
+                setShowDiscountBox(false);
+              }}
+              className="text-xs text-slate-400 hover:text-white px-1"
+            >
+              ✕
+            </button>
+          </div>
+          {parseFloat(ctx.discount || '0') > 0 && (
+            <div className="mt-1">
+              <input
+                type="text"
+                value={ctx.discountReason}
+                onChange={(e) => patchCtx({ discountReason: e.target.value })}
+                placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
+                className="staff-search-input !min-h-8 h-8 text-xs"
+                required
+              />
             </div>
           )}
         </div>
-        {parseFloat(ctx.discount || '0') > 0 && (
-          <div className="mt-1.5">
-            <input
-              type="text"
-              value={ctx.discountReason}
-              onChange={(e) => patchCtx({ discountReason: e.target.value })}
-              placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
-              className="staff-search-input !min-h-9 h-9 text-xs"
-              required
-            />
-          </div>
-        )}
-      </div>
+      )}
 
 
 

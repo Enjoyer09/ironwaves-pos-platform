@@ -297,6 +297,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [pendingClearCartKey, setPendingClearCartKey] = useState<'S1' | 'S2' | 'S3' | null>(null);
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+  const [showCustomerBox, setShowCustomerBox] = useState(false);
+  const [showDiscountBox, setShowDiscountBox] = useState(false);
   const [cartPulse, setCartPulse] = useState(false);
   const cartPulseTimerRef = useRef<number | null>(null);
   const safeReceiptHtml = useMemo(() => sanitizeHtmlForIframe(receiptHtml), [receiptHtml]);
@@ -2010,6 +2012,30 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const renderSidebarWidget = (widget: string) => {
     if (!isWidgetVisible(widget)) return null;
     if (widget === 'customer') {
+      const hasActiveCustomer = Boolean(ctx.customer || ctx.customerQR);
+      if (!showCustomerBox && !hasActiveCustomer) {
+        return (
+          <div key={widget} className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowCustomerBox(true)}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+            >
+              <ScanLine size={13} className="text-cyan-400" />
+              <span>{tx(lang, 'Müştəri / Bonus QR', 'Клиент / Бонус QR', 'Customer / Bonus QR')}</span>
+            </button>
+            {isWidgetVisible('discount') && !showDiscountBox && !(parseFloat(ctx.discount || '0') > 0) && !feedbackCouponPreview && (
+              <button
+                type="button"
+                onClick={() => setShowDiscountBox(true)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              >
+                <span>🏷️ {tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+              </button>
+            )}
+          </div>
+        );
+      }
       return (
         <React.Fragment key={widget}>
           <div className="flex items-center gap-1.5">
@@ -2017,7 +2043,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
-                className="neon-input !min-h-9 h-9 pl-8 pr-2 py-1 text-xs"
+                className="neon-input !min-h-8 h-8 pl-8 pr-2 py-1 text-xs"
                 value={ctx.customerQR}
                 onChange={(e) => patchCtx({ customerQR: e.target.value })}
                 onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
@@ -2025,30 +2051,47 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </div>
             <button
               onClick={handleFindCustomer}
-              className="pay-btn !min-h-9 h-9 px-2.5 py-1 text-xs shrink-0"
+              className="pay-btn !min-h-8 h-8 px-2.5 py-1 text-xs shrink-0"
               title={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
-              data-guide={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
             >
-              {tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}
+              {tx(lang, 'Oxu', 'ОК', 'Read')}
             </button>
             <button
-              onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })}
-              className="pay-btn !min-h-9 h-9 px-2 py-1 text-xs shrink-0"
-              title={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
-              data-guide={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
+              onClick={() => {
+                patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined });
+                setShowCustomerBox(false);
+              }}
+              className="pay-btn !min-h-8 h-8 px-2 py-1 text-xs shrink-0"
+              title={tx(lang, 'Bağla / Sıfırla', 'Закрыть / Сброс', 'Close / Reset')}
             >
-              {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+              ✕
             </button>
           </div>
           {ctx.customer && (
-            <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">
-              QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type} | {tx(lang, 'Endirim', 'Скидка', 'Discount')}: {Number(ctx.customer.discount_percent || 0)}%
+            <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-200">
+              QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Endirim', 'Скидка', 'Discount')}: {Number(ctx.customer.discount_percent || 0)}%
             </div>
           )}
         </React.Fragment>
       );
     }
     if (widget === 'discount') {
+      const hasActiveDiscount = parseFloat(ctx.discount || '0') > 0 || Boolean(feedbackCouponPreview);
+      if (!showDiscountBox && !hasActiveDiscount) {
+        if (isWidgetVisible('customer') && !showCustomerBox && !ctx.customer && !ctx.customerQR) {
+          return null;
+        }
+        return (
+          <button
+            key={widget}
+            type="button"
+            onClick={() => setShowDiscountBox(true)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          >
+            <span>🏷️ {tx(lang, 'Endirim % əlavə et', 'Добавить скидку %', 'Add Discount %')}</span>
+          </button>
+        );
+      }
       return (
         <React.Fragment key={widget}>
           {feedbackCouponPreview ? (
@@ -2069,25 +2112,21 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
             </div>
           ) : null}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
-              {ctx.discount && parseFloat(ctx.discount) > 0 && (
-                <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                  {ctx.discount}%
-                </span>
-              )}
-            </div>
+          <div className="flex items-center justify-between gap-1.5">
+            <span className="text-xs text-slate-400 shrink-0">{tx(lang, 'Endirim', 'Скидка', 'Disc.')}</span>
             {!hasClaimCode && (
-              <div className="grid grid-cols-5 gap-1 flex-1 max-w-[235px]">
+              <div className="grid grid-cols-5 gap-1 flex-1">
                 {['0', '5', '10', '15', '20'].map((val) => (
                   <button
                     key={val}
                     type="button"
                     aria-label={`${val}% endirim`}
-                    onClick={() => patchCtx({ discount: val })}
-                    className={`!min-h-8 h-8 flex items-center justify-center rounded-lg border text-xs font-semibold transition active:scale-95 ${
-                      (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100 shadow-sm shadow-amber-400/20' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
+                    onClick={() => {
+                      patchCtx({ discount: val });
+                      if (val === '0') setShowDiscountBox(false);
+                    }}
+                    className={`!min-h-7 h-7 flex items-center justify-center rounded-lg border text-xs font-semibold transition active:scale-95 ${
+                      (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
                     }`}
                   >
                     {val}%
@@ -2095,6 +2134,16 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 ))}
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                patchCtx({ discount: '0', discountReason: '' });
+                setShowDiscountBox(false);
+              }}
+              className="text-xs text-slate-400 hover:text-white px-1"
+            >
+              ✕
+            </button>
           </div>
           {parseFloat(ctx.discount || '0') > 0 && (
             <div className="mt-1">
@@ -2103,21 +2152,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 value={ctx.discountReason}
                 onChange={(e) => patchCtx({ discountReason: e.target.value })}
                 placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
-                className="neon-input !min-h-9 h-9 text-xs"
+                className="neon-input !min-h-8 h-8 text-xs"
                 required
               />
             </div>
           )}
-          {hasClaimCode ? (
-            <div className="text-[11px] text-amber-300">
-              {tx(
-                lang,
-                'Bu çekdə endirim kodu aktivdir: əlavə manual endirim bağlanıb.',
-                'В этом чеке активен код скидки: ручная скидка отключена.',
-                'A discount code is active for this check: manual discount is disabled.',
-              )}
-            </div>
-          ) : null}
         </React.Fragment>
       );
     }
@@ -2559,52 +2598,74 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     setDraggingMenuGroupKey(null);
                     setDropMenuGroupKey(null);
                   }}
-                  className={`pos2-product-card pos-product-card ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
+                  onClick={() => {
+                    if (!isPosMenuEditMode) openProductPicker(group);
+                  }}
+                  className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-2 text-left transition cursor-pointer select-none active:scale-[0.98] ${
+                    qtyInCart > 0
+                      ? 'border-amber-400/80 bg-slate-900/90 ring-1 ring-amber-400/35'
+                      : 'border-slate-700/75 bg-slate-900/65 hover:border-slate-600'
+                  } ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                 >
-                  <button onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }} className="w-full text-left">
-                    {posLayout.widget_options?.productGrid?.show_images !== false && (
-                      <div className="pos2-product-media">
-                        {group.image_url ? (
-                          <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="pos2-product-fallback">
-                            <ImageOff size={16} />
-                            <span>{group.base.slice(0, 1).toUpperCase()}</span>
-                          </div>
-                        )}
+                  {posLayout.widget_options?.productGrid?.show_images !== false && (
+                    <div className="relative h-20 w-full overflow-hidden rounded-xl bg-slate-950/80 shrink-0">
+                      {group.image_url ? (
+                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800/90 to-slate-950 text-lg font-black text-slate-400">
+                          {group.base.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="absolute bottom-1.5 left-1.5 rounded-lg bg-slate-950/90 backdrop-blur-xs border border-amber-400/40 px-2 py-0.5 text-xs font-extrabold text-amber-300 tabular-nums shadow-md">
+                        {group.minPrice.toFixed(2)} ₼
                       </div>
-                    )}
-                    <div className="mt-3">
-                      <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
-                      <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
-                      <div className="mt-1 text-sm font-bold text-amber-300">
-                        {group.minPrice.toFixed(2)} ₼ {group.hasVariants ? `• ${tx(lang, 'variant', 'вариант', 'variant')}` : ''}
-                      </div>
+                      {qtyInCart > 0 && (
+                        <div className="absolute top-1.5 right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-xs font-black text-slate-950 shadow-md tabular-nums">
+                          {qtyInCart}
+                        </div>
+                      )}
                     </div>
-                  </button>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    {group.hasVariants ? (
-                      <>
-                        <span className="rounded-lg border border-slate-600/80 bg-slate-900/50 px-2 py-1 text-xs text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
-                        <button onClick={() => openProductPicker(group)} className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-100">
-                          {tx(lang, 'Seç + Əlavə et', 'Выбрать + Добавить', 'Pick + Add')}
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => addToCart(preview)}
-                        className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
+                  )}
+                  <div className="mt-1.5 flex items-center justify-between gap-1.5 min-h-[34px]">
+                    <div className="min-w-0 flex-1">
+                      <div className="line-clamp-2 text-xs sm:text-[13px] font-bold leading-tight text-slate-100">{group.base}</div>
+                      {posLayout.widget_options?.productGrid?.show_images === false && (
+                        <div className="mt-0.5 text-xs font-bold text-amber-300 tabular-nums">{group.minPrice.toFixed(2)} ₼</div>
+                      )}
+                    </div>
+                    {qtyInCart > 0 && !group.hasVariants ? (
+                      <div
+                        className="flex items-center gap-1 shrink-0 bg-slate-950/90 border border-slate-700/80 rounded-lg p-0.5"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          onClick={() => decreaseGroupQty(group)}
+                          className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-800 text-xs font-black text-slate-200 hover:bg-rose-500/20 hover:text-rose-200 active:scale-90"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-[16px] text-center text-xs font-black text-amber-300 tabular-nums">{qtyInCart}</span>
+                        <button
+                          type="button"
+                          onClick={() => addToCart(preview)}
+                          className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-400 text-xs font-black text-slate-950 hover:bg-amber-300 active:scale-90"
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : group.hasVariants ? (
+                      <span className="shrink-0 rounded-md border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-200">
+                        {tx(lang, 'Seç', 'Выбр.', 'Pick')}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               );
             }}
             scrollClassName="flex-1 overflow-y-auto pr-1"
-            gridClassName="pos2-product-grid grid auto-rows-max grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-4"
-            estimatedRowHeight={220}
+            gridClassName="pos2-product-grid grid auto-rows-max grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+            estimatedRowHeight={148}
             threshold={100}
             disableVirtualization={isPosMenuEditMode}
           />

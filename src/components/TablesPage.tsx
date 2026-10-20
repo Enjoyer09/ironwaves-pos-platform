@@ -268,6 +268,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [tenantSettings]);
 
   const isBahaYLab = tablesUiMode === 'modern';
+  const [showHeaderGuestPicker, setShowHeaderGuestPicker] = useState(false);
   const {
     cartWidth: tablesCartWidth,
     isDragging: isTablesCartDragging,
@@ -666,7 +667,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [viewTableId]);
 
   useEffect(() => {
-    if (!viewTableId) {
+    const activeTableId = viewTableId || payTableId;
+    if (!activeTableId) {
       setTableDetailRecord(null);
       return;
     }
@@ -674,7 +676,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     // empty/stale order. `cancelled` guards against applying a stale response
     // when the waiter switches tables mid-fetch.
     let cancelled = false;
-    void get_table_detail_live(tenant_id, viewTableId)
+    void get_table_detail_live(tenant_id, activeTableId)
       .then((next) => {
         if (!cancelled) setTableDetailRecord(next);
       })
@@ -690,7 +692,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     return () => {
       cancelled = true;
     };
-  }, [tenant_id, viewTableId, notify, lang]);
+  }, [tenant_id, viewTableId, payTableId, notify, lang]);
 
   useEffect(() => {
     if (!viewTableId || !detailPanelRef.current) return;
@@ -2376,38 +2378,78 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 <>
                   {isBahaYLab ? (
                     <>
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5 mb-2.5 px-0.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2 mb-2 px-0.5 shrink-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <button
                           type="button"
                           onClick={() => closeTableDetail()}
-                          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 text-xl text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-500/25 active:scale-90 taktil-target"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/50 bg-cyan-500/15 text-base font-bold text-cyan-100 shadow-sm transition hover:bg-cyan-500/25 active:scale-90 taktil-target"
                         >
                           ←
                         </button>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-base font-bold text-slate-100 truncate">{t.label}</span>
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5">{detailSession?.guest_count ?? Number(t.guest_count || 0)} {tx(lang, 'nəfər', 'гостя', 'guests')}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-base font-black text-slate-100 truncate">{t.label}</span>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowHeaderGuestPicker((prev) => !prev)}
+                          className={`inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition active:scale-95 ${
+                            showHeaderGuestPicker
+                              ? 'border-amber-400 bg-amber-400/20 text-amber-200'
+                              : 'border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+                          }`}
+                          title={tx(lang, 'Qonaq sayını dəyiş', 'Изменить кол-во гостей', 'Change guest count')}
+                        >
+                          <span>👥 {detailSession?.guest_count ?? Number(t.guest_count || 2)} {tx(lang, 'nəfər', 'гостя', 'guests')}</span>
+                        </button>
                         {tableLockHolder && (
-                          <span className="rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[9px] font-bold text-cyan-200 hidden sm:inline-block">
+                          <span className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 text-[11px] font-bold text-cyan-200 hidden lg:inline-block">
                             👤 {tableLockHolder}
                           </span>
                         )}
-                        <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
-                          {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
-                        </span>
-                        {/* Dəyiş button — sleek neutral header action */}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowOperationsModal(true)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/85 hover:bg-slate-700 px-3 text-xs font-bold text-slate-200 transition active:scale-95"
+                          title={tx(lang, 'Masa köçür, birləşdir və ya ayır', 'Перенос или объединение стола', 'Transfer, merge or split table')}
+                        >
+                          <span>🔄</span>
+                          <span className="hidden sm:inline">{tx(lang, 'Əməliyyat', 'Операции', 'Ops')}</span>
+                        </button>
+                        {rounds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setTableWorkspaceTab(tableWorkspaceTab === 'compose' ? 'history' : 'compose')}
+                            className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition active:scale-95 ${
+                              tableWorkspaceTab === 'history'
+                                ? 'border-amber-400 bg-amber-400 text-slate-950'
+                                : 'border-slate-700 bg-slate-800/85 text-slate-200 hover:bg-slate-700'
+                            }`}
+                          >
+                            <span>📋</span>
+                            <span className="hidden md:inline">{tx(lang, 'Göndərişlər', 'Отправки', 'History')}</span>
+                            <span className="rounded bg-black/25 px-1.5 py-0.2 text-[10px] tabular-nums">{rounds.length}</span>
+                          </button>
+                        )}
+                        {t.is_occupied && userCanEditTable && (
+                          <button
+                            type="button"
+                            onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                            className="inline-flex h-9 items-center gap-1 rounded-xl border border-rose-500/35 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 text-xs font-bold text-rose-200 transition active:scale-95"
+                            title={tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel table')}
+                          >
+                            <span>🗑️</span>
+                            <span className="hidden lg:inline">{tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}</span>
+                          </button>
+                        )}
                         {!isMobileView && (
                           <button
                             type="button"
                             onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
-                            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-4 py-2 text-xs font-bold text-slate-200 transition active:scale-95 taktil-target"
+                            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-3 text-xs font-bold text-slate-200 transition active:scale-95"
                           >
                             <span>👤</span>
                             <span>{tx(lang, 'Dəyiş', 'Сменить', 'Switch')}</span>
@@ -2415,6 +2457,40 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         )}
                       </div>
                     </div>
+                    {showHeaderGuestPicker && (
+                      <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-amber-400/30 bg-slate-900/90 px-3 py-1.5 shrink-0">
+                        <span className="text-xs font-bold text-slate-300">{tx(lang, 'Qonaq sayı:', 'Кол-во гостей:', 'Guest count:')}</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[1, 2, 3, 4, 5, 6, 8, 10].map((num) => {
+                            const currentGuests = detailSession?.guest_count ?? Number(t.guest_count || 2);
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={async () => {
+                                  setShowHeaderGuestPicker(false);
+                                  try {
+                                    await update_table_layout_live(t.id, { guest_count: num });
+                                    await refreshActiveTableDetail(t.id);
+                                    await loadData();
+                                    notify('success', tx(lang, 'Qonaq sayı yeniləndi', 'Кол-во гостей обновлено', 'Guest count updated'));
+                                  } catch (e: any) {
+                                    notify('error', e?.message || tx(lang, 'Xəta baş verdi', 'Произошла ошибка', 'Error occurred'));
+                                  }
+                                }}
+                                className={`h-8 min-w-[34px] px-2 rounded-lg text-xs font-black transition active:scale-95 ${
+                                  currentGuests === num
+                                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                                }`}
+                              >
+                                {num}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {/* P3-3: Offline banner inside the full-screen detail panel.
                         The page-level banner (top of tables-page-shell) is hidden
                         behind this fixed inset-0 panel while a waiter works an
@@ -2636,7 +2712,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                    </button>
 	                  </div>
 	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
-	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden h-[calc(100dvh-200px)] md:h-[calc(100dvh-160px)]">
+	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden">
 	                      <BahaYTableCompose
 	                        lang={lang}
 	                        filteredRoundMenu={filteredRoundMenu}
@@ -2667,10 +2743,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                            notify('error', e?.message || tx(lang, 'Xəta baş verdi', 'Произошла ошибка', 'Error occurred'));
 	                          }
 	                        }}
-	                        onSettle={(chosenMethod, chosenDiscount) => {
-	                          if (hasEmptyActiveCheckTotalMismatch(t)) { notify('error', tx(lang, 'Sifariş boşdur', 'Заказ пуст', 'Order empty')); return; }
+	                        onSettle={async (chosenMethod, chosenDiscount) => {
+	                          if (hasEmptyActiveCheckTotalMismatch(t)) {
+	                            notify('error', tx(lang, 'Sifariş boşdur', 'Заказ пуст', 'Order empty'));
+	                            return;
+	                          }
+	                          if (draftRows.length > 0) {
+	                            await sendRoundDirectly(t);
+	                          }
 	                          setPayTableId(t.id);
-	                          setViewTableId(null);
 	                          setPaymentMethod(chosenMethod || 'Nəğd');
 	                          setSplitCount('2');
 	                          setSplitParts([]);
