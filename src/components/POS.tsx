@@ -3022,7 +3022,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   );
                 }}
                 scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1 touch-pan-y"
-                gridClassName="grid min-h-0 auto-rows-max grid-cols-3 gap-1 content-start md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6"
+                gridClassName="grid min-h-0 auto-rows-max grid-cols-2 gap-1.5 content-start sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                 estimatedRowHeight={130}
                 threshold={100}
                 disableVirtualization={isPosMenuEditMode}
@@ -3198,7 +3198,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               [5, 10, 20, 50, 100].forEach((val) => { if (val > exact && presets.length < 5) presets.push(val); });
               while (presets.length < 5) { const last = presets[presets.length - 1] || exact; presets.push(last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50); }
               return (
-                <div className="mt-2 rounded-xl border border-slate-700/70 bg-[#0e1520] p-3 text-xs space-y-2.5">
+                <div className="mt-1.5 shrink-0 rounded-xl border border-slate-700/70 bg-[#0e1520] p-2 text-xs space-y-1.5">
                   <div className="flex items-center justify-between text-slate-300 font-semibold">
                     <span>{tx(lang, 'Alınan nağd pul', 'Полученные наличные', 'Cash received')}</span>
                     {cashGiven.greaterThan(0) && (
@@ -3207,7 +3207,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       </button>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <input
                       type="number"
                       step="0.01"
@@ -3215,12 +3215,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       value={cashReceivedInput}
                       onChange={(e) => setCashReceivedInput(e.target.value)}
                       placeholder={checkoutBaseTotal.toFixed(2)}
-                      className="neon-input flex-1 h-10 text-sm font-bold text-white"
+                      className="neon-input flex-1 !min-h-8 h-8 text-xs font-bold text-white"
                     />
                     <button
                       type="button"
                       onClick={() => setCashReceivedInput(checkoutBaseTotal.toFixed(2))}
-                      className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:border-amber-400/50 active:scale-95 transition"
+                      className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-xs font-bold text-slate-200 hover:border-amber-400/50 active:scale-95 transition"
                     >
                       {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
                     </button>
@@ -3231,7 +3231,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                         key={val}
                         type="button"
                         onClick={() => setCashReceivedInput(val.toFixed(2))}
-                        className={`flex-1 min-w-[44px] rounded-lg border py-1 px-1.5 text-xs font-bold transition active:scale-95 ${
+                        className={`flex-1 min-w-[40px] rounded-lg border py-1 px-1 text-[11px] font-bold transition active:scale-95 ${
                           Number(cashReceivedInput) === val
                             ? 'border-amber-300 bg-amber-400 text-slate-950 font-black'
                             : 'border-slate-700/60 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
@@ -3242,13 +3242,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     ))}
                   </div>
                   {cashGiven.greaterThan(checkoutBaseTotal) && (
-                    <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 animate-pulse">
+                    <div className="flex items-center justify-between rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-xs font-bold text-emerald-300">
                       <span>{tx(lang, 'Qaytarılacaq qalıq:', 'Сдача к возврату:', 'Change to return:')}</span>
                       <span className="text-sm font-bold text-emerald-200">{change.toFixed(2)} ₼</span>
                     </div>
                   )}
                   {remaining.greaterThan(0) && (
-                    <div className="flex items-center justify-between rounded-lg border border-rose-400/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                    <div className="flex items-center justify-between rounded-lg border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[11px] font-bold text-rose-300">
                       <span>{tx(lang, 'Çatışmayan:', 'Недостающая:', 'Remaining:')}</span>
                       <span>{remaining.toFixed(2)} ₼</span>
                     </div>

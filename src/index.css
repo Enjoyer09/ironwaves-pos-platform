@@ -1100,7 +1100,7 @@ html {
   }
 
   .pos3-rail {
-    @apply flex w-20 min-h-0 shrink-0 flex-col md:w-24;
+    @apply flex w-24 min-h-0 shrink-0 flex-col md:w-28 2xl:w-32;
   }
 
   .pos3-rail-scroll {
@@ -1110,7 +1110,7 @@ html {
   }
 
   .pos3-rail-chip {
-    @apply flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/45 px-1 py-2 text-center text-[12.5px] font-semibold leading-tight text-slate-300 transition;
+    @apply flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/45 px-2 py-2 text-center text-xs font-semibold leading-tight text-slate-300 transition break-words;
   }
 
   .pos3-rail-chip:hover {
@@ -1122,7 +1122,7 @@ html {
   }
 
   .pos3-product-grid {
-    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
+    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-1.5 overflow-y-auto overscroll-y-contain pr-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
     align-content: start;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
@@ -2563,15 +2563,15 @@ html {
   }
 }
 
-@media (max-height: 800px) {
+@media (max-height: 820px) {
   html {
-    font-size: 84%;
+    font-size: 90%;
   }
 
   .neon-input {
-    min-height: 2.75rem;
-    padding-top: 0.55rem;
-    padding-bottom: 0.55rem;
+    min-height: 2.5rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
   }
 
   .neon-btn,
@@ -2580,9 +2580,9 @@ html {
   .neon-tab,
   .neon-chip,
   .neon-btn-active {
-    min-height: 2.8rem;
-    padding-top: 0.55rem;
-    padding-bottom: 0.55rem;
+    min-height: 2.5rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
   }
 
   .metal-panel {
@@ -2590,13 +2590,13 @@ html {
   }
 }
 
-@media (max-width: 1440px) and (max-height: 820px) {
+@media (max-width: 1560px) and (max-height: 860px) {
   html {
-    font-size: 78%;
+    font-size: 88%;
   }
 
   .compact-shell {
-    padding: 0.7rem !important;
+    padding: 0.6rem !important;
   }
 
   .compact-panel {
@@ -3529,19 +3529,33 @@ html {
   }
 }
 
-/* BahaY Category and Product Card resizing overrides */
-.pos-category-btn {
-  min-height: 62px !important;
-  padding-top: 0.95rem !important;
-  padding-bottom: 0.95rem !important;
-  padding-left: 1.75rem !important;
-  padding-right: 1.75rem !important;
-  font-size: 1.15rem !important; /* ~18px font size, 40% larger than 13px */
+/* BahaY Category and Product Card responsive sizing (15" HP laptop -> 16" MacBook Pro) */
+.pos-category-btn:not(.pos3-rail-chip) {
+  min-height: 44px !important;
+  padding: 0.5rem 1rem !important;
+  font-size: clamp(0.82rem, 0.9vw, 1rem) !important;
   border-radius: 9999px !important;
-  line-height: 1.25rem !important;
+  line-height: 1.2 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+}
+
+@media (min-width: 1600px) and (min-height: 900px) {
+  .pos-category-btn:not(.pos3-rail-chip) {
+    min-height: 52px !important;
+    padding: 0.75rem 1.35rem !important;
+    font-size: 1.05rem !important;
+  }
+}
+
+.pos3-rail-chip.pos-category-btn {
+  min-height: 44px !important;
+  padding: 0.45rem 0.4rem !important;
+  font-size: clamp(11.5px, 0.8vw, 13.5px) !important;
+  border-radius: 0.75rem !important;
+  line-height: 1.2 !important;
+  word-break: break-word !important;
 }
 
 .pos2-product-card {
@@ -3549,27 +3563,24 @@ html {
   border-radius: 0.75rem !important;
 }
 .pos2-product-media {
-  height: 5.3rem !important;
+  height: 5rem !important;
   border-radius: 0.6rem !important;
 }
 .pos2-product-card .text-sm {
-  font-size: 21px !important; /* +50% enlargement */
-  line-height: 1.45rem !important;
+  font-size: clamp(13.5px, 0.95vw, 16.5px) !important;
+  line-height: 1.3 !important;
 }
 .pos2-product-card .text-xs {
-  font-size: 18px !important; /* +50% enlargement */
-  line-height: 1.25rem !important;
+  font-size: clamp(11.5px, 0.8vw, 13.5px) !important;
+  line-height: 1.2 !important;
 }
 .pos2-product-card .mt-3 {
-  margin-top: 0.5rem !important;
+  margin-top: 0.4rem !important;
 }
 .pos2-product-card button.rounded-xl {
-  padding-top: 0.25rem !important;
-  padding-bottom: 0.25rem !important;
-  padding-left: 0.5rem !important;
-  padding-right: 0.5rem !important;
+  padding: 0.3rem 0.5rem !important;
   border-radius: 0.5rem !important;
-  font-size: 14px !important;
+  font-size: 12.5px !important;
 }
 .pos2-product-fallback {
   gap: 0.35rem !important;
@@ -3581,40 +3592,48 @@ html {
 }
 
 .pos3-card {
-  padding: 0.35rem !important;
-  border-radius: 0.75rem !important;
+  padding: 0.45rem !important;
+  border-radius: 0.85rem !important;
 }
 .pos3-card .mt-2 {
   margin-top: 0.35rem !important;
 }
 .pos3-card .mt-2 > div:nth-child(1) {
-  font-size: 19.5px !important; /* +50% enlargement */
-  line-height: 1.35rem !important;
+  font-size: clamp(13px, 0.92vw, 16px) !important;
+  line-height: 1.25 !important;
 }
 .pos3-card .mt-2 > div:nth-child(2) {
-  font-size: 16.5px !important; /* +50% enlargement */
-  line-height: 1.15rem !important;
+  font-size: clamp(11px, 0.75vw, 13px) !important;
+  line-height: 1.2 !important;
 }
 .pos3-card .mt-2 > div:nth-child(3) {
-  font-size: 22.5px !important; /* +50% enlargement */
-  line-height: 1.55rem !important;
-  margin-top: 0.25rem !important;
+  font-size: clamp(14px, 1vw, 18px) !important;
+  line-height: 1.3 !important;
+  margin-top: 0.2rem !important;
 }
 .pos3-card .pos3-qty-btn {
-  height: 2.75rem !important;
-  width: 2.75rem !important;
-  border-radius: 0.75rem !important;
+  height: 2.15rem !important;
+  width: 2.15rem !important;
+  border-radius: 0.65rem !important;
+  flex-shrink: 0 !important;
+}
+@media (min-width: 1600px) and (min-height: 900px) {
+  .pos3-card .pos3-qty-btn {
+    height: 2.5rem !important;
+    width: 2.5rem !important;
+    border-radius: 0.75rem !important;
+  }
 }
 .pos3-card .pos3-qty-btn svg {
-  width: 16px !important;
-  height: 16px !important;
+  width: 14px !important;
+  height: 14px !important;
 }
 .pos3-card .pos3-qty-value {
-  min-width: 2rem !important;
-  padding: 0.25rem 0.5rem !important;
-  font-size: 14px !important;
+  min-width: 1.75rem !important;
+  padding: 0.2rem 0.35rem !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
-  border-radius: 0.75rem !important;
+  border-radius: 0.65rem !important;
 }
 .pos3-card-fallback-mark {
   height: 1.5rem !important;
@@ -3627,16 +3646,16 @@ html {
 
 /* Tables Compose menu grid card overrides */
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-xs {
-  font-size: 18px !important; /* +50% enlargement */
-  line-height: 1.25rem !important;
+  font-size: clamp(12.5px, 0.88vw, 15px) !important;
+  line-height: 1.25 !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-sm {
-  font-size: 21px !important; /* +50% enlargement */
-  line-height: 1.45rem !important;
+  font-size: clamp(13.5px, 0.95vw, 16.5px) !important;
+  line-height: 1.3 !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) {
   padding: 0.35rem !important;
-  border-radius: 0.75rem !important;
+  border-radius: 0.85rem !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .p-2 {
   padding: 0.35rem !important;
@@ -3648,105 +3667,133 @@ html {
   justify-content: center !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-lg {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .absolute.right-1.top-1 {
-  height: 1.25rem !important;
-  width: 1.25rem !important;
-  font-size: 9px !important;
+  height: 1.35rem !important;
+  width: 1.35rem !important;
+  font-size: 10px !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .aspect-\[3\/2\] {
   aspect-ratio: 3 / 2 !important;
 }
 
-/* POS3 Checkout scroll and sizing optimizations */
+/* POS3 Checkout scroll and sizing optimizations (safe on 15" 768p/125% DPI laptops) */
 .pos3-checkout {
   height: 100% !important;
   max-height: 100% !important;
   padding: 0.65rem !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   display: flex !important;
   flex-direction: column !important;
 }
 
 .pos3-checkout-head {
-  margin-bottom: 0.5rem !important;
-  padding-bottom: 0.5rem !important;
+  margin-bottom: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
+  flex-shrink: 0 !important;
 }
 
 .pos3-order-list {
-  max-height: 180px !important;
-  min-height: 50px !important;
-  margin-top: 0.5rem !important;
+  min-height: 96px !important;
+  margin-top: 0.4rem !important;
   padding: 0.35rem !important;
   flex: 1 1 0% !important;
   overflow-y: auto !important;
 }
 
 .pos3-control-stack {
-  gap: 0.35rem !important;
+  gap: 0.3rem !important;
+  flex-shrink: 0 !important;
 }
 
 .pos3-control-stack .neon-input {
-  min-height: 38px !important;
-  padding: 0.4rem 0.6rem !important;
-  font-size: 13px !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0.3rem 0.55rem !important;
+  font-size: 12.5px !important;
 }
 
 .pos3-control-stack .pay-btn {
-  height: 36px !important;
+  height: 34px !important;
   font-size: 12px !important;
-  min-height: 36px !important;
-  padding: 0.35rem 0.5rem !important;
+  min-height: 34px !important;
+  padding: 0.25rem 0.5rem !important;
 }
 
 .pos3-action-group {
-  margin-top: 0.5rem !important;
-  padding: 0.5rem !important;
+  margin-top: 0.4rem !important;
+  padding: 0.45rem !important;
+  flex-shrink: 0 !important;
 }
 
 .pos3-action-group .mt-2 {
-  margin-top: 0.35rem !important;
+  margin-top: 0.3rem !important;
 }
 
 .pos3-action-group button {
-  padding: 0.35rem 0.5rem !important;
+  padding: 0.3rem 0.5rem !important;
   font-size: 12px !important;
 }
 
 .pos3-checkout .mt-3.rounded-xl {
-  margin-top: 0.5rem !important;
-  padding: 0.5rem !important;
+  margin-top: 0.4rem !important;
+  padding: 0.45rem !important;
 }
 
 .pos3-primary-btn {
-  margin-top: 0.5rem !important;
-  height: 2.85rem !important;
-  min-height: 2.85rem !important;
+  margin-top: 0.45rem !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
   font-size: 14px !important;
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+}
+
+/* Global sleek scrollbars for Windows/Linux laptops so 17px OS scrollbars never crush panels */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
 }
 
 /* Touchscreen (coarse) overrides inside checkout pane to prevent massive button height */
 @media (pointer: coarse) {
   .pos3-checkout .pay-btn {
-    min-height: 2.5rem !important;
-    height: 2.5rem !important;
-    padding-top: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
+    min-height: 2.4rem !important;
+    height: 2.4rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
     font-size: 12px !important;
   }
   .pos3-checkout .neon-input {
-    min-height: 2.5rem !important;
-    height: 2.5rem !important;
-    padding-top: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
-    font-size: 13px !important;
+    min-height: 2.4rem !important;
+    height: 2.4rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+    font-size: 12.5px !important;
   }
   .pos3-checkout .pos3-primary-btn {
-    min-height: 2.85rem !important;
-    height: 2.85rem !important;
-    padding-top: 0.5rem !important;
-    padding-bottom: 0.5rem !important;
+    min-height: 2.75rem !important;
+    height: 2.75rem !important;
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
   }
 }
 

@@ -2025,10 +2025,10 @@ export default function App() {
         >
           {tx(safeLang, 'Əsas məzmuna keçid', 'Перейти к основному содержимому', 'Skip to main content')}
         </a>
-        <div className="border-b border-slate-700/40 px-3 py-2 md:px-5 shrink-0 z-20 space-y-2">
+        <div className="border-b border-slate-700/40 px-3 py-1.5 2xl:py-2 md:px-4 2xl:px-5 shrink-0 z-20 space-y-1.5 2xl:space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden shadow-sm">
+              <div className="w-8 h-8 2xl:w-9 2xl:h-9 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden shadow-sm">
                 {profile?.logo_url ? (
                   <img src={profile.logo_url} alt="logo" className="h-full w-full object-cover" />
                 ) : (

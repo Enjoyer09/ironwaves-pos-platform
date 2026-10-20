@@ -13,17 +13,31 @@ export function useResizableSplitPane({
   minWidth = 320,
   maxWidth = 620,
 }: UseResizableSplitPaneOptions) {
+  const computeResponsiveDefault = useCallback(() => {
+    if (typeof window === 'undefined') return defaultWidth;
+    if (window.innerWidth <= 1560) {
+      return Math.max(minWidth, Math.min(defaultWidth, Math.round(window.innerWidth * 0.285)));
+    }
+    return defaultWidth;
+  }, [defaultWidth, minWidth]);
+
   const [cartWidth, setCartWidth] = useState<number>(() => {
+    const fallback = typeof window !== 'undefined' && window.innerWidth <= 1560
+      ? Math.max(minWidth, Math.min(defaultWidth, Math.round(window.innerWidth * 0.285)))
+      : defaultWidth;
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const val = parseInt(saved, 10);
         if (!isNaN(val) && val >= minWidth && val <= maxWidth) {
+          if (typeof window !== 'undefined' && window.innerWidth <= 1440) {
+            return Math.min(val, Math.round(window.innerWidth * 0.32));
+          }
           return val;
         }
       }
     } catch {}
-    return defaultWidth;
+    return fallback;
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -39,8 +53,12 @@ export function useResizableSplitPane({
   }, [storageKey, minWidth, maxWidth]);
 
   const resetToDefault = useCallback(() => {
-    updateWidth(defaultWidth);
-  }, [updateWidth, defaultWidth]);
+    const next = computeResponsiveDefault();
+    setCartWidth(next);
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {}
+  }, [computeResponsiveDefault, storageKey]);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     // Only handle primary pointer (left click or touch)

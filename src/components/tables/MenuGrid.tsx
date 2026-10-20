@@ -470,8 +470,8 @@ function MenuGrid({
       {/* Product grid - Frosted Glass cards */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/40 backdrop-blur-xl p-2 sm:p-2.5 touch-pan-y ${
         hideImages
-          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
-          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7'
+          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6'
       }`} style={{ WebkitOverflowScrolling: 'touch' }}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
@@ -552,22 +552,22 @@ function MenuGrid({
                 >
                   {!hideImages ? (
                     group.image_url ? (
-                      // Real image — square crop like Menulux
-                      <div className="aspect-square w-full min-h-[140px] overflow-hidden bg-slate-800 relative">
+                      // Real image — adaptive 4:3 on laptops, square on large displays
+                      <div className="aspect-[4/3] 2xl:aspect-square w-full min-h-[92px] 2xl:min-h-[130px] overflow-hidden bg-slate-800 relative">
                         <img src={group.image_url} alt={group.base} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" decoding="async" />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
                       </div>
                     ) : (
-                      // No image placeholder — square, gradient bg, large initial
-                      <div className="aspect-square w-full min-h-[140px] flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-800/60">
-                        <span className="text-3xl font-bold text-slate-500 select-none">
+                      // No image placeholder — adaptive 4:3 on laptops, square on large displays
+                      <div className="aspect-[4/3] 2xl:aspect-square w-full min-h-[92px] 2xl:min-h-[130px] flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-800/60">
+                        <span className="text-2xl 2xl:text-3xl font-bold text-slate-500 select-none">
                           {String(group.base || '').charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )
                   ) : null}
                   {/* Text info — centered for image mode, left for fast mode */}
-                  <div className={`flex flex-col ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
+                  <div className={`flex flex-col ${hideImages ? 'p-2 pb-2.5' : 'p-1.5 2xl:p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
                     <div className={`line-clamp-2 font-bold leading-snug text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
                       {group.base}
                     </div>
