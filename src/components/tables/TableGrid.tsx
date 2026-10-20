@@ -314,9 +314,26 @@ function TableGrid({
         })}
 
         {searchedTables.length === 0 && (
-          <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-700/40 py-12 text-center">
-            <Utensils size={28} className="text-slate-600" />
-            <p className="text-sm text-slate-500">{tx(lang, 'Masa tapılmadı', 'Столы не найдены', 'No tables found')}</p>
+          <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-700/40 bg-slate-900/20 py-12 px-4 text-center">
+            <Utensils size={28} className="text-slate-500" />
+            <p className="text-sm font-semibold text-slate-300">
+              {searchQuery.trim().length > 0 || showOnlyMine
+                ? tx(lang, 'Seçilmiş filtr üzrə masa tapılmadı', 'По выбранному фильтру столы не найдены', 'No tables match your current filter')
+                : tx(lang, 'Bu zalda masa yoxdur', 'В этом зале нет столов', 'No tables in this hall')}
+            </p>
+            {(searchQuery.trim().length > 0 || showOnlyMine) && (
+              <button
+                type="button"
+                onClick={() => {
+                  playHapticTouch();
+                  setSearchQuery('');
+                  setShowOnlyMine(false);
+                }}
+                className="mt-1 rounded-xl border border-amber-400/50 bg-amber-400/15 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/25 transition active:scale-95"
+              >
+                {tx(lang, 'Filtrləri sıfırla', 'Сбросить фильтры', 'Reset filters')}
+              </button>
+            )}
           </div>
         )}
       </div>

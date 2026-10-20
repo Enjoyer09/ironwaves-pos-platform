@@ -900,10 +900,32 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         ))}
 
         {orders.length === 0 && (
-          <div className="metal-panel col-span-full py-20 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-600/70">
+          <div className="metal-panel col-span-full py-16 px-4 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-600/70 text-center">
             <ChefHat size={48} className="mb-4 text-slate-500" />
-            <p className="text-xl font-medium text-slate-300">{tx(lang, 'Hazırda aktiv sifariş yoxdur', 'Сейчас нет активных заказов', 'There are no active orders right now')}</p>
-            <p className="text-sm">{tx(lang, 'Yeni sifarişlər avtomatik olaraq bura düşəcək.', 'Новые заказы появятся здесь автоматически.', 'New orders will appear here automatically.')}</p>
+            <p className="text-xl font-semibold text-slate-200">{tx(lang, 'Hazırda aktiv sifariş yoxdur', 'Сейчас нет активных заказов', 'There are no active orders right now')}</p>
+            <p className="mt-1 text-sm text-slate-400">{tx(lang, 'Yeni sifarişlər avtomatik olaraq bura düşəcək.', 'Новые заказы появятся здесь автоматически.', 'New orders will appear here automatically.')}</p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  void get_kitchen_orders_live(tenant_id)
+                    .then((activeOrders) => applyIncomingOrders(Array.isArray(activeOrders) ? activeOrders : []))
+                    .catch(() => {});
+                }}
+                className="rounded-xl border border-slate-600/80 bg-slate-800/80 px-4 py-2.5 text-xs font-bold text-slate-200 hover:border-yellow-400/50 hover:text-yellow-300 transition active:scale-95"
+              >
+                {tx(lang, 'İndi yoxla / Yenilə', 'Проверить / Обновить', 'Check / Refresh now')}
+              </button>
+              {kitchenMode === 'paper_only' && (
+                <button
+                  type="button"
+                  onClick={() => void handleSetKitchenMode('hybrid')}
+                  className="rounded-xl border border-yellow-400/50 bg-yellow-400/15 px-4 py-2.5 text-xs font-bold text-yellow-200 hover:bg-yellow-400/25 transition active:scale-95"
+                >
+                  {tx(lang, 'Kombo rejiminə keç', 'Перейти на Комбо', 'Switch to Combo mode')}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

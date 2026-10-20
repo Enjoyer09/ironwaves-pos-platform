@@ -296,6 +296,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [pendingClearCartKey, setPendingClearCartKey] = useState<'S1' | 'S2' | 'S3' | null>(null);
   const [tenantSettings, setTenantSettings] = useState<any>({});
+  const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+  const [cartPulse, setCartPulse] = useState(false);
+  const cartPulseTimerRef = useRef<number | null>(null);
   const safeReceiptHtml = useMemo(() => sanitizeHtmlForIframe(receiptHtml), [receiptHtml]);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -752,6 +755,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         ],
       };
     });
+    setLastAddedItemId(String(item.id));
+    setCartPulse(true);
+    if (cartPulseTimerRef.current) window.clearTimeout(cartPulseTimerRef.current);
+    cartPulseTimerRef.current = window.setTimeout(() => {
+      setCartPulse(false);
+      setLastAddedItemId(null);
+    }, 650);
     if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       setMobilePane('cart');
     }
@@ -1566,6 +1576,67 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     }
   };
 
+  // P2: Desktop keyboard shortcuts (/ or F2 = Search, F4 = Switch Cart, F9 / Ctrl+Enter = Checkout, Esc = Close/Reset)
+  useEffect(() => {
+    if (!isActive) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase() || '';
+      const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || Boolean(target?.isContentEditable);
+
+      if (e.key === 'Escape') {
+        if (variantPicker) {
+          e.preventDefault();
+          setVariantPicker(null);
+          return;
+        }
+        if (showOpenShiftModal) {
+          e.preventDefault();
+          setShowOpenShiftModal(false);
+          return;
+        }
+        if (receiptHtml) {
+          e.preventDefault();
+          setReceiptHtml(null);
+          return;
+        }
+        if (search) {
+          e.preventDefault();
+          setSearch('');
+          return;
+        }
+      }
+
+      if (e.key === 'F2' || (e.key === '/' && !isEditable && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault();
+        const searchEl = document.getElementById('pos-menu-search') as HTMLInputElement | null;
+        if (searchEl) {
+          searchEl.focus();
+          searchEl.select();
+        }
+        return;
+      }
+
+      if (e.key === 'F4' && !isEditable) {
+        e.preventDefault();
+        setActiveCart((prev) => (prev === 'S1' ? 'S2' : prev === 'S2' ? 'S3' : 'S1'));
+        return;
+      }
+
+      if (e.key === 'F9' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+        if (isLoading || cart.length === 0 || variantPicker || receiptHtml) return;
+        e.preventDefault();
+        if (ctx.orderType === 'Dine In' && ctx.selectedTable) {
+          void handleSendToKitchen();
+        } else if (!shouldLockTableCheckoutInPos) {
+          void handleCheckout(selectedPayment);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isActive, variantPicker, showOpenShiftModal, receiptHtml, search, isLoading, cart.length, ctx.orderType, ctx.selectedTable, shouldLockTableCheckoutInPos, selectedPayment]);
+
   const applyRewardCode = (rawCode: string, mode: 'reward' | 'feedback' = 'reward') => {
     const normalized = normalizeRewardClaimCode(rawCode);
     if (!normalized) return;
@@ -2137,11 +2208,33 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           className="compact-pos-cart-items min-h-0 flex-1 space-y-1.5 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-2"
           style={{ minHeight: size === 'compact' ? '110px' : size === 'expanded' ? '200px' : '130px' }}
         >
-          {cart.length === 0 && <div className="py-6 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+          {cart.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-xs text-slate-400">
+              <ShoppingCart size={20} className="text-slate-500" />
+              <span>{t.cart_empty}</span>
+              {(search.trim().length > 0 || category !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setCategory('ALL'); }}
+                  className="mt-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/20 transition"
+                >
+                  {tx(lang, 'Bütün menyunu göstər', 'Показать всё меню', 'Show full menu')}
+                </button>
+              )}
+            </div>
+          )}
           {cart.map((item, idx) => {
             const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+            const isJustAdded = lastAddedItemId === item.id;
             return (
-              <div key={item.line_id} className="rounded-lg border border-slate-700/80 bg-slate-900/45 px-2.5 py-1.5">
+              <div
+                key={item.line_id}
+                className={`rounded-lg border px-2.5 py-1.5 transition-all duration-300 ${
+                  isJustAdded
+                    ? 'border-emerald-400/80 bg-emerald-500/15 ring-1 ring-emerald-400/40'
+                    : 'border-slate-700/80 bg-slate-900/45'
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold text-slate-100 leading-tight">{item.item_name}</div>
@@ -2178,7 +2271,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <div className="flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
           <div className="flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
           {totals.free_coffees > 0 && <div className="flex justify-between text-emerald-300 tabular-nums"><span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>{totals.free_coffees}</span></div>}
-          <div className="flex justify-between pt-0.5 text-lg font-bold text-white tabular-nums"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+          <div className="flex justify-between pt-0.5 text-lg font-bold text-white tabular-nums">
+            <span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span>
+            <span className={`inline-block transition-all duration-200 ${cartPulse ? 'scale-105 text-emerald-300' : ''}`}>
+              {checkoutBaseTotal.toFixed(2)} ₼
+            </span>
+          </div>
         </div>
       );
     }
@@ -2310,10 +2408,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             onClick={() => handleCheckout(selectedPayment)}
             className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50`}
             style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
-            title={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır.', 'Завершает оплату выбранным методом и закрывает продажу.', 'Completes payment with selected method and closes sale.')}
+            title={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır (F9).', 'Завершает оплату выбранным методом и закрывает продажу (F9).', 'Completes payment with selected method and closes sale (F9).')}
             data-guide={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır.', 'Завершает оплату выбранным методом и закрывает продажу.', 'Completes payment with selected method and closes sale.')}
           >
-            <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+            <Check size={18} />
+            <span>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
+            <kbd className="hidden xl:inline-flex items-center rounded border border-slate-900/25 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-slate-900">
+              F9
+            </kbd>
           </button>
         </React.Fragment>
       );
@@ -2340,9 +2442,26 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             id="pos-menu-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`neon-input pl-10 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
+            className={`neon-input pl-10 pr-16 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
             placeholder={t.search}
           />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label={tx(lang, 'Axtarışı təmizlə', 'Очистить поиск', 'Clear search')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-600/80 bg-slate-800/80 px-2 py-0.5 text-xs font-semibold text-slate-300 hover:text-white"
+            >
+              ✕
+            </button>
+          ) : (
+            <kbd
+              title={tx(lang, 'Axtarış qısayolu: / və ya F2', 'Быстрый поиск: / или F2', 'Quick search: / or F2')}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden xl:inline-flex items-center rounded border border-slate-600/80 bg-slate-800/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400"
+            >
+              /
+            </kbd>
+          )}
         </div>
       );
     }
@@ -2390,6 +2509,25 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     }
     if (widget === 'productGrid') {
       const size = getLeftWidgetSize(widget);
+      if (groupedMenu.length === 0) {
+        return (
+          <div key={widget} className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-700/70 bg-slate-900/30 p-8 text-center">
+            <Search size={28} className="text-slate-500" />
+            <div className="text-sm font-semibold text-slate-200">
+              {tx(lang, 'Uyğun məhsul tapılmadı', 'Подходящих позиций не найдено', 'No matching items found')}
+            </div>
+            {(search.trim().length > 0 || category !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setCategory('ALL'); }}
+                className="rounded-xl border border-amber-400/50 bg-amber-400/15 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/25 transition active:scale-95"
+              >
+                {tx(lang, 'Filtrləri sıfırla', 'Сбросить фильтры', 'Reset filters')}
+              </button>
+            )}
+          </div>
+        );
+      }
       if (isNewUiMode) {
         return (
           <VirtualMenuGrid
@@ -2684,12 +2822,27 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
             <button onClick={() => setActiveCart('S1')} className={`pos3-cart-tab ${activeCart === 'S1' ? 'pos3-cart-tab-active' : ''}`}>
               <ShoppingCart size={14} /> {resolveCartTabLabel('S1')}
+              {activeCart === 'S1' && (
+                <kbd className="ml-1.5 hidden xl:inline-flex items-center rounded border border-current/25 px-1 py-0.5 font-mono text-[9px] opacity-75" title="F4">
+                  F4
+                </kbd>
+              )}
             </button>
             <button onClick={() => setActiveCart('S2')} className={`pos3-cart-tab ${activeCart === 'S2' ? 'pos3-cart-tab-active' : ''}`}>
               <ShoppingCart size={14} /> {resolveCartTabLabel('S2')}
+              {activeCart === 'S2' && (
+                <kbd className="ml-1.5 hidden xl:inline-flex items-center rounded border border-current/25 px-1 py-0.5 font-mono text-[9px] opacity-75" title="F4">
+                  F4
+                </kbd>
+              )}
             </button>
             <button onClick={() => setActiveCart('S3')} className={`pos3-cart-tab ${activeCart === 'S3' ? 'pos3-cart-tab-active' : ''}`}>
               <ShoppingCart size={14} /> {resolveCartTabLabel('S3')}
+              {activeCart === 'S3' && (
+                <kbd className="ml-1.5 hidden xl:inline-flex items-center rounded border border-current/25 px-1 py-0.5 font-mono text-[9px] opacity-75" title="F4">
+                  F4
+                </kbd>
+              )}
             </button>
           </div>
         )}
@@ -2707,9 +2860,26 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   id="pos-menu-search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="neon-input pl-10"
+                  className="neon-input pl-10 pr-16"
                   placeholder={t.search}
                 />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label={tx(lang, 'Axtarışı təmizlə', 'Очистить поиск', 'Clear search')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-slate-600/80 bg-slate-800/80 px-2 py-0.5 text-xs font-semibold text-slate-300 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <kbd
+                    title={tx(lang, 'Axtarış qısayolu: / və ya F2', 'Быстрый поиск: / или F2', 'Quick search: / or F2')}
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden xl:inline-flex items-center rounded border border-slate-600/80 bg-slate-800/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400"
+                  >
+                    /
+                  </kbd>
+                )}
               </div>
             </div>
             {isPosMenuEditMode && (
@@ -2748,6 +2918,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   </button>
                 )}
               </div>
+              {groupedMenu.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-700/70 bg-slate-900/30 p-8 text-center">
+                  <Search size={28} className="text-slate-500" />
+                  <div className="text-sm font-semibold text-slate-200">
+                    {tx(lang, 'Uyğun məhsul tapılmadı', 'Подходящих позиций не найдено', 'No matching items found')}
+                  </div>
+                  {(search.trim().length > 0 || category !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => { setSearch(''); setCategory('ALL'); }}
+                      className="rounded-xl border border-amber-400/50 bg-amber-400/15 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/25 transition active:scale-95"
+                    >
+                      {tx(lang, 'Filtrləri sıfırla', 'Сбросить фильтры', 'Reset filters')}
+                    </button>
+                  )}
+                </div>
+              ) : (
               <VirtualMenuGrid
                 groups={groupedMenu}
                 getKey={(g) => g.group_key}
@@ -2840,6 +3027,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 threshold={100}
                 disableVirtualization={isPosMenuEditMode}
               />
+              )}
             </div>
           </section>
 
@@ -2854,7 +3042,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <h3 className="flex items-center gap-2 text-lg font-bold text-slate-100">
                 <ShoppingCart size={18} /> {t.cart.toUpperCase()} {activeCart.slice(1)}
               </h3>
-              <div className="text-sm font-bold text-slate-100">{checkoutBaseTotal.toFixed(2)} ₼</div>
+              <div className={`text-sm font-bold tabular-nums transition-all duration-200 ${cartPulse ? 'scale-110 text-emerald-300' : 'text-slate-100'}`}>
+                {checkoutBaseTotal.toFixed(2)} ₼
+              </div>
             </div>
 
             <div className="pos3-control-stack">
@@ -2932,11 +3122,33 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             )}
 
             <div className="pos3-order-list pos3-cart-items">
-              {cart.length === 0 && <div className="py-6 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+              {cart.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-xs text-slate-400">
+                  <ShoppingCart size={20} className="text-slate-500" />
+                  <span>{t.cart_empty}</span>
+                  {(search.trim().length > 0 || category !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => { setSearch(''); setCategory('ALL'); }}
+                      className="mt-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/20 transition"
+                    >
+                      {tx(lang, 'Bütün menyunu göstər', 'Показать всё меню', 'Show full menu')}
+                    </button>
+                  )}
+                </div>
+              )}
               {cart.map((item, idx) => {
                 const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+                const isJustAdded = lastAddedItemId === item.id;
                 return (
-                  <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-2.5 py-1.5">
+                  <div
+                    key={item.line_id}
+                    className={`rounded-xl border px-2.5 py-1.5 transition-all duration-300 ${
+                      isJustAdded
+                        ? 'border-emerald-400/80 bg-emerald-500/15 ring-1 ring-emerald-400/40'
+                        : 'border-slate-700/70 bg-slate-900/40'
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="line-clamp-1 flex-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -2959,7 +3171,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             <div className="mt-2 rounded-xl border border-slate-700/70 bg-slate-950/50 px-3 py-2 text-xs">
               <div className="mb-0.5 flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
               <div className="mb-1 flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between border-t border-slate-700/60 pt-1.5 text-lg font-bold text-slate-100 tabular-nums"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+              <div className="flex justify-between border-t border-slate-700/60 pt-1.5 text-lg font-bold text-slate-100 tabular-nums">
+                <span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span>
+                <span className={`inline-block transition-all duration-200 ${cartPulse ? 'scale-105 text-emerald-300' : ''}`}>
+                  {checkoutBaseTotal.toFixed(2)} ₼
+                </span>
+              </div>
             </div>
 
             <div className="pos3-action-group">
@@ -3048,7 +3265,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
             {ctx.orderType === 'Dine In' && ctx.selectedTable ? (
               <button disabled={isLoading || !ctx.selectedTable || cart.length === 0} onClick={() => { void handleSendToKitchen(); }} className="pos3-primary-btn">
-                <Check size={18} /> {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
+                <Check size={18} />
+                <span>{tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}</span>
+                <kbd className="hidden xl:inline-flex items-center rounded border border-slate-900/25 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-slate-900">
+                  F9
+                </kbd>
               </button>
             ) : (
               <button
@@ -3056,7 +3277,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 onClick={() => handleCheckout(selectedPayment)}
                 className="pos3-primary-btn"
               >
-                <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+                <Check size={18} />
+                <span>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
+                <kbd className="hidden xl:inline-flex items-center rounded border border-slate-900/25 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-slate-900">
+                  F9
+                </kbd>
               </button>
             )}
           </aside>
