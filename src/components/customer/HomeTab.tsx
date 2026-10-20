@@ -236,6 +236,7 @@ export default function HomeTab({
 
   // P1 — personalization + gamification
   const [surpriseOpen, setSurpriseOpen] = React.useState(false);
+  const [showFullQr, setShowFullQr] = React.useState(false);
   const baristaTip = (() => {
     const h = new Date().getHours();
     if (h < 11) return tx(safeLang, 'Sabahın ilk qəhvəsi: Flat White ilə başla', 'Начни утро с Flat White', 'Start your morning with a Flat White');
@@ -1084,6 +1085,38 @@ export default function HomeTab({
           </>
         )}
       </section>
+
+      {showFullQr && cardQr && (
+        <div
+          onClick={() => setShowFullQr(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-6 animate-modalFadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xs rounded-[28px] bg-white p-6 text-center shadow-2xl animate-scaleIn"
+          >
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#FF8B26]">
+              {brandName}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-slate-600">
+              {tx(safeLang, 'Kassada skanerə yaxınlaşdırın', 'Поднесите к сканеру на кассе', 'Show at checkout scanner')}
+            </p>
+            <div className="my-5 flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-inner">
+              <img src={cardQr} alt="Full QR Code" className="h-56 w-56 object-contain" />
+            </div>
+            <p className="font-mono text-sm font-black tracking-[0.18em] text-slate-900 tabular-nums">
+              {formatCardIdFn(customer.card_id)}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFullQr(false)}
+              className="mt-5 w-full rounded-xl bg-slate-900 py-3 text-xs font-extrabold text-white active:scale-95 transition"
+            >
+              {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
