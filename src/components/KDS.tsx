@@ -405,10 +405,13 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   const getStatusColor = (status: string, created_at: string) => {
-    const elapsed = getElapsedMinutes(created_at);
-    if (elapsed > 15) return 'border-red-400/80 bg-red-900/25';
-    if (elapsed > 10) return 'border-yellow-300/80 bg-yellow-900/20';
     const s = String(status || '').toUpperCase();
+    if (s === 'READY' || s === 'DONE') {
+      return (ORDER_STATUS_THEME[s] || ORDER_STATUS_THEME_DEFAULT).card;
+    }
+    const elapsed = getElapsedMinutes(created_at);
+    if (elapsed >= 10) return 'kds-urgent border-rose-500/90 bg-rose-950/30 shadow-[0_0_28px_rgba(244,63,94,0.22)]';
+    if (elapsed >= 5) return 'border-amber-400/85 bg-amber-950/20 shadow-[0_0_20px_rgba(245,158,11,0.14)]';
     return (ORDER_STATUS_THEME[s] || ORDER_STATUS_THEME_DEFAULT).card;
   };
 
@@ -766,16 +769,32 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
                     type="button"
                     title={tx(lang, 'Mətbəx çekini çap et', 'Распечатать чек кухни', 'Print kitchen ticket')}
                     onClick={() => { void handlePrintOrderTicket(order); }}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/90 text-slate-300 hover:text-yellow-300 hover:border-yellow-400/50 transition active:scale-90 shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/90 text-slate-300 hover:text-yellow-300 hover:border-yellow-400/50 transition active:scale-90 shadow-sm"
                   >
                     <Printer size={15} />
                   </button>
-                  <div className="flex items-center text-slate-100 font-black text-sm bg-slate-800/90 px-2.5 py-1.5 rounded-xl border border-slate-600/70 shadow-sm">
-                    <Clock size={15} className="mr-1 text-amber-300" />
-                    {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
-                  </div>
+                  {(() => {
+                    const elapsed = getElapsedMinutes(order.created_at);
+                    const isReady = order.status === 'READY' || order.status === 'DONE';
+                    const timerTone = !isReady && elapsed >= 10
+                      ? 'bg-rose-500/30 border-rose-400/70 text-rose-100 animate-pulse shadow-[0_0_14px_rgba(244,63,94,0.35)]'
+                      : !isReady && elapsed >= 5
+                        ? 'bg-amber-500/25 border-amber-400/60 text-amber-100'
+                        : 'bg-slate-800/90 border-slate-600/70 text-slate-100';
+                    return (
+                      <div className={`flex items-center font-black text-sm px-2.5 py-1.5 rounded-xl border shadow-sm tabular-nums ${timerTone}`}>
+                        <Clock size={15} className={`mr-1 ${!isReady && elapsed >= 10 ? 'text-rose-300' : 'text-amber-300'}`} />
+                        {elapsed} {tx(lang, 'dəq', 'мин', 'min')}
+                        {!isReady && elapsed >= 10 && (
+                          <span className="ml-1.5 rounded bg-rose-500 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                            {tx(lang, 'GECİKİR', 'ДОЛГО', 'LATE')}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="text-slate-300 text-xs font-semibold">
+                <div className="text-slate-300 text-xs font-semibold tabular-nums">
                   {new Date(parseServerTimestamp(order.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
@@ -854,7 +873,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
               {order.status === 'NEW' && (
                 <button
                   onClick={() => { void handleAcceptGroup(order); }}
-                  className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-sm"
+                  className="w-full min-h-[48px] py-3 rounded-xl text-base font-extrabold bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white transition-all shadow-md"
                 >
                   {order.newIds.length > 1
                     ? tx(lang, 'Yeni əlavələri qəbul et', 'Принять новые добавления', 'Accept new additions')
@@ -864,14 +883,14 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
               {order.status === 'PREPARING' && (
                 <button
                   onClick={() => { void handleCompleteGroup(order); }}
-                  className="w-full py-3 rounded-xl font-bold bg-yellow-400 hover:bg-yellow-300 text-slate-900 transition-colors shadow-sm flex items-center justify-center"
+                  className="w-full min-h-[48px] py-3 rounded-xl text-base font-extrabold bg-yellow-400 hover:bg-yellow-300 active:scale-[0.98] text-slate-950 transition-all shadow-md flex items-center justify-center"
                 >
                   <CheckCircle size={20} className="mr-2" />
                   {tx(lang, 'Hazırdır (Tamamla)', 'Готово (завершить)', 'Ready (Complete)')}
                 </button>
               )}
               {order.status === 'READY' && (
-                <div className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100">
+                <div className="w-full min-h-[48px] flex items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-center text-sm font-bold text-emerald-100">
                   {tx(lang, 'Ofisant üçün hazırdır', 'Готово для официанта', 'Ready for waiter')}
                 </div>
               )}

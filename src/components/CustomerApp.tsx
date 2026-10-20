@@ -993,7 +993,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       return;
     }
     void QRCode.toDataURL(payload, {
-      width: 240,
+      width: 320,
       margin: 1,
       color: { dark: '#0f172a', light: '#ffffff' },
     })
@@ -2470,22 +2470,22 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               </h3>
             </div>
 
-            {/* QR Scanner Container */}
-            <div className={`flex flex-col items-center justify-center p-6 rounded-2xl bg-white border shadow-sm ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+            {/* QR Scanner Container — High-Contrast White Stage for 2D POS Scanners */}
+            <div className="flex flex-col items-center justify-center p-7 rounded-3xl bg-white border-2 border-white shadow-[0_0_50px_rgba(255,255,255,0.28)]">
               {cardQr ? (
-                <div className="p-1 bg-white rounded-xl">
-                  <img src={cardQr} alt="qr" className="h-56 w-56 object-contain" />
+                <div className="p-1.5 bg-white rounded-2xl">
+                  <img src={cardQr} alt="qr" className="h-64 w-64 object-contain" />
                 </div>
               ) : (
-                <div className="h-56 w-56 flex items-center justify-center text-slate-800 font-mono text-sm">
+                <div className="h-64 w-64 flex items-center justify-center text-slate-900 font-mono text-base font-bold">
                   {customer.card_id}
                 </div>
               )}
               <div className="mt-4 text-center">
-                <p className="text-slate-900 font-mono text-sm tracking-wider font-bold">
+                <p className="text-slate-950 font-mono text-base tracking-[0.18em] font-black tabular-nums">
                   {formatCardId(customer.card_id)}
                 </p>
-                <p className="text-[#F48C24] text-[10px] mt-1 font-semibold uppercase tracking-wider">
+                <p className="text-[#F48C24] text-[10px] mt-1 font-extrabold uppercase tracking-[0.2em]">
                   {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПРЕДЪЯВИТЕ НА КАССЕ', 'PRESENT TO CASHIER')}
                 </p>
               </div>

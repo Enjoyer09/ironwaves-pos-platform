@@ -558,14 +558,28 @@ export default function HomeTab({
               </p>
             </div>
 
-            {/* Bottom: Card ID + Tap to Flip hint */}
-            <div className="flex items-center justify-between text-white/60 relative z-10 pt-1 border-t border-white/10">
-              <span className="font-mono text-[10px] tracking-[0.16em] text-white/50">
+            {/* Bottom: Card ID + Quick Fullscreen QR + Tap to Flip hint */}
+            <div className="flex items-center justify-between text-white/60 relative z-10 pt-1.5 border-t border-white/10">
+              <span className="font-mono text-[10px] tracking-[0.16em] text-white/65 tabular-nums">
                 {formatCardIdFn(customer.card_id)}
               </span>
-              <div className="flex items-center gap-1 text-[9px] font-bold text-white/80 bg-white/10 rounded-full px-2.5 py-0.5">
-                <span>🔄</span>
-                <span>{tx(safeLang, 'Skan üçün toxun', 'Коснись для QR', 'Tap to scan')}</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await nativeHapticImpact(ImpactStyle.Light);
+                    setShowFullQr(true);
+                  }}
+                  className="flex items-center gap-1 text-[9.5px] font-extrabold text-slate-950 bg-white hover:bg-amber-50 rounded-full px-2.5 py-0.5 shadow-sm active:scale-95 transition"
+                >
+                  <span>🔍</span>
+                  <span>{tx(safeLang, 'Böyüt', 'Крупно', 'Expand')}</span>
+                </button>
+                <div className="flex items-center gap-1 text-[9px] font-bold text-white/85 bg-white/15 rounded-full px-2.5 py-0.5">
+                  <span>🔄</span>
+                  <span>{tx(safeLang, 'QR', 'QR', 'QR')}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -575,7 +589,7 @@ export default function HomeTab({
             className="absolute inset-0 backface-hidden flex flex-col items-center justify-center text-white"
             style={{
               borderRadius: '24px',
-              padding: '20px',
+              padding: '18px',
               background: isLight ? '#FFFFFF' : '#1C1C1E',
               boxShadow: isLight
                 ? '0 14px 36px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)'
@@ -587,21 +601,29 @@ export default function HomeTab({
             }}
           >
             {cardQr ? (
-              <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200">
+              <div
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await nativeHapticImpact(ImpactStyle.Light);
+                  setShowFullQr(true);
+                }}
+                className="p-2.5 bg-white rounded-2xl shadow-md border border-slate-200 cursor-pointer active:scale-95 transition-transform"
+                title={tx(safeLang, 'Tam ekran açmaq üçün toxun', 'Нажмите для полного экрана', 'Tap for fullscreen')}
+              >
                 <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
               </div>
             ) : (
               <div className="text-slate-600 text-xs">QR Code</div>
             )}
             <p
-              className={`mt-3 text-[10px] font-extrabold uppercase tracking-[0.2em] ${
+              className={`mt-2.5 text-[10px] font-extrabold uppercase tracking-[0.2em] ${
                 isLight ? 'text-[#FF8B26]' : 'text-amber-400'
               }`}
             >
               {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПОКАЖИТЕ НА КАССЕ', 'SHOW AT CHECKOUT')}
             </p>
             <p
-              className={`mt-0.5 font-mono text-[10px] tracking-wider ${
+              className={`mt-0.5 font-mono text-[10px] tracking-wider tabular-nums ${
                 isLight ? 'text-slate-600' : 'text-white/50'
               }`}
             >

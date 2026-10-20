@@ -16,6 +16,7 @@ type TableGridProps = {
   currentUserRole?: string;
   onSelectTable: (table: any) => void;
   onMarkClean: (tableId: string) => void;
+  onQuickPay?: (tableId: string, method: 'Nəğd' | 'Kart') => void;
   showMyTablesFilter?: boolean;
 };
 
@@ -36,6 +37,7 @@ function TableGrid({
   currentUserRole,
   onSelectTable,
   onMarkClean,
+  onQuickPay,
   showMyTablesFilter,
 }: TableGridProps) {
   const [quickActionsTableId, setQuickActionsTableId] = useState<string | null>(null);
@@ -235,11 +237,43 @@ function TableGrid({
                 })()}
               </div>
 
-              {/* Total amount */}
+              {/* Total amount + 1-click Quick Pay */}
               {displayedTotal.greaterThan(0) && (
-                <div className="mt-2.5 flex items-center justify-between">
-                  <span className="text-[17px] font-bold text-white">{displayedTotal.toFixed(2)}</span>
-                  <span className="text-[11px] font-bold text-slate-400">₼</span>
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[17px] font-bold text-white tabular-nums">{displayedTotal.toFixed(2)}</span>
+                    <span className="text-[11px] font-bold text-slate-400">₼</span>
+                  </div>
+                  {onQuickPay && (!tableLockHolder || isMyTable || isManagerUser) && (
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playHapticTouch();
+                          onQuickPay(String(activeLocalTable?.id || table.id), 'Nəğd');
+                        }}
+                        title={tx(lang, 'Nağd ödəniş pəncərəsini birbaşa aç', 'Открыть оплату наличными', 'Quick pay with Cash')}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-emerald-400/35 bg-emerald-500/20 px-2 py-1.5 text-[10px] font-extrabold text-emerald-200 transition hover:bg-emerald-500/35 active:scale-95"
+                      >
+                        <span>💵</span>
+                        <span>{tx(lang, 'Nağd', 'Нал', 'Cash')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playHapticTouch();
+                          onQuickPay(String(activeLocalTable?.id || table.id), 'Kart');
+                        }}
+                        title={tx(lang, 'Kart ödəniş pəncərəsini birbaşa aç', 'Открыть оплату картой', 'Quick pay with Card')}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-sky-400/35 bg-sky-500/20 px-2 py-1.5 text-[10px] font-extrabold text-sky-200 transition hover:bg-sky-500/35 active:scale-95"
+                      >
+                        <span>💳</span>
+                        <span>{tx(lang, 'Kart', 'Карта', 'Card')}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

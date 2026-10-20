@@ -647,10 +647,10 @@ export default function PublicMenu() {
         </div>
       </header>
 
-      {/* ─── Instagram-style Story Slider ─────────────────────────────────────── */}
+      {/* ─── Instagram-style Story Slider (Sticky on scroll) ─────────────────── */}
       {categories.length > 0 && (
-        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 -mt-4 mb-6">
-          <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className={`sticky top-0 z-30 mx-auto max-w-4xl px-4 sm:px-6 -mt-4 mb-4 py-2.5 backdrop-blur-xl transition-colors ${isMenuLight ? 'bg-[#faf8f5]/85' : 'bg-[#07090e]/85'}`}>
+          <div className="flex gap-3.5 overflow-x-auto pb-1.5 scrollbar-none" style={{ WebkitOverflowScrolling: 'touch' }}>
             {/* All button — with restaurant logo */}
             <button
               type="button"
@@ -713,48 +713,31 @@ export default function PublicMenu() {
         </div>
       )}
 
-      {/* ─── Search Bar (inline, below story slider) ────────────────────────── */}
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 mb-6">
+      {/* ─── Search Bar (direct 1-tap input) ─────────────────────────────────── */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 mb-5">
         <div className="relative">
-          {!searchExpanded && !search ? (
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d4af37]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setSearchExpanded(true)}
+            onBlur={() => { if (!search) setSearchExpanded(false); }}
+            placeholder={TX.searchPlaceholder[lang]}
+            className={`w-full rounded-2xl border py-3 pl-11 pr-10 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/25 ${
+              isMenuLight
+                ? 'border-slate-200/90 bg-white/85 text-slate-900 placeholder-slate-400 focus:border-[#d4af37]/50'
+                : 'border-white/12 bg-white/[0.05] text-slate-100 placeholder-slate-400 focus:border-[#d4af37]/50'
+            }`}
+          />
+          {search && (
             <button
               type="button"
-              onClick={() => setSearchExpanded(true)}
-              className={`flex items-center gap-3 w-full rounded-2xl border py-3 px-5 text-sm transition-all duration-300 ${
-                isMenuLight
-                  ? 'border-slate-200 bg-white/60 text-slate-400 hover:border-slate-300'
-                  : 'border-white/10 bg-white/[0.05] text-slate-500 hover:border-white/20'
-              }`}
+              onClick={() => { setSearch(''); setSearchExpanded(false); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-white transition-colors"
             >
-              <Search className="h-4 w-4 text-slate-400" />
-              <span>{TX.searchPlaceholder[lang]}</span>
+              <X className="h-4 w-4" />
             </button>
-          ) : (
-            <div style={{ animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d4af37]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onBlur={() => { if (!search) setSearchExpanded(false); }}
-                autoFocus
-                placeholder={TX.searchPlaceholder[lang]}
-                className={`w-full rounded-2xl border py-3 pl-11 pr-10 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/20 ${
-                  isMenuLight
-                    ? 'border-[#d4af37]/40 bg-white text-slate-900 placeholder-slate-400'
-                    : 'border-[#d4af37]/40 bg-white/[0.06] text-slate-100 placeholder-slate-500'
-                }`}
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => { setSearch(''); setSearchExpanded(false); }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
           )}
         </div>
       </div>
@@ -859,14 +842,14 @@ export default function PublicMenu() {
               type="button"
               onClick={handleCallWaiter}
               disabled={waiterCooldown > 0}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all ${
+              className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 text-xs sm:text-sm font-extrabold uppercase tracking-wider transition-all tabular-nums ${
                 waiterCooldown > 0
-                  ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                  ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 cursor-not-allowed'
                   : 'menu-primary-gradient text-slate-950 shadow-xl hover:brightness-110 active:scale-95'
               }`}
             >
               <BellRing className="h-5 w-5" />
-              <span>{waiterCooldown > 0 ? `${waiterCooldown}s` : TX.callWaiter[lang]}</span>
+              <span>{waiterCooldown > 0 ? `✓ ${waiterCooldown}s` : TX.callWaiter[lang]}</span>
             </button>
 
             {/* Request Bill Button */}

@@ -1244,6 +1244,31 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     }
   }, [activeFloorId, notify, lang]);
 
+  const handleQuickPayTable = useCallback((tableId: string, method: 'Nəğd' | 'Kart') => {
+    const target = tablesById[String(tableId)];
+    if (!target) return;
+    const mergedGroupId = String((target as any)?.merged_group_id || '').trim();
+    const groupTables = mergedGroupId
+      ? tables.filter((r) => String(r.merged_group_id || '').trim() === mergedGroupId)
+      : [];
+    const occupiedTableInGroup = groupTables.find((r) => r.is_occupied);
+    const activeTable = occupiedTableInGroup || target;
+    if (hasEmptyActiveCheckTotalMismatch(activeTable)) {
+      notify('error', tx(lang, 'Bu masada məbləğ görünür, amma check daxilində sifariş tapılmadı.', 'У стола есть сумма, но внутри чека нет позиций.', 'This table shows a total but the check has no order items.'));
+      return;
+    }
+    void get_table_detail_live(tenant_id, activeTable.id)
+      .then((next) => setTableDetailRecord(next))
+      .catch(() => undefined);
+    setPayTableId(activeTable.id);
+    setViewTableId(null);
+    setPaymentMethod(method);
+    setSplitCount('2');
+    setSplitParts([]);
+    setSplitCash('0');
+    setTableDiscountPercent('0');
+  }, [tablesById, tables, tenant_id, notify, lang]);
+
   const handlePrintPreCheck = async (table: any) => {
     if (!table) return;
     try {
@@ -2554,8 +2579,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
                     </div>
                   )}
-	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2.5 ${ isBahaYLab && isMobileView ? 'hidden' : ''}`}>
-	                    <div className="flex flex-wrap gap-2.5" role="tablist" aria-label={tx(lang, 'Masa iş sahəsi', 'Рабочая область стола', 'Table workspace')}>
+	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2 ${isBahaYLab && tableWorkspaceTab === 'compose' ? 'hidden' : ''}`}>
+	                    <div className="flex flex-wrap gap-2" role="tablist" aria-label={tx(lang, 'Masa iş sahəsi', 'Рабочая область стола', 'Table workspace')}>
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
@@ -2568,22 +2593,19 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           role="tab"
                           aria-selected={tableWorkspaceTab === tabKey}
                           onClick={() => setTableWorkspaceTab(tabKey)}
-	                          className={`rounded-2xl px-5 py-3 text-sm font-bold transition active:scale-95 taktil-target ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950 shadow-md shadow-yellow-500/20 border-2 border-yellow-300/60' : 'border-2 border-slate-600/80 bg-slate-800/50 text-slate-200 hover:bg-slate-700/60 hover:border-slate-500/80'}`}
+	                          className={`rounded-xl px-4 py-2 text-xs font-bold transition active:scale-95 taktil-target ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950 shadow-md shadow-yellow-500/20 border border-yellow-300/60' : 'border border-slate-600/80 bg-slate-800/50 text-slate-200 hover:bg-slate-700/60 hover:border-slate-500/80'}`}
                         >
                           {label}
                         </button>
                       ))}
                     </div>
 	                  </div>
-	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
-                  {/* P1-4: the workspace tab bar is hidden on mobile modern, so once a waiter
-                      taps "Servis" (or lands on Servis/History/Ops) there is no way back to the
-                      order composer except closing the table. Give a persistent return button. */}
-                  {isBahaYLab && isMobileView && tableWorkspaceTab !== 'compose' && (
+	                  <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
+                  {isBahaYLab && tableWorkspaceTab !== 'compose' && (
                     <button
                       type="button"
                       onClick={() => setTableWorkspaceTab('compose')}
-                      className="mb-3 inline-flex min-h-12 shrink-0 items-center gap-2 self-start rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 px-4 py-2.5 text-sm font-bold text-cyan-100 transition active:scale-95 taktil-target"
+                      className="mb-3 inline-flex min-h-11 shrink-0 items-center gap-2 self-start rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-sm font-bold text-cyan-100 transition active:scale-95 taktil-target"
                     >
                       ← {tx(lang, 'Sifarişə qayıt', 'К заказу', 'Back to order')}
                     </button>
@@ -3220,6 +3242,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 onDeleteFloorPlan={(floorId) => { void handleDeleteFloorPlan(floorId); }}
                 onSelectWaiterTable={handleSelectWaiterTable}
                 onMarkTableClean={(tableId) => { void handleMarkTableClean(tableId); }}
+                onQuickPay={handleQuickPayTable}
                 notify={notify}
               />
             )}

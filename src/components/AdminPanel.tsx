@@ -771,6 +771,66 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
             ))}
           </select>
         </div>
+
+        {/* Grouped quick-navigation bar on desktop so sibling admin tools are 1 click away */}
+        <div className="mb-4 hidden md:flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-slate-800/80">
+          {[
+            {
+              group: tx(lang, 'İcmal', 'Обзор', 'Overview'),
+              items: [
+                { key: 'dashboard' as AdminTab, label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
+                { key: 'analytics' as AdminTab, label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
+                { key: 'finance' as AdminTab, label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
+                { key: 'zreport' as AdminTab, label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
+              ],
+            },
+            {
+              group: tx(lang, 'Kataloq & Anbar', 'Каталог и Склад', 'Catalog & Stock'),
+              items: [
+                { key: 'menu' as AdminTab, label: tx(lang, 'Menyu', 'Меню', 'Menu') },
+                { key: 'recipes' as AdminTab, label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
+                { key: 'inventory' as AdminTab, label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
+                { key: 'suppliers' as AdminTab, label: tx(lang, 'Təchizatçılar', 'Поставщики', 'Suppliers') },
+              ],
+            },
+            {
+              group: tx(lang, 'Müştəri & Sistem', 'Клиенты и Система', 'CRM & System'),
+              items: [
+                { key: 'crm' as AdminTab, label: tx(lang, 'CRM', 'CRM', 'CRM') },
+                { key: 'customerapp' as AdminTab, label: tx(lang, 'Customer App', 'Customer App', 'Customer App') },
+                { key: 'tables' as AdminTab, label: tx(lang, 'Masalar / HH', 'Столы / HH', 'Tables / HH') },
+                { key: 'logs' as AdminTab, label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
+                { key: 'settings' as AdminTab, label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
+              ],
+            },
+          ].map((section, sIdx) => (
+            <React.Fragment key={section.group}>
+              {sIdx > 0 && <div className="h-5 w-px bg-slate-700/60 mx-1 shrink-0" />}
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="px-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 select-none">
+                  {section.group}:
+                </span>
+                {section.items.map((tab) => {
+                  const isCurrent = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTabSoft(tab.key)}
+                      className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition active:scale-95 whitespace-nowrap ${
+                        isCurrent
+                          ? 'bg-amber-400 text-slate-950 font-extrabold shadow-sm'
+                          : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
         
         <Suspense fallback={<div className="rounded-2xl border border-slate-700/60 bg-slate-900/30 p-6 text-sm text-slate-300">{tx(lang, 'Panel yüklənir...', 'Панель загружается...', 'Loading panel...')}</div>}>
         <div key={activeTab} className="admin-tab-pane min-h-0 flex-1">
@@ -778,18 +838,18 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
 
         {activeTab === 'analytics' && (
           <div>
-            <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                  <h1 className="text-3xl font-bold">{tx(lang, 'İdarəetmə Paneli', 'Панель управления')}</h1>
-                  <p className="text-slate-300 mt-1">
+                  <h1 className="text-2xl font-bold">{tx(lang, 'İdarəetmə Paneli', 'Панель управления')}</h1>
+                  <p className="text-slate-300 text-sm mt-0.5">
                     {currentRole === 'staff'
                       ? tx(lang, 'Yalnız öz satışlarınız göstərilir', 'Показаны только ваши продажи', 'Showing only your sales')
                       : tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период', 'Statistics for the selected date range')}
                   </p>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input min-h-13" />
-                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="neon-input min-h-13" />
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input min-h-11" />
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="neon-input min-h-11" />
               </div>
             </div>
 
@@ -797,52 +857,52 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
             {summary && (
               <div className="mb-8 space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="metal-panel p-6 flex items-center">
-                  <div className="w-14 h-14 bg-green-400/20 text-green-200 rounded-2xl flex items-center justify-center mr-4 border border-green-300/30">
-                    <DollarSign size={28} />
+                <div className="metal-panel p-5 flex items-center">
+                  <div className="w-12 h-12 bg-green-400/20 text-green-200 rounded-2xl flex items-center justify-center mr-4 border border-green-300/30 shrink-0">
+                    <DollarSign size={24} />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Ümumi Gəlir', 'Общая выручка', 'Total Revenue')}</p>
-                    <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.total_revenue).toFixed(2)} ₼</h3>
-                    <div className="mt-1 text-xs text-slate-400">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Ümumi Gəlir', 'Общая выручка', 'Total Revenue')}</p>
+                    <h3 className="text-2xl font-black text-slate-100 tabular-nums mt-0.5">{parseFloat(summary.total_revenue).toFixed(2)} ₼</h3>
+                    <div className="mt-1 text-xs text-slate-400 tabular-nums">
                       {tx(lang, 'Nağd', 'Нал', 'Cash')}: {analyticsBreakdown.cashAmount.toFixed(2)} ₼ · {tx(lang, 'Kart', 'Карта', 'Card')}: {analyticsBreakdown.cardAmount.toFixed(2)} ₼
                     </div>
                   </div>
                 </div>
 
-                <div className="metal-panel p-6 flex items-center">
-                  <div className="w-14 h-14 bg-blue-400/20 text-blue-200 rounded-2xl flex items-center justify-center mr-4 border border-blue-300/30">
-                    <ShoppingBag size={28} />
+                <div className="metal-panel p-5 flex items-center">
+                  <div className="w-12 h-12 bg-blue-400/20 text-blue-200 rounded-2xl flex items-center justify-center mr-4 border border-blue-300/30 shrink-0">
+                    <ShoppingBag size={24} />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Satış Sayı', 'Количество продаж', 'Sales Count')}</p>
-                    <h3 className="text-2xl font-bold text-slate-100">{analyticsBreakdown.validSalesCount}</h3>
-                    <div className="mt-1 text-xs text-slate-400">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Satış Sayı', 'Количество продаж', 'Sales Count')}</p>
+                    <h3 className="text-2xl font-black text-slate-100 tabular-nums mt-0.5">{analyticsBreakdown.validSalesCount}</h3>
+                    <div className="mt-1 text-xs text-slate-400 tabular-nums">
                       {analyticsBreakdown.cashCount} {tx(lang, 'nağd', 'нал', 'cash')} · {analyticsBreakdown.cardCount} {tx(lang, 'kart', 'карта', 'card')}
                     </div>
                   </div>
                 </div>
 
-                <div className="metal-panel p-6 flex items-center">
-                  <div className="w-14 h-14 bg-rose-400/20 text-rose-200 rounded-2xl flex items-center justify-center mr-4 border border-rose-300/30">
-                    <Wallet size={28} />
+                <div className="metal-panel p-5 flex items-center">
+                  <div className="w-12 h-12 bg-rose-400/20 text-rose-200 rounded-2xl flex items-center justify-center mr-4 border border-rose-300/30 shrink-0">
+                    <Wallet size={24} />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')}</p>
-                    <h3 className="text-2xl font-bold text-rose-300">-{analyticsBreakdown.totalExpenses.toFixed(2)} ₼</h3>
-                    <div className="mt-1 text-xs text-slate-400">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')}</p>
+                    <h3 className="text-2xl font-black text-rose-300 tabular-nums mt-0.5">-{analyticsBreakdown.totalExpenses.toFixed(2)} ₼</h3>
+                    <div className="mt-1 text-xs text-slate-400 tabular-nums">
                       {analyticsBreakdown.expensesCount} {tx(lang, 'xərc qeydi', 'записей', 'records')}
                     </div>
                   </div>
                 </div>
 
-                <div className="metal-panel p-6 flex items-center">
-                  <div className={`w-14 h-14 ${analyticsBreakdown.netProfit >= 0 ? 'bg-emerald-400/20 text-emerald-200 border-emerald-300/30' : 'bg-rose-400/20 text-rose-200 border-rose-300/30'} rounded-2xl flex items-center justify-center mr-4 border`}>
-                    <TrendingUp size={28} />
+                <div className="metal-panel p-5 flex items-center">
+                  <div className={`w-12 h-12 shrink-0 ${analyticsBreakdown.netProfit >= 0 ? 'bg-emerald-400/20 text-emerald-200 border-emerald-300/30' : 'bg-rose-400/20 text-rose-200 border-rose-300/30'} rounded-2xl flex items-center justify-center mr-4 border`}>
+                    <TrendingUp size={24} />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}</p>
-                    <h3 className={`text-2xl font-bold ${analyticsBreakdown.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}</p>
+                    <h3 className={`text-2xl font-black tabular-nums mt-0.5 ${analyticsBreakdown.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                       {analyticsBreakdown.netProfit.toFixed(2)} ₼
                     </h3>
                     <div className="mt-1 text-xs text-slate-400">

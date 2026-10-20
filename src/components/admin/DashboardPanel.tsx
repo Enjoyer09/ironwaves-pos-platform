@@ -1150,42 +1150,42 @@ function KPISection({
           </label>
         )}
       </div>
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {/* Primary 6 — always visible at a glance */}
+      <section className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {/* Primary 6 — core financial & operational KPIs always visible at a glance */}
         <KpiCard
           title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')}
           value={revenue}
           helper={salesHelper}
-          icon={<Receipt size={22} />}
+          icon={<Receipt size={20} />}
           tone="emerald"
           delta={revenueDelta}
           goalRing={goalProgress != null ? { progress: goalProgress, label: `${Math.round(goalProgress)}%` } : undefined}
           onClick={() => onOpenTab('analytics')}
         />
-        <KpiCard title={tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')} value={netProfit || '0.00 ₼'} helper={tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')} icon={<TrendingUp size={22} />} tone={netProfit && netProfit.startsWith('-') ? 'rose' : 'emerald'} onClick={() => onOpenTab('analytics')} />
-        <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
-        <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
-        <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
-        <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="slate" onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')} value={netProfit || '0.00 ₼'} helper={tx(lang, 'Gəlir - Maya - Xərclər', 'Доход - Себест. - Расходы', 'Rev - COGS - Exp')} icon={<TrendingUp size={20} />} tone={netProfit && netProfit.startsWith('-') ? 'rose' : 'emerald'} onClick={() => onOpenTab('analytics')} />
+        <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={20} />} tone="sky" onClick={() => onOpenTab('analytics')} />
+        <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={20} />} tone="violet" onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={20} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
+        <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={20} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
 
         {/* Secondary 4 — behind the toggle to keep the first screen calm */}
         {showAllKpis && (<>
-          <KpiCard title={tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')} value={expensesTotal || '0.00 ₼'} helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`} icon={<Wallet size={22} />} tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'} delta={expensesDelta} onClick={() => onOpenTab('finance')} />
-          <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
-          <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={22} />} tone="slate" onClick={() => onOpenTab('inventory')} />
-          <KpiCard title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+          <KpiCard title={tx(lang, 'Gün Sonu Xərclər', 'Расходы за день', 'Daily Expenses')} value={expensesTotal || '0.00 ₼'} helper={`${expensesCount || 0} ${tx(lang, 'xərc qeydi', 'записей', 'records')}`} icon={<Wallet size={20} />} tone={expensesTotal && !expensesTotal.startsWith('0.00') ? 'rose' : 'slate'} delta={expensesDelta} onClick={() => onOpenTab('finance')} />
+          <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={20} />} tone="slate" onClick={() => onOpenTab('tables')} />
+          <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={20} />} tone="slate" onClick={() => onOpenTab('inventory')} />
+          <KpiCard title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={20} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
         </>)}
       </section>
       <div className="flex justify-center">
         <button
           type="button"
           onClick={() => setShowAllKpis((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:border-violet-400/40 active:scale-95"
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-200 transition hover:border-violet-400/40 active:scale-95"
         >
           {showAllKpis
             ? tx(lang, 'Az göstərici', 'Меньше показателей', 'Fewer metrics')
             : tx(lang, 'Daha çox göstərici', 'Больше показателей', 'More metrics')}
-          <ArrowRight size={16} className={showAllKpis ? 'rotate-90' : '-rotate-90'} />
+          <ArrowRight size={15} className={showAllKpis ? 'rotate-90' : '-rotate-90'} />
         </button>
       </div>
     </>
@@ -1221,16 +1221,16 @@ function KpiCard({
   } as const;
   const ringPct = goalRing ? Math.max(0, Math.min(100, goalRing.progress)) : 0;
   return (
-    <button onClick={onClick} className={`relative min-h-[150px] rounded-[20px] border p-5 text-left shadow-[0_10px_34px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
-        <ArrowRight size={18} className="opacity-50" />
+    <button onClick={onClick} className={`relative min-h-[126px] rounded-[20px] border p-4 text-left shadow-[0_8px_28px_rgba(0,0,0,0.24)] transition hover:-translate-y-0.5 ${palette[tone]}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="rounded-xl bg-white/10 p-2">{icon}</div>
+        <ArrowRight size={16} className="opacity-45" />
       </div>
-      <div className="mt-5 text-xs font-black uppercase tracking-[0.18em] opacity-70">{title}</div>
-      <div className="mt-2 flex items-center gap-3">
-        <div className="text-3xl font-black leading-none">{value}</div>
+      <div className="mt-3 text-[11px] font-black uppercase tracking-[0.15em] opacity-70 truncate">{title}</div>
+      <div className="mt-1.5 flex items-center gap-2.5">
+        <div className="text-2xl xl:text-[26px] font-black leading-none tabular-nums tracking-tight">{value}</div>
         {goalRing && (
-          <svg width="40" height="40" viewBox="0 0 42 42" className="shrink-0">
+          <svg width="36" height="36" viewBox="0 0 42 42" className="shrink-0">
             <circle cx="21" cy="21" r="17" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="4" />
             <circle cx="21" cy="21" r="17" fill="none" stroke="#F48C24" strokeWidth="4" strokeLinecap="round"
               strokeDasharray={2 * Math.PI * 17}
@@ -1241,12 +1241,12 @@ function KpiCard({
         )}
       </div>
       {delta != null && (
-        <div className={`mt-2 inline-flex items-center gap-1 text-[11px] font-bold ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+        <div className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold tabular-nums ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
           <span>{delta >= 0 ? '▲' : '▼'}</span>
           {Math.abs(delta).toFixed(0)}%
         </div>
       )}
-      <div className="mt-2 text-xs font-semibold opacity-75">{helper}</div>
+      <div className="mt-1.5 text-[11px] font-semibold opacity-75 truncate tabular-nums">{helper}</div>
     </button>
   );
 }

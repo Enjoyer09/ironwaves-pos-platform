@@ -65,6 +65,7 @@ export type FloorViewProps = {
   onDeleteFloorPlan: (floorId: string) => void;
   onSelectWaiterTable: (table: any) => void;
   onMarkTableClean: (tableId: string) => void;
+  onQuickPay?: (tableId: string, method: 'Nəğd' | 'Kart') => void;
   notify: (type: 'success' | 'error' | 'info', msg: string) => void;
 };
 
@@ -123,6 +124,7 @@ function FloorView(props: FloorViewProps) {
     onDeleteFloorPlan,
     onSelectWaiterTable,
     onMarkTableClean,
+    onQuickPay,
     notify,
   } = props;
 
@@ -522,6 +524,7 @@ function FloorView(props: FloorViewProps) {
               currentUserRole={userRole}
               onSelectTable={onSelectWaiterTable}
               onMarkClean={(tableId) => { void onMarkTableClean(tableId); }}
+              onQuickPay={onQuickPay}
               showMyTablesFilter={isBahaYLab}
             />
           </div>
