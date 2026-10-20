@@ -2013,24 +2013,11 @@ export default function App() {
       )}
       <div
         className="flex-1 flex flex-col relative overflow-hidden"
-        style={
-          scale < 1
-            ? {
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-                width: `${100 / scale}%`,
-                height: `${100 / scale}%`,
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
-              }
-            : {
-                width: '100%',
-                height: '100%',
-                paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
-              }
-        }
+        style={{
+          width: '100%',
+          height: '100%',
+          paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
+        }}
       >
         <a
           href="#main-content"
@@ -2038,31 +2025,40 @@ export default function App() {
         >
           {tx(safeLang, 'Əsas məzmuna keçid', 'Перейти к основному содержимому', 'Skip to main content')}
         </a>
-        <div className={`border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4`}>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden">
+        <div className="border-b border-slate-700/40 px-3 py-2 md:px-5 shrink-0 z-20 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden shadow-sm">
                 {profile?.logo_url ? (
                   <img src={profile.logo_url} alt="logo" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="font-bold text-lg">SB</span>
+                  <span className="font-black text-sm tracking-tight">
+                    {(() => {
+                      const rawName = String(profile?.company_name || 'iRonWaves POS').trim();
+                      const words = rawName.split(/\s+/).filter(Boolean);
+                      if (words.length >= 2) {
+                        return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
+                      }
+                      return rawName.slice(0, 2).toUpperCase() || 'IW';
+                    })()}
+                  </span>
                 )}
               </div>
-              <div>
-                <p className="font-semibold leading-tight">{profile?.company_name || 'iRonWaves POS'}</p>
-                  <p className="text-xs text-slate-400">{safeUser.username} / {safeUser.role}</p>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm leading-tight truncate">{profile?.company_name || 'iRonWaves POS'}</p>
+                <p className="text-[11px] text-slate-400 leading-tight truncate">{safeUser.username} / {safeUser.role}</p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {sessionRole === 'super_admin' && availableTenants.length > 0 && (
-                <label className="flex items-center gap-2 rounded-2xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-sm text-cyan-100">
+                <label className="flex items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-100">
                   <span className="hidden md:inline">{tx(safeLang, 'Tenant', 'Тенант', 'Tenant')}</span>
                   <select
                     value={selectedTenantId}
                     onChange={(event) => handleTenantSwitch(event.target.value)}
                     disabled={tenantSwitching}
-                    className="min-w-[180px] bg-transparent text-sm font-medium text-cyan-50 outline-none"
+                    className="min-w-[150px] bg-transparent text-xs font-medium text-cyan-50 outline-none"
                     onMouseEnter={(e) => handleDemoGuideHover('Tenant seçimi ilə demo mühitini dəyişə bilərsiniz.', e)}
                     onMouseMove={(e) => handleDemoGuideHover('Tenant seçimi ilə demo mühitini dəyişə bilərsiniz.', e)}
                     onMouseLeave={() => setDemoGuideBubble(null)}
@@ -2075,18 +2071,18 @@ export default function App() {
                   </select>
                 </label>
               )}
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                 isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-200 shadow-sm animate-pulse'
               }`}
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz(isOnline ? 'online' : 'offline'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz(isOnline ? 'online' : 'offline'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+                {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
                 <span>{isOnline ? t.online : t.offline}</span>
               </div>
               {pendingOfflineCount > 0 && (
-                <div className="flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-200">
+                <div className="flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-xs font-medium text-amber-200">
                   <span>{pendingOfflineCount}</span>
                   <span>{tx(safeLang, 'gözləyən sync', 'ожидает синхронизации', 'pending sync')}</span>
                 </div>
@@ -2094,13 +2090,13 @@ export default function App() {
               <button
                 onClick={() => void runSoftRefresh('manual')}
                 disabled={manualRefreshing}
-                className="neon-btn px-3 py-2 disabled:opacity-60"
+                className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs disabled:opacity-60"
                 title={manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : 'Yenilə'}
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                <RotateCcw size={16} />
+                <RotateCcw size={14} />
                 <span className="hidden sm:inline">
                   {manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : t.refresh}
                 </span>
@@ -2111,10 +2107,10 @@ export default function App() {
               {['admin', 'manager', 'super_admin'].includes(sessionRole) && (
                 <button
                   onClick={toggleUiMode}
-                  className="neon-btn px-3 py-2"
+                  className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
                   title={tx(safeLang, 'İnterfeysi dəyiş', 'Сменить интерфейс', 'Toggle layout')}
                 >
-                  <LayoutGrid size={16} />
+                  <LayoutGrid size={14} />
                   <span className="hidden sm:inline">
                     {currentUiMode === 'modern'
                       ? tx(safeLang, 'Müasir Rejim', 'Модерн', 'Modern')
@@ -2124,68 +2120,68 @@ export default function App() {
               )}
               <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
-                className="neon-btn px-3 py-2"
+                className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('az/ru/en'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('az/ru/en'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                <Languages size={16} />
+                <Languages size={14} />
                 <span>{safeLang.toUpperCase()}</span>
               </button>
               {!isFullscreen ? (
                 <button
                   onClick={() => void enterFullscreen()}
-                  className="neon-btn px-3 py-2"
+                  className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
                   title={tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
                   onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
                   onMouseMove={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
                   onMouseLeave={() => setDemoGuideBubble(null)}
                 >
-                  <Maximize2 size={16} />
-                  <span className="hidden sm:inline">{tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}</span>
+                  <Maximize2 size={14} />
+                  <span className="hidden xl:inline">{tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}</span>
                 </button>
               ) : (
                 <button
                   onClick={() => void exitFullscreen()}
-                  className="neon-btn-active px-3 py-2"
+                  className="neon-btn-active !min-h-9 px-2.5 py-1.5 text-xs"
                   title={tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}
                   onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
                   onMouseMove={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
                   onMouseLeave={() => setDemoGuideBubble(null)}
                 >
-                  <Minimize2 size={16} />
-                  <span className="hidden sm:inline">{tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}</span>
+                  <Minimize2 size={14} />
+                  <span className="hidden xl:inline">{tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}</span>
                 </button>
               )}
               <button
                 onClick={() => setHelpOpen(true)}
-                className="neon-btn px-3 py-2"
+                className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
                 title={tx(safeLang, 'Kömək', 'Помощь', 'Help')}
                 onMouseEnter={(e) => handleDemoGuideHover(tx(safeLang, 'User manual və AI kömək paneli', 'Панель помощи по manual и AI', 'User manual + AI help panel'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(tx(safeLang, 'User manual və AI kömək paneli', 'Панель помощи по manual и AI', 'User manual + AI help panel'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                <MessageCircleQuestion size={16} />
-                <span>{tx(safeLang, 'Kömək', 'Помощь', 'Help')}</span>
+                <MessageCircleQuestion size={14} />
+                <span className="hidden sm:inline">{tx(safeLang, 'Kömək', 'Помощь', 'Help')}</span>
               </button>
               <button
                 onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
-                className="rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 px-3 py-2 text-xs font-bold text-slate-200 shadow-sm transition active:scale-[0.97]"
+                className="rounded-xl border border-slate-700 bg-slate-800/90 hover:bg-slate-700 !min-h-9 px-2.5 py-1.5 text-xs font-bold text-slate-200 shadow-sm transition active:scale-[0.97]"
                 title={tx(safeLang, 'İstifadəçi dəyiş (PIN)', 'Сменить пользователя (PIN)', 'Switch user (PIN)')}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <UserRoundCog size={15} className="text-slate-400" />
+                  <UserRoundCog size={14} className="text-slate-400" />
                   <span>{tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}</span>
                 </span>
               </button>
               <button
                 onClick={() => setLogoutConfirmOpen(true)}
-                className="neon-btn-active px-3 py-2"
+                className="neon-btn-active !min-h-9 px-2.5 py-1.5 text-xs"
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                <LogOut size={16} />
+                <LogOut size={14} />
                 <span>{t.logout}</span>
               </button>
             </div>
@@ -2252,12 +2248,12 @@ export default function App() {
               const isActive = resolvedModule === item.key;
 
               const btnClasses = isModern
-                ? `flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all duration-150 active:scale-95 ${
+                ? `flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all duration-150 active:scale-95 ${
                     isActive
                       ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-400/25 ring-1 ring-white/30 scale-[1.02]'
                       : 'text-slate-300 font-semibold hover:text-white hover:bg-white/10'
                   } ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`
-                : `flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 text-xs rounded-xl transition taktil-target active:scale-95 ${
+                : `flex items-center gap-1.5 whitespace-nowrap !min-h-9 px-3 py-1.5 text-xs rounded-xl transition taktil-target active:scale-95 ${
                     isActive
                       ? 'neon-chip neon-chip-active font-black'
                       : 'neon-chip font-bold'
@@ -2292,7 +2288,7 @@ export default function App() {
                 className={
                   isModern
                     ? 'hidden md:flex items-center gap-1.5 overflow-visible p-1 rounded-2xl bg-slate-900/60 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/20'
-                    : 'hidden md:flex items-center gap-1.5 overflow-visible pb-1.5'
+                    : 'hidden md:flex items-center gap-1.5 overflow-visible pb-0.5'
                 }
                 role="tablist"
                 aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}
@@ -2302,7 +2298,7 @@ export default function App() {
 
                 {/* Divider between Operations and Management */}
                 {operationalModules.length > 0 && managementModules.length > 0 && (
-                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-6 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
+                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-5 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
                 )}
 
                 {/* 2. Management (Dashboard, Maliyyə, Analitika) */}
@@ -2310,7 +2306,7 @@ export default function App() {
 
                 {/* Divider between Management/Operations and Dropdown Groups */}
                 {(operationalModules.length > 0 || managementModules.length > 0) && dropdownGroups.length > 0 && (
-                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-6 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
+                  <div className={isModern ? 'h-4 w-[1px] bg-white/15 mx-1 shrink-0' : 'h-5 w-[1px] bg-slate-700/70 mx-1 shrink-0'} />
                 )}
 
                 {/* 3. Group Dropdowns (Kataloq, Müştərilər, Sistem) */}
@@ -2326,7 +2322,7 @@ export default function App() {
                           ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-400/25 ring-1 ring-white/30 scale-[1.02]'
                           : 'text-slate-300 font-semibold hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10'
                       }`
-                    : `flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-xs rounded-xl border transition taktil-target active:scale-95 ${
+                    : `flex items-center gap-1.5 whitespace-nowrap !min-h-9 px-3 py-1.5 text-xs rounded-xl border transition taktil-target active:scale-95 ${
                         isGroupActive
                           ? 'bg-amber-400 text-slate-950 font-black border-amber-400 shadow-sm'
                           : 'bg-slate-900/60 text-slate-300 font-bold border-slate-700/60 hover:bg-slate-800'
@@ -2398,8 +2394,8 @@ export default function App() {
 
         {/* Offline Mode Banner */}
         {!isOnline && (
-          <div className="shrink-0 border-b border-amber-400/30 bg-amber-500/10 px-4 py-2">
-            <div className="flex items-center justify-center gap-3 text-sm">
+          <div className="shrink-0 border-b border-amber-400/30 bg-amber-500/10 px-4 py-1.5">
+            <div className="flex items-center justify-center gap-3 text-xs">
               <WifiOff size={14} className="text-amber-300" />
               <span className="font-semibold text-amber-100">
                 {tx(safeLang, 'Offline rejim', 'Офлайн режим', 'Offline mode')}
@@ -2470,9 +2466,11 @@ export default function App() {
           </div>
         </div>
 
-        <div className="hidden md:block shrink-0 border-t border-slate-700/40 px-4 py-2 text-center text-xs text-slate-400">
-          iRonWaves POS
-        </div>
+        {!['pos', 'tables', 'kds'].includes(resolvedModule) && (
+          <div className="hidden md:block shrink-0 border-t border-slate-700/40 px-4 py-1.5 text-center text-[11px] text-slate-400">
+            iRonWaves POS
+          </div>
+        )}
       </div>
       {demoGuideEnabled && demoGuideBubble && (
         <div

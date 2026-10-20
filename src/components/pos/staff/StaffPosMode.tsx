@@ -279,23 +279,23 @@ export function StaffCartPanel(props: StaffPosModeProps) {
       </div>
 
       <div className="staff-customer-controls">
-        <div className="relative">
-          <ScanLine className="staff-search-icon" size={16} />
-          <input
-            placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
-            className="staff-search-input pl-10"
-            value={ctx.customerQR}
-            onChange={(e) => patchCtx({ customerQR: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={handleFindCustomer} className="staff-head-btn">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-          <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="staff-head-btn">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <ScanLine className="staff-search-icon" size={14} />
+            <input
+              placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+              className="staff-search-input !min-h-9 h-9 pl-9 pr-2 text-xs"
+              value={ctx.customerQR}
+              onChange={(e) => patchCtx({ customerQR: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+            />
+          </div>
+          <button onClick={handleFindCustomer} className="staff-head-btn !min-h-9 h-9 px-2.5 py-1 text-xs shrink-0">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
+          <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="staff-head-btn !min-h-9 h-9 px-2 py-1 text-xs shrink-0">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
         </div>
         <input
           placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
-          className="staff-search-input"
+          className="staff-search-input !min-h-9 h-9 text-xs"
           value={ctx.rewardClaimCode || ''}
           onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
           onKeyDown={(e) => {
@@ -315,38 +315,40 @@ export function StaffCartPanel(props: StaffPosModeProps) {
       </div>
 
       <div className="staff-mode-group">
-        <div className="flex justify-between items-center mb-1">
-          <div className="staff-group-label" style={{ margin: 0 }}>{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
-          {ctx.discount && parseFloat(ctx.discount) > 0 && (
-            <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
-              {ctx.discount}%
-            </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="staff-group-label" style={{ margin: 0 }}>{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
+            {ctx.discount && parseFloat(ctx.discount) > 0 && (
+              <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                {ctx.discount}%
+              </span>
+            )}
+          </div>
+          {!hasClaimCode && (
+            <div className="grid grid-cols-5 gap-1 flex-1 max-w-[235px]">
+              {['0', '5', '10', '15', '20'].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => patchCtx({ discount: val })}
+                  className={`!min-h-8 h-8 rounded-lg border text-xs font-semibold transition ${
+                    (ctx.discount || '0') === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
+                  }`}
+                >
+                  {val}%
+                </button>
+              ))}
+            </div>
           )}
         </div>
-        {!hasClaimCode && (
-          <div className="grid grid-cols-5 gap-1 mt-1.5">
-            {['0', '5', '10', '15', '20'].map((val) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => patchCtx({ discount: val })}
-                className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
-                  (ctx.discount || '0') === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
-                }`}
-              >
-                {val}%
-              </button>
-            ))}
-          </div>
-        )}
         {parseFloat(ctx.discount || '0') > 0 && (
-          <div className="mt-2">
+          <div className="mt-1.5">
             <input
               type="text"
               value={ctx.discountReason}
               onChange={(e) => patchCtx({ discountReason: e.target.value })}
               placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
-              className="staff-search-input"
+              className="staff-search-input !min-h-9 h-9 text-xs"
               required
             />
           </div>

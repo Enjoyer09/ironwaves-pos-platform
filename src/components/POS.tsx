@@ -1939,23 +1939,22 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const renderSidebarWidget = (widget: string) => {
     if (!isWidgetVisible(widget)) return null;
     if (widget === 'customer') {
-      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
-          <div className={`relative ${size === 'expanded' ? 'mb-1' : ''}`}>
-            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
-              className={`neon-input pl-9 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
-              value={ctx.customerQR}
-              onChange={(e) => patchCtx({ customerQR: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="relative flex-1 min-w-0">
+              <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input
+                placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
+                className="neon-input !min-h-9 h-9 pl-8 pr-2 py-1 text-xs"
+                value={ctx.customerQR}
+                onChange={(e) => patchCtx({ customerQR: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+              />
+            </div>
             <button
               onClick={handleFindCustomer}
-              className="pay-btn h-12 w-full"
+              className="pay-btn !min-h-9 h-9 px-2.5 py-1 text-xs shrink-0"
               title={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
               data-guide={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
             >
@@ -1963,7 +1962,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </button>
             <button
               onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })}
-              className="pay-btn h-12 w-full"
+              className="pay-btn !min-h-9 h-9 px-2 py-1 text-xs shrink-0"
               title={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
               data-guide={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
             >
@@ -1971,7 +1970,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </button>
           </div>
           {ctx.customer && (
-            <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
+            <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">
               QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type} | {tx(lang, 'Endirim', 'Скидка', 'Discount')}: {Number(ctx.customer.discount_percent || 0)}%
             </div>
           )}
@@ -1979,7 +1978,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       );
     }
     if (widget === 'discount') {
-      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
           {feedbackCouponPreview ? (
@@ -2000,39 +1998,41 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
             </div>
           ) : null}
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
-            {ctx.discount && parseFloat(ctx.discount) > 0 && (
-              <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                {ctx.discount}%
-              </span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+              {ctx.discount && parseFloat(ctx.discount) > 0 && (
+                <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                  {ctx.discount}%
+                </span>
+              )}
+            </div>
+            {!hasClaimCode && (
+              <div className="grid grid-cols-5 gap-1 flex-1 max-w-[235px]">
+                {['0', '5', '10', '15', '20'].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    aria-label={`${val}% endirim`}
+                    onClick={() => patchCtx({ discount: val })}
+                    className={`!min-h-8 h-8 flex items-center justify-center rounded-lg border text-xs font-semibold transition active:scale-95 ${
+                      (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100 shadow-sm shadow-amber-400/20' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
+                    }`}
+                  >
+                    {val}%
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-          {!hasClaimCode && (
-            <div className="grid grid-cols-5 gap-1.5 mt-1.5">
-              {['0', '5', '10', '15', '20'].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  aria-label={`${val}% endirim`}
-                  onClick={() => patchCtx({ discount: val })}
-                  className={`min-h-[44px] flex items-center justify-center rounded-xl border text-xs font-semibold transition active:scale-95 ${
-                    (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100 shadow-sm shadow-amber-400/20' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
-                  }`}
-                >
-                  {val}%
-                </button>
-              ))}
-            </div>
-          )}
           {parseFloat(ctx.discount || '0') > 0 && (
-            <div className="mt-2 space-y-1">
+            <div className="mt-1">
               <input
                 type="text"
                 value={ctx.discountReason}
                 onChange={(e) => patchCtx({ discountReason: e.target.value })}
                 placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
-                className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
+                className="neon-input !min-h-9 h-9 text-xs"
                 required
               />
             </div>
@@ -2134,37 +2134,37 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       return (
         <div
           key={widget}
-          className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-3"
-          style={{ resize: 'vertical', minHeight: size === 'compact' ? '120px' : size === 'expanded' ? '220px' : posLayout.density === 'large' ? '180px' : '150px' }}
+          className="compact-pos-cart-items min-h-0 flex-1 space-y-1.5 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-2"
+          style={{ minHeight: size === 'compact' ? '110px' : size === 'expanded' ? '200px' : '130px' }}
         >
-          {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+          {cart.length === 0 && <div className="py-6 text-center text-sm text-slate-500">{t.cart_empty}</div>}
           {cart.map((item, idx) => {
             const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
             return (
-              <div key={item.line_id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <div>
-                    <div className="font-semibold text-slate-100">{item.item_name}</div>
+              <div key={item.line_id} className="rounded-lg border border-slate-700/80 bg-slate-900/45 px-2.5 py-1.5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold text-slate-100 leading-tight">{item.item_name}</div>
                     {item.cup_mode && (
-                      <div className="text-[11px] text-slate-400">
+                      <div className="text-[11px] text-slate-400 leading-tight">
                         {item.cup_mode === 'glass'
                           ? tx(lang, 'Stəkan (masa)', 'Стакан (table)', 'Glass (table)')
                           : tx(lang, 'Kağız stəkan (to go)', 'Бумажный стакан (to go)', 'Paper cup (to go)')}
                       </div>
                     )}
                   </div>
-                  <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
+                    <span className="w-6 text-center text-sm font-semibold tabular-nums">{item.qty}</span>
+                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
+                    <span className="ml-1 min-w-[62px] text-right font-semibold text-yellow-300 tabular-nums">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                  </div>
                 </div>
                 {promoD && promoD.gt(0) && (
-                  <div className="mb-2 text-xs text-yellow-400/90 italic pl-1">
+                  <div className="mt-1 text-xs text-yellow-400/90 italic pl-1">
                     [Promo] 2nd Item 50% Off: -{promoD.toFixed(2)} ₼
                   </div>
                 )}
-                <div className="flex items-center justify-end gap-1">
-                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
-                  <span className="w-6 text-center text-sm">{item.qty}</span>
-                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
-                </div>
               </div>
             );
           })}
@@ -2174,11 +2174,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     if (widget === 'cartSummary') {
       const size = getWidgetSize(widget);
       return (
-        <div key={widget} className={`space-y-2 border-t border-slate-700/60 bg-[#101722] pt-3 ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'}`}>
-          <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
-          <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
-          {totals.free_coffees > 0 && <div className="flex justify-between text-emerald-300"><span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>{totals.free_coffees}</span></div>}
-          <div className="flex justify-between text-xl font-bold text-white"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+        <div key={widget} className={`space-y-1 border-t border-slate-700/60 bg-[#101722] pt-2 ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-xs'}`}>
+          <div className="flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
+          <div className="flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
+          {totals.free_coffees > 0 && <div className="flex justify-between text-emerald-300 tabular-nums"><span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>{totals.free_coffees}</span></div>}
+          <div className="flex justify-between pt-0.5 text-lg font-bold text-white tabular-nums"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
         </div>
       );
     }
@@ -2858,19 +2858,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </div>
 
             <div className="pos3-control-stack">
-              <div className="relative">
-                <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
-                  className="neon-input pl-9"
-                  value={ctx.customerQR}
-                  onChange={(e) => patchCtx({ customerQR: e.target.value })}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleFindCustomer} className="pay-btn h-10">{tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}</button>
-                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })} className="pay-btn h-10">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1 min-w-0">
+                  <ScanLine className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input
+                    placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
+                    className="neon-input !min-h-9 h-9 pl-8 pr-2 py-1 text-xs"
+                    value={ctx.customerQR}
+                    onChange={(e) => patchCtx({ customerQR: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+                  />
+                </div>
+                <button onClick={handleFindCustomer} className="pay-btn !min-h-9 h-9 px-2.5 py-1 text-xs shrink-0">{tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}</button>
+                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })} className="pay-btn !min-h-9 h-9 px-2 py-1 text-xs shrink-0">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
               </div>
               {feedbackCouponPreview ? (
                 <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
@@ -2879,38 +2879,41 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
                 </div>
               ) : null}
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
-                {ctx.discount && parseFloat(ctx.discount) > 0 && (
-                  <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                    {ctx.discount}%
-                  </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+                  {ctx.discount && parseFloat(ctx.discount) > 0 && (
+                    <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                      {ctx.discount}%
+                    </span>
+                  )}
+                </div>
+                {!hasClaimCode && (
+                  <div className="grid grid-cols-5 gap-1 flex-1 max-w-[235px]">
+                    {['0', '5', '10', '15', '20'].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        aria-label={`${val}% endirim`}
+                        onClick={() => patchCtx({ discount: val })}
+                        className={`!min-h-8 h-8 rounded-lg border text-xs font-semibold transition ${
+                          (ctx.discount || '0') === val ? 'border-amber-200/80 bg-amber-300 text-slate-900 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/55'
+                        }`}
+                      >
+                        {val}%
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-              {!hasClaimCode && (
-                <div className="grid grid-cols-5 gap-1 mt-1.5">
-                  {['0', '5', '10', '15', '20'].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => patchCtx({ discount: val })}
-                      className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
-                        (ctx.discount || '0') === val ? 'border-amber-200/80 bg-amber-300 text-slate-900 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/55'
-                      }`}
-                    >
-                      {val}%
-                    </button>
-                  ))}
-                </div>
-              )}
               {parseFloat(ctx.discount || '0') > 0 && (
-                <div className="mt-2">
+                <div className="mt-1">
                   <input
                     type="text"
                     value={ctx.discountReason}
                     onChange={(e) => patchCtx({ discountReason: e.target.value })}
                     placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
-                    className="neon-input h-10"
+                    className="neon-input !min-h-9 h-9 text-xs"
                     required
                   />
                 </div>
@@ -2918,45 +2921,45 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </div>
 
             {ctx.selectedTable && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`!min-h-8 rounded-lg border px-2 py-1 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
                   {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
                 </button>
-                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`!min-h-8 rounded-lg border px-2 py-1 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
                   {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
                 </button>
               </div>
             )}
 
-            <div className="pos3-order-list">
-              {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+            <div className="pos3-order-list pos3-cart-items">
+              {cart.length === 0 && <div className="py-6 text-center text-sm text-slate-500">{t.cart_empty}</div>}
               {cart.map((item, idx) => {
                 const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
                 return (
-                  <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-2.5">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="line-clamp-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
-                      <span className="text-sm font-semibold text-amber-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                  <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-2.5 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="line-clamp-1 flex-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
+                        <span className="w-5 text-center text-sm font-semibold text-slate-200 tabular-nums">{item.qty}</span>
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
+                        <span className="ml-1 min-w-[62px] text-right text-sm font-semibold text-amber-300 tabular-nums">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                      </div>
                     </div>
                     {promoD && promoD.gt(0) && (
-                      <div className="mb-2 text-[11px] text-yellow-400/90 italic pl-1">
+                      <div className="mt-1 text-[11px] text-yellow-400/90 italic pl-1">
                         [Promo] 2nd Item 50% Off: -{promoD.toFixed(2)} ₼
                       </div>
                     )}
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
-                      <span className="w-5 text-center text-sm text-slate-200">{item.qty}</span>
-                      <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
-                    </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/50 p-3 text-sm">
-              <div className="mb-1 flex justify-between text-slate-300"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
-              <div className="mb-1 flex justify-between text-slate-300"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between border-t border-slate-700/60 pt-2 text-xl font-bold text-slate-100"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+            <div className="mt-2 rounded-xl border border-slate-700/70 bg-slate-950/50 px-3 py-2 text-xs">
+              <div className="mb-0.5 flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
+              <div className="mb-1 flex justify-between text-slate-300 tabular-nums"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
+              <div className="flex justify-between border-t border-slate-700/60 pt-1.5 text-lg font-bold text-slate-100 tabular-nums"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
             </div>
 
             <div className="pos3-action-group">

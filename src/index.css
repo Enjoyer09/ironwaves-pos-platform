@@ -108,6 +108,7 @@ body {
   color: #f3f4f6;
   min-height: 100dvh;
   overflow: hidden;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Enable native full scrolling for Public QR Menu on Desktop & Mobile */
@@ -154,8 +155,11 @@ html[data-theme='light'] :focus-visible {
 }
 
 html {
-  font-size: 90%;
+  font-size: 93.75%;
   scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 @layer components {
@@ -4274,3 +4278,11 @@ html[data-theme='light'] .text-slate-500 { color: #475569 !important; }
 /* Touch targets (Apple HIG minimum 36-44px) — interactive elements */
 button, a, [role="button"] { min-height: 32px; }
 
+/* Tabular numbers utility for live counters, prices, and timers */
+.tabular-nums,
+.pos3-qty-value,
+.pos3-card,
+.pos3-checkout,
+.compact-pos-sidebar {
+  font-variant-numeric: tabular-nums;
+}
