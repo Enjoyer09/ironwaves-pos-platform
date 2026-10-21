@@ -683,8 +683,8 @@ export default function App() {
       virtual_keyboard_enabled: true,
       staff_pin_length: 4,
       theme_mode: 'dark',
-      ui_mode: 'old',
-      tables_ui_mode: 'classic',
+      ui_mode: 'new',
+      tables_ui_mode: 'modern',
     },
     role_modules: defaultRoleModules,
     inventory_settings: defaultInventorySettings,
@@ -1571,7 +1571,7 @@ export default function App() {
     if (String(settings.session_settings?.ui_mode || '').toLowerCase() === 'new') return 'modern' as const;
     const fromSettings = String(settings.session_settings?.tables_ui_mode || settings.tables_ui_mode || '').toLowerCase();
     if (fromSettings === 'modern' || fromSettings === 'classic') return fromSettings as 'modern' | 'classic';
-    return 'classic';
+    return 'modern';
   }, [settings, settingsVersion]);
 
   const toggleUiMode = () => {
