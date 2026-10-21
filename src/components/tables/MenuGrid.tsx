@@ -435,8 +435,8 @@ function MenuGrid({
         </button>
       </div>
 
-      {/* Category tabs — Compact Touch POS horizontal scroll */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none -mx-0.5 px-0.5 shrink-0">
+      {/* Category tiles — Behance 210280099 Matte Dark / Gold Touch POS Strip */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5 shrink-0">
         {categories.map((cat) => {
           const meta = getCategoryMeta(cat, lang);
           const isSelected = selectedCategory === cat;
@@ -449,16 +449,16 @@ function MenuGrid({
                 playHapticTouch();
                 onCategoryChange(cat);
               }}
-              className={`group flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 transition-all pos-category-btn taktil-target active:scale-95 border backdrop-blur-md whitespace-nowrap ${
+              className={`group flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 transition-all pos-category-btn taktil-target active:scale-95 border whitespace-nowrap ${
                 isSelected
-                  ? `${meta.bgActive} font-black ring-1 ring-white/30 shadow-md`
-                  : `${meta.bgNormal} font-bold`
+                  ? 'bg-[#F6B100] text-slate-950 border-[#F6B100] font-black shadow-md'
+                  : 'bg-[#1a1d21] text-slate-200 border-white/[0.08] hover:bg-[#22262c] hover:border-white/15 font-bold'
               }`}
             >
               <span className="text-sm leading-none">{meta.icon}</span>
               <span className="text-xs tracking-wide whitespace-nowrap">{meta.label}</span>
-              <span className={`rounded-md px-1.5 py-0.2 text-[10px] font-extrabold tabular-nums ${
-                isSelected ? 'bg-black/20 text-white' : 'bg-slate-800/90 text-slate-400'
+              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums ${
+                isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-[#262b32] text-slate-400'
               }`}>
                 {count}
               </span>
@@ -467,8 +467,8 @@ function MenuGrid({
         })}
       </div>
 
-      {/* Product grid — High-density Touch POS tiles (3-4 cols on Touch POS, 12-16 items visible without scrolling) */}
-      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/40 backdrop-blur-xl p-2 touch-pan-y ${
+      {/* Product grid — Behance 210280099 High-Density Touch POS Cards */}
+      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-white/[0.07] bg-[#121519] p-2.5 touch-pan-y ${
         hideImages
           ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
           : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5'
@@ -483,21 +483,21 @@ function MenuGrid({
               <div
                 className={`group relative flex w-full flex-col overflow-hidden rounded-xl transition-all duration-150 pos-product-card select-none ${
                   totalQtyInDraft > 0
-                    ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-400/15 bg-slate-900/95 border border-amber-400/60'
-                    : 'bg-slate-900/75 hover:bg-slate-800/90 hover:border-amber-400/40 border border-slate-800/90'
+                    ? 'ring-2 ring-[#F6B100] bg-[#1e2228] border border-[#F6B100]/70 shadow-md'
+                    : 'bg-[#1a1d21] hover:bg-[#22262c] hover:border-white/20 border border-white/[0.08]'
                 }`}
               >
                 {/* Promo / Popular Badges */}
                 {(isPromo || isPopular) && (
                   <div className="absolute left-1.5 top-1.5 z-20 flex flex-wrap gap-1 items-center pointer-events-none">
                     {isPromo && (
-                      <span className="rounded bg-amber-500 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow">
-                        ⚡ {tx(lang, 'Promo', 'Промо', 'Promo')}
+                      <span className="rounded bg-[#F6B100] px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow">
+                        {tx(lang, 'Promo', 'Промо', 'Promo')}
                       </span>
                     )}
                     {isPopular && !isPromo && (
                       <span className="rounded bg-rose-500/90 px-1.5 py-0.2 text-[8px] font-black uppercase tracking-wider text-white shadow">
-                        🔥 {tx(lang, 'Hit', 'Хит', 'Best')}
+                        {tx(lang, 'Hit', 'Хит', 'Best')}
                       </span>
                     )}
                   </div>
@@ -547,7 +547,7 @@ function MenuGrid({
                   className="flex flex-1 flex-col cursor-pointer transition active:scale-[0.98]"
                 >
                   {!hideImages ? (
-                    <div className="relative h-20 sm:h-22 2xl:h-28 w-full overflow-hidden bg-slate-800/90">
+                    <div className="relative h-20 sm:h-22 2xl:h-26 w-full overflow-hidden bg-[#242830]">
                       {group.image_url ? (
                         <img
                           src={group.image_url}
@@ -558,24 +558,18 @@ function MenuGrid({
                           decoding="async"
                         />
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                        <div className="h-full w-full flex items-center justify-center bg-[#22262e]">
                           <span className="text-xl 2xl:text-2xl font-black text-slate-500 select-none">
                             {String(group.base || '').charAt(0).toUpperCase()}
                           </span>
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/15 to-transparent pointer-events-none" />
-
-                      {/* Overlaid Price Badge on bottom-right of image (saves vertical height!) */}
-                      <div className="absolute bottom-1.5 right-1.5 z-10 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 bg-slate-950/90 px-2 py-0.5 text-[11px] font-black text-amber-300 shadow-md tabular-nums backdrop-blur-xs">
-                        <span>{group.minPrice.toFixed(2)} ₼</span>
-                        {group.hasVariants && <span className="text-[9px] font-bold text-slate-300">▾</span>}
-                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent pointer-events-none" />
 
                       {/* Overlaid Inline Stepper when in Draft (prevents card height jumping!) */}
                       {!group.hasVariants && totalQtyInDraft > 0 && (
                         <div
-                          className="absolute inset-x-1 bottom-1 z-20 flex items-center justify-between rounded-lg bg-slate-950/95 border border-amber-400/60 p-0.5 shadow-lg"
+                          className="absolute inset-x-1.5 bottom-1.5 z-20 flex items-center justify-between rounded-lg bg-[#121519]/95 border border-[#F6B100] p-0.5 shadow-lg"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
@@ -586,11 +580,11 @@ function MenuGrid({
                               playHapticTouch();
                               void onSelectItem(group.items[0], -1);
                             }}
-                            className="flex h-7 w-8 items-center justify-center rounded-md bg-slate-800 text-slate-100 font-black text-sm active:scale-90 hover:bg-slate-700"
+                            className="flex h-7 w-8 items-center justify-center rounded-md bg-[#262b33] text-slate-100 font-black text-sm active:scale-90 hover:bg-slate-700"
                           >
                             −
                           </button>
-                          <span className="font-black text-xs text-amber-300 tabular-nums px-1">
+                          <span className="font-black text-xs text-[#F6B100] tabular-nums px-1">
                             {totalQtyInDraft}
                           </span>
                           <button
@@ -601,7 +595,7 @@ function MenuGrid({
                               playHapticTouch();
                               void onSelectItem(group.items[0], 1);
                             }}
-                            className="flex h-7 w-8 items-center justify-center rounded-md bg-amber-400 text-slate-950 font-black text-sm active:scale-90"
+                            className="flex h-7 w-8 items-center justify-center rounded-md bg-[#F6B100] text-slate-950 font-black text-sm active:scale-90"
                           >
                             +
                           </button>
@@ -610,29 +604,74 @@ function MenuGrid({
                     </div>
                   ) : null}
 
-                  {/* Compact Title Bar */}
-                  <div className={`flex flex-col justify-between ${hideImages ? 'p-2.5 min-h-[68px]' : 'px-2 py-1.5 min-h-[38px] justify-center'}`}>
-                    <div className={`font-bold leading-tight text-slate-100 ${hideImages ? 'line-clamp-2 text-xs' : 'line-clamp-1 text-xs text-center'}`}>
-                      {group.base}
+                  {/* Behance 210280099 Structured Bottom Bar: Left-Aligned Title & Price + Right Tactile Action */}
+                  <div className={`flex flex-col justify-between ${hideImages ? 'p-3 min-h-[82px]' : 'px-2.5 py-2 min-h-[48px]'}`}>
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="font-bold leading-snug text-white line-clamp-1 text-xs sm:text-[13px] text-left">
+                        {group.base}
+                      </div>
                     </div>
-                    {hideImages && (
-                      <div className="mt-1.5 flex items-center justify-between gap-1">
-                        <span className="text-xs font-black text-amber-300 tabular-nums">
+
+                    <div className="mt-1 flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1 tabular-nums">
+                        <span className="text-xs sm:text-[13px] font-black text-[#F6B100]">
                           {group.minPrice.toFixed(2)} ₼
                         </span>
                         {group.hasVariants && (
-                          <span className="text-[9px] font-semibold text-slate-400">
-                            {group.items.length} var.
+                          <span className="rounded bg-white/10 px-1 py-0.2 text-[9px] font-bold text-slate-300">
+                            {group.items.length} var
                           </span>
                         )}
                       </div>
-                    )}
+
+                      {/* Behance 210280099 bottom-right tactile + or stepper control */}
+                      {hideImages && !group.hasVariants && totalQtyInDraft > 0 ? (
+                        <div
+                          className="flex items-center gap-1 rounded-lg bg-[#121519] border border-[#F6B100]/70 p-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playHapticTouch();
+                              void onSelectItem(group.items[0], -1);
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded bg-[#262b33] text-white text-xs font-black active:scale-90"
+                          >
+                            −
+                          </button>
+                          <span className="text-xs font-black text-[#F6B100] tabular-nums px-1">
+                            {totalQtyInDraft}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playHapticTouch();
+                              void onSelectItem(group.items[0], 1);
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded bg-[#F6B100] text-slate-950 text-xs font-black active:scale-90"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-black transition ${
+                          totalQtyInDraft > 0
+                            ? 'bg-[#F6B100] text-slate-950'
+                            : 'bg-[#262b33] text-slate-300 group-hover:bg-[#F6B100] group-hover:text-slate-950'
+                        }`}>
+                          +
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Top-right quantity badge */}
                 {totalQtyInDraft > 0 && (
-                  <div className="absolute right-1.5 top-1.5 z-20 flex h-6 min-w-6 px-1.5 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-slate-950 shadow-md tabular-nums pointer-events-none">
+                  <div className="absolute right-1.5 top-1.5 z-20 flex h-6 min-w-6 px-1.5 items-center justify-center rounded-full bg-[#F6B100] text-xs font-black text-slate-950 shadow-md tabular-nums pointer-events-none">
                     {totalQtyInDraft}
                   </div>
                 )}

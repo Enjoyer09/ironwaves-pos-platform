@@ -80,7 +80,7 @@ const DraftRowItem = memo(({
   const courseNo = Number(row.course_no || 1);
 
   return (
-    <div className="group relative flex items-center justify-between gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-2.5 py-2 transition hover:border-amber-400/80 hover:bg-amber-500/15">
+    <div className="group relative flex items-center justify-between gap-2 rounded-xl border border-[#F6B100]/45 bg-[#1c2026] px-2.5 py-2 transition hover:border-[#F6B100]/80">
       {/* Left: Course badge + Clickable Item Name & Note */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {onUpdateCourse && (
@@ -102,7 +102,7 @@ const DraftRowItem = memo(({
               courseNo === 1
                 ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                 : courseNo === 2
-                ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                ? 'border-[#F6B100]/40 bg-[#F6B100]/15 text-[#F6B100]'
                 : 'border-purple-500/40 bg-purple-500/15 text-purple-300'
             }`}
           >
@@ -120,15 +120,15 @@ const DraftRowItem = memo(({
             <span className="truncate text-xs sm:text-[13px] font-bold text-white leading-tight">
               {row.item_name}
             </span>
-            <span className="shrink-0 text-[11px] text-slate-400 hover:text-amber-300">✎</span>
+            <span className="shrink-0 text-[11px] text-slate-400 hover:text-[#F6B100]">✎</span>
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] tabular-nums">
-            <span className="font-extrabold text-amber-400">{itemTotal} ₼</span>
+            <span className="font-extrabold text-[#F6B100]">{itemTotal} ₼</span>
             {Number(row.qty || 1) > 1 && (
               <span className="text-[10px] text-slate-400">({Number(row.price || 0).toFixed(2)} ₼/əd)</span>
             )}
             {row.note && (
-              <span className="truncate rounded bg-amber-400/20 px-1.5 py-0.2 text-[10px] font-semibold text-amber-200">
+              <span className="truncate rounded bg-[#F6B100]/20 px-1.5 py-0.2 text-[10px] font-semibold text-amber-200">
                 ✎ {row.note}
               </span>
             )}
@@ -138,11 +138,11 @@ const DraftRowItem = memo(({
 
       {/* Right: Compact Touch Stepper & Remove */}
       <div className="flex items-center gap-1 shrink-0">
-        <div className="flex items-center gap-1 rounded-xl bg-slate-950/85 p-0.5 border border-slate-800">
+        <div className="flex items-center gap-1 rounded-xl bg-[#121519] p-0.5 border border-white/10">
           <button
             type="button"
             aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-slate-200 border border-slate-700/80 text-sm font-black transition active:scale-90 hover:bg-slate-700"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#262b33] text-slate-200 text-sm font-black transition active:scale-90 hover:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
           >
             −
@@ -153,7 +153,7 @@ const DraftRowItem = memo(({
           <button
             type="button"
             aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-slate-950 text-sm font-black transition active:scale-90 hover:bg-amber-300"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F6B100] text-slate-950 text-sm font-black transition active:scale-90 hover:brightness-105"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
           >
             +
@@ -323,27 +323,27 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       />
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[28px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/65 md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
+        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[28px] border-t border-white/10 bg-[#14171b] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-white/[0.08] md:bg-[#14171b] md:shadow-none md:translate-y-0 md:w-[var(--cart-width)] shrink-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
         } ${!showCartPane ? 'md:hidden' : ''}`}
       >
         {/* Mobile drag handle */}
         <div
-          className="md:hidden shrink-0 w-full py-2.5 flex justify-center cursor-pointer bg-slate-900/50 active:bg-slate-800/60 transition"
+          className="md:hidden shrink-0 w-full py-2.5 flex justify-center cursor-pointer bg-[#1a1d21] active:bg-slate-800/60 transition"
           onClick={() => setMobileActiveTab('menu')}
         >
           <div className="h-1.5 w-14 rounded-full bg-slate-600/80" />
         </div>
 
-        {/* Compact Check Header (Single 40px bar — no duplicate table info!) */}
-        <div className="shrink-0 flex items-center justify-between border-b border-slate-800 px-3 py-2 bg-slate-900/80">
+        {/* Behance 210280099 Order Details Header */}
+        <div className="shrink-0 flex items-center justify-between border-b border-white/[0.07] px-3.5 py-2.5 bg-[#1a1d21]">
           <div className="flex items-center gap-2 min-w-0">
-            <Receipt size={15} className="text-amber-400 shrink-0" />
-            <span className="text-xs font-black uppercase tracking-wider text-slate-200 truncate">
-              {tx(lang, 'Cari Çek', 'Текущий чек', 'Current Check')}
+            <Receipt size={15} className="text-[#F6B100] shrink-0" />
+            <span className="text-xs font-black uppercase tracking-wider text-white truncate">
+              {tx(lang, 'Sifariş Çeki', 'Детали заказа', 'Order Details')}
             </span>
             {(draftItemCount > 0 || activeSentCount > 0) && (
-              <span className="rounded-md bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-300 tabular-nums">
+              <span className="rounded-md bg-[#262b33] px-1.5 py-0.5 text-[10px] font-bold text-slate-300 tabular-nums">
                 {draftItemCount > 0
                   ? `+${draftItemCount} ${tx(lang, 'yeni', 'нов.', 'new')}`
                   : `${activeSentCount} ${tx(lang, 'məhsul', 'поз.', 'items')}`}
@@ -507,19 +507,19 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           )}
         </div>
 
-        {/* ─── CLEAN, TASK-FOCUSED FOOTER (Order Send + Bill Checkout ONLY) ─── */}
-        <div className="shrink-0 border-t border-slate-800 p-2.5 bg-slate-900/85 space-y-2">
-          {/* Compact Financial Summary */}
-          <div className="space-y-1 px-1">
+        {/* ─── Behance 210280099 Receipt Summary & Primary Action Footer ─── */}
+        <div className="shrink-0 border-t border-white/[0.08] p-3 bg-[#1a1d21] space-y-2.5">
+          {/* Compact Financial Summary with Dashed Receipt Divider */}
+          <div className="space-y-1.5 px-1">
             {sentItems.length > 0 && draftRows.length > 0 && (
-              <div className="flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 tabular-nums pb-1 border-b border-dashed border-white/10">
                 <span>{tx(lang, 'Cari hesab', 'Текущий счёт', 'Current bill')}: {sentTotal.toFixed(2)} ₼</span>
-                <span className="text-amber-300 font-semibold">+{tx(lang, 'Yeni', 'Новые', 'New')}: {draftTotal} ₼</span>
+                <span className="text-[#F6B100] font-semibold">+{tx(lang, 'Yeni', 'Новые', 'New')}: {draftTotal} ₼</span>
               </div>
             )}
             <div className="flex items-center justify-between text-sm font-bold text-slate-100 tabular-nums">
               <span className="text-slate-300">{tx(lang, 'Yekun Cəm', 'Итого к оплате', 'Grand Total')}</span>
-              <span className="text-lg font-black text-amber-400">{grandTotal} ₼</span>
+              <span className="text-lg font-black text-[#F6B100]">{grandTotal} ₼</span>
             </div>
           </div>
 
@@ -530,7 +530,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="relative inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 text-sm font-black text-slate-950 shadow-lg shadow-amber-500/20 transition active:scale-[0.98] disabled:opacity-50 taktil-target hover:brightness-105"
+                className="relative inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F6B100] px-4 text-sm font-black text-slate-950 shadow-md transition active:scale-[0.98] disabled:opacity-50 taktil-target hover:brightness-105"
               >
                 <Send size={16} />
                 <span>{tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send to Kitchen')}</span>

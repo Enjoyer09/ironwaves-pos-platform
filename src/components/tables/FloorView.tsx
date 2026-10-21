@@ -151,30 +151,31 @@ function FloorView(props: FloorViewProps) {
           </div>
           )}
         </div>
-        {isManager && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         {!floorEditMode && (
-          <div className="flex rounded-full bg-slate-900/40 p-0.5 border border-slate-700/60">
+          <div className="flex rounded-xl bg-[#1a1d21] p-1 border border-white/10">
             <button
               type="button"
               onClick={() => setFloorViewMode('map')}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                floorViewMode === 'map' ? 'bg-cyan-300 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                floorViewMode === 'map' ? 'bg-[#F6B100] text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              🗺️ {tx(lang, 'Xəritə', 'Карта', 'Map')}
+              {tx(lang, 'Xəritə', 'Карта', 'Floor Map')}
             </button>
             <button
               type="button"
               onClick={() => setFloorViewMode('list')}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                floorViewMode === 'list' ? 'bg-cyan-300 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+                floorViewMode === 'list' ? 'bg-[#F6B100] text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              📋 {tx(lang, 'Siyahı', 'Список', 'List')}
+              {tx(lang, 'Masa Kartları', 'Карточки столов', 'Table Cards')}
             </button>
           </div>
         )}
+        {isManager && (
+        <>
         {!floorEditMode && floorViewMode === 'map' && (
           <label className="flex min-w-[210px] items-center gap-3 rounded-full border border-slate-700/70 bg-slate-900/40 px-4 py-2 text-xs font-semibold text-slate-200">
             <span>{tx(lang, 'Zoom', 'Зум', 'Zoom')}</span>
@@ -190,31 +191,28 @@ function FloorView(props: FloorViewProps) {
             <span className="min-w-10 text-right">{tableGridScale}%</span>
           </label>
         )}
-        {isManager && (
-          <>
-            <button
-              type="button"
-              onClick={() => setFloorEditMode((prev) => !prev)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
-            >
-              {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
-            </button>
-            {floorEditMode && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFloorMultiSelectMode((prev) => !prev);
-                  setSelectedFloorTableIds([]);
-                }}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${floorMultiSelectMode ? 'bg-violet-300 text-slate-950' : 'border border-violet-300/30 bg-violet-500/10 text-violet-100'}`}
-              >
-                {floorMultiSelectMode ? tx(lang, 'Çoxlu seçim aktivdir', 'Множественный выбор активен', 'Multi-select on') : tx(lang, 'Çoxlu seçim', 'Множественный выбор', 'Multi-select')}
-              </button>
-            )}
-          </>
+        <button
+          type="button"
+          onClick={() => setFloorEditMode((prev) => !prev)}
+          className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+        >
+          {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
+        </button>
+        {floorEditMode && (
+          <button
+            type="button"
+            onClick={() => {
+              setFloorMultiSelectMode((prev) => !prev);
+              setSelectedFloorTableIds([]);
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${floorMultiSelectMode ? 'bg-violet-300 text-slate-950' : 'border border-violet-300/30 bg-violet-500/10 text-violet-100'}`}
+          >
+            {floorMultiSelectMode ? tx(lang, 'Çoxlu seçim aktivdir', 'Множественный выбор активен', 'Multi-select on') : tx(lang, 'Çoxlu seçim', 'Множественный выбор', 'Multi-select')}
+          </button>
+        )}
+        </>
         )}
       </div>
-      )}
     </div>
 
       {/* Multi-select bar */}
@@ -508,27 +506,21 @@ function FloorView(props: FloorViewProps) {
           })}
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-          <div
-            className={`tables-glass-panel rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
-            style={{ marginRight: viewTableId ? 'min(72vw, 1260px)' : '0' }}
-          >
-            <TableGrid
-              floorTables={floorTables}
-              tablesById={tablesById}
-              readyCountsByLabel={readyCountsByLabel}
-              viewTableId={viewTableId}
-              tableGridMinWidth={tableGridMinWidth}
-              lang={lang}
-              currentUsername={currentUsername}
-              currentUserRole={userRole}
-              onSelectTable={onSelectWaiterTable}
-              onMarkClean={(tableId) => { void onMarkTableClean(tableId); }}
-              onQuickPay={onQuickPay}
-              showMyTablesFilter={isBahaYLab}
-            />
-          </div>
-          <div className="hidden lg:block" />
+        <div className="w-full rounded-2xl border border-white/[0.07] bg-[#14171b] p-3.5">
+          <TableGrid
+            floorTables={floorTables}
+            tablesById={tablesById}
+            readyCountsByLabel={readyCountsByLabel}
+            viewTableId={viewTableId}
+            tableGridMinWidth={tableGridMinWidth}
+            lang={lang}
+            currentUsername={currentUsername}
+            currentUserRole={userRole}
+            onSelectTable={onSelectWaiterTable}
+            onMarkClean={(tableId) => { void onMarkTableClean(tableId); }}
+            onQuickPay={onQuickPay}
+            showMyTablesFilter={isBahaYLab}
+          />
         </div>
       )}
     </>

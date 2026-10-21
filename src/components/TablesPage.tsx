@@ -3215,9 +3215,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             </div>
           ) : (
             <>
-            {/* Zonalar Tab Menyusu */}
-            {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
+            {/* Zonalar Tab Menyusu (Waiters see tabs when >1 zone exists; Managers always see with + button) */}
+            {(floorPlans.length > 1 || ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase())) && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.07] pb-3">
               {floorPlans.map((row) => {
                 const active = row.id === activeFloorId;
                 return (
@@ -3225,10 +3225,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     key={row.id}
                     type="button"
                     onClick={() => setActiveFloorId(row.id)}
-                    className={`rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
+                    className={`rounded-xl px-4 py-2 text-xs sm:text-sm font-bold transition-all duration-150 whitespace-nowrap shrink-0 ${
                       active
-                        ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.3)] scale-[1.02]'
-                        : 'border border-slate-700/60 bg-slate-800/20 text-slate-300 hover:bg-slate-800/40 hover:text-white'
+                        ? 'bg-[#F6B100] text-slate-950 shadow-sm'
+                        : 'border border-white/10 bg-[#1a1d21] text-slate-300 hover:bg-[#24282e] hover:text-white'
                     }`}
                   >
                     {row.name}
@@ -3240,10 +3240,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 <button
                   type="button"
                   onClick={() => setShowCreateFloorPlan(true)}
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/20 text-slate-300 hover:bg-slate-800/40 hover:text-white transition-all active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-[#1a1d21] text-slate-300 hover:bg-[#24282e] hover:text-white transition-all active:scale-95"
                   title={tx(lang, 'Yeni zal/zona əlavə et', 'Добавить новый зал', 'Add new floor plan')}
                 >
-                  <Plus size={18} />
+                  <Plus size={16} />
                 </button>
               )}
             </div>

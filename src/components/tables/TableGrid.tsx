@@ -45,6 +45,8 @@ function TableGrid({
   const [searchQuery, setSearchQuery] = useState('');
   const longPressRef = useRef<number | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'OCCUPIED'>('ALL');
+
   const isManagerUser = useMemo(
     () => ['admin', 'manager', 'super_admin'].includes(String(currentUserRole || '').toLowerCase()),
     [currentUserRole],
@@ -58,13 +60,24 @@ function TableGrid({
   };
 
   const visibleTables = useMemo(() => {
-    if (!showOnlyMine || !currentUsername) return floorTables;
-    return floorTables.filter((table) => {
-      const localTable = tablesById[String(table.id)] || null;
-      const holder = String((table as any).locked_by || localTable?.assigned_to || '').trim().toLowerCase();
-      return holder === currentUsername.toLowerCase();
-    });
-  }, [floorTables, tablesById, showOnlyMine, currentUsername]);
+    let list = floorTables;
+    if (showOnlyMine && currentUsername) {
+      list = list.filter((table) => {
+        const localTable = tablesById[String(table.id)] || null;
+        const holder = String((table as any).locked_by || localTable?.assigned_to || '').trim().toLowerCase();
+        return holder === currentUsername.toLowerCase();
+      });
+    }
+    if (statusFilter !== 'ALL') {
+      list = list.filter((table) => {
+        const localTable = tablesById[String(table.id)] || null;
+        const s = String(table.status || '').toUpperCase();
+        const hasCheck = Boolean(localTable?.is_occupied || new Decimal(localTable?.total || 0).greaterThan(0) || s === 'ACTIVE_CHECK' || s === 'SEATED');
+        return statusFilter === 'OCCUPIED' ? hasCheck : !hasCheck;
+      });
+    }
+    return list;
+  }, [floorTables, tablesById, showOnlyMine, currentUsername, statusFilter]);
 
   const searchedTables = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -89,45 +102,75 @@ function TableGrid({
   }, [floorTables, tablesById]);
 
   return (
-    <div className="space-y-4">
-      {/* ═══ Header: Search + Filter + Stats ═══ */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+    <div className="space-y-3.5">
+      {/* ═══ Behance 210280099 Style Top Filter Bar: Search + Status Tabs (All / Available / Booked) ═══ */}
+      <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
+        <div className="relative flex-1 max-w-md">
           <input
             type="text"
-            className="neon-input w-full py-2.5 pl-10 pr-4 text-sm"
+            className="h-10 w-full rounded-xl border border-white/10 bg-[#1a1d21] pl-9 pr-4 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-[#F6B100] focus:outline-none"
             placeholder={tx(lang, 'Masa axtar...', 'Поиск стола...', 'Search table...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <Utensils size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Utensils size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Status Segmented Tabs (Behance 210280099 Tables Filter) */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1 rounded-xl bg-[#1a1d21] p-1 border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => { playHapticTouch(); setStatusFilter('ALL'); }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#2a2f37] text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {tx(lang, 'Hamısı', 'Все', 'All')} ({stats.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => { playHapticTouch(); setStatusFilter('AVAILABLE'); }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+                statusFilter === 'AVAILABLE'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'text-slate-400 hover:text-emerald-300'
+              }`}
+            >
+              {tx(lang, 'Boş', 'Свободно', 'Available')} ({stats.available})
+            </button>
+            <button
+              type="button"
+              onClick={() => { playHapticTouch(); setStatusFilter('OCCUPIED'); }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+                statusFilter === 'OCCUPIED'
+                  ? 'bg-[#F6B100] text-slate-950'
+                  : 'text-slate-400 hover:text-amber-300'
+              }`}
+            >
+              {tx(lang, 'Dolu', 'Занято', 'Occupied')} ({stats.occupied})
+            </button>
+          </div>
+
           {showMyTablesFilter && currentUsername && (
             <button
               type="button"
               onClick={() => { playHapticTouch(); setShowOnlyMine(!showOnlyMine); }}
-              className={`shrink-0 rounded-full px-5 py-3 text-sm font-bold transition-all active:scale-95 ${
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition-all active:scale-95 whitespace-nowrap border ${
                 showOnlyMine
-                  ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/25'
-                  : 'border-2 border-yellow-400/50 bg-yellow-500/10 text-yellow-200 shadow-md shadow-yellow-500/10'
+                  ? 'bg-[#F6B100] text-slate-950 border-[#F6B100] shadow-sm'
+                  : 'border-white/10 bg-[#1a1d21] text-slate-300 hover:text-white'
               }`}
             >
               {showOnlyMine ? '★ ' : ''}{tx(lang, 'Mənim masalarım', 'Мои столы', 'My tables')}
             </button>
           )}
-
-          {/* Live stats pills */}
-          <div className="hidden items-center gap-1.5 sm:flex">
-            <span className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300">{stats.available} {tx(lang, 'boş', 'св.', 'free')}</span>
-            <span className="rounded-full bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-300">{stats.occupied} {tx(lang, 'dolu', 'зан.', 'busy')}</span>
-            {stats.reserved > 0 && <span className="rounded-full bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-300">{stats.reserved} {tx(lang, 'rezerv', 'бр.', 'res.')}</span>}
-          </div>
         </div>
       </div>
 
-      {/* ═══ Table Grid ═══ */}
+      {/* ═══ Behance 210280099 High-Density Table Cards Grid ═══ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {searchedTables.map((table) => {
           const localTable = tablesById[String(table.id)] || null;
@@ -148,30 +191,25 @@ function TableGrid({
           const status = hasLocalActiveCheck && (!floorStatus || floorStatus === 'AVAILABLE')
             ? 'ACTIVE_CHECK'
             : (floorStatus || 'AVAILABLE');
+          const isOccupiedState = hasLocalActiveCheck || status === 'ACTIVE_CHECK' || status === 'OCCUPIED' || status === 'SEATED';
           const displayedTotal = new Decimal(activeTableState.check_total || activeLocalTable?.total || 0);
           const readyCount = Number(readyCountsByLabel[String(table.label || '').trim()] || 0);
           const isSelected = viewTableId === table.id;
           const guestCount = Number(activeTableState.guest_count || 0);
           const capacity = Number(table.capacity || 4);
 
-          // Status styling from the shared palette (floorUtils TABLE_STATUS_THEME, UI_COMPETITIVE_AUDIT §6.3)
-          const theme = TABLE_STATUS_THEME[status] || TABLE_STATUS_THEME.AVAILABLE;
           const labelRow = TABLE_STATUS_LABELS[status] || TABLE_STATUS_LABELS.AVAILABLE;
-          const cfg = {
-            border: theme.listBorder,
-            glow: theme.listGlow,
-            dot: theme.dot,
-            text: theme.text,
-            gradient: theme.gradient,
-            label: tx(lang, labelRow.az, labelRow.ru, labelRow.en),
-          };
+          const statusText = tx(lang, labelRow.az, labelRow.ru, labelRow.en);
+          const waiterInitials = tableLockHolder
+            ? tableLockHolder.slice(0, 2).toUpperCase()
+            : String(table.label || 'M').replace(/[^0-9A-Za-z]/g, '').slice(-2).toUpperCase() || 'M';
 
           return (
             <div
               key={table.id}
               role="button"
               tabIndex={0}
-              aria-label={`${table.label}, ${cfg.label}, ${guestCount}/${capacity} ${tx(lang, 'nəfər', 'гостей', 'guests')}${displayedTotal.greaterThan(0) ? `, ${displayedTotal.toFixed(2)} ₼` : ''}`}
+              aria-label={`${table.label}, ${statusText}, ${guestCount}/${capacity} ${tx(lang, 'nəfər', 'гостей', 'guests')}${displayedTotal.greaterThan(0) ? `, ${displayedTotal.toFixed(2)} ₼` : ''}`}
               onClick={() => { playHapticTouch(); setQuickActionsTableId(null); onSelectTable(table); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playHapticTouch(); onSelectTable(table); } }}
               onTouchStart={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
@@ -179,73 +217,84 @@ function TableGrid({
               onMouseDown={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
               onMouseUp={clearLongPress}
               onMouseLeave={clearLongPress}
-              className={`table-card-glass group relative overflow-hidden rounded-[22px] border p-3.5 transition-all duration-200 active:scale-[0.97] ${cfg.border} ${cfg.glow} ${
-                isSelected ? 'ring-2 ring-yellow-300/70 shadow-[0_0_30px_rgba(250,204,21,0.15)]' : ''
-              } ${isMyTable && showMyTablesFilter ? 'ring-1 ring-yellow-400/40' : ''}`}
-              style={{
-                background: `linear-gradient(145deg, ${cfg.gradient}, rgba(15,23,42,0.4))`,
-                backdropFilter: 'blur(8px)',
-              }}
+              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 transition-all duration-150 active:scale-[0.98] cursor-pointer select-none ${
+                isOccupiedState
+                  ? 'border-[#F6B100]/45 bg-[#1c2026] hover:border-[#F6B100]/80 shadow-md'
+                  : status === 'DIRTY'
+                  ? 'border-rose-500/40 bg-[#1c2026] hover:border-rose-400/70'
+                  : 'border-white/[0.08] bg-[#1a1d21] hover:border-emerald-500/45 hover:bg-[#1f2329]'
+              } ${isSelected ? 'ring-2 ring-[#F6B100]' : ''}`}
             >
-              {/* Glossy top edge */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px]" style={{ background: 'linear-gradient(90deg, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%)' }} />
-
-              {/* Ready badge — pulsing */}
-              {readyCount > 0 && (
-                <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-semibold text-white shadow-lg shadow-emerald-500/30 animate-pulse">
-                  <Sparkles size={9} />
-                  {readyCount}
-                </div>
-              )}
-
-              {/* Table label */}
-              <div className="flex items-center gap-2">
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} aria-hidden="true" />
-                <h3 className="text-[15px] font-bold text-white">{table.label}</h3>
-                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider" style={{ color: cfg.text }}>
-                  {cfg.label}
-                </span>
+              {/* Row 1: Table Name + Status Badge (Behance 210280099 Header) */}
+              <div className="flex items-center justify-between gap-1.5">
+                <h3 className="text-sm sm:text-[15px] font-extrabold text-white tracking-tight truncate">
+                  {table.label}
+                </h3>
+                {readyCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-slate-950 shadow-sm">
+                    <Sparkles size={10} />
+                    {readyCount} {tx(lang, 'Hazır', 'Готово', 'Ready')}
+                  </span>
+                ) : (
+                  <span
+                    className={`rounded-lg px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                      isOccupiedState
+                        ? 'bg-[#F6B100]/20 text-[#F6B100] border border-[#F6B100]/30'
+                        : status === 'DIRTY'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                    }`}
+                  >
+                    {statusText}
+                  </span>
+                )}
               </div>
 
-              {/* Guest + capacity + Seated Elapsed Time */}
-              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                <div className="flex items-center gap-1.5">
-                  <Users size={11} />
-                  <span className={guestCount > 0 ? 'font-semibold text-slate-200' : ''}>{guestCount}/{capacity}</span>
+              {/* Row 2: Center Avatar / Waiter & Guest Info (Behance 210280099 Center Block) */}
+              <div className="my-3 flex items-center gap-2.5">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-black tracking-wider ${
+                    isOccupiedState
+                      ? 'bg-[#F6B100] text-slate-950 shadow-sm'
+                      : 'bg-[#262b33] text-slate-300 border border-white/10'
+                  }`}
+                >
+                  {waiterInitials}
                 </div>
-                {(() => {
-                  const lockedAt = (activeTableState as any).locked_at || (table as any).locked_at || null;
-                  const isOccupiedState = hasLocalActiveCheck || status === 'ACTIVE_CHECK' || status === 'OCCUPIED' || status === 'SEATED';
-                  if (!isOccupiedState || !lockedAt) return null;
-                  const elapsed = Math.max(1, Math.floor((Date.now() - new Date(lockedAt).getTime()) / 60000));
-                  if (elapsed <= 0 || elapsed > 1440) return null;
-                  return (
-                    <div
-                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                        elapsed >= 75
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-400/30 animate-pulse'
-                          : elapsed >= 35
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                            : 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/25'
-                      }`}
-                      title={tx(lang, `Masa ${elapsed} dəqiqədir açıqdır`, `Стол открыт ${elapsed} мин`, `Table open for ${elapsed} min`)}
-                    >
-                      <Clock size={10} />
-                      <span>{elapsed >= 60 ? `${Math.floor(elapsed / 60)}${tx(lang, ' saat ', ' ч ', 'h ')}${elapsed % 60}${tx(lang, ' dəq', ' мин', 'm')}` : `${elapsed} ${tx(lang, 'dəq', 'мин', 'min')}`}</span>
-                    </div>
-                  );
-                })()}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-bold text-slate-200">
+                    {tableLockHolder || tx(lang, 'Ofisiant yoxdur', 'Без официанта', 'Unassigned')}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400 tabular-nums">
+                    <span className="inline-flex items-center gap-1">
+                      <Users size={11} />
+                      <span>{guestCount}/{capacity}</span>
+                    </span>
+                    {(() => {
+                      const lockedAt = (activeTableState as any).locked_at || (table as any).locked_at || null;
+                      if (!isOccupiedState || !lockedAt) return null;
+                      const elapsed = Math.max(1, Math.floor((Date.now() - new Date(lockedAt).getTime()) / 60000));
+                      if (elapsed <= 0 || elapsed > 1440) return null;
+                      return (
+                        <span className={`inline-flex items-center gap-0.5 font-semibold ${elapsed >= 60 ? 'text-amber-300' : 'text-slate-400'}`}>
+                          · <Clock size={10} />
+                          {elapsed >= 60 ? `${Math.floor(elapsed / 60)}s ${elapsed % 60}d` : `${elapsed}d`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
               </div>
 
-              {/* Total amount + 1-click Quick Pay */}
-              {displayedTotal.greaterThan(0) && (
-                <div className="mt-2.5 space-y-2">
+              {/* Row 3: Bill Total + Quick Pay or Open Table */}
+              {displayedTotal.greaterThan(0) ? (
+                <div className="border-t border-white/[0.07] pt-2.5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[17px] font-bold text-white tabular-nums">{displayedTotal.toFixed(2)}</span>
-                    <span className="text-[11px] font-bold text-slate-400">₼</span>
+                    <span className="text-[11px] font-medium text-slate-400">{tx(lang, 'Cari hesab', 'Счёт', 'Total')}</span>
+                    <span className="text-base font-black text-[#F6B100] tabular-nums">{displayedTotal.toFixed(2)} ₼</span>
                   </div>
                   {onQuickPay && (!tableLockHolder || isMyTable || isManagerUser) && (
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -254,9 +303,8 @@ function TableGrid({
                           onQuickPay(String(activeLocalTable?.id || table.id), 'Nəğd');
                         }}
                         title={tx(lang, 'Nağd ödəniş pəncərəsini birbaşa aç', 'Открыть оплату наличными', 'Quick pay with Cash')}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-emerald-400/35 bg-emerald-500/20 px-2 py-1.5 text-[10px] font-extrabold text-emerald-200 transition hover:bg-emerald-500/35 active:scale-95"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/35 bg-emerald-500/15 px-2 py-1.5 text-[11px] font-extrabold text-emerald-300 transition hover:bg-emerald-500/25 active:scale-95 whitespace-nowrap"
                       >
-                        <span>💵</span>
                         <span>{tx(lang, 'Nağd', 'Нал', 'Cash')}</span>
                       </button>
                       <button
@@ -267,69 +315,49 @@ function TableGrid({
                           onQuickPay(String(activeLocalTable?.id || table.id), 'Kart');
                         }}
                         title={tx(lang, 'Kart ödəniş pəncərəsini birbaşa aç', 'Открыть оплату картой', 'Quick pay with Card')}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-sky-400/35 bg-sky-500/20 px-2 py-1.5 text-[10px] font-extrabold text-sky-200 transition hover:bg-sky-500/35 active:scale-95"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-sky-500/35 bg-sky-500/15 px-2 py-1.5 text-[11px] font-extrabold text-sky-300 transition hover:bg-sky-500/25 active:scale-95 whitespace-nowrap"
                       >
-                        <span>💳</span>
                         <span>{tx(lang, 'Kart', 'Карта', 'Card')}</span>
                       </button>
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Empty Table Affordance */}
-              {!displayedTotal.greaterThan(0) && status === 'AVAILABLE' && (
-                <div className="mt-3 flex items-center justify-center gap-1 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/5 py-1.5 text-[11px] font-bold text-emerald-400/90 transition-all group-hover:border-emerald-400/60 group-hover:bg-emerald-500/15 group-hover:text-emerald-300">
-                  <span>+</span>
-                  <span>{tx(lang, 'Masa Aç', 'Открыть', 'Open')}</span>
-                </div>
-              )}
-
-              {/* Waiter badge */}
-              {tableLockHolder && (
-                <div className={`mt-2 truncate rounded-lg px-2 py-1 text-[10px] font-bold ${isMyTable ? 'bg-yellow-400/10 text-yellow-300' : 'bg-slate-700/30 text-slate-400'}`}>
-                  👤 {tableLockHolder}
-                </div>
-              )}
-
-              {/* Group badge */}
-              {mergedGroupId && (
-                <div className="mt-1.5 rounded-lg bg-violet-500/10 px-2 py-0.5 text-[9px] font-bold text-violet-300">
-                  ⚡ {tx(lang, 'Qrup', 'Группа', 'Group')}
-                </div>
-              )}
-
-              {/* Dirty → Clean button */}
-              {status === 'DIRTY' && (
+              ) : status === 'DIRTY' ? (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); playHapticSuccess(); setQuickActionsTableId(null); onMarkClean(table.id); }}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-3 py-2.5 text-[11px] font-bold text-white backdrop-blur transition active:scale-[0.97]"
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-white transition active:scale-[0.97]"
                 >
-                  ✨ {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
+                  {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
                 </button>
+              ) : (
+                <div className="border-t border-white/[0.06] pt-2.5 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
+                  <span>{tx(lang, 'Sifariş aç', 'Открыть стол', 'Open table')}</span>
+                  <span>→</span>
+                </div>
               )}
             </div>
           );
         })}
 
         {searchedTables.length === 0 && (
-          <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-700/40 bg-slate-900/20 py-12 px-4 text-center">
+          <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-[#1a1d21]/50 py-12 px-4 text-center">
             <Utensils size={28} className="text-slate-500" />
             <p className="text-sm font-semibold text-slate-300">
-              {searchQuery.trim().length > 0 || showOnlyMine
+              {searchQuery.trim().length > 0 || showOnlyMine || statusFilter !== 'ALL'
                 ? tx(lang, 'Seçilmiş filtr üzrə masa tapılmadı', 'По выбранному фильтру столы не найдены', 'No tables match your current filter')
                 : tx(lang, 'Bu zalda masa yoxdur', 'В этом зале нет столов', 'No tables in this hall')}
             </p>
-            {(searchQuery.trim().length > 0 || showOnlyMine) && (
+            {(searchQuery.trim().length > 0 || showOnlyMine || statusFilter !== 'ALL') && (
               <button
                 type="button"
                 onClick={() => {
                   playHapticTouch();
                   setSearchQuery('');
                   setShowOnlyMine(false);
+                  setStatusFilter('ALL');
                 }}
-                className="mt-1 rounded-xl border border-amber-400/50 bg-amber-400/15 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-400/25 transition active:scale-95"
+                className="mt-1 rounded-xl border border-[#F6B100]/50 bg-[#F6B100]/15 px-4 py-2 text-xs font-bold text-[#F6B100] hover:bg-[#F6B100]/25 transition active:scale-95"
               >
                 {tx(lang, 'Filtrləri sıfırla', 'Сбросить фильтры', 'Reset filters')}
               </button>
