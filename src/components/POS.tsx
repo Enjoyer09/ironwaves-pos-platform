@@ -2001,7 +2001,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     const sessionSettings = tenantSettings.session_settings || {};
     if (String(sessionSettings.ui_mode || '').toLowerCase() === 'new') return true;
     const fromSettings = String(sessionSettings.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
-    return fromSettings === 'modern';
+    if (fromSettings === 'classic') return false;
+    return true;
   })();
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
@@ -2445,14 +2446,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <button
             disabled={isLoading || shouldLockTableCheckoutInPos || (cart.length === 0 && !shouldLockTableCheckoutInPos) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
             onClick={() => handleCheckout(selectedPayment)}
-            className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50`}
-            style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
+            className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 px-4 font-black text-white shadow-[0_4px_20px_rgba(16,185,129,0.40)] hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none`}
             title={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır (F9).', 'Завершает оплату выбранным методом и закрывает продажу (F9).', 'Completes payment with selected method and closes sale (F9).')}
             data-guide={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır.', 'Завершает оплату выбранным методом и закрывает продажу.', 'Completes payment with selected method and closes sale.')}
           >
-            <Check size={18} />
-            <span>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
-            <kbd className="hidden xl:inline-flex items-center rounded border border-slate-900/25 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-slate-900">
+            <Check size={20} className="stroke-[3]" />
+            <span className="tracking-wide">{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
+            <kbd className="hidden lg:inline-flex items-center rounded border border-white/30 bg-black/20 px-2 py-0.5 font-mono text-[11px] font-extrabold text-white">
               F9
             </kbd>
           </button>
@@ -3593,7 +3593,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         </div>
       )}
 
-      <div className="mb-3 grid grid-cols-2 gap-2 xl:hidden">
+      <div className="mb-3 grid grid-cols-2 gap-2 lg:hidden">
         <button onClick={() => setMobilePane('menu')} className={`neon-chip justify-center ${mobilePane === 'menu' ? 'neon-chip-active' : ''}`}>
           {tx(lang, 'Menyu', 'Меню', 'Menu')}
         </button>
@@ -3605,9 +3605,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       <div
         ref={posContainerRef}
         style={{ '--cart-width': `${posCartWidth}px` } as React.CSSProperties}
-        className={`compact-pos-grid flex flex-col min-h-0 flex-1 gap-4 xl:flex-row xl:gap-0 ${isNewUiMode ? 'pos2-workspace' : ''}`}
+        className={`compact-pos-grid flex flex-col min-h-0 flex-1 gap-4 lg:flex-row lg:gap-0 ${isNewUiMode ? 'pos2-workspace' : ''}`}
       >
-        <section className={`flex h-full min-h-0 flex-1 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
+        <section className={`flex h-full min-h-0 flex-1 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden lg:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget: string) => renderLeftWidget(widget))}
         </section>
 
@@ -3615,10 +3615,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           isDragging={isPosCartDragging}
           onPointerDown={onPosPointerDown}
           onDoubleClick={resetPosCartWidth}
-          className="hidden xl:flex"
+          className="hidden lg:flex"
         />
 
-        <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 xl:w-[var(--cart-width,440px)] shrink-0 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
+        <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 lg:w-[var(--cart-width,390px)] xl:w-[var(--cart-width,440px)] shrink-0 ${mobilePane !== 'cart' ? 'hidden lg:flex' : ''}`}>
           <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button

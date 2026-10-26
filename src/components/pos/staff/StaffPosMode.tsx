@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Minus, Plus, ScanLine, Search, ShoppingCart } from 'lucide-react';
+import { Check, Minus, Plus, ScanLine, Search, ShoppingCart, Trash2 } from 'lucide-react';
 
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
@@ -65,23 +65,7 @@ export function StaffPosHeader(props: {
   onClear: () => void;
   disableClear: boolean;
 }) {
-  const { businessName, tx, lang, onSync, isSyncingOffline, onClear, disableClear } = props;
-  return (
-    <header className="staff-pos-header">
-      <div>
-        <div className="staff-pos-kicker">{tx(lang, 'Staff POS', 'Staff POS', 'Staff POS')}</div>
-        <div className="staff-pos-title">{businessName || 'IRONWAVES POS'}</div>
-      </div>
-      <div className="staff-pos-header-actions">
-        <button className="staff-head-btn" onClick={() => void onSync()} disabled={isSyncingOffline}>
-          {isSyncingOffline ? tx(lang, 'Sync...', 'Синк...', 'Sync...') : tx(lang, 'Sync', 'Синк', 'Sync')}
-        </button>
-        <button className="staff-head-btn" onClick={onClear} disabled={disableClear}>
-          {tx(lang, 'Səbəti sil', 'Очистить корзину', 'Clear cart')}
-        </button>
-      </div>
-    </header>
-  );
+  return null;
 }
 
 export function StaffSearchBar(props: {
@@ -320,7 +304,18 @@ export function StaffCartPanel(props: StaffPosModeProps) {
     <aside className="staff-cart-panel">
       <div className="staff-cart-head">
         <h3 className="staff-cart-title"><ShoppingCart size={18} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
-        <div className="staff-cart-total-head">{checkoutBaseTotal.toFixed(2)} ₼</div>
+        <div className="flex items-center gap-2">
+          <div className="staff-cart-total-head">{checkoutBaseTotal.toFixed(2)} ₼</div>
+          <button
+            type="button"
+            onClick={() => props.requestClearCart(activeCart)}
+            disabled={!cart.length || isLoading}
+            title={tx(lang, 'Səbəti sil', 'Очистить корзину', 'Clear cart')}
+            className="rounded-lg border border-slate-700/80 bg-slate-800/80 p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-20 transition"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
 
       {(!showCustomerBox && !hasActiveCustomer && !showDiscountBox && !hasActiveDiscount) ? (

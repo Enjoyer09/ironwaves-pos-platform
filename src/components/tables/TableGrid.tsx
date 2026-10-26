@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useRef, useState } from 'react';
-import { Users, Clock, Utensils, Sparkles } from 'lucide-react';
+import { Users, Clock, Utensils, Sparkles, Plus } from 'lucide-react';
 import { Decimal } from 'decimal.js';
 import { tx } from '../../i18n';
 import { playHapticTouch, playHapticHeavy, playHapticSuccess } from '../../lib/haptics';
@@ -217,32 +217,32 @@ function TableGrid({
               onMouseDown={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
               onMouseUp={clearLongPress}
               onMouseLeave={clearLongPress}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 transition-all duration-150 active:scale-[0.98] cursor-pointer select-none ${
+              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-150 active:scale-[0.98] cursor-pointer select-none shadow-sm ${
                 isOccupiedState
-                  ? 'border-[#F6B100]/45 bg-[#1c2026] hover:border-[#F6B100]/80 shadow-md'
+                  ? 'border-amber-500/40 bg-gradient-to-br from-[#241a0d]/90 to-[#141822]/95 hover:border-amber-400/80 shadow-md shadow-amber-500/10'
                   : status === 'DIRTY'
-                  ? 'border-rose-500/40 bg-[#1c2026] hover:border-rose-400/70'
-                  : 'border-white/[0.08] bg-[#1a1d21] hover:border-emerald-500/45 hover:bg-[#1f2329]'
-              } ${isSelected ? 'ring-2 ring-[#F6B100]' : ''}`}
+                  ? 'border-rose-500/40 bg-gradient-to-br from-[#240e14]/90 to-[#141822]/95 hover:border-rose-400/70'
+                  : 'border-emerald-500/25 bg-gradient-to-br from-[#0c221a]/60 to-[#121824]/90 hover:border-emerald-500/60 hover:bg-[#142324]'
+              } ${isSelected ? 'ring-2 ring-amber-400' : ''}`}
             >
               {/* Row 1: Table Name + Status Badge (Behance 210280099 Header) */}
               <div className="flex items-center justify-between gap-1.5">
-                <h3 className="text-sm sm:text-[15px] font-extrabold text-white tracking-tight truncate">
+                <h3 className="text-base font-extrabold text-white tracking-tight truncate">
                   {table.label}
                 </h3>
                 {readyCount > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-slate-950 shadow-sm">
-                    <Sparkles size={10} />
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-black text-slate-950 shadow-sm">
+                    <Sparkles size={11} />
                     {readyCount} {tx(lang, 'Hazır', 'Готово', 'Ready')}
                   </span>
                 ) : (
                   <span
-                    className={`rounded-lg px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-black whitespace-nowrap tracking-wide ${
                       isOccupiedState
-                        ? 'bg-[#F6B100]/20 text-[#F6B100] border border-[#F6B100]/30'
+                        ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
                         : status === 'DIRTY'
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                        : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                        ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40'
+                        : 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40'
                     }`}
                   >
                     {statusText}
@@ -331,9 +331,9 @@ function TableGrid({
                   {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
                 </button>
               ) : (
-                <div className="border-t border-white/[0.06] pt-2.5 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
-                  <span>{tx(lang, 'Sifariş aç', 'Открыть стол', 'Open table')}</span>
-                  <span>→</span>
+                <div className="border-t border-emerald-500/20 pt-2.5 flex items-center justify-between text-xs font-black text-emerald-300 group-hover:text-emerald-200">
+                  <span className="flex items-center gap-1.5"><Plus size={14} className="stroke-[3]" />{tx(lang, 'Sifariş aç', 'Открыть стол', 'Open table')}</span>
+                  <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-black">→</span>
                 </div>
               )}
             </div>

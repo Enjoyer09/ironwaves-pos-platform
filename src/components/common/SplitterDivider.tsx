@@ -24,7 +24,7 @@ export const SplitterDivider = memo(function SplitterDivider({
       title={title}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
-      className={`group relative hidden md:flex items-center justify-center w-3 -mx-1.5 cursor-col-resize select-none touch-none z-30 transition-colors ${
+      className={`group relative hidden lg:flex items-center justify-center w-3 -mx-1.5 cursor-col-resize select-none touch-none z-30 transition-colors ${
         isDragging ? 'bg-amber-400/20' : 'hover:bg-amber-400/10'
       } ${className}`}
     >

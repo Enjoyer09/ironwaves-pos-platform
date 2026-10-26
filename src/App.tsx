@@ -2176,12 +2176,13 @@ export default function App() {
               </button>
               <button
                 onClick={() => setLogoutConfirmOpen(true)}
-                className="neon-btn-active !min-h-9 px-2.5 py-1.5 text-xs"
+                className="flex items-center gap-1.5 !min-h-9 rounded-xl border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition-all hover:border-rose-500/50 hover:bg-rose-500/15 hover:text-rose-200 active:scale-95"
+                title={tx(safeLang, 'Hesabdan çıxış', 'Выйти из системы', 'Logout')}
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
-                <LogOut size={14} />
+                <LogOut size={14} className="text-rose-400/80" />
                 <span>{t.logout}</span>
               </button>
             </div>
