@@ -365,6 +365,7 @@ def lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str,
     rows = (
         db.query(FinanceAccount)
         .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code.in_(normalized_codes))
+        .order_by(FinanceAccount.code)
         .with_for_update()
         .all()
     )
@@ -373,6 +374,37 @@ def lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str,
     if missing:
         raise HTTPException(status_code=400, detail=f"Unknown finance account(s): {', '.join(missing)}")
     return by_code
+
+
+def ensure_manual_transaction_capacity(
+    db: Session,
+    tenant_id: str,
+    transaction_type: str,
+    source_code: str,
+    destination_code: str,
+    amount: Decimal,
+) -> None:
+    """Check manual wallet outflows under the same locks used by posting.
+
+    Pending requests do not reserve money: check again before approval. Keep
+    this explicit at the manual API boundary so POS refunds, historical
+    reversals and GL migration retain their existing posting contracts.
+    """
+    guarded_types = {
+        "expense", "internal_transfer", "cash_adjustment",
+        "reconciliation_adjustment", "deposit_release", "deposit_refund",
+    }
+    if transaction_type not in guarded_types or source_code not in {"cash", "card", "safe"}:
+        return
+    if source_code == destination_code:
+        return
+    accounts = lock_finance_accounts(db, tenant_id, source_code, destination_code)
+    available = account_ledger_totals_for_update(db, tenant_id, accounts[source_code])["balance"]
+    if Decimal(str(amount)).quantize(Decimal("0.01")) > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient balance in '{source_code}' ({available.quantize(Decimal('0.01'))} AZN)",
+        )
 
 
 def finance_account_code(db: Session, tenant_id: str, account_id: str | None) -> str | None:

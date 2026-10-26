@@ -154,6 +154,7 @@ from app.services.finance_service import (  # noqa: E402 - keep router API thin 
     account_ledger_totals_for_update as _account_ledger_totals_for_update,
     create_finance_transaction_record as _create_finance_transaction_record,
     ensure_finance_accounts as _ensure_finance_accounts,
+    ensure_manual_transaction_capacity as _ensure_manual_transaction_capacity,
     finance_account as _finance_account,
     finance_account_code as _finance_account_code,
     finance_policy as _finance_policy,
@@ -1658,7 +1659,7 @@ def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, st
 @router.post("/ledger/transactions")
 def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
-    amount = Decimal(str(payload.amount))
+    amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
     source, destination = _manual_transaction_accounts(payload)
@@ -1668,6 +1669,7 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
     if tx_type == "investor_repayment":
         # Fail fast on obviously invalid requests; re-checked again at approval time.
         _ensure_investor_repayment_capacity(db, tenant.id, source, amount)
+    _ensure_manual_transaction_capacity(db, tenant.id, tx_type, source, destination, amount)
     if _approval_required(tx_type, amount, payload.requires_approval, policy):
         txn = _create_finance_transaction_record(
             db,
@@ -1802,6 +1804,12 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
             .first()
         )
         _ensure_investor_repayment_capacity(db, tenant.id, source_account.code if source_account else "", Decimal(str(txn.amount)))
+    _ensure_manual_transaction_capacity(
+        db, tenant.id, _normalize_text(txn.transaction_type).replace("-", "_"),
+        _finance_account_code(db, tenant.id, txn.source_account_id),
+        _finance_account_code(db, tenant.id, txn.destination_account_id),
+        Decimal(str(txn.amount)),
+    )
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     txn.status = "approved"
     txn.approved_by = user.username
@@ -1960,7 +1968,13 @@ def list_reconciliations(limit: int = 100, db: Session = Depends(get_db), tenant
 def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
     account = _finance_account(db, tenant.id, payload.account_code.strip().lower())
-    expected = Decimal(str(payload.expected_balance)).quantize(Decimal("0.01"))
+    expected = _account_ledger_totals_for_update(db, tenant.id, account)["balance"].quantize(Decimal("0.01"))
+    submitted_expected = Decimal(str(payload.expected_balance)).quantize(Decimal("0.01"))
+    if submitted_expected != expected:
+        raise HTTPException(
+            status_code=409,
+            detail="Hesab qalığı dəyişib. Məlumatları yeniləyin və sayımı təkrar yoxlayın. / Account balance changed; refresh and verify the count.",
+        )
     counted = Decimal(str(payload.counted_balance)).quantize(Decimal("0.01"))
     variance = counted - expected
     row = FinanceReconciliation(
@@ -1995,7 +2009,7 @@ def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depend
         )
     )
     db.commit()
-    return {"success": True, "id": row.id, "variance": str(variance)}
+    return {"success": True, "id": row.id, "variance": str(variance), "expected_balance": str(expected)}
 
 
 @router.get("/anomalies")
@@ -2182,7 +2196,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
 @router.post("/transfer")
 def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
-    amount = Decimal(str(payload.amount))
+    amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
 
@@ -2198,6 +2212,14 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
         raise HTTPException(status_code=400, detail="Invalid transfer direction")
 
     source, target = direction_map[payload.direction]
+    if _approval_required("internal_transfer", amount, policy=_finance_policy(db, tenant.id)):
+        # The existing UI sends large transfers through the approval endpoint.
+        # Never let a stale client or direct request use this immediate path
+        # to bypass that policy (including the transfer's bank commission).
+        raise HTTPException(
+            status_code=409,
+            detail="Transfer təsdiq tələb edir. Maliyyə məlumatlarını yeniləyin və təsdiqə göndərin. / Transfer requires approval; refresh finance data and submit for approval.",
+        )
     _lock_finance_accounts(db, tenant.id, source, target)
     commission = Decimal("0")
     if payload.direction in {"card_to_cash", "card_to_debt"}:
