@@ -190,6 +190,22 @@ def test_entry_income_is_classified(db, tenant, category, role, expected):
     ok(db, tenant.id)
 
 
+@pytest.mark.parametrize("source", ["cash", "card", "safe"])
+def test_founder_investment_on_each_wallet_posts_as_financing(db, tenant, source):
+    from app.routers import finance
+    from app.schemas import FinanceEntryIn
+
+    before_investor = bal(db, tenant.id, "investor_loan")
+    wallet_role = {"cash": "cash_drawer", "card": "bank_main", "safe": "safe"}[source]
+    before_wallet = bal(db, tenant.id, wallet_role)
+    finance.create_entry(FinanceEntryIn(type="in", category="Təsisçi İnvestisiyası", source=source, amount=D("25")),
+                         db=db, tenant=tenant, user=ADMIN)
+    assert bal(db, tenant.id, "investor_loan") == before_investor + D("25")
+    assert bal(db, tenant.id, wallet_role) == before_wallet + D("25")
+    assert native(db, tenant.id, source_type="financing")
+    ok(db, tenant.id)
+
+
 @pytest.mark.parametrize("direction", ["card_to_cash", "cash_to_safe", "cash_to_debt", "card_to_debt"])
 def test_transfers(db, tenant, direction):
     from app.routers import finance

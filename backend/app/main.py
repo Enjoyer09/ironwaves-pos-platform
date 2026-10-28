@@ -986,6 +986,25 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_created ON finance_transactions (tenant_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_status_created ON finance_transactions (tenant_id, status, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_type_created ON finance_transactions (tenant_id, transaction_type, created_at)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS finance_operation_requests (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+                idempotency_key VARCHAR(128),
+                operation_type VARCHAR(32) NOT NULL,
+                request_hash VARCHAR(64) NOT NULL,
+                created_by VARCHAR(80) NOT NULL,
+                transaction_id VARCHAR(36) REFERENCES finance_transactions(id),
+                bank_commission NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+                fee_transaction_id VARCHAR(36) REFERENCES finance_transactions(id),
+                response_json TEXT,
+                created_at TIMESTAMP NOT NULL,
+                CONSTRAINT uq_finance_operation_tenant_key UNIQUE (tenant_id, idempotency_key),
+                CONSTRAINT uq_finance_operation_transaction UNIQUE (tenant_id, transaction_id),
+                CONSTRAINT ck_finance_operation_commission_nonnegative CHECK (bank_commission >= 0)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_operation_tenant_created ON finance_operation_requests (tenant_id, created_at)"))
         conn.execute(
             text(
                 """

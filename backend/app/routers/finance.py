@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from functools import wraps
+from inspect import signature
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from threading import Lock
 
@@ -19,6 +22,7 @@ from app.models import (
     FinanceAccount,
     FinanceEntry,
     FinanceLedgerEntry,
+    FinanceOperationRequest,
     FinanceReconciliation,
     FinanceTransaction,
     InventoryItem,
@@ -29,9 +33,24 @@ from app.models import (
     Tenant,
 )
 from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransactionIn, InvestorRepayIn, TransferIn
+from app.services.finance_requests import reserve_request, complete_request, transfer_request
+from app.services import finance_transfers
 
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
+
+
+def _rollback_on_error(endpoint):
+    @wraps(endpoint)
+    def wrapped(*args, **kwargs):
+        try:
+            return endpoint(*args, **kwargs)
+        except Exception:
+            db = signature(endpoint).bind_partial(*args, **kwargs).arguments.get("db")
+            if db is not None:
+                db.rollback()
+            raise
+    return wrapped
 VOID_SALE_STATUSES = [
     "VOIDED",
     "VOID",
@@ -208,14 +227,14 @@ def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | 
 
 def _post_legacy_finance_entry(db: Session, entry: FinanceEntry, username: str) -> FinanceTransaction:
     category = entry.category or ""
-    if entry.type == "in" and entry.source == "cash" and _is_founder_investment_category(category):
+    if entry.type == "in" and _is_founder_investment_category(category):
         return _post_finance_transaction(
             db,
             tenant_id=entry.tenant_id,
             transaction_type="investor_injection",
             amount=Decimal(str(entry.amount)),
             source_code="investor",
-            destination_code="cash",
+            destination_code=entry.source,
             created_by=username,
             category=category,
             note=entry.description,
@@ -489,6 +508,7 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
     if pending_sale_ids:
         sales = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id.in_(pending_sale_ids)).all()
         pending_sales_dict = {str(s.id): s for s in sales}
+    pending_transfer_requests = _transfer_requests_for(db, tenant.id, [row.id for row in pending_rows])
 
     return {
         "balances": {
@@ -501,7 +521,7 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
         },
         "alerts": alerts,
         "pending_approvals_count": pending_count,
-        "pending_approvals_preview": [_transaction_out(row, account_by_id, sales_dict=pending_sales_dict) for row in pending_rows],
+        "pending_approvals_preview": [_transaction_out(row, account_by_id, sales_dict=pending_sales_dict, transfer_requests=pending_transfer_requests) for row in pending_rows],
         "latest_reconciliation": {
             "id": latest_reconciliation.id,
             "account_code": account_by_id.get(latest_reconciliation.account_id).code if latest_reconciliation.account_id in account_by_id else None,
@@ -522,24 +542,49 @@ def _money(value: Decimal | int | float | str | None) -> str:
     return str(Decimal(str(value or 0)).quantize(Decimal("0.01")))
 
 
+def _iso_utc(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _finance_accounts_by_code(db: Session, tenant_id: str) -> dict[str, FinanceAccount]:
     rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
     return {str(row.code or "").strip().lower(): row for row in rows}
 
 
 def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime | None, datetime | None]:
+    baku = ZoneInfo("Asia/Baku")
     start = None
     end = None
     if date_from:
         try:
-            start = datetime.fromisoformat(str(date_from)[:10])
+            raw = str(date_from).strip()
+            parsed = datetime.fromisoformat(raw[:10])
+            if len(raw) == 10:
+                parsed = parsed.replace(tzinfo=baku)
+            else:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=baku)
+            start = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         except Exception:
-            raise HTTPException(status_code=400, detail="date_from format must be YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="date_from format must be YYYY-MM-DD or ISO datetime")
     if date_to:
         try:
-            end = datetime.fromisoformat(str(date_to)[:10]) + timedelta(days=1)
+            raw = str(date_to).strip()
+            if len(raw) == 10:
+                parsed = datetime.fromisoformat(raw) + timedelta(days=1)
+                end = parsed.replace(tzinfo=baku).astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=baku)
+                end = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         except Exception:
-            raise HTTPException(status_code=400, detail="date_to format must be YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="date_to format must be YYYY-MM-DD or ISO datetime")
     return start, end
 
 
@@ -849,8 +894,9 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
     inventory = _inventory_value(db, tenant_id)
     deposit = balances.get("deposit", Decimal("0.00"))
     investor = balances.get("investor", Decimal("0.00"))
+    payable = balances.get("payable", Decimal("0.00"))
     assets_total = cash + card + safe + receivable + inventory
-    liabilities_total = deposit + investor
+    liabilities_total = deposit + investor + payable
     equity_estimate = assets_total - liabilities_total
     ledger_equity, equity_account_codes = _ledger_equity_total(db, tenant_id)
     accounting_residual = (assets_total - (liabilities_total + ledger_equity)).quantize(Decimal("0.01"))
@@ -867,6 +913,7 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
         "liabilities": {
             "deposits": _money(deposit),
             "investor": _money(investor),
+            "suppliers_payable": _money(payable),
             "total": _money(liabilities_total),
         },
         "equity": {
@@ -1186,11 +1233,13 @@ def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
     }
 
 
-def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAccount], sales_dict: dict = None) -> dict:
+def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAccount], sales_dict: dict = None, transfer_requests: dict = None) -> dict:
     sale = None
     if sales_dict and row.related_order_id in sales_dict:
         sale = sales_dict[row.related_order_id]
 
+    operation = (transfer_requests or {}).get(row.id)
+    fee = Decimal(str(operation.bank_commission)) if operation else Decimal("0.00")
     return {
         "id": row.id,
         "transaction_type": row.transaction_type,
@@ -1207,15 +1256,29 @@ def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAc
         "approved_by": row.approved_by,
         "posted_by": row.posted_by,
         "reversed_by": row.reversed_by,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
-        "approved_at": row.approved_at.isoformat() if row.approved_at else None,
-        "posted_at": row.posted_at.isoformat() if row.posted_at else None,
-        "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
+        "created_at": _iso_utc(row.created_at),
+        "approved_at": _iso_utc(row.approved_at),
+        "posted_at": _iso_utc(row.posted_at),
+        "reversed_at": _iso_utc(row.reversed_at),
         "legacy_finance_entry_id": row.legacy_finance_entry_id,
         "related_order_id": row.related_order_id,
         "discount_amount": str(Decimal(str(sale.discount_amount or 0)).quantize(Decimal("0.01"))) if sale else "0.00",
         "discount_reason": sale.discount_reason if sale else None,
+        "bank_commission": str(fee.quantize(Decimal("0.01"))) if operation else None,
+        "total_debit": str((Decimal(str(row.amount)) + fee).quantize(Decimal("0.01"))) if operation else None,
+        "fee_transaction_id": operation.fee_transaction_id if operation else None,
     }
+
+
+def _transfer_requests_for(db: Session, tenant_id: str, transaction_ids: list[str]) -> dict:
+    if not transaction_ids:
+        return {}
+    rows = db.query(FinanceOperationRequest).filter(
+        FinanceOperationRequest.tenant_id == tenant_id,
+        FinanceOperationRequest.operation_type == "transfer",
+        FinanceOperationRequest.transaction_id.in_(transaction_ids),
+    ).all()
+    return {row.transaction_id: row for row in rows}
 
 
 def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
@@ -1393,9 +1456,12 @@ def list_ledger_transactions(
             if len(raw) == 10:
                 parsed_date = datetime.fromisoformat(raw)
                 if end_of_day:
-                    return parsed_date + timedelta(days=1)
-                return parsed_date
-            return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+                    parsed_date += timedelta(days=1)
+                return parsed_date.replace(tzinfo=ZoneInfo("Asia/Baku")).astimezone(timezone.utc).replace(tzinfo=None)
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=ZoneInfo("Asia/Baku"))
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None)
         except Exception:
             return None
 
@@ -1450,7 +1516,7 @@ def list_ledger_transactions(
         )
 
     total = query.count() if include_total else None
-    rows = query.order_by(FinanceTransaction.created_at.desc()).offset(offset).limit(limit).all()
+    rows = query.order_by(FinanceTransaction.created_at.desc(), FinanceTransaction.id.desc()).offset(offset).limit(limit).all()
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
     
     from app.models import Sale
@@ -1459,8 +1525,8 @@ def list_ledger_transactions(
     if sale_ids:
         sales = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id.in_(sale_ids)).all()
         sales_dict = {str(s.id): s for s in sales}
-        
-    rows_out = [_transaction_out(row, account_by_id, sales_dict=sales_dict) for row in rows]
+    transfer_requests = _transfer_requests_for(db, tenant.id, [row.id for row in rows])
+    rows_out = [_transaction_out(row, account_by_id, sales_dict=sales_dict, transfer_requests=transfer_requests) for row in rows]
     if include_total:
         return {
             "rows": rows_out,
@@ -1498,7 +1564,8 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
     )
     reversal_rows = (
         db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.reference == row.id)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.reference == row.id,
+                FinanceTransaction.transaction_type == "reversal")
         .order_by(FinanceTransaction.created_at.desc())
         .all()
     )
@@ -1514,33 +1581,10 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
     if row.related_order_id:
         from app.models import Sale
         sale = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id == row.related_order_id).first()
+    operation_map = _transfer_requests_for(db, tenant.id, [row.id])
 
     return {
-        "transaction": {
-            "id": row.id,
-            "transaction_type": row.transaction_type,
-            "status": row.status,
-            "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
-            "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
-            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
-            "currency": row.currency,
-            "category": row.category,
-            "counterparty": row.counterparty,
-            "reference": row.reference,
-            "note": row.note,
-            "created_by": row.created_by,
-            "approved_by": row.approved_by,
-            "posted_by": row.posted_by,
-            "reversed_by": row.reversed_by,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
-            "posted_at": row.posted_at.isoformat() if row.posted_at else None,
-            "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
-            "legacy_finance_entry_id": row.legacy_finance_entry_id,
-            "related_order_id": row.related_order_id,
-            "discount_amount": str(Decimal(str(sale.discount_amount or 0)).quantize(Decimal("0.01"))) if sale else "0.00",
-            "discount_reason": sale.discount_reason if sale else None,
-        },
+        "transaction": _transaction_out(row, account_by_id, sales_dict={row.related_order_id: sale} if sale else {}, transfer_requests=operation_map),
         "entries": [
             {
                 "id": entry.id,
@@ -1606,6 +1650,7 @@ def list_ledger_entries(limit: int = 300, db: Session = Depends(get_db), tenant:
         .all()
     )
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    transfer_requests = _transfer_requests_for(db, tenant.id, [row.id for row in rows])
     return [
         {
             "id": row.id,
@@ -1657,8 +1702,12 @@ def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, st
 
 
 @router.post("/ledger/transactions")
+@_rollback_on_error
 def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
+    operation, replay = reserve_request(db, tenant.id, user.username, "ledger_transaction", payload)
+    if replay is not None:
+        return replay
     amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -1717,8 +1766,9 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
             note=payload.note,
         )
         _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
+    response = complete_request(operation, {"success": True, "transaction_id": txn.id, "status": txn.status}, transaction_id=txn.id)
     db.commit()
-    return {"success": True, "transaction_id": txn.id, "status": txn.status}
+    return response
 
 
 @router.get("/approvals/pending")
@@ -1732,6 +1782,7 @@ def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depen
         .all()
     )
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    transfer_requests = _transfer_requests_for(db, tenant.id, [row.id for row in rows])
     return [
         {
             "id": row.id,
@@ -1754,6 +1805,9 @@ def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depen
             "posted_at": row.posted_at.isoformat() if row.posted_at else None,
             "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
             "legacy_finance_entry_id": row.legacy_finance_entry_id,
+            "bank_commission": str(transfer_requests[row.id].bank_commission) if row.id in transfer_requests else None,
+            "total_debit": str(Decimal(str(row.amount)) + Decimal(str(transfer_requests[row.id].bank_commission))) if row.id in transfer_requests else None,
+            "fee_transaction_id": transfer_requests[row.id].fee_transaction_id if row.id in transfer_requests else None,
         }
         for row in rows
     ]
@@ -1804,19 +1858,26 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
             .first()
         )
         _ensure_investor_repayment_capacity(db, tenant.id, source_account.code if source_account else "", Decimal(str(txn.amount)))
-    _ensure_manual_transaction_capacity(
-        db, tenant.id, _normalize_text(txn.transaction_type).replace("-", "_"),
-        _finance_account_code(db, tenant.id, txn.source_account_id),
-        _finance_account_code(db, tenant.id, txn.destination_account_id),
-        Decimal(str(txn.amount)),
-    )
+    compound = transfer_request(db, tenant.id, txn.id)
+    if compound:
+        finance_transfers.ensure_capacity(db, txn, compound)
+    else:
+        _ensure_manual_transaction_capacity(
+            db, tenant.id, _normalize_text(txn.transaction_type).replace("-", "_"),
+            _finance_account_code(db, tenant.id, txn.source_account_id),
+            _finance_account_code(db, tenant.id, txn.destination_account_id),
+            Decimal(str(txn.amount)),
+        )
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     txn.status = "approved"
     txn.approved_by = user.username
     txn.approved_at = now
     _mark_original_transaction_reversed(db, txn, user.username)
-    _post_existing_transaction(db, txn, user.username)
-    _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
+    if compound:
+        finance_transfers.post_compound(db, txn, compound, user.username)
+    else:
+        _post_existing_transaction(db, txn, user.username)
+        _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
     db.add(
         AuditLog(
             tenant_id=tenant.id,
@@ -2037,30 +2098,58 @@ def create_finance_anomaly_snapshot(
 @router.get("/entries")
 def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    rows = (
-        db.query(FinanceEntry)
-        .filter(FinanceEntry.tenant_id == tenant.id)
-        .order_by(FinanceEntry.created_at.desc())
-        .all()
+    entries = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).order_by(FinanceEntry.created_at.desc()).all()
+    supplier_query = db.query(FinanceTransaction).filter(
+        FinanceTransaction.tenant_id == tenant.id,
+        FinanceTransaction.transaction_type == "supplier_payment",
+        FinanceTransaction.status == "posted",
     )
-    return [
-        {
-            "id": r.id,
-            "type": r.type,
-            "category": r.category,
-            "source": r.source,
-            "amount": str(r.amount),
-            "description": r.description,
-            "created_by": r.created_by,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
+    supplier_transactions = supplier_query.order_by(FinanceTransaction.created_at.desc()).all()
+    supplier_by_id = {row.id: row for row in supplier_transactions}
+    mirrored_supplier_txns = set()
+    for row in entries:
+        if row.type != "out" or not row.description or "Ledger mirror:" not in row.description:
+            continue
+        parent_id = row.description.split("Ledger mirror:", 1)[1].strip()
+        txn = supplier_by_id.get(parent_id)
+        if txn:
+            source = _finance_account_code(db, tenant.id, txn.source_account_id)
+            if Decimal(str(row.amount)).quantize(Decimal("0.01")) == Decimal(str(txn.amount)).quantize(Decimal("0.01")) and row.source == source:
+                mirrored_supplier_txns.add(txn.id)
+    rows = []
+    for row in entries:
+        item = {
+            "id": row.id, "type": row.type, "category": row.category, "source": row.source,
+            "amount": str(row.amount), "description": row.description, "created_by": row.created_by,
+            "created_at": _iso_utc(row.created_at),
         }
-        for r in rows
-    ]
+        if row.description and "Ledger mirror:" in row.description:
+            parent_id = row.description.split("Ledger mirror:", 1)[1].strip()
+            if parent_id in mirrored_supplier_txns:
+                item["source_kind"] = "supplier_payment"
+        rows.append(item)
+    for txn in supplier_transactions:
+        if txn.id in mirrored_supplier_txns:
+            continue
+        rows.append({
+            "id": txn.id, "type": "out", "category": txn.category or "Təchizatçı Ödənişi",
+            "source": _finance_account_code(db, tenant.id, txn.source_account_id) or "cash",
+            "amount": _money(txn.amount),
+            "source_kind": "supplier_payment",
+            "description": f"{txn.counterparty or 'Təchizatçı'} | {txn.note or txn.category or 'Təchizatçı ödənişi'}",
+            "created_by": txn.created_by, "created_at": _iso_utc(txn.created_at),
+        })
+    rows.sort(key=lambda row: row["created_at"] or "", reverse=True)
+    return rows
 
 
 @router.post("/entry")
+@_rollback_on_error
 def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
+    operation, replay = reserve_request(db, tenant.id, user.username, "entry", payload)
+    if replay is not None:
+        return replay
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -2120,6 +2209,9 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         posted_txn = _post_legacy_finance_entry(db, virtual_row, user.username)
         if posted_txn:
             mirror_rows = _mirror_posted_transaction_to_legacy_wallet(db, posted_txn, user.username)
+
+    if posted_txn and payload.counterparty:
+        posted_txn.counterparty = payload.counterparty.strip() or None
 
     if commission > 0:
         _post_finance_transaction_with_legacy_mirror(
@@ -2189,98 +2281,62 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
             ),
         )
     )
+    response = complete_request(operation, {"success": True, "id": entry_id or ""}, transaction_id=posted_txn.id if posted_txn else None)
     db.commit()
-    return {"success": True, "id": entry_id or ""}
+    return response
 
 
 @router.post("/transfer")
+@_rollback_on_error
 def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
+    operation, replay = reserve_request(db, tenant.id, user.username, "transfer", payload, track_without_key=True)
+    if replay is not None:
+        return replay
     amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
-
     direction_map = {
-        "cash_to_safe": ("cash", "safe"),
-        "safe_to_cash": ("safe", "cash"),
-        "cash_to_card": ("cash", "card"),
-        "card_to_cash": ("card", "cash"),
-        "cash_to_debt": ("cash", "debt"),
-        "card_to_debt": ("card", "debt"),
+        "cash_to_safe": ("cash", "safe"), "safe_to_cash": ("safe", "cash"),
+        "cash_to_card": ("cash", "card"), "card_to_cash": ("card", "cash"),
+        "cash_to_debt": ("cash", "debt"), "card_to_debt": ("card", "debt"),
     }
     if payload.direction not in direction_map:
         raise HTTPException(status_code=400, detail="Invalid transfer direction")
-
+    pending = _approval_required("internal_transfer", amount, policy=_finance_policy(db, tenant.id))
+    if pending and not payload.allow_pending_approval:
+        raise HTTPException(status_code=409, detail="Transfer təsdiq tələb edir. Maliyyə məlumatlarını yeniləyin və təsdiqə göndərin. / Transfer requires approval; refresh finance data and submit for approval.")
     source, target = direction_map[payload.direction]
-    if _approval_required("internal_transfer", amount, policy=_finance_policy(db, tenant.id)):
-        # The existing UI sends large transfers through the approval endpoint.
-        # Never let a stale client or direct request use this immediate path
-        # to bypass that policy (including the transfer's bank commission).
-        raise HTTPException(
-            status_code=409,
-            detail="Transfer təsdiq tələb edir. Maliyyə məlumatlarını yeniləyin və təsdiqə göndərin. / Transfer requires approval; refresh finance data and submit for approval.",
-        )
-    _lock_finance_accounts(db, tenant.id, source, target)
-    commission = Decimal("0")
-    if payload.direction in {"card_to_cash", "card_to_debt"}:
-        if tenant.id == "6e2c0d4c-6fab-4e49-8f9d-2d675457c655":
-            # Apply custom bank tiered transfer commission rule for Emalat Coffee
-            if amount <= Decimal("100"):
-                commission = Decimal("0.60")
-            else:
-                commission = (amount * Decimal("0.005")).quantize(Decimal("0.01"))
-        else:
-            commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-            card_transfer_percent = _commission_percent(commission_cfg, "card_transfer_percent", "0.5")
-            commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
-
-    bal = _wallet_balance(db, tenant.id, source)
-    if bal < amount + commission:
-        raise HTTPException(status_code=400, detail="Insufficient balance")
-
-    _post_finance_transaction_with_legacy_mirror(
-        db,
-        tenant_id=tenant.id,
-        transaction_type="internal_transfer",
-        amount=amount,
-        source_code=source,
-        destination_code=target,
-        created_by=user.username,
-        category="Daxili Transfer",
-        note=payload.description,
+    fee = finance_transfers.commission(db, tenant.id, source, target, amount)
+    operation.bank_commission = fee
+    # Lock all accounts before creating or posting the parent, including its fee.
+    _lock_finance_accounts(db, tenant.id, source, target, "expense" if fee > 0 else "")
+    if _wallet_balance(db, tenant.id, source) < amount + fee:
+        raise HTTPException(status_code=400, detail="Insufficient balance for transfer and bank commission")
+    txn = _create_finance_transaction_record(
+        db, tenant_id=tenant.id, transaction_type="internal_transfer", status="pending_approval" if pending else "approved",
+        amount=amount, source_code=source, destination_code=target, created_by=user.username,
+        category="Daxili Transfer", note=payload.description,
     )
-    if commission > 0:
-        _post_finance_transaction_with_legacy_mirror(
-            db,
-            tenant_id=tenant.id,
-            transaction_type="expense",
-            amount=commission,
-            source_code=source,
-            destination_code="expense",
-            created_by=user.username,
-            category="Bank Komissiyası",
-            note=f"Transfer komissiyası: {payload.direction}",
-        )
-
-    # Finance v2 (dual mode only).
-    def _gl_transfer():
-        ref, day, amt, fee = secrets.token_hex(8), _gl_today(), amount.quantize(Decimal("0.01")), commission.quantize(Decimal("0.01"))
-        if target == "debt":  # money lent out (+ optional bank fee from the source)
-            journals = [_gl_rules.post_event(db, tenant.id, _gl_rules.FinancingMovement(ref, day, "lend_out", source, amt), actor=user.username)]
-            if fee > 0:
-                journals.append(_gl_rules.post_event(db, tenant.id, _gl_rules.ExpensePaid(f"{ref}:fee", day, "bank_fees", fee, source,
-                                                                                          note="Transfer komissiyası"), actor=user.username))
-            return journals
-        return _gl_rules.WalletTransfer(ref, day, source, target, amt, bank_fee=fee, note=payload.description)
-
-    _gl_bridge.emit(db, tenant.id, _gl_transfer, actor=user.username, event_type="WalletTransfer")
+    operation.transaction_id = txn.id
+    if pending:
+        db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="FINANCE_TRANSFER_APPROVAL_REQUESTED",
+                        details=json.dumps({"transaction_id": txn.id, "amount": str(amount), "commission": str(fee), "total_debit": str(amount + fee)})))
+    else:
+        finance_transfers.post_compound(db, txn, operation, user.username)
+    response = complete_request(operation, {"success": True, "transaction_id": txn.id, "status": txn.status,
+                                "commission": str(fee), "total_debit": str(amount + fee)})
     db.commit()
-    return {"success": True, "commission": str(commission)}
+    return response
 
 
 @router.post("/repay-investor")
+@_rollback_on_error
 def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_write_access(user)
+    operation, replay = reserve_request(db, tenant.id, user.username, "investor_repayment", payload)
+    if replay is not None:
+        return replay
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -2332,16 +2388,17 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
                 ),
             )
         )
-        db.commit()
-        remaining_debt = _investor_debt_balance(db, tenant.id)
-        return {
+        remaining_debt = debt
+        response = complete_request(operation, {
             "success": True,
             "transaction_id": txn.id,
             "status": txn.status,
             "requested_amount": str(payable),
             "paid": "0.00",
             "remaining_debt": str(remaining_debt),
-        }
+        }, transaction_id=txn.id)
+        db.commit()
+        return response
 
     posted_txn = _post_finance_transaction_with_legacy_mirror(
         db,
@@ -2356,9 +2413,9 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     )
     _gl_bridge.emit(db, tenant.id, lambda: _gl_rules.FinancingMovement(posted_txn.id, _gl_today(), "investor_repay", pay_from,
                                                                         payable.quantize(Decimal("0.01"))), actor=user.username)
-    db.commit()
+    db.flush()
 
-    remaining_debt = _investor_debt_balance(db, tenant.id)
+    remaining_debt = debt - payable
     legacy_rows = (
         db.query(FinanceEntry)
         .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.description.contains(f"Ledger mirror: {posted_txn.id}"))
@@ -2366,7 +2423,7 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     )
     payment_row = next((row for row in legacy_rows if str(row.category or "") == "İnvestora Geri Ödəniş"), None)
     liability_row = next((row for row in legacy_rows if str(row.category or "") == "İnvestor Borcu Azaldılması"), None)
-    return {
+    response = complete_request(operation, {
         "success": True,
         "transaction_id": posted_txn.id,
         "status": posted_txn.status,
@@ -2374,5 +2431,7 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
         "liability_entry_id": liability_row.id if liability_row else posted_txn.id,
         "paid": str(payable),
         "remaining_debt": str(remaining_debt),
-    }
+    }, transaction_id=posted_txn.id)
+    db.commit()
+    return response
 
