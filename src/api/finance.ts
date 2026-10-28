@@ -1,4 +1,5 @@
 import { Decimal } from 'decimal.js';
+import { withFinanceRequestKey } from '../lib/financeRequests';
 import { v4 as uuidv4 } from 'uuid';
 import { logEvent } from '../lib/logger';
 import { FinanceEntry } from '../types/pos';
@@ -556,19 +557,16 @@ export const repay_investor_async = async (
   const amountDec = new Decimal(amount || '0');
   if (amountDec.lte(0)) throw new Error('Məbləğ düzgün deyil');
 
-  const res = await apiRequest<any>('/api/v1/finance/repay-investor', {
-    method: 'POST',
-    tenantId: tenant_id,
-    body: {
-      amount: amountDec.toString(),
-      pay_from,
-      description: description || 'İnvestora ödəniş',
-    },
-  });
-
-  const now = new Date().toISOString();
-  const paid = new Decimal(String(res?.paid ?? amountDec.toString()));
-  pushFinanceLocalEntries(tenant_id, [
+  return withFinanceRequestKey(tenant_id, created_by, 'investor_repayment', {
+    amount: amountDec.toString(), pay_from, description: description || 'İnvestora ödəniş',
+  }, async (idempotencyKey) => {
+    const res = await apiRequest<any>('/api/v1/finance/repay-investor', {
+      method: 'POST', tenantId: tenant_id,
+      body: { amount: amountDec.toString(), pay_from, description: description || 'İnvestora ödəniş', idempotency_key: idempotencyKey },
+    });
+    const now = new Date().toISOString();
+    const paid = new Decimal(String(res?.paid ?? amountDec.toString()));
+    if (res?.status !== 'pending_approval' && !res?.replayed) pushFinanceLocalEntries(tenant_id, [
     {
       id: String(res?.payment_entry_id || uuidv4()),
       tenant_id,
@@ -591,16 +589,20 @@ export const repay_investor_async = async (
       created_at: now,
       is_deleted: false,
     },
-  ]);
-  if (typeof window !== 'undefined') {
+    ]);
+    if (res?.status !== 'pending_approval' && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, repayment: true, amount: paid.toString() } }));
-  }
+    }
 
-  return {
+    return {
     success: true,
     paid: paid.toString(),
-    remaining_debt: String(res?.remaining_debt ?? get_investor_summary(tenant_id).debt_remaining),
-  };
+    remaining_debt: String(res?.remaining_debt ?? '0'),
+    transaction_id: res?.transaction_id,
+    status: res?.status,
+    replayed: Boolean(res?.replayed),
+    };
+  });
 };
 
 // FUNKSIYA: soft_delete_finance
@@ -720,6 +722,7 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
     source: normalizeSource(String(r.source || 'cash')),
     description: String(r.description || ''),
     created_at: String(r.created_at || new Date().toISOString()),
+    source_kind: r.source_kind || undefined,
     is_deleted: false,
   }));
   const merged = mergeFinanceLocalWithServer(tenant_id, mapped);
@@ -1022,6 +1025,9 @@ export type FinanceLedgerTransaction = {
   related_order_id?: string | null;
   discount_amount?: string | null;
   discount_reason?: string | null;
+  bank_commission?: string | null;
+  total_debit?: string | null;
+  fee_transaction_id?: string | null;
 };
 
 export type FinanceLedgerEntry = {
@@ -1183,6 +1189,9 @@ const mapFinanceLedgerTransaction = (row: any): FinanceLedgerTransaction => ({
   related_order_id: row.related_order_id ?? null,
   discount_amount: row.discount_amount ?? null,
   discount_reason: row.discount_reason ?? null,
+  bank_commission: row.bank_commission ?? null,
+  total_debit: row.total_debit ?? null,
+  fee_transaction_id: row.fee_transaction_id ?? null,
 });
 
 export const fetch_finance_ledger_transactions_page = async (
@@ -1364,6 +1373,9 @@ export const fetch_finance_pending_approvals = async (tenant_id: string): Promis
     posted_at: row.posted_at ?? null,
     reversed_at: row.reversed_at ?? null,
     legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
+    bank_commission: row.bank_commission ?? null,
+    total_debit: row.total_debit ?? null,
+    fee_transaction_id: row.fee_transaction_id ?? null,
   }));
 };
 
@@ -1419,6 +1431,7 @@ export const create_finance_ledger_transaction_async = async (
     reference?: string;
     note?: string;
     requires_approval?: boolean;
+    idempotency_key?: string;
   },
   created_by = 'admin',
 ) => {
@@ -1459,15 +1472,15 @@ export const create_finance_ledger_transaction_async = async (
   }
   const categoryLabel = payload.category ? financeCategoryLabelFromValue(payload.category) : payload.category;
   const categoryCode = payload.category_code || (payload.category ? financeCategoryCodeFromValue(payload.category) || undefined : undefined);
-  return apiRequest<any>('/api/v1/finance/ledger/transactions', {
-    method: 'POST',
-    tenantId: tenant_id,
-    body: {
+  const request = {
       ...payload,
       category: categoryLabel,
       category_code: categoryCode,
-    },
-  });
+  };
+  return withFinanceRequestKey(tenant_id, created_by, String(payload.transaction_type || 'ledger_transaction'), request,
+    (idempotencyKey) => apiRequest<any>('/api/v1/finance/ledger/transactions', {
+      method: 'POST', tenantId: tenant_id, body: { ...request, idempotency_key: idempotencyKey },
+    }));
 };
 
 export const fetch_finance_reconciliations = async (tenant_id: string, limit = 100): Promise<FinanceReconciliation[]> => {
@@ -1609,6 +1622,7 @@ export const create_finance_entry_async = async (
   description: string,
   created_by: string,
   include_bank_commission?: boolean,
+  counterparty?: string,
 ) => {
   const categoryLabel = financeCategoryLabelFromValue(category);
   const categoryCode = financeCategoryCodeFromValue(category);
@@ -1616,10 +1630,7 @@ export const create_finance_entry_async = async (
     return create_finance_entry(tenant_id, type, categoryLabel, amount, source, description, created_by, include_bank_commission);
   }
 
-  const data = await apiRequest<any>('/api/v1/finance/entry', {
-    method: 'POST',
-    tenantId: tenant_id,
-    body: {
+  const body = {
       type,
       category: categoryLabel,
       category_code: categoryCode,
@@ -1627,7 +1638,11 @@ export const create_finance_entry_async = async (
       amount,
       description,
       include_bank_commission,
-    },
+      counterparty: counterparty || undefined,
+  };
+  return withFinanceRequestKey(tenant_id, created_by, 'entry', body, async (idempotencyKey) => {
+  const data = await apiRequest<any>('/api/v1/finance/entry', {
+    method: 'POST', tenantId: tenant_id, body: { ...body, idempotency_key: idempotencyKey },
   });
 
   const now = new Date().toISOString();
@@ -1677,7 +1692,8 @@ export const create_finance_entry_async = async (
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, type, category, amount, source } }));
   }
-  return data;
+  return { ...data, replayed: Boolean(data?.replayed) };
+  });
 };
 
 export const transfer_funds_async = async (
@@ -1694,9 +1710,11 @@ export const transfer_funds_async = async (
   transferred_by: string,
 ) => {
   if (!isBackendEnabled()) {
-    return transfer_funds(tenant_id, direction, amount, commission, transferred_by);
+    const result = transfer_funds(tenant_id, direction, amount, commission, transferred_by);
+    return { ...result, status: 'posted', commission: result.applied_commission, total_debit: new Decimal(amount || 0).plus(result.applied_commission).toString() };
   }
 
+  return withFinanceRequestKey(tenant_id, transferred_by, 'transfer', { direction, amount: new Decimal(amount || '0').toString(), description: `Transfer: ${direction}` }, async (idempotencyKey) => {
   const data = await apiRequest<any>('/api/v1/finance/transfer', {
     method: 'POST',
     tenantId: tenant_id,
@@ -1704,6 +1722,8 @@ export const transfer_funds_async = async (
       direction,
       amount,
       description: `Transfer: ${direction}`,
+      allow_pending_approval: true,
+      idempotency_key: idempotencyKey,
     },
   });
 
@@ -1757,7 +1777,7 @@ export const transfer_funds_async = async (
       is_deleted: false,
     });
   }
-  pushFinanceLocalEntries(tenant_id, transferRows);
+  if (data?.status !== 'pending_approval' && !data?.replayed) pushFinanceLocalEntries(tenant_id, transferRows);
 
   logEvent(transferred_by, 'FINANCE_TRANSFER', {
     tenant_id,
@@ -1770,8 +1790,7 @@ export const transfer_funds_async = async (
     window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, direction, amount, commission: data?.commission || commission } }));
   }
 
-  return {
-    success: true,
-    applied_commission: String(data?.commission ?? commission ?? '0'),
-  };
+  return { success: true, transaction_id: data?.transaction_id, status: data?.status, replayed: Boolean(data?.replayed), commission: appliedCommission,
+    total_debit: String(data?.total_debit ?? transferAmountDec.plus(commissionDec).toString()), applied_commission: appliedCommission };
+  });
 };

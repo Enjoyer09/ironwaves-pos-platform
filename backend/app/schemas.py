@@ -213,7 +213,13 @@ class ShiftHandoverAcceptIn(BaseModel):
     actual_cash: Decimal
 
 
-class FinanceEntryIn(BaseModel):
+class FinanceRequestIn(BaseModel):
+    # Optional for old clients. New clients retain this key through retries.
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
+
+
+class FinanceEntryIn(FinanceRequestIn):
+    counterparty: str | None = Field(default=None, max_length=255)
     type: str
     category: str
     category_code: str | None = None
@@ -223,19 +229,20 @@ class FinanceEntryIn(BaseModel):
     include_bank_commission: bool = False
 
 
-class TransferIn(BaseModel):
+class TransferIn(FinanceRequestIn):
     direction: str
     amount: Decimal = Field(gt=0)
     description: str | None = None
+    allow_pending_approval: bool = False
 
 
-class InvestorRepayIn(BaseModel):
+class InvestorRepayIn(FinanceRequestIn):
     amount: Decimal = Field(gt=0)
     pay_from: str
     description: str | None = None
 
 
-class FinanceTransactionIn(BaseModel):
+class FinanceTransactionIn(FinanceRequestIn):
     transaction_type: str
     source_account_code: str | None = None
     destination_account_code: str | None = None

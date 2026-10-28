@@ -45,3 +45,11 @@ test('AP subledger export has a not-yet-due column and the aging basis', () => {
   const csv = buildCsv(report);
   assert.ok(csv.includes('Supplier A;100.00;0.00;0.00;0.00;70.00;0.00;170.00;Mixed: bills + posting date;2026-06-22'));
 });
+
+
+test('csv neutralises formulas preceded by whitespace', () => {
+  const csv = buildCsv({ title: 'test', fileBase: 'test', sections: [{ columns: ['value'], rows: [['  =1+1'], [' -1+2'], ['-12.50']] }] });
+  assert.match(csv, /'  =1\+1/);
+  assert.match(csv, /' -1\+2/);
+  assert.match(csv, /-12\.50/);
+});

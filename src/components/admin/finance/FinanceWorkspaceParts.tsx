@@ -54,7 +54,7 @@ export function FinanceSummaryStrip({
     { label: tx(lang, 'Seyf', 'Сейф', 'Safe'), value: balance.safe_balance, tone: 'violet' as const, icon: <ShieldCheck size={20} /> },
     { label: tx(lang, 'Aktiv Depozitlər', 'Активные депозиты', 'Active deposits'), value: balance.deposit_balance, tone: 'amber' as const, icon: <WalletCards size={20} /> },
     { label: tx(lang, 'Investor borcu', 'Долг инвестору', 'Investor liability'), value: investorDebt, tone: new Decimal(investorDebt || 0).gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <CreditCard size={20} /> },
-    { label: tx(lang, 'Bugünkü Net', 'Нетто сегодня', 'Today net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
+    { label: tx(lang, 'Seçilmiş dövrün net nəticəsi', 'Нетто за выбранный период', 'Selected period net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
     { label: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
   ];
   return (
@@ -80,14 +80,14 @@ export function FinanceSummaryStrip({
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {(showAllKpis ? cards : cards.slice(0, 4)).map((card) => <FinanceKpiCard key={card.label} {...card} />)}
       </div>
       <div className="mt-3 flex justify-end">
         <button
           type="button"
           onClick={() => setShowAllKpis((prev) => !prev)}
-          className="min-h-10 rounded-2xl border border-slate-700 px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500 hover:bg-slate-900"
+          className="min-h-11 rounded-2xl border border-slate-700 px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500 hover:bg-slate-900"
         >
           {showAllKpis
             ? tx(lang, 'Kompakt KPI', 'Компакт KPI', 'Compact KPI')
@@ -173,7 +173,7 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
   return (
     <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-3.5 md:p-4">
       <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-400">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
-      <div className="grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {actions.map((action) => (
           <button
             key={action.id}
@@ -329,7 +329,7 @@ export function FinanceField({
     <div className="field-stack form-card">
       <label className="field-label" htmlFor={htmlForId}>{label}</label>
       {children}
-      {helper ? <span className="field-hint">{helper}</span> : null}
+      {helper ? <span id={htmlForId ? `${htmlForId}-hint` : undefined} className="field-hint">{helper}</span> : null}
     </div>
   );
 }
@@ -512,6 +512,8 @@ export function TransactionDetailDrawer({
             <div className="mt-3"><FinanceStatusBadge status={txRow.status || 'posted'} lang={lang} /></div>
           </div>
           <FinanceMiniMetric label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
+          {new Decimal(txRow.bank_commission || 0).greaterThan(0) ? <FinanceMiniMetric label={tx(lang, 'Bank komissiyası', 'Банковская комиссия', 'Bank fee')} value={`${new Decimal(txRow.bank_commission || 0).toFixed(2)} ₼`} tone="amber" /> : null}
+          {txRow.total_debit ? <FinanceMiniMetric label={tx(lang, 'Ümumi çıxış', 'Общее списание', 'Total debit')} value={`${new Decimal(txRow.total_debit).toFixed(2)} ₼`} tone="rose" /> : null}
           <FinanceMiniMetric label={tx(lang, 'Haradan', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />
           <FinanceMiniMetric label={tx(lang, 'Hara', 'Куда', 'To')} value={accountName(txRow.destination_account)} tone="violet" />
         </div>

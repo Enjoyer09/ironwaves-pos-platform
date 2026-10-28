@@ -46,6 +46,11 @@ export function FinanceApprovalPreview({
               <div className="min-w-0">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">{transactionTypeLabel(row.transaction_type)}</div>
                 <div className="mt-1 text-lg font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
+                {new Decimal(row.bank_commission || 0).greaterThan(0) ? (
+                  <div className="mt-1 text-xs font-bold text-amber-200">
+                    {tx(lang, 'Komissiya', 'Комиссия', 'Fee')}: {new Decimal(row.bank_commission || 0).toFixed(2)} ₼ · {tx(lang, 'Ümumi çıxış', 'Всего списание', 'Total debit')}: {new Decimal(row.total_debit || 0).toFixed(2)} ₼
+                  </div>
+                ) : null}
                 <div className="mt-1 truncate text-sm text-slate-300">
                   {accountName(row.source_account)} → {accountName(row.destination_account)}
                 </div>
@@ -76,6 +81,7 @@ export function FinanceOverviewInsightsCard({
   lang,
   incoming,
   outgoing,
+  periodLabel,
   biggestExpenseAmount,
   pendingApprovalsCount,
   onExpense,
@@ -85,6 +91,7 @@ export function FinanceOverviewInsightsCard({
   lang: string;
   incoming: string;
   outgoing: string;
+  periodLabel: string;
   biggestExpenseAmount: string;
   pendingApprovalsCount: number;
   onExpense: () => void;
@@ -92,10 +99,10 @@ export function FinanceOverviewInsightsCard({
   onOpenLedger: () => void;
 }) {
   return (
-    <FinanceControlCard title={tx(lang, 'Bugünkü vəziyyət', 'Bugünkü vəziyyət', 'Bugünkü vəziyyət')} subtitle={tx(lang, 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar', 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar', 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar')}>
+    <FinanceControlCard title={tx(lang, 'Seçilmiş dövr', 'Выбранный период', 'Selected period')} subtitle={periodLabel}>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <FinanceMiniMetric label={tx(lang, 'Bugünkü mədaxil', 'Bugünkü mədaxil', 'Bugünkü mədaxil')} value={incoming} tone="emerald" />
-        <FinanceMiniMetric label={tx(lang, 'Bugünkü xərc', 'Bugünkü xərc', 'Bugünkü xərc')} value={outgoing} tone="rose" />
+        <FinanceMiniMetric label={tx(lang, 'Mədaxil', 'Поступления', 'Incoming')} value={incoming} tone="emerald" />
+        <FinanceMiniMetric label={tx(lang, 'Xərc', 'Расходы', 'Expenses')} value={outgoing} tone="rose" />
         <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Ən böyük xərc', 'Ən böyük xərc')} value={biggestExpenseAmount} tone="amber" />
         <FinanceMiniMetric label={tx(lang, 'Açıq təsdiqlər', 'Açıq təsdiqlər', 'Açıq təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
       </div>

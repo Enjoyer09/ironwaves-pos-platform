@@ -490,6 +490,30 @@ class FinanceTransaction(Base):
     supplier_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
+class FinanceOperationRequest(Base):
+    """Durable request identity and fee snapshot for new manual transfers."""
+
+    __tablename__ = "finance_operation_requests"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_finance_operation_tenant_key"),
+        UniqueConstraint("tenant_id", "transaction_id", name="uq_finance_operation_transaction"),
+        CheckConstraint("bank_commission >= 0", name="ck_finance_operation_commission_nonnegative"),
+        Index("ix_finance_operation_tenant_created", "tenant_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    operation_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    transaction_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("finance_transactions.id"), nullable=True)
+    bank_commission: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+    fee_transaction_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("finance_transactions.id"), nullable=True)
+    response_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class FinanceLedgerEntry(Base):
     __tablename__ = "finance_ledger_entries"
     __table_args__ = (

@@ -15,9 +15,9 @@ import app.gl.models  # noqa: F401
 from app.gl import bridge, shadow
 from app.gl.engine import ensure_chart
 from app.gl.legacy_migration import migrate_tenant, reconcile_dual_tenant
-from app.models import FinanceLedgerEntry, FinanceReconciliation, FinanceTransaction, Tenant
+from app.models import FinanceLedgerEntry, FinanceOperationRequest, FinanceReconciliation, FinanceTransaction, Setting, Tenant
 from app.routers import finance
-from app.schemas import FinanceReconciliationIn, FinanceTransactionIn
+from app.schemas import FinanceReconciliationIn, FinanceTransactionIn, TransferIn
 from app.services import finance_service as fs
 
 pytestmark = pytest.mark.integration
@@ -155,3 +155,52 @@ def test_opposing_wallet_transfers_use_consistent_lock_order(sessions, tenant_id
         futures = [executor.submit(move, "cash", "safe"), executor.submit(move, "safe", "cash")]
         assert [f.result(timeout=20) for f in futures] == ["posted", "posted"]
     assert_balanced(sessions, tenant_id, "2000")
+
+
+def test_concurrent_same_idempotency_key_posts_transfer_once(sessions, tenant_id):
+    with sessions() as db:
+        tenant = db.get(Tenant, tenant_id)
+        db.add(Setting(tenant_id=tenant_id, key="bank_commission", value='{"card_transfer_percent":1}'))
+        fs.post_finance_transaction(db, tenant_id=tenant_id, transaction_type="investor_injection", amount=D("2000"),
+                                    source_code="investor", destination_code="card", created_by="setup")
+        db.commit()
+    barrier = threading.Barrier(2)
+
+    def submit():
+        with sessions() as db:
+            tenant = db.get(Tenant, tenant_id)
+            barrier.wait(timeout=10)
+            result = finance.transfer(TransferIn(direction="card_to_cash", amount="100", allow_pending_approval=True,
+                idempotency_key="concurrent-transfer-key-0001"), db, tenant, MAKER)
+            return result["transaction_id"], bool(result.get("replayed"))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = [future.result(timeout=20) for future in [executor.submit(submit), executor.submit(submit)]]
+    assert len({transaction_id for transaction_id, _ in results}) == 1
+    with sessions() as db:
+        assert db.query(FinanceOperationRequest).filter_by(tenant_id=tenant_id, idempotency_key="concurrent-transfer-key-0001").count() == 1
+        assert db.query(FinanceTransaction).filter_by(tenant_id=tenant_id, transaction_type="internal_transfer").count() == 1
+        assert db.query(FinanceTransaction).filter_by(tenant_id=tenant_id, category="Bank Komissiyası").count() == 1
+
+
+def test_concurrent_same_key_different_payload_has_one_winner(sessions, tenant_id):
+    barrier = threading.Barrier(2)
+
+    def submit(amount):
+        with sessions() as db:
+            tenant = db.get(Tenant, tenant_id)
+            barrier.wait(timeout=10)
+            try:
+                return finance.create_ledger_transaction(FinanceTransactionIn(transaction_type="expense", source_account_code="cash",
+                    amount=amount, idempotency_key="concurrent-conflict-key-0001"), db, tenant, MAKER)["transaction_id"]
+            except HTTPException as error:
+                db.rollback()
+                assert error.status_code == 409
+                return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = [future.result(timeout=20) for future in [executor.submit(submit, "10"), executor.submit(submit, "20")]]
+    assert results.count("conflict") == 1
+    with sessions() as db:
+        assert db.query(FinanceOperationRequest).filter_by(tenant_id=tenant_id, idempotency_key="concurrent-conflict-key-0001").count() == 1
+        assert db.query(FinanceTransaction).filter_by(tenant_id=tenant_id, transaction_type="expense").count() == 1

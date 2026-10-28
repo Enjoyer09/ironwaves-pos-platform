@@ -24,11 +24,11 @@ export type ExportReport = {
 
 const NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
 
-function csvCell(value: ExportCell): string {
+export function csvCell(value: ExportCell): string {
   if (value === null || value === undefined) return '';
   let text = String(value);
   // Spreadsheet formula injection guard; plain numbers (incl. negatives) stay numeric.
-  if (/^[=+\-@\t\r]/.test(text) && !NUMERIC_TEXT.test(text)) text = `'${text}`;
+  if (/^\s*[=+\-@\t\r]/.test(text) && !NUMERIC_TEXT.test(text)) text = `'${text}`;
   if (/[";\n\r]/.test(text)) text = `"${text.replace(/"/g, '""')}"`;
   return text;
 }
