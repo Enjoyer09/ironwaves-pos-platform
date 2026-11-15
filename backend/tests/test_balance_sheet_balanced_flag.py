@@ -7,7 +7,7 @@ def test_balance_sheet_balanced_uses_ledger_equity(monkeypatch):
     monkeypatch.setattr(
         finance,
         "_ledger_balances_snapshot",
-        lambda *_: {
+        lambda *_, **__: {
             "cash": Decimal("100.00"),
             "card": Decimal("0.00"),
             "safe": Decimal("0.00"),

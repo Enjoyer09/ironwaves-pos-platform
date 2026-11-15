@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from inspect import signature
 from zoneinfo import ZoneInfo
 from decimal import Decimal
 from threading import Lock
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
@@ -2096,14 +2096,24 @@ def create_finance_anomaly_snapshot(
 
 
 @router.get("/entries")
-def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user), *, date_from: str | None = None, date_to: str | None = None):
     _ensure_finance_read_access(user)
-    entries = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).order_by(FinanceEntry.created_at.desc()).all()
+    start, end = _period_bounds(date_from, date_to)
+    entries_query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id)
+    if start is not None:
+        entries_query = entries_query.filter(FinanceEntry.created_at >= start)
+    if end is not None:
+        entries_query = entries_query.filter(FinanceEntry.created_at < end)
+    entries = entries_query.order_by(FinanceEntry.created_at.desc()).all()
     supplier_query = db.query(FinanceTransaction).filter(
         FinanceTransaction.tenant_id == tenant.id,
         FinanceTransaction.transaction_type == "supplier_payment",
         FinanceTransaction.status == "posted",
     )
+    if start is not None:
+        supplier_query = supplier_query.filter(FinanceTransaction.created_at >= start)
+    if end is not None:
+        supplier_query = supplier_query.filter(FinanceTransaction.created_at < end)
     supplier_transactions = supplier_query.order_by(FinanceTransaction.created_at.desc()).all()
     supplier_by_id = {row.id: row for row in supplier_transactions}
     account_codes = {account.id: account.code for account in _finance_accounts_by_code(db, tenant.id).values()}
@@ -2143,10 +2153,15 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
     # Manual entries remain journal-backed when legacy wallet sync is disabled.
     # Use their immutable audit references so unrelated POS and supplier events
     # are not mistaken for manual activity or duplicated.
-    audit_rows = db.query(AuditLog.action, AuditLog.details).filter(
+    audit_query = db.query(AuditLog.action, AuditLog.details).filter(
         AuditLog.tenant_id == tenant.id,
         AuditLog.action.in_(["FINANCE_ENTRY_CREATED", "FINANCE_LEGACY_WALLET_SYNC_SKIPPED"]),
-    ).all()
+    )
+    if start is not None:
+        audit_query = audit_query.filter(AuditLog.created_at >= start)
+    if end is not None:
+        audit_query = audit_query.filter(AuditLog.created_at < end)
+    audit_rows = audit_query.all()
     manual_ids = set()
     fee_candidates = set()
     for action, details in audit_rows:
@@ -2196,8 +2211,69 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
                 "amount": _money(txn.amount), "description": txn.note or "",
                 "created_by": txn.created_by, "created_at": _iso_utc(txn.created_at),
             })
-    rows.sort(key=lambda row: row["created_at"] or "", reverse=True)
+    rows.sort(key=lambda row: (row["created_at"] or "", row["id"]), reverse=True)
     return rows
+
+
+@router.get("/entries/period")
+def list_entries_period(
+    date_from: str,
+    date_to: str,
+    limit: int = Query(default=100, ge=0, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    _ensure_finance_read_access(user)
+    try:
+        first, last = date.fromisoformat(date_from), date.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid finance period")
+    if first > last or (last - first).days > 366:
+        raise HTTPException(status_code=400, detail="Finance period must be at most 366 days")
+    rows = list_entries(db, tenant, user, date_from=date_from, date_to=date_to)
+    incoming = outgoing = deposits = Decimal("0")
+    count = 0
+    biggest_expense = None
+    expense_total = Decimal("0")
+    expense_count = 0
+    expense_categories: dict[str, Decimal] = {}
+    excluded = {"internal_transfer", "founder_investment", "investor_liability", "borrowed_to_cash_mirror", "borrowed_funds_in"}
+    for row in rows:
+        category = _normalize_text(row.get("category"))
+        description = _normalize_text(row.get("description"))
+        source = _normalize_text(row.get("source"))
+        amount = Decimal(str(row["amount"]))
+        if row["type"] == "out":
+            expense_total += amount
+            expense_count += 1
+            label = row.get("category") or "Digər Xərc"
+            expense_categories[label] = expense_categories.get(label, Decimal("0")) + amount
+        is_deposit = "depozit" in category or "depozit" in description or "deposit" in description
+        if row["type"] == "in" and is_deposit:
+            deposits += amount
+        if (row.get("source_kind") == "supplier_payment" or
+            _finance_category_code(row.get("category")) in excluded or
+            "kassa acilisi" in category or is_deposit or source in {"investor", "debt"} or
+            "auto liability mirror" in description or "auto mirror" in description or "shift opening cash" in description):
+            continue
+        count += 1
+        if row["type"] == "in":
+            incoming += amount
+        else:
+            outgoing += amount
+            if biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])):
+                biggest_expense = row
+    return {
+        "rows": rows[offset:offset + limit], "total": len(rows),
+        "summary": {"incoming": _money(incoming), "outgoing": _money(outgoing),
+                    "net": _money(incoming - outgoing), "deposits": _money(deposits),
+                    "entries_count": count, "biggest_expense": biggest_expense,
+                    "expenses": {"total": _money(expense_total), "count": expense_count,
+                                 "by_category": [{"category": key, "amount": _money(value)}
+                                                 for key, value in expense_categories.items()]}},
+    }
 
 
 @router.post("/entry")

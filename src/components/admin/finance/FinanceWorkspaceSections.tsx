@@ -464,7 +464,7 @@ export function FinanceLedgerTab({
         </div>
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
-        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Əməliyyat sətrinə klikləyəndə audit, approval və reversal tarixçəsi açılır.', 'debit/credit записей загружено. Клик по transaction открывает drawer с entries, audit и reversal history.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
+        {ledgerEntries.length} {tx(lang, 'debet/kredit yazılışı yüklənib. Əməliyyata klikləyəndə audit, təsdiq və əks yazılış tarixçəsi açılır.', 'Загружено дебетовых/кредитовых проводок. Нажмите на операцию, чтобы увидеть аудит, подтверждения и сторно.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 """Manual finance controls, isolated from production and the POS posting path."""
 from decimal import Decimal
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 import json
 import uuid
@@ -224,6 +225,10 @@ def test_supplier_payment_projection_is_visible_once_and_not_as_a_profit_expense
     projected = [row for row in rows if row["id"] == txn.id]
     assert len(projected) == 1 and projected[0]["type"] == "out"
     assert projected[0]["source"] == "cash" and projected[0]["amount"] == "80.00" and projected[0]["source_kind"] == "supplier_payment"
+    today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
+    period = finance.list_entries_period(today, today, 10, 0, db, tenant, CHECKER)
+    assert period['summary']['outgoing'] == '0.00'
+    assert period['summary']['entries_count'] == 0
     # Once the legacy wallet has the canonical mirror, the projection must not duplicate it.
     db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Təchizatçı Ödənişi", source="cash", amount=D("80"),
                         description=f"Invoice payment | Ledger mirror: {txn.id}", created_by="maker"))
@@ -441,3 +446,19 @@ def test_finance_reads_do_not_create_accounts_for_empty_tenant(ctx):
     finance.get_finance_reports_overview(None, None, db, tenant, CHECKER)
 
     assert db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).count() == 0
+
+
+def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
+    db, tenant = ctx
+    for index, amount in enumerate(("10", "20", "30")):
+        finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash',
+                             amount=amount, description=f'period expense {index}'), db, tenant, MAKER)
+    today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
+    first = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER)
+    second = finance.list_entries_period(today, today, 2, 2, db, tenant, CHECKER)
+    assert first['total'] == 3
+    assert [row['id'] for row in first['rows']] != [row['id'] for row in second['rows']]
+    assert len(first['rows']) == 2 and len(second['rows']) == 1
+    assert first['summary']['outgoing'] == '60.00'
+    assert first['summary']['entries_count'] == 3
+    assert first['summary']['expenses']['count'] == 3

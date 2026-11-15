@@ -209,8 +209,9 @@ export function FinanceWorkspaceTabs({ lang = 'az', active, onChange }: { lang?:
   ];
   return (
     <div
+      id="finance-workspace-tabs"
       role="tablist"
-      aria-label="Finance workspace tabs"
+      aria-label={tx(lang, 'Maliyyə iş sahəsi bölmələri', 'Разделы финансов', 'Finance workspace tabs')}
       className="flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2"
     >
       {tabs.map(([tab, label]) => (
@@ -440,7 +441,7 @@ export function TransactionDetailDrawer({
     { label: tx(lang, 'Yaradıldı', 'Создано', 'Created'), by: txRow.created_by, at: txRow.created_at, tone: 'sky' as FinanceStatusTone, active: true },
     { label: tx(lang, 'Təsdiqləndi', 'Подтверждено', 'Approved'), by: txRow.approved_by, at: txRow.approved_at, tone: 'emerald' as FinanceStatusTone, active: Boolean(txRow.approved_at || txRow.approved_by) },
     { label: tx(lang, 'Uçota alındı', 'Проведено в журнале', 'Posted to ledger'), by: txRow.posted_by, at: txRow.posted_at, tone: 'emerald' as FinanceStatusTone, active: txRow.status === 'posted' || txRow.status === 'reversed' || Boolean(txRow.posted_at) },
-    { label: tx(lang, 'Reversal edildi', 'Reversed', 'Reversed'), by: txRow.reversed_by, at: txRow.reversed_at, tone: 'rose' as FinanceStatusTone, active: txRow.status === 'reversed' || Boolean(txRow.reversed_at) },
+    { label: tx(lang, 'Əks yazılış edildi', 'Сторнировано', 'Reversed'), by: txRow.reversed_by, at: txRow.reversed_at, tone: 'rose' as FinanceStatusTone, active: txRow.status === 'reversed' || Boolean(txRow.reversed_at) },
   ];
   const runAction = async (mode: 'approve' | 'reject' | 'reverse', handler: () => Promise<void>) => {
     if (actionBusy) return;
@@ -459,7 +460,7 @@ export function TransactionDetailDrawer({
       aria-labelledby="finance-transaction-drawer-title"
       className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm"
     >
-      <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close transaction drawer" />
+      <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label={tx(lang, 'Əməliyyat detalını bağla', 'Закрыть детали операции', 'Close transaction details')} />
       <aside ref={drawerRef} className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-[0_0_80px_rgba(0,0,0,0.55)]">
         <div className="sticky top-0 z-10 -mx-5 -mt-5 border-b border-slate-800 bg-slate-950/95 p-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
@@ -597,7 +598,7 @@ export function TransactionDetailDrawer({
         </section>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Audit tarixçəsi', 'Audit trail', 'Audit trail')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Audit tarixçəsi', 'История аудита', 'Audit trail')}</div>
           <div className="space-y-3">
             {auditDetails.map((row) => (
               <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3">

@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { withFinanceRequestKey } from '../lib/financeRequests';
+import { financeBusinessDate } from '../lib/time';
 import { v4 as uuidv4 } from 'uuid';
 import { logEvent } from '../lib/logger';
 import { FinanceEntry } from '../types/pos';
@@ -730,6 +731,51 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
   return mapped;
 };
 
+export type FinanceActivityPeriod = {
+  rows: FinanceEntry[];
+  total: number;
+  summary: {
+    incoming: string;
+    outgoing: string;
+    net: string;
+    deposits: string;
+    entries_count: number;
+    biggest_expense: FinanceEntry | null;
+    expenses: { total: string; count: number; by_category: Array<{ category: string; amount: string }> };
+  };
+};
+
+export const fetch_finance_activity_period = async (
+  tenant_id: string, date_from: string, date_to: string, limit = 0, offset = 0,
+): Promise<FinanceActivityPeriod> => {
+  if (!isBackendEnabled()) {
+    const rows = get_finance_entries(tenant_id).filter((row) => {
+      const day = financeBusinessDate(row.created_at);
+      return day !== null && day >= date_from && day <= date_to;
+    });
+    return { rows: rows.slice(offset, offset + limit), total: rows.length,
+      summary: { incoming: '0', outgoing: '0', net: '0', deposits: '0', entries_count: 0, biggest_expense: null,
+        expenses: { total: '0', count: 0, by_category: [] } } };
+  }
+  const params = new URLSearchParams({ date_from, date_to, limit: String(limit), offset: String(offset) });
+  const data = await apiRequest<any>(`/api/v1/finance/entries/period?${params}`, { method: 'GET', tenantId: tenant_id });
+  const mapRow = (row: any): FinanceEntry & { source_kind?: string } => ({
+    id: String(row.id), tenant_id, type: String(row.type) as 'in' | 'out',
+    category: String(row.category || ''), amount: String(row.amount || '0'),
+    source: normalizeSource(String(row.source || 'cash')),
+    description: String(row.description || ''), created_at: String(row.created_at || ''),
+    source_kind: row.source_kind || undefined, is_deleted: false,
+  });
+  return { rows: (data.rows || []).map(mapRow), total: Number(data.total || 0),
+    summary: { incoming: String(data.summary?.incoming || '0'), outgoing: String(data.summary?.outgoing || '0'),
+      net: String(data.summary?.net || '0'), deposits: String(data.summary?.deposits || '0'),
+      entries_count: Number(data.summary?.entries_count || 0),
+      biggest_expense: data.summary?.biggest_expense ? mapRow(data.summary.biggest_expense) : null,
+      expenses: { total: String(data.summary?.expenses?.total || '0'),
+        count: Number(data.summary?.expenses?.count || 0),
+        by_category: data.summary?.expenses?.by_category || [] } } };
+};
+
 export type PeriodExpensesSummary = {
   total: string;
   totalNum: number;
@@ -743,6 +789,23 @@ export const get_period_expenses_summary = async (
   date_from?: string,
   date_to?: string
 ): Promise<PeriodExpensesSummary> => {
+  if (isBackendEnabled() && date_from && date_to) {
+    const first = financeBusinessDate(date_from);
+    const last = financeBusinessDate(new Date(new Date(date_to).getTime() - 1).toISOString());
+    if (first && last) {
+      const period = await fetch_finance_activity_period(tenant_id, first, last);
+      const totalDec = new Decimal(period.summary.expenses.total);
+      const totalNum = totalDec.toNumber();
+      return { total: totalDec.toFixed(2), totalNum,
+        count: period.summary.expenses.count, entries: [],
+        byCategory: period.summary.expenses.by_category.map(({ category, amount }) => {
+          const amt = new Decimal(amount);
+          const amountNum = amt.toNumber();
+          return { category, amount: amountNum, formattedAmount: amt.toFixed(2),
+            share: totalNum > 0 ? Math.round(amountNum / totalNum * 100) : 0 };
+        }).sort((a, b) => b.amount - a.amount) };
+    }
+  }
   let entries: FinanceEntry[] = [];
   try {
     if (isBackendEnabled()) {

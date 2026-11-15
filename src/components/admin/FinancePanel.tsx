@@ -10,7 +10,7 @@ import {
   fetch_finance_alerts,
   fetch_finance_balances,
   fetch_finance_summary,
-  fetch_finance_entries,
+  fetch_finance_activity_period,
   fetch_finance_ledger_accounts,
   fetch_finance_ledger_entries,
   fetch_finance_ledger_transactions_page,
@@ -22,6 +22,7 @@ import {
   financeCategoryCodeFromValue,
   reject_finance_transaction_async,
   type FinanceAnomalies,
+  type FinanceActivityPeriod,
   type FinanceAlert,
   type FinanceReportsOverview,
   type FinanceSalesLedgerReconciliationReport,
@@ -301,6 +302,8 @@ export default function FinancePanel() {
   const [serverFinanceAlerts, setServerFinanceAlerts] = useState<FinanceAlert[] | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
   const [entriesLoaded, setEntriesLoaded] = useState(false);
+  const [activitySummary, setActivitySummary] = useState<FinanceActivityPeriod['summary'] | null>(null);
+  const activityPeriodKeyRef = useRef('');
   const [ledgerAccounts, setLedgerAccounts] = useState<FinanceLedgerAccount[]>([]);
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
@@ -492,15 +495,11 @@ export default function FinancePanel() {
 
       const shouldFetchPending = !summary?.pending_approvals_preview?.length;
       const shouldFetchAlerts = !summary?.alerts?.length;
-      const [entriesResult, settingsResult, accountsResult, pendingResult, alertsResult] = await Promise.allSettled([
-        fetch_finance_entries(tenant_id), get_settings_live(tenant_id), fetch_finance_ledger_accounts(tenant_id),
+      const [settingsResult, accountsResult, pendingResult, alertsResult] = await Promise.allSettled([
+        get_settings_live(tenant_id), fetch_finance_ledger_accounts(tenant_id),
         shouldFetchPending ? fetch_finance_pending_approvals(tenant_id) : Promise.resolve([]),
         shouldFetchAlerts ? fetch_finance_alerts(tenant_id) : Promise.resolve(null),
       ]);
-      if (entriesResult.status === 'fulfilled') {
-        setEntries(entriesResult.value);
-        setEntriesLoaded(true);
-      } else hasLoadWarning = true;
       if (accountsResult.status === 'fulfilled') setLedgerAccounts(accountsResult.value);
       else hasLoadWarning = true;
       const pendingRows = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
@@ -565,6 +564,30 @@ export default function FinancePanel() {
       }
     };
   }, [tenant_id, reloadFinance]);
+
+  useEffect(() => {
+    if (!fromDate || !toDate || fromDate > toDate) return;
+    if (!isBackendEnabled()) {
+      setEntries(get_finance_entries(tenant_id));
+      setEntriesLoaded(true);
+      return;
+    }
+    let alive = true;
+    const periodKey = `${tenant_id}:${fromDate}:${toDate}`;
+    if (activityPeriodKeyRef.current !== periodKey) {
+      setEntriesLoaded(false);
+      setActivitySummary(null);
+    }
+    void fetch_finance_activity_period(tenant_id, fromDate, toDate).then((period) => {
+      if (!alive) return;
+      activityPeriodKeyRef.current = periodKey;
+      setActivitySummary(period.summary);
+      setEntriesLoaded(true);
+    }).catch(() => {
+      if (alive) setFinanceLoadWarning(true);
+    });
+    return () => { alive = false; };
+  }, [tenant_id, fromDate, toDate, refreshTrigger]);
 
   // Lazy load tab-specific data: Overview reports
   useEffect(() => {
@@ -721,6 +744,7 @@ export default function FinancePanel() {
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [entries, fromDate, toDate]);
+  const currentActivitySummary = activityPeriodKeyRef.current === `${tenant_id}:${fromDate}:${toDate}` ? activitySummary : null;
 
   const visibleEntries = useMemo(() => filteredEntries.slice(0, ledgerPageSize), [filteredEntries, ledgerPageSize]);
   const ledgerAccountByCode = useMemo(() => {
@@ -867,7 +891,7 @@ export default function FinancePanel() {
   );
 
   const depositsInRange = useMemo(
-    () =>
+    () => currentActivitySummary && isBackendEnabled() ? new Decimal(currentActivitySummary.deposits) :
       filteredEntries.reduce((sum: Decimal, entry: any) => {
         const category = normalizeFinanceText(entry?.category);
         const description = normalizeFinanceText(entry?.description);
@@ -877,10 +901,17 @@ export default function FinancePanel() {
         }
         return sum;
       }, new Decimal(0)),
-    [filteredEntries],
+    [filteredEntries, currentActivitySummary],
   );
 
   const financeSummary = useMemo(() => {
+    if (currentActivitySummary && isBackendEnabled()) return {
+      incoming: new Decimal(currentActivitySummary.incoming),
+      outgoing: new Decimal(currentActivitySummary.outgoing),
+      net: new Decimal(currentActivitySummary.net),
+      entriesCount: currentActivitySummary.entries_count,
+      biggestExpense: currentActivitySummary.biggest_expense,
+    };
     const incoming = operationalEntries
       .filter((e: any) => e.type === 'in')
       .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
@@ -901,7 +932,7 @@ export default function FinancePanel() {
       entriesCount: operationalEntries.length,
       biggestExpense,
     };
-  }, [operationalEntries]);
+  }, [operationalEntries, currentActivitySummary]);
 
   const financeHealthTone = useMemo(() => {
     if (financeSummary.net.gte(0)) return 'text-emerald-300';
@@ -1131,13 +1162,32 @@ export default function FinancePanel() {
       return;
     }
 
-    if (!filteredEntries.length) {
+    let exportEntries = filteredEntries;
+    if (isBackendEnabled()) {
+      try {
+        const all: typeof filteredEntries = [];
+        let expectedTotal: number | null = null;
+        do {
+          const page = await fetch_finance_activity_period(tenant_id, fromDate, toDate, 500, all.length);
+          if (expectedTotal !== null && page.total !== expectedTotal) throw new Error('Activity changed during export');
+          expectedTotal = page.total;
+          if (!page.rows.length && all.length < expectedTotal) throw new Error('Incomplete activity export');
+          all.push(...page.rows);
+        } while (all.length < (expectedTotal ?? 0));
+        if (new Set(all.map((row) => row.id)).size !== all.length) throw new Error('Duplicate activity export row');
+        exportEntries = all;
+      } catch {
+        notify('error', tx(lang, 'Giriş-çıxış ixracı tamamlanmadı. Yenidən cəhd edin.', 'Экспорт операций не завершён. Повторите попытку.', 'Activity export did not complete. Please retry.'));
+        return;
+      }
+    }
+    if (!exportEntries.length) {
       notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
       return;
     }
 
     const header = ['created_at', 'direction', 'category', 'source', 'amount', 'counterparty', 'description'];
-    const rows = filteredEntries.map((e: any) => [
+    const rows = exportEntries.map((e: any) => [
       esc(e.created_at),
       esc(e.type === 'in' ? tx(lang, 'Giriş', 'Приход', 'Incoming') : tx(lang, 'Çıxış', 'Расход', 'Outgoing')),
       esc(e.category),
@@ -1267,7 +1317,7 @@ export default function FinancePanel() {
       setTransferCommission('0');
       await reloadFinance(true);
       notify('success', result?.status === 'pending_approval'
-        ? tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на approval', 'Transfer sent for approval')
+        ? tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на подтверждение', 'Transfer sent for approval')
         : tx(lang, 'Transfer tamamlandı', 'Перевод выполнен'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Transfer alınmadı', 'Перевод не выполнен'));
@@ -1308,7 +1358,7 @@ export default function FinancePanel() {
           destination_account_code: 'investor',
           amount: payable.toString(),
           category: 'İnvestora Geri Ödəniş',
-          note: repayNote || 'İnvestora ödəniş approval request',
+          note: repayNote || 'İnvestor ödənişi üçün təsdiq sorğusu',
           requires_approval: financePolicyConfig.investor_repayment_requires_approval,
         },
         user?.username || 'admin',
@@ -1451,7 +1501,7 @@ export default function FinancePanel() {
     ...(pendingApprovals.length > 0
       ? [{
           id: 'pending-approvals',
-          title: tx(lang, 'Təsdiq gözləyən əməliyyatlar', 'Операции ожидают approval', 'Pending approvals'),
+          title: tx(lang, 'Təsdiq gözləyən əməliyyatlar', 'Операции ожидают подтверждения', 'Pending approvals'),
           body: `${pendingApprovals.length} ${tx(lang, 'maliyyə əməliyyatı təsdiq gözləyir', 'финансовых операций ожидают подтверждения', 'finance transactions waiting for approval')}`,
           tone: 'amber' as const,
           action: tx(lang, 'Təsdiqlə', 'Подтвердить', 'Approve'),
@@ -1804,7 +1854,7 @@ export default function FinancePanel() {
       </div>
       {financePolicyConfig.investor_repayment_requires_approval ? (
         <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
-          {tx(lang, 'Investor ödənişi nəzarətli əməliyyatdır. Əvvəl təsdiq qutusuna düşəcək, sonra balanslar yenilənəcək.', 'Выплата инвестору — контролируемая операция. Request попадет в approval inbox и только после подтверждения обновит балансы.', 'Investor repayment is a controlled operation. The request goes to approval inbox first; balances update after approval.')}
+          {tx(lang, 'Investor ödənişi nəzarətli əməliyyatdır. Əvvəl təsdiq qutusuna düşəcək, sonra balanslar yenilənəcək.', 'Выплата инвестору — контролируемая операция. Запрос поступит на подтверждение; балансы обновятся после одобрения.', 'Investor repayment is a controlled operation. The request goes to approval inbox first; balances update after approval.')}
         </div>
       ) : (
         <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-950/25 p-4 text-sm font-bold text-emerald-100">
@@ -2115,12 +2165,12 @@ export default function FinancePanel() {
       subtitle: tx(lang, 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Открытые депозиты столов учитываются отдельно как обязательство.', 'Open table deposits are tracked separately as liabilities.'),
     },
     transfers: {
-      title: tx(lang, 'Transferlər', 'Transferlər', 'Transfers'),
-      subtitle: tx(lang, 'Hesablar arasında daxili hərəkətləri ayrıca idarə edin.', 'Hesablar arasında daxili hərəkətləri ayrıca idarə edin.', 'Manage internal movements between accounts separately.'),
+      title: tx(lang, 'Transferlər', 'Переводы', 'Transfers'),
+      subtitle: tx(lang, 'Hesablar arasında daxili hərəkətləri ayrıca idarə edin.', 'Управляйте внутренними переводами между счетами отдельно.', 'Manage internal movements between accounts separately.'),
     },
     investor: {
-      title: tx(lang, 'İnvestor ödənişləri', 'İnvestor ödənişləri', 'Investor repayments'),
-      subtitle: tx(lang, 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor liability and repayment flow are shown separately.'),
+      title: tx(lang, 'İnvestor ödənişləri', 'Выплаты инвестору', 'Investor repayments'),
+      subtitle: tx(lang, 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Обязательство перед инвестором и выплаты отображаются отдельно.', 'Investor liability and repayment flow are shown separately.'),
     },
     ledger: {
       title: tx(lang, 'Maliyyə jurnalı', 'Финансовый журнал', 'Finance ledger'),
@@ -2250,6 +2300,20 @@ export default function FinancePanel() {
 
   return (
     <FinanceDashboard>
+      <div className="grid grid-cols-3 gap-2 px-4 pt-2 md:hidden">
+        {([
+          ['transactions', tx(lang, 'Əməliyyat', 'Операция', 'Transaction')],
+          ['reconciliation', tx(lang, 'Uyğunlaşdır', 'Сверка', 'Reconcile')],
+          ['ledger', tx(lang, 'Jurnal', 'Журнал', 'Ledger')],
+        ] as const).map(([tab, label]) => (
+          <button key={tab} type="button"
+            className="min-h-12 rounded-2xl border border-sky-400/40 bg-sky-950/45 px-2 text-xs font-black text-sky-100"
+            onClick={() => {
+              setWorkspaceTab(tab);
+              requestAnimationFrame(() => document.getElementById('finance-workspace-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            }}>{label}</button>
+        ))}
+      </div>
       {!focusedMode && financeDataLoaded && entriesLoaded && (
         <FinanceSummaryStrip
           lang={lang}
