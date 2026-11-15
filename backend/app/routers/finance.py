@@ -22,6 +22,7 @@ import secrets
 from app.models import (
     AuditLog,
     FinanceAccount,
+    FinanceActivityReference,
     FinanceEntry,
     FinanceLedgerEntry,
     FinanceOperationRequest,
@@ -36,7 +37,7 @@ from app.models import (
 )
 from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransactionIn, InvestorRepayIn, TransferIn
 from app.services.finance_requests import reserve_request, complete_request, transfer_request
-from app.services.finance_activity import activity_rows
+from app.services.finance_activity import activity_rows, _audit_transaction_ids
 from app.services import finance_transfers
 
 
@@ -2153,29 +2154,23 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
             "description": f"{txn.counterparty or 'Təchizatçı'} | {txn.note or txn.category or 'Təchizatçı ödənişi'}",
             "created_by": txn.created_by, "created_at": _iso_utc(txn.created_at),
         })
-    # Manual entries remain journal-backed when legacy wallet sync is disabled.
-    # Use their immutable audit references so unrelated POS and supplier events
-    # are not mistaken for manual activity or duplicated.
-    audit_query = db.query(AuditLog.action, AuditLog.details).filter(
-        AuditLog.tenant_id == tenant.id,
-        AuditLog.action.in_(["FINANCE_ENTRY_CREATED", "FINANCE_LEGACY_WALLET_SYNC_SKIPPED"]),
-    )
-    if start is not None:
-        audit_query = audit_query.filter(AuditLog.created_at >= start)
-    if end is not None:
-        audit_query = audit_query.filter(AuditLog.created_at < end)
-    audit_rows = audit_query.all()
-    manual_ids = set()
-    fee_candidates = set()
-    for action, details in audit_rows:
-        try:
-            value = json.loads(details or "{}")
-            if action == "FINANCE_ENTRY_CREATED" and value.get("ledger_transaction_id"):
-                manual_ids.add(str(value["ledger_transaction_id"]))
-            if action == "FINANCE_LEGACY_WALLET_SYNC_SKIPPED" and value.get("transaction_type") == "expense" and value.get("transaction_id"):
-                fee_candidates.add(str(value["transaction_id"]))
-        except (ValueError, TypeError, AttributeError):
-            continue
+    # The PostgreSQL projection captures finance audit references transactionally.
+    if db.get_bind().dialect.name == "postgresql":
+        reference_query = db.query(FinanceActivityReference.kind, FinanceActivityReference.transaction_id).filter(
+            FinanceActivityReference.tenant_id == tenant.id,
+        )
+        if start is not None:
+            reference_query = reference_query.filter(FinanceActivityReference.created_at >= start)
+        if end is not None:
+            reference_query = reference_query.filter(FinanceActivityReference.created_at < end)
+        manual_ids, fee_candidates = set(), set()
+        for kind, transaction_id in reference_query.yield_per(500):
+            if kind == "manual":
+                manual_ids.add(transaction_id)
+            elif kind == "fee":
+                fee_candidates.add(transaction_id)
+    else:
+        manual_ids, fee_candidates = _audit_transaction_ids(db, tenant.id, start, end)
     mirrors_by_txn: dict[str, list[FinanceEntry]] = {}
     for row in entries:
         if row.description and "Ledger mirror:" in row.description:

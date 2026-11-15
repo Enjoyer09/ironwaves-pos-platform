@@ -90,6 +90,7 @@ def test_activity_references_follow_audit_inserts_without_scanning_audit(session
         try:
             today = datetime.now(ZoneInfo("Asia/Baku")).date().isoformat()
             finance.list_entries_period(today, today, 1, 0, db, tenant, CHECKER)
+            finance.list_entries(db, tenant, CHECKER, date_from=today, date_to=today)
         finally:
             event.remove(db.get_bind(), "before_cursor_execute", capture)
         assert not any("audit_logs" in statement for statement in statements)
