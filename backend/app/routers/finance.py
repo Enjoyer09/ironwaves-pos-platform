@@ -2228,6 +2228,8 @@ def list_entries_period(
     tenant: Tenant = Depends(get_tenant),
     user=Depends(get_current_user),
     cursor: str | None = None,
+    include_summary: bool = True,
+    include_total: bool = True,
 ):
     _ensure_finance_read_access(user)
     try:
@@ -2253,43 +2255,48 @@ def list_entries_period(
             item["source_kind"] = values["source_kind"]
         return item
 
-    incoming = outgoing = deposits = Decimal("0")
-    count = 0
     total = 0
-    biggest_expense = None
-    expense_total = Decimal("0")
-    expense_count = 0
-    expense_categories: dict[str, Decimal] = {}
-    excluded = {"internal_transfer", "founder_investment", "investor_liability", "borrowed_to_cash_mirror", "borrowed_funds_in"}
-    for record in db.execute(select(activity).execution_options(yield_per=500)):
-        row = payload(record)
-        total += 1
-        category = _normalize_text(row.get("category"))
-        description = _normalize_text(row.get("description"))
-        source = _normalize_text(row.get("source"))
-        amount = Decimal(str(row["amount"]))
-        if row["type"] == "out":
-            expense_total += amount
-            expense_count += 1
-            label = row.get("category") or "Digər Xərc"
-            expense_categories[label] = expense_categories.get(label, Decimal("0")) + amount
-        is_deposit = "depozit" in category or "depozit" in description or "deposit" in description
-        if row["type"] == "in" and is_deposit:
-            deposits += amount
-        if (row.get("source_kind") == "supplier_payment" or
-            _finance_category_code(row.get("category")) in excluded or
-            "kassa acilisi" in category or is_deposit or source in {"investor", "debt"} or
-            "auto liability mirror" in description or "auto mirror" in description or "shift opening cash" in description):
-            continue
-        count += 1
-        if row["type"] == "in":
-            incoming += amount
-        else:
-            outgoing += amount
-            if (biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])) or
-                (amount == Decimal(str(biggest_expense["amount"])) and
-                 (row["created_at"], row["id"]) > (biggest_expense["created_at"], biggest_expense["id"]))):
-                biggest_expense = row
+    if include_summary:
+        incoming = outgoing = deposits = Decimal("0")
+        count = 0
+        biggest_expense = None
+        expense_total = Decimal("0")
+        expense_count = 0
+        expense_categories: dict[str, Decimal] = {}
+        excluded = {"internal_transfer", "founder_investment", "investor_liability", "borrowed_to_cash_mirror", "borrowed_funds_in"}
+        for record in db.execute(select(activity).execution_options(yield_per=500)):
+            row = payload(record)
+            total += 1
+            category = _normalize_text(row.get("category"))
+            description = _normalize_text(row.get("description"))
+            source = _normalize_text(row.get("source"))
+            amount = Decimal(str(row["amount"]))
+            if row["type"] == "out":
+                expense_total += amount
+                expense_count += 1
+                label = row.get("category") or "Digər Xərc"
+                expense_categories[label] = expense_categories.get(label, Decimal("0")) + amount
+            is_deposit = "depozit" in category or "depozit" in description or "deposit" in description
+            if row["type"] == "in" and is_deposit:
+                deposits += amount
+            if (row.get("source_kind") == "supplier_payment" or
+                _finance_category_code(row.get("category")) in excluded or
+                "kassa acilisi" in category or is_deposit or source in {"investor", "debt"} or
+                "auto liability mirror" in description or "auto mirror" in description or "shift opening cash" in description):
+                continue
+            count += 1
+            if row["type"] == "in":
+                incoming += amount
+            else:
+                outgoing += amount
+                if (biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])) or
+                    (amount == Decimal(str(biggest_expense["amount"])) and
+                     (row["created_at"], row["id"]) > (biggest_expense["created_at"], biggest_expense["id"]))):
+                    biggest_expense = row
+    elif include_total:
+        total = db.execute(select(func.count()).select_from(activity)).scalar_one()
+    else:
+        total = None
     page_rows = []
     next_cursor = None
     if limit:
@@ -2315,6 +2322,8 @@ def list_entries_period(
         records = db.execute(page_query.limit(limit + 1)).all()
         has_more = len(records) > limit
         page_rows = [payload(record) for record in records[:limit]]
+        if not has_more and total is None:
+            total = db.execute(select(func.count()).select_from(activity)).scalar_one()
         if has_more:
             last_record = records[limit - 1]._mapping
             marker = json.dumps([last_record["created_at"].isoformat(), last_record["id"]], separators=(",", ":"))
@@ -2326,7 +2335,7 @@ def list_entries_period(
                     "entries_count": count, "biggest_expense": biggest_expense,
                     "expenses": {"total": _money(expense_total), "count": expense_count,
                                  "by_category": [{"category": key, "amount": _money(value)}
-                                                 for key, value in expense_categories.items()]}},
+                                                 for key, value in expense_categories.items()]}} if include_summary else None,
     }
 
 

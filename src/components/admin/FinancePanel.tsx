@@ -1167,7 +1167,7 @@ export default function FinancePanel() {
     if (isBackendEnabled()) {
       try {
         exportEntries = await collectFinanceActivityPages(
-          (cursor) => fetch_finance_activity_period(tenant_id, fromDate, toDate, 500, 0, cursor),
+          (cursor) => fetch_finance_activity_period(tenant_id, fromDate, toDate, 500, 0, cursor, false, !cursor),
         );
       } catch {
         notify('error', tx(lang, 'Giriş-çıxış ixracı tamamlanmadı. Yenidən cəhd edin.', 'Экспорт операций не завершён. Повторите попытку.', 'Activity export did not complete. Please retry.'));

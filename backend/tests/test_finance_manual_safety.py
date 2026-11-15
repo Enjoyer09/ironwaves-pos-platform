@@ -475,6 +475,15 @@ def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
     assert first['summary']['outgoing'] == '60.00'
     assert first['summary']['entries_count'] == 3
     assert first['summary']['expenses']['count'] == 3
+    export_page = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER, include_summary=False)
+    assert export_page['summary'] is None
+    assert export_page['total'] == first['total']
+    assert export_page['rows'] == first['rows']
+    assert export_page['next_cursor'] == first['next_cursor']
+    export_next = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER,
+                                              cursor=first['next_cursor'], include_summary=False, include_total=False)
+    assert export_next['total'] == first['total'] and export_next['summary'] is None
+    assert export_next['rows'] == second['rows']
     wide = finance.list_entries_period('2024-01-01', today, 0, 0, db, tenant, CHECKER)
     assert wide['total'] == 3 and wide['rows'] == []
 

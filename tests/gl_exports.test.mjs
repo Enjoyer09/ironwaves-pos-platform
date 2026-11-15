@@ -21,18 +21,24 @@ test('csv starts with BOM and uses semicolons', () => {
 
 test('finance activity export follows cursors and verifies every row', async () => {
   const pages = [
-    { rows: [{ id: 'a' }, { id: 'b' }], total: 3, next_cursor: 'after-b' },
-    { rows: [{ id: 'c' }], total: 3, next_cursor: null },
+    { rows: [{ id: 'a' }, { id: 'b' }], total: 4, next_cursor: 'after-b' },
+    { rows: [{ id: 'c' }], total: null, next_cursor: 'after-c' },
+    { rows: [{ id: 'd' }], total: 4, next_cursor: null },
   ];
   const seen = [];
   const rows = await collectFinanceActivityPages(async (cursor) => {
     seen.push(cursor);
     return pages[seen.length - 1];
   });
-  assert.deepEqual(seen, [undefined, 'after-b']);
-  assert.deepEqual(rows.map((row) => row.id), ['a', 'b', 'c']);
+  assert.deepEqual(seen, [undefined, 'after-b', 'after-c']);
+  assert.deepEqual(rows.map((row) => row.id), ['a', 'b', 'c', 'd']);
   await assert.rejects(() => collectFinanceActivityPages(async () =>
     ({ rows: [{ id: 'a' }], total: 2, next_cursor: null })), /Incomplete/);
+  await assert.rejects(() => collectFinanceActivityPages(async () =>
+    ({ rows: [{ id: 'a' }], total: null, next_cursor: null })), /Missing activity total/);
+  await assert.rejects(() => collectFinanceActivityPages(async (cursor) => cursor
+    ? { rows: [{ id: 'b' }], total: null, next_cursor: null }
+    : { rows: [{ id: 'a' }], total: 2, next_cursor: 'next' }), /Missing final activity total/);
   await assert.rejects(() => collectFinanceActivityPages(async (cursor) => cursor
     ? { rows: [{ id: 'a' }], total: 2, next_cursor: null }
     : { rows: [{ id: 'a' }], total: 2, next_cursor: 'next' }), /Duplicate/);
