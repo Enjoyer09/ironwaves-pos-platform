@@ -4345,3 +4345,8 @@ button, a, [role="button"] { min-height: 32px; }
 .compact-pos-sidebar {
   font-variant-numeric: tabular-nums;
 }
+
+/* Finance controls need a reliable touch target on compact screens. */
+@media (max-width: 767px), (pointer: coarse) {
+  .finance-workspace button, .finance-workspace [role="button"] { min-height: 44px; }
+}

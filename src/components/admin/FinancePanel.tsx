@@ -37,12 +37,13 @@ import {
   transfer_funds_async,
 } from '../../api/finance';
 import { isBackendEnabled } from '../../api/client';
+import { financeAmount } from '../../lib/financeAmounts';
 import { csvCell } from './financev2/exporters';
 import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { tx } from '../../i18n';
-import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
+import { financeBusinessDate, formatServerUtcDateTime } from '../../lib/time';
 import {
   FinanceAlertsBar,
   FinanceControlCard,
@@ -128,8 +129,8 @@ export default function FinancePanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
 
-  const [fromDate, setFromDate] = useState(() => localDateInputValue());
-  const [toDate, setToDate] = useState(() => localDateInputValue());
+  const [fromDate, setFromDate] = useState(() => financeBusinessDate(new Date().toISOString()) || '');
+  const [toDate, setToDate] = useState(() => financeBusinessDate(new Date().toISOString()) || '');
   const [rangePreset, setRangePreset] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('daily');
   const [workspaceTab, setWorkspaceTab] = useState<FinanceWorkspaceTab>('overview');
   const [quickAction, setQuickAction] = useState<FinanceQuickAction>('expense');
@@ -294,15 +295,22 @@ export default function FinancePanel() {
   const [financeLoadWarning, setFinanceLoadWarning] = useState(false);
   const [reportsLoadWarning, setReportsLoadWarning] = useState(false);
   const [financeDataLoaded, setFinanceDataLoaded] = useState(false);
+  const [financeLastUpdated, setFinanceLastUpdated] = useState<string | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsPeriod, setReportsPeriod] = useState('');
   const [serverFinanceAlerts, setServerFinanceAlerts] = useState<FinanceAlert[] | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
+  const [entriesLoaded, setEntriesLoaded] = useState(false);
   const [ledgerAccounts, setLedgerAccounts] = useState<FinanceLedgerAccount[]>([]);
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
+  const [reconciliationsError, setReconciliationsError] = useState(false);
+  const [reconciliationsLoading, setReconciliationsLoading] = useState(false);
+  const [ledgerEntriesError, setLedgerEntriesError] = useState(false);
   const [enterpriseReports, setEnterpriseReports] = useState<FinanceReportsOverview | null>(null);
   const [salesLedgerReport, setSalesLedgerReport] = useState<FinanceSalesLedgerReconciliationReport | null>(null);
+  const [salesLedgerReportPeriod, setSalesLedgerReportPeriod] = useState('');
   const [salesLedgerLoading, setSalesLedgerLoading] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<FinanceLedgerTransaction[]>([]);
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
@@ -319,6 +327,7 @@ export default function FinancePanel() {
   const [ledgerOffset, setLedgerOffset] = useState(0);
   const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
   const [ledgerPageLoading, setLedgerPageLoading] = useState(false);
+  const [ledgerPageError, setLedgerPageError] = useState(false);
   const [focusedMode, setFocusedMode] = useState(false);
   const [showAdvancedTxFields, setShowAdvancedTxFields] = useState(false);
   const [entrySubmitting, setEntrySubmitting] = useState(false);
@@ -353,28 +362,26 @@ export default function FinancePanel() {
 
   const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
     setRangePreset(preset);
-    const today = new Date();
-    const start = new Date(today);
-    const end = new Date(today);
+    if (preset === 'custom') return;
+    const today = financeBusinessDate(new Date().toISOString());
+    if (!today) return;
+    const start = new Date(`${today}T00:00:00Z`);
     if (preset === 'weekly') {
-      const weekday = start.getDay();
-      const diff = weekday === 0 ? 6 : weekday - 1;
-      start.setDate(start.getDate() - diff);
+      const weekday = start.getUTCDay();
+      start.setUTCDate(start.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
     } else if (preset === 'monthly') {
-      start.setDate(1);
+      start.setUTCDate(1);
     } else if (preset === 'yearly') {
-      start.setMonth(0, 1);
+      start.setUTCMonth(0, 1);
     }
-    if (preset !== 'custom') {
-      setFromDate(localDateInputValue(start));
-      setToDate(localDateInputValue(end));
-    }
+    setFromDate(start.toISOString().slice(0, 10));
+    setToDate(today);
   };
 
   const computedTransferCommission = useMemo(() => new Decimal(serverTransferFee || '0'), [serverTransferFee]);
   useEffect(() => {
-    const amount = new Decimal(transferAmount || '0');
-    if (amount.lte(0) || (transferDirection !== 'card_to_cash' && transferDirection !== 'card_to_debt')) {
+    const amount = financeAmount(transferAmount);
+    if (!amount || (transferDirection !== 'card_to_cash' && transferDirection !== 'card_to_debt')) {
       setServerTransferFee('0');
       return;
     }
@@ -467,7 +474,10 @@ export default function FinancePanel() {
           }
         : null;
       if (summaryBalances || fallbackBalances) setBalance(summaryBalances || fallbackBalances);
-      if (summaryBalances || fallbackBalances) setFinanceDataLoaded(true);
+      if (summaryBalances || fallbackBalances) {
+        setFinanceDataLoaded(true);
+        setFinanceLastUpdated(new Date().toISOString());
+      }
       if (serverAnomalies) setAnomalies(serverAnomalies);
       if (summary) {
         setPendingApprovals((summary.pending_approvals_preview || []) as any[]);
@@ -487,8 +497,10 @@ export default function FinancePanel() {
         shouldFetchPending ? fetch_finance_pending_approvals(tenant_id) : Promise.resolve([]),
         shouldFetchAlerts ? fetch_finance_alerts(tenant_id) : Promise.resolve(null),
       ]);
-      if (entriesResult.status === 'fulfilled') setEntries(entriesResult.value);
-      else hasLoadWarning = true;
+      if (entriesResult.status === 'fulfilled') {
+        setEntries(entriesResult.value);
+        setEntriesLoaded(true);
+      } else hasLoadWarning = true;
       if (accountsResult.status === 'fulfilled') setLedgerAccounts(accountsResult.value);
       else hasLoadWarning = true;
       const pendingRows = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
@@ -529,6 +541,7 @@ export default function FinancePanel() {
     try {
       const report = await fetch_sales_ledger_reconciliation_report(tenant_id, { date_from: fromDate, date_to: toDate, limit: 100 });
       setSalesLedgerReport(report);
+      setSalesLedgerReportPeriod(report ? `${tenant_id}:${fromDate}:${toDate}` : '');
       notify('success', tx(lang, 'Satış-maliyyə audit yeniləndi', 'Аудит продаж и финансов обновлен', 'Sales-finance audit refreshed'));
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Satış-maliyyə audit alınmadı', 'Не удалось получить аудит продаж и финансов', 'Sales-finance audit failed'));
@@ -564,8 +577,14 @@ export default function FinancePanel() {
     ]).then(([reports, salesReport]) => {
       if (!alive) return;
       setReportsLoadWarning(reports.status === 'rejected' || salesReport.status === 'rejected');
-      if (reports.status === 'fulfilled') setEnterpriseReports(reports.value);
-      if (salesReport.status === 'fulfilled') setSalesLedgerReport(salesReport.value);
+      if (reports.status === 'fulfilled') {
+        setEnterpriseReports(reports.value);
+        setReportsPeriod(`${tenant_id}:${fromDate}:${toDate}`);
+      }
+      if (salesReport.status === 'fulfilled') {
+        setSalesLedgerReport(salesReport.value);
+        setSalesLedgerReportPeriod(salesReport.value ? `${tenant_id}:${fromDate}:${toDate}` : '');
+      }
       setReportsLoading(false);
     });
     return () => {
@@ -577,11 +596,14 @@ export default function FinancePanel() {
   useEffect(() => {
     if (workspaceTab !== 'reconciliation') return;
     let alive = true;
+    setReconciliationsLoading(true);
+    setReconciliationsError(false);
     fetch_finance_reconciliations(tenant_id, 100)
       .then((rows) => {
         if (alive) setReconciliations(rows || []);
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setReconciliationsError(true); })
+      .finally(() => { if (alive) setReconciliationsLoading(false); });
     return () => {
       alive = false;
     };
@@ -591,11 +613,12 @@ export default function FinancePanel() {
   useEffect(() => {
     if (workspaceTab !== 'ledger') return;
     let alive = true;
+    setLedgerEntriesError(false);
     fetch_finance_ledger_entries(tenant_id, 500)
       .then((rows) => {
         if (alive) setLedgerEntries(rows || []);
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setLedgerEntriesError(true); });
     return () => {
       alive = false;
     };
@@ -620,15 +643,18 @@ export default function FinancePanel() {
   useEffect(() => {
     if (workspaceTab !== 'ledger') return;
     let alive = true;
+    setLedgerTransactions([]);
+    setLedgerTotalCount(0);
+    setLedgerPageLoading(true);
+    setLedgerPageError(false);
     const timer = window.setTimeout(async () => {
       try {
-        setLedgerPageLoading(true);
         const page = await fetch_finance_ledger_transactions_page(tenant_id, ledgerServerFilters);
         if (!alive) return;
         setLedgerTransactions(page.rows || []);
         setLedgerTotalCount(page.total || 0);
       } catch {
-        // Keep the last loaded ledger snapshot if server-side filtering fails.
+        if (alive) setLedgerPageError(true);
       } finally {
         if (alive) setLedgerPageLoading(false);
       }
@@ -648,10 +674,15 @@ export default function FinancePanel() {
     const handleFinanceUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
-        setBalance(get_balance(tenant_id, 'all', false) as any);
-        setEntries(get_finance_entries(tenant_id));
-        setAnomalies(null);
-        setServerFinanceAlerts(null);
+        if (!isBackendEnabled()) {
+          setBalance(get_balance(tenant_id, 'all', false) as any);
+          setEntries(get_finance_entries(tenant_id));
+          setAnomalies(null);
+          setServerFinanceAlerts(null);
+        } else {
+          // Keep the last server-confirmed snapshot until the refresh succeeds.
+          setFinanceLoadWarning(true);
+        }
         if (reloadTimerRef.current) {
           window.clearTimeout(reloadTimerRef.current);
         }
@@ -683,14 +714,10 @@ export default function FinancePanel() {
   );
 
   const filteredEntries = useMemo(() => {
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
     return entries
-      .filter((e: any) => {
-      const t = new Date(e.created_at).getTime();
-      return t >= start.getTime() && t <= end.getTime();
+      .filter((entry: any) => {
+        const day = financeBusinessDate(entry.created_at);
+        return day !== null && day >= fromDate && day <= toDate;
       })
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [entries, fromDate, toDate]);
@@ -740,12 +767,6 @@ export default function FinancePanel() {
         return null;
       }
     };
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    const startTime = start.getTime();
-    const endTime = end.getTime();
     const search = normalizeFinanceText(ledgerSearch);
     const counterparty = normalizeFinanceText(ledgerCounterpartyFilter);
     const minAmount = decimalOrNull(ledgerMinAmount);
@@ -753,9 +774,8 @@ export default function FinancePanel() {
 
     return ledgerTransactions
       .filter((row) => {
-        const dateValue = row.posted_at || row.created_at || '';
-        const rowTime = new Date(dateValue).getTime();
-        if (Number.isFinite(rowTime) && (rowTime < startTime || rowTime > endTime)) return false;
+        const day = financeBusinessDate(row.created_at);
+        if (!day || day < fromDate || day > toDate) return false;
         if (ledgerTypeFilter !== 'all' && row.transaction_type !== ledgerTypeFilter) return false;
         if (ledgerStatusFilter !== 'all' && (row.status || 'posted') !== ledgerStatusFilter) return false;
         if (
@@ -804,10 +824,9 @@ export default function FinancePanel() {
     ledgerTransactions,
     ledgerTypeFilter,
   ]);
-  const visibleLedgerTransactions = useMemo(
-    () => filteredLedgerTransactions,
-    [filteredLedgerTransactions],
-  );
+  // Backend pages are already filtered and ordered; filtering a single page again
+  // can hide matches and make the displayed count disagree with the server.
+  const visibleLedgerTransactions = isBackendEnabled() ? ledgerTransactions : filteredLedgerTransactions;
   const ledgerPageStart = ledgerTotalCount === 0 ? 0 : ledgerOffset + 1;
   const ledgerPageEnd = ledgerTotalCount === 0 ? 0 : Math.min(ledgerOffset + ledgerPageSize, ledgerTotalCount);
   const ledgerCurrentPage = Math.floor(ledgerOffset / ledgerPageSize) + 1;
@@ -838,7 +857,7 @@ export default function FinancePanel() {
     return new Decimal(balanceMap[reconcileAccount] || '0');
   }, [balance, reconcileAccount, selectedReconcileAccount]);
   const reconcileVariance = useMemo(
-    () => new Decimal(reconcileCounted || '0').minus(expectedReconcileBalance),
+    () => (financeAmount(reconcileCounted, true) ?? new Decimal(0)).minus(expectedReconcileBalance),
     [reconcileCounted, expectedReconcileBalance],
   );
 
@@ -990,8 +1009,8 @@ export default function FinancePanel() {
     try {
       const generated = generate_ai_insight_engine({
         tenant_id,
-        date_from: localDateTimeStart(fromDate),
-        date_to: localDateTimeNextStart(toDate),
+        date_from: new Date(`${fromDate}T00:00:00+04:00`).toISOString(),
+        date_to: new Date(new Date(`${toDate}T00:00:00+04:00`).getTime() + 86400000).toISOString(),
         max_items: 12,
       });
       const filtered = generated
@@ -1179,7 +1198,8 @@ export default function FinancePanel() {
 
   const addEntry = async () => {
     if (entrySubmitting) return;
-    if (!amount || new Decimal(amount).lte(0)) {
+    const parsedAmount = financeAmount(amount);
+    if (!parsedAmount) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Неверная сумма'));
       return;
     }
@@ -1193,7 +1213,7 @@ export default function FinancePanel() {
         tenant_id,
         type,
         category,
-        new Decimal(amount).toString(),
+        parsedAmount.toString(),
         source,
         `${description}${subject ? ` | Subyekt: ${subject}` : ''}`,
         user?.username || 'admin',
@@ -1204,7 +1224,7 @@ export default function FinancePanel() {
       setDescription('');
       setSubject('');
       setIncludeBankCommission(false);
-      await reloadFinance();
+      await reloadFinance(true);
       notify('success', tx(lang, 'Əməliyyat yazıldı', 'Операция сохранена', 'Entry saved'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Əməliyyat alınmadı', 'Операция не выполнена'));
@@ -1230,7 +1250,7 @@ export default function FinancePanel() {
 
   const doTransfer = async () => {
     if (transferSubmitting) return;
-    if (!transferAmount || new Decimal(transferAmount).lte(0)) {
+    if (!financeAmount(transferAmount)) {
       notify('error', tx(lang, 'Transfer məbləği düzgün deyil', 'Некорректная сумма перевода'));
       return;
     }
@@ -1245,7 +1265,7 @@ export default function FinancePanel() {
       );
       setTransferAmount('');
       setTransferCommission('0');
-      await reloadFinance(result?.status === 'pending_approval');
+      await reloadFinance(true);
       notify('success', result?.status === 'pending_approval'
         ? tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на approval', 'Transfer sent for approval')
         : tx(lang, 'Transfer tamamlandı', 'Перевод выполнен'));
@@ -1258,13 +1278,14 @@ export default function FinancePanel() {
 
   const doRepayInvestor = async () => {
     if (investorSubmitting) return;
-    if (!repayAmount || new Decimal(repayAmount).lte(0)) {
+    const parsedRepayment = financeAmount(repayAmount);
+    if (!parsedRepayment) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Некорректная сумма', 'Invalid amount'));
       return;
     }
     setInvestorSubmitting(true);
     try {
-      const repaymentAmount = new Decimal(repayAmount || 0);
+      const repaymentAmount = parsedRepayment;
       const available = new Decimal((balance as any)[`${repayFrom}_balance`] || 0);
       if (available.lt(repaymentAmount)) {
         notify('error', tx(lang, 'Seçilən mənbədə kifayət qədər vəsait yoxdur', 'В выбранном источнике недостаточно средств', 'Selected source has insufficient balance'));
@@ -1274,7 +1295,11 @@ export default function FinancePanel() {
         notify('error', tx(lang, 'İnvestora borc yoxdur', 'Нет долга инвестору', 'No investor debt'));
         return;
       }
-      const payable = Decimal.min(repaymentAmount, ledgerInvestorDebt);
+      if (repaymentAmount.gt(ledgerInvestorDebt)) {
+        notify('error', tx(lang, `Məbləğ investor borcundan çoxdur. Qalan borc: ${ledgerInvestorDebt.toFixed(2)} ₼`, `Сумма превышает долг инвестору. Остаток: ${ledgerInvestorDebt.toFixed(2)} ₼`, `Amount exceeds investor liability. Remaining: ${ledgerInvestorDebt.toFixed(2)} ₼`));
+        return;
+      }
+      const payable = repaymentAmount;
       const result = await create_finance_ledger_transaction_async(
         tenant_id,
         {
@@ -1312,7 +1337,12 @@ export default function FinancePanel() {
 
   const doReconcile = async () => {
     if (reconcileSubmitting) return;
-    if (!reconcileCounted || new Decimal(reconcileCounted).isNaN()) {
+    if (!financeDataLoaded) {
+      notify('error', tx(lang, 'Əvvəlcə cari balansı yükləyin.', 'Сначала загрузите текущий баланс.', 'Load the current balance first.'));
+      return;
+    }
+    const countedAmount = financeAmount(reconcileCounted, true);
+    if (!countedAmount) {
       notify('error', tx(lang, 'Sayılmış məbləği yazın', 'Введите посчитанную сумму', 'Enter counted amount'));
       return;
     }
@@ -1322,7 +1352,7 @@ export default function FinancePanel() {
         tenant_id,
         reconcileAccount,
         expectedReconcileBalance.toString(),
-        new Decimal(reconcileCounted).toString(),
+        countedAmount.toString(),
         reconcileNotes,
       );
       setReconcileCounted('');
@@ -1367,11 +1397,16 @@ export default function FinancePanel() {
     try {
       await approve_finance_transaction_async(tenant_id, transactionId);
       await reloadFinance(true);
+      notify('success', tx(lang, 'Əməliyyat təsdiqləndi və uçota alındı', 'Операция подтверждена и проведена', 'Transaction approved and posted'));
       if (selectedLedgerDetail?.transaction.id === transactionId) {
-        const detail = await fetch_finance_transaction_detail(tenant_id, transactionId);
-        setSelectedLedgerDetail(detail);
+        try {
+          const detail = await fetch_finance_transaction_detail(tenant_id, transactionId);
+          setSelectedLedgerDetail(detail);
+        } catch {
+          setSelectedLedgerDetail(null);
+          notify('error', tx(lang, 'Əməliyyat təsdiqləndi, lakin detalları yenilənmədi.', 'Операция подтверждена, но детали не обновились.', 'The transaction was approved, but its details could not be refreshed.'));
+        }
       }
-      notify('success', tx(lang, 'Transaction təsdiqləndi və post edildi', 'Transaction подтвержден и posted', 'Transaction approved and posted'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Approval alınmadı', 'Approval не выполнен', 'Approval failed'));
     }
@@ -1384,9 +1419,9 @@ export default function FinancePanel() {
       if (selectedLedgerDetail?.transaction.id === transactionId) {
         setSelectedLedgerDetail(null);
       }
-      notify('success', tx(lang, 'Transaction rədd edildi', 'Transaction отклонен', 'Transaction rejected'));
+      notify('success', tx(lang, 'Əməliyyat rədd edildi', 'Операция отклонена', 'Transaction rejected'));
     } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Reject alınmadı', 'Reject не выполнен', 'Reject failed'));
+      notify('error', e?.message || tx(lang, 'Rədd etmək mümkün olmadı', 'Не удалось отклонить', 'Rejection failed'));
     }
   };
 
@@ -1398,13 +1433,13 @@ export default function FinancePanel() {
         'success',
         tx(
           lang,
-          `Reversal təsdiqə göndərildi: ${result?.transaction_id || ''}`,
-          `Reversal отправлен на approval: ${result?.transaction_id || ''}`,
+          `Əks yazılış təsdiqə göndərildi: ${result?.transaction_id || ''}`,
+          `Обратная проводка отправлена на подтверждение: ${result?.transaction_id || ''}`,
           `Reversal sent for approval: ${result?.transaction_id || ''}`,
         ),
       );
     } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Reversal request alınmadı', 'Reversal request не выполнен', 'Reversal request failed'));
+      notify('error', e?.message || tx(lang, 'Əks yazılış sorğusu alınmadı', 'Не удалось запросить обратную проводку', 'Reversal request failed'));
     }
   };
 
@@ -1659,9 +1694,9 @@ export default function FinancePanel() {
                     )
                   : tx(
                       lang,
-                      `Əlavə xərc kimi ${bankCommissionConfig.card_transfer_percent || 0.5}% komissiya yazılacaq`,
-                      `Комиссия ${bankCommissionConfig.card_transfer_percent || 0.5}% будет записана как дополнительный расход`,
-                      `A commission of ${bankCommissionConfig.card_transfer_percent || 0.5}% will be posted as an additional expense`
+                      `Əlavə xərc kimi ${bankCommissionConfig.card_transfer_percent ?? 0.5}% komissiya yazılacaq`,
+                      `Комиссия ${bankCommissionConfig.card_transfer_percent ?? 0.5}% будет записана как дополнительный расход`,
+                      `A commission of ${bankCommissionConfig.card_transfer_percent ?? 0.5}% will be posted as an additional expense`
                     )}
               </span>
             </label>
@@ -1670,7 +1705,7 @@ export default function FinancePanel() {
         {!isIncomeAction && (
           <FinanceField htmlForId="finance-new-subject" label={tx(lang, 'Yeni subyekt əlavə et', 'Новый preset контрагента', 'New counterparty preset')} helper={tx(lang, 'Təchizatçı və digər subyektləri tez seçmək üçün.', 'Чтобы быстро выбирать поставщиков и субъекты.', 'For quick supplier/counterparty selection.')}>
             <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input id="finance-new-subject" aria-describedby="finance-new-subject-hint" className="neon-input min-h-13" value={newSubjectPreset} onChange={(e) => setNewSubjectPreset(e.target.value)} />
+              <input id="finance-new-subject" maxLength={120} aria-describedby="finance-new-subject-hint" className="neon-input min-h-13" value={newSubjectPreset} onChange={(e) => setNewSubjectPreset(e.target.value)} />
               <button type="button" onClick={addSubjectPreset} className="neon-btn rounded-2xl px-4 text-sm font-black">{tx(lang, 'Əlavə et', 'Добавить', 'Add')}</button>
             </div>
           </FinanceField>
@@ -1719,7 +1754,7 @@ export default function FinancePanel() {
           </FinanceField>
         )}
       </div>
-      {largeTransferThreshold.gt(0) && new Decimal(transferAmount || 0).gte(largeTransferThreshold) && (
+      {largeTransferThreshold.gt(0) && (financeAmount(transferAmount)?.gte(largeTransferThreshold) ?? false) && (
         <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
           {tx(
             lang,
@@ -1785,7 +1820,7 @@ export default function FinancePanel() {
 	          {investorSubmitting
               ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
               : financePolicyConfig.investor_repayment_requires_approval
-                ? tx(lang, 'Təsdiqə göndər', 'Отправить на approval', 'Send for approval')
+                ? tx(lang, 'Təsdiqə göndər', 'Отправить на подтверждение', 'Send for approval')
                 : tx(lang, 'Ödənişi yaz', 'Провести выплату', 'Post repayment')}
 	        </button>
         </div>
@@ -1830,6 +1865,9 @@ export default function FinancePanel() {
   );
 
   const ledgerTable = (
+    <>
+    {ledgerEntriesError ? <div role="alert" className="mb-3 rounded-2xl border border-amber-400/40 p-4 text-amber-100">{tx(lang, 'Jurnal yazılışları yenilənmədi.', 'Проводки журнала не обновлены.', 'Ledger entries could not be refreshed.')}</div> : null}
+    {ledgerPageError ? <div role="alert" className="mb-3 rounded-2xl border border-amber-400/40 p-4 text-amber-100">{tx(lang, 'Jurnal yüklənmədi. Filtri dəyişin və ya yeniləyin.', 'Не удалось загрузить журнал. Измените фильтр или обновите данные.', 'The ledger could not be loaded. Change the filter or refresh.')}</div> : null}
     <FinanceLedgerTab
       lang={lang}
       ledgerPageSize={ledgerPageSize}
@@ -1879,6 +1917,7 @@ export default function FinancePanel() {
       onNextPage={() => setLedgerOffset((value) => value + ledgerPageSize)}
       ledgerEntries={ledgerEntries}
     />
+    </>
   );
 
   const salesLedgerRows = useMemo<FinanceSalesLedgerReconciliationRow[]>(() => {
@@ -1964,15 +2003,16 @@ export default function FinancePanel() {
     />
   );
 
+  const reportsMatchPeriod = reportsPeriod === `${tenant_id}:${fromDate}:${toDate}`;
   const enterpriseReportsCard = (
     <FinanceControlCard
       title={tx(lang, 'Enterprise maliyyə hesabatları', 'Enterprise финансовые отчеты', 'Enterprise finance reports')}
       subtitle={tx(lang, 'Balans cari vəziyyəti göstərir; mənfəət-zərər və pul axını seçilmiş dövrə aiddir.', 'Баланс показывает текущее состояние; прибыль и денежный поток — за выбранный период.', 'The balance sheet is current; profit and cash flow cover the selected period.')}
     >
       {reportsLoadWarning ? <div role="alert" className="mb-4 rounded-2xl border border-amber-400/40 bg-amber-950/40 px-4 py-3 text-sm font-bold text-amber-100">{tx(lang, 'Hesabat yenilənmədi; son uğurlu hesabat saxlanılıb.', 'Отчет не обновлен; сохранен последний успешный отчет.', 'Report refresh failed; the last successful report is shown.')}</div> : null}
-      {reportsLoading && !enterpriseReports ? <div role="status" className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Hesabat yüklənir…', 'Загрузка отчета…', 'Loading report…')}</div> : null}
-      {!reportsLoading && !enterpriseReports ? <div role="alert" className="rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm text-amber-100">{tx(lang, 'Hesabat məlumatı yoxdur. Yeniləyib yenidən yoxlayın.', 'Данные отчета недоступны. Обновите и повторите.', 'Report data is unavailable. Refresh and try again.')}</div> : null}
-      {enterpriseReports ? <>
+      {reportsLoading && (!enterpriseReports || !reportsMatchPeriod) ? <div role="status" className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Hesabat yüklənir…', 'Загрузка отчета…', 'Loading report…')}</div> : null}
+      {!reportsLoading && (!enterpriseReports || !reportsMatchPeriod) ? <div role="alert" className="rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm text-amber-100">{tx(lang, 'Hesabat məlumatı yoxdur. Yeniləyib yenidən yoxlayın.', 'Данные отчета недоступны. Обновите и повторите.', 'Report data is unavailable. Refresh and try again.')}</div> : null}
+      {enterpriseReports && reportsMatchPeriod ? <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <FinanceMiniMetric
           label={tx(lang, 'Aktivlər', 'Активы', 'Assets')}
@@ -2017,9 +2057,9 @@ export default function FinancePanel() {
       </div>
       <div
         className={`mt-2 rounded-2xl border p-3 text-xs ${
-          Number(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100) >= 90
+          Number(enterpriseReports?.profit_loss?.cogs_coverage_percent ?? 100) >= 90
             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-            : Number(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100) >= 60
+            : Number(enterpriseReports?.profit_loss?.cogs_coverage_percent ?? 100) >= 60
               ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
               : 'border-rose-500/30 bg-rose-500/10 text-rose-200'
         }`}
@@ -2027,7 +2067,7 @@ export default function FinancePanel() {
         <div className="font-semibold">
           {tx(lang, 'COGS etibarlılığı', 'Надежность COGS', 'COGS reliability')}:
           {' '}
-          {new Decimal(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100).toFixed(2)}%
+          {new Decimal(enterpriseReports?.profit_loss?.cogs_coverage_percent ?? 100).toFixed(2)}%
         </div>
         <div className="mt-1">
           {tx(
@@ -2063,16 +2103,16 @@ export default function FinancePanel() {
 
   const workspaceTitleMap: Record<Exclude<FinanceWorkspaceTab, 'overview'>, { title: string; subtitle: string }> = {
     transactions: {
-      title: tx(lang, 'Əməliyyat yaz', 'Əməliyyat yaz', 'Əməliyyat yaz'),
-      subtitle: tx(lang, 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.'),
+      title: tx(lang, 'Əməliyyat yaz', 'Новая операция', 'New transaction'),
+      subtitle: tx(lang, 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Показаны только необходимые поля для выбранной операции.', 'Only fields needed for the selected operation are shown.'),
     },
     reconciliation: {
-      title: tx(lang, 'Uyğunlaşdırma', 'Uyğunlaşdırma', 'Uyğunlaşdırma'),
-      subtitle: tx(lang, 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.'),
+      title: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'),
+      subtitle: tx(lang, 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Сравните ожидаемый и подсчитанный остаток.', 'Compare expected and counted balances.'),
     },
     deposits: {
-      title: tx(lang, 'Depozit əməliyyatları', 'Depozit əməliyyatları', 'Depozit əməliyyatları'),
-      subtitle: tx(lang, 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.'),
+      title: tx(lang, 'Depozit əməliyyatları', 'Операции с депозитами', 'Deposit operations'),
+      subtitle: tx(lang, 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Открытые депозиты столов учитываются отдельно как обязательство.', 'Open table deposits are tracked separately as liabilities.'),
     },
     transfers: {
       title: tx(lang, 'Transferlər', 'Transferlər', 'Transfers'),
@@ -2083,8 +2123,8 @@ export default function FinancePanel() {
       subtitle: tx(lang, 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor liability and repayment flow are shown separately.'),
     },
     ledger: {
-      title: tx(lang, 'Maliyyə jurnalı', 'Maliyyə jurnalı', 'Maliyyə jurnalı'),
-      subtitle: tx(lang, 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.'),
+      title: tx(lang, 'Maliyyə jurnalı', 'Финансовый журнал', 'Finance ledger'),
+      subtitle: tx(lang, 'Audit, təsdiq və əks yazılış tarixçəsi ayrıca iş sahəsindədir.', 'История аудита, подтверждения и сторнирования находится в отдельном разделе.', 'Audit, approval and reversal history are available in a separate workspace.'),
     },
   };
 
@@ -2177,10 +2217,10 @@ export default function FinancePanel() {
             </div>
           )}
           {workspaceTab === 'deposits' && (
-            <FinanceControlCard title={tx(lang, 'Depozitlər', 'Depozitlər', 'Depozitlər')} subtitle={tx(lang, 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir')}>
+            <FinanceControlCard title={tx(lang, 'Depozitlər', 'Депозиты', 'Deposits')} subtitle={tx(lang, 'Depozit ayrıca öhdəlik kimi izlənir', 'Депозит учитывается отдельно как обязательство', 'Deposits are tracked separately as liabilities')}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FinanceMiniMetric label={tx(lang, 'Aktiv depozit öhdəliyi', 'Aktiv depozit öhdəliyi', 'Aktiv depozit öhdəliyi')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="amber" />
-                <FinanceMiniMetric label={tx(lang, 'Seçilən aralıqda toplanıb', 'Seçilən aralıqda toplanıb', 'Seçilən aralıqda toplanıb')} value={`${depositsInRange.toFixed(2)} ₼`} tone="sky" />
+                <FinanceMiniMetric label={tx(lang, 'Aktiv depozit öhdəliyi', 'Активное обязательство по депозитам', 'Active deposit liability')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="amber" />
+                <FinanceMiniMetric label={tx(lang, 'Seçilən aralıqda toplanıb', 'Собрано за выбранный период', 'Collected in selected period')} value={`${depositsInRange.toFixed(2)} ₼`} tone="sky" />
               </div>
             </FinanceControlCard>
           )}
@@ -2198,7 +2238,10 @@ export default function FinancePanel() {
               ledgerAccounts={ledgerAccounts}
               onSubmit={() => void doReconcile()}
               submitting={reconcileSubmitting}
+              balanceAvailable={financeDataLoaded}
               reconciliations={reconciliations}
+              historyError={reconciliationsError}
+              historyLoading={reconciliationsLoading}
             />
           )}
           {workspaceTab === 'ledger' && ledgerTable}
@@ -2207,7 +2250,7 @@ export default function FinancePanel() {
 
   return (
     <FinanceDashboard>
-      {!focusedMode && financeDataLoaded && (
+      {!focusedMode && financeDataLoaded && entriesLoaded && (
         <FinanceSummaryStrip
           lang={lang}
           balance={balance}
@@ -2224,6 +2267,7 @@ export default function FinancePanel() {
           {tx(lang, 'Maliyyə məlumatlarının bəzisi yenilənmədi. Ekranda son uğurlu nəticələr saxlanılıb; sıfır balans kimi qəbul etməyin.', 'Некоторые финансовые данные не обновились. Показаны последние успешные данные; не считайте их нулевыми.', 'Some finance data did not refresh. The last successful values are shown; do not treat them as zero.')}
         </div>
       ) : null}
+      {financeLastUpdated ? <div className="mx-4 mb-3 text-xs text-slate-400 md:mx-0">{tx(lang, 'Son uğurlu balans yenilənməsi', 'Последнее успешное обновление баланса', 'Last successful balance refresh')}: {formatServerUtcDateTime(financeLastUpdated, lang)}</div> : null}
       {!financeDataLoaded && !financeLoadWarning ? <div role="status" className="mx-4 mb-3 text-sm text-slate-400 md:mx-0">{tx(lang, 'Maliyyə məlumatları yüklənir…', 'Загрузка финансовых данных…', 'Loading finance data…')}</div> : null}
 
       <div className="rounded-[28px] border border-slate-800 bg-slate-900 p-4 md:p-5">
@@ -2422,12 +2466,11 @@ export default function FinancePanel() {
         </div>
       </div>
 
-      {!focusedMode && (
-        <FinanceAlertsBar
-          alerts={financeAlerts}
-          onOpen={openFinanceAlert}
-        />
-      )}
+      {!focusedMode && serverFinanceAlerts !== null && !financeLoadWarning ? (
+        <FinanceAlertsBar lang={lang} alerts={financeAlerts} onOpen={openFinanceAlert} />
+      ) : !focusedMode ? (
+        <div role="status" className="rounded-2xl border border-amber-400/30 p-4 text-amber-100">{tx(lang, 'Maliyyə xəbərdarlıqları hazırda təsdiqlənməyib.', 'Финансовые предупреждения сейчас недоступны.', 'Finance alerts are currently unavailable.')}</div>
+      ) : null}
 
 
 
@@ -2442,16 +2485,16 @@ export default function FinancePanel() {
       {workspaceTab === 'overview' && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-5">
-            {financeDataLoaded ? <FinanceControlCard title={tx(lang, 'Bugünkü pul axını', 'Поток сегодня', 'Today flow')} subtitle={tx(lang, 'Operativ cashflow, investor/depozit/transfer xaric', 'Операционный cashflow без инвестора/депозитов/transfer', 'Operational cashflow excluding investor/deposit/transfer')}>
+            {financeDataLoaded && entriesLoaded ? <FinanceControlCard title={tx(lang, 'Seçilmiş dövrün pul axını', 'Денежный поток за период', 'Cash flow for selected period')} subtitle={tx(lang, 'Operativ pul axını, investor, depozit və daxili köçürmələr xaric', 'Операционный денежный поток без инвестора, депозитов и переводов', 'Operational cashflow excluding investor/deposit/transfer')}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FinanceMiniMetric label={tx(lang, 'Mədaxil', 'Приход', 'Inflow')} value={`${todayInflow.toFixed(2)} ₼`} tone="emerald" />
                 <FinanceMiniMetric label={tx(lang, 'Xərc', 'Расход', 'Outflow')} value={`${todayOutflow.toFixed(2)} ₼`} tone="rose" />
                 <FinanceMiniMetric label={tx(lang, 'Net nəticə', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
               </div>
             </FinanceControlCard> : null}
-            {financeDataLoaded ? salesLedgerAuditCard : null}
+            {financeDataLoaded && salesLedgerReport && salesLedgerReportPeriod === `${tenant_id}:${fromDate}:${toDate}` ? salesLedgerAuditCard : financeDataLoaded ? <div role="status" className="rounded-2xl border border-amber-400/30 p-4 text-amber-100">{reportsLoading ? tx(lang, 'Satış auditi yüklənir…', 'Загрузка аудита продаж…', 'Loading sales audit…') : tx(lang, 'Seçilmiş dövr üçün satış auditi əlçatan deyil.', 'Аудит продаж за выбранный период недоступен.', 'The sales audit is unavailable for the selected period.')}</div> : null}
             {enterpriseReportsCard}
-            {financeDataLoaded ? overviewInsights : null}
+            {financeDataLoaded && entriesLoaded ? overviewInsights : null}
           </div>
           <div className="space-y-5">
             {financeDataLoaded ? controlSummaryPanel : null}

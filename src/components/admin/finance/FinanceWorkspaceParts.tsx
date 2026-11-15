@@ -24,7 +24,7 @@ export function financeStatusLabel(status?: string | null, lang: string = 'az') 
 
 export function FinanceDashboard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-5 text-slate-100">
+    <div className="finance-workspace space-y-5 text-slate-100">
       {children}
     </div>
   );
@@ -57,11 +57,13 @@ export function FinanceSummaryStrip({
     { label: tx(lang, 'Seçilmiş dövrün net nəticəsi', 'Нетто за выбранный период', 'Selected period net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
     { label: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
   ];
+  const urgentCards = cards.filter((card) => (card.label === cards[4].label && new Decimal(investorDebt || 0).gt(0.01)) || (card.label === cards[6].label && new Decimal(reconciliationGap || 0).abs().gt(0.01)));
+  const compactCards = [...urgentCards, ...cards.filter((card) => !urgentCards.includes(card))].slice(0, 4);
   return (
     <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-4 md:p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
       <div className="mb-4 md:mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Рабочая область финансов', 'Finance workspace')}</div>
           <h2 className="mt-2 text-xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-300">
             {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и финансовый журнал в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
@@ -69,7 +71,7 @@ export function FinanceSummaryStrip({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100">
-            {tx(lang, 'Təsdiq gözləyənlər', 'Ожидает approval', 'Pending approvals')}: {pendingApprovals}
+            {tx(lang, 'Təsdiq gözləyənlər', 'Ожидают подтверждения', 'Pending approvals')}: {pendingApprovals}
           </span>
           <button
             onClick={onRefresh}
@@ -81,7 +83,7 @@ export function FinanceSummaryStrip({
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-        {(showAllKpis ? cards : cards.slice(0, 4)).map((card) => <FinanceKpiCard key={card.label} {...card} />)}
+        {(showAllKpis ? cards : compactCards).map((card) => <FinanceKpiCard key={card.label} {...card} />)}
       </div>
       <div className="mt-3 flex justify-end">
         <button
@@ -110,7 +112,7 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
     <div className={`rounded-[24px] border p-3.5 md:p-4 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
-        <div className="text-right text-xs font-black uppercase tracking-[0.16em] text-slate-300">{tx('az', 'Göstərici', 'KPI', 'KPI')}</div>
+        <div className="text-right text-xs font-black uppercase tracking-[0.16em] text-slate-300">KPI</div>
       </div>
       <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-300">{label}</div>
       <div className="mt-2 text-xl md:text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
@@ -119,9 +121,11 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
 }
 
 export function FinanceAlertsBar({
+  lang,
   alerts,
   onOpen,
 }: {
+  lang: string;
   alerts: Array<Pick<FinanceAlert, 'id' | 'title' | 'body' | 'tone' | 'action'> & { tab: FinanceWorkspaceTab }>;
   onOpen: (alert: { id: string; tab: FinanceWorkspaceTab }) => void;
 }) {
@@ -130,7 +134,7 @@ export function FinanceAlertsBar({
       <section role="status" aria-live="polite" className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
         <div className="flex items-center gap-3 text-emerald-100">
           <CheckCircle2 size={20} />
-          <div className="font-black">{tx('az', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur')}</div>
+          <div className="font-black">{tx(lang, 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Сейчас нет критических финансовых предупреждений', 'There are no critical finance alerts')}</div>
         </div>
       </section>
     );
@@ -162,17 +166,17 @@ export function FinanceAlertsBar({
 
 export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; active: FinanceQuickAction; onSelect: (action: FinanceQuickAction) => void }) {
   const actions: Array<{ id: FinanceQuickAction; label: string; helper: string; icon: React.ReactNode }> = [
-    { id: 'income', label: tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income'), helper: tx(lang, 'Pul daxilolması', 'Pul daxilolması', 'Pul daxilolması'), icon: <Banknote size={18} /> },
-    { id: 'expense', label: tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense'), helper: tx(lang, 'Pul çıxışı', 'Pul çıxışı', 'Pul çıxışı'), icon: <CreditCard size={18} /> },
-    { id: 'transfer', label: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'), helper: tx(lang, 'Hesablar arası', 'Hesablar arası', 'Hesablar arası'), icon: <ArrowRight size={18} /> },
-    { id: 'investor_repayment', label: tx(lang, 'Investor ödə', 'Оплатить инвестору', 'Repay investor'), helper: tx(lang, 'Təsdiq nəzarəti', 'Təsdiq nəzarəti', 'Təsdiq nəzarəti'), icon: <ShieldCheck size={18} /> },
-    { id: 'deposit', label: tx(lang, 'Depozit əməliyyatı', 'Операция депозита', 'Deposit operation'), helper: tx(lang, 'Öhdəlik qeydi', 'Öhdəlik qeydi', 'Öhdəlik qeydi'), icon: <WalletCards size={18} /> },
-    { id: 'reconcile', label: tx(lang, 'Uyğunlaşdırma başlat', 'Начать сверку', 'Start reconcile'), helper: tx(lang, 'Kassa sayımı', 'Kassa sayımı', 'Kassa sayımı'), icon: <GitCompareArrows size={18} /> },
-    { id: 'adjustment', label: tx(lang, 'Düzəliş', 'Корректировка', 'Adjustment'), helper: tx(lang, 'Audit əməliyyatı', 'Audit əməliyyatı', 'Audit əməliyyatı'), icon: <BookOpen size={18} /> },
+    { id: 'income', label: tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income'), helper: tx(lang, 'Pul daxilolması', 'Поступление денег', 'Money received'), icon: <Banknote size={18} /> },
+    { id: 'expense', label: tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense'), helper: tx(lang, 'Pul çıxışı', 'Списание денег', 'Money paid'), icon: <CreditCard size={18} /> },
+    { id: 'transfer', label: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'), helper: tx(lang, 'Hesablar arası', 'Между счетами', 'Between accounts'), icon: <ArrowRight size={18} /> },
+    { id: 'investor_repayment', label: tx(lang, 'Investor ödə', 'Оплатить инвестору', 'Repay investor'), helper: tx(lang, 'Təsdiq nəzarəti', 'Контроль подтверждения', 'Approval control'), icon: <ShieldCheck size={18} /> },
+    { id: 'deposit', label: tx(lang, 'Depozit əməliyyatı', 'Операция депозита', 'Deposit operation'), helper: tx(lang, 'Öhdəlik qeydi', 'Учет обязательства', 'Liability record'), icon: <WalletCards size={18} /> },
+    { id: 'reconcile', label: tx(lang, 'Uyğunlaşdırma başlat', 'Начать сверку', 'Start reconcile'), helper: tx(lang, 'Kassa sayımı', 'Подсчет кассы', 'Cash count'), icon: <GitCompareArrows size={18} /> },
+    { id: 'adjustment', label: tx(lang, 'Düzəliş', 'Корректировка', 'Adjustment'), helper: tx(lang, 'Audit əməliyyatı', 'Аудит операции', 'Audit operation'), icon: <BookOpen size={18} /> },
   ];
   return (
     <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-3.5 md:p-4">
-      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-400">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
+      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-400">{tx(lang, 'Sürətli əməliyyatlar', 'Быстрые операции', 'Quick actions')}</div>
       <div className="grid grid-cols-2 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {actions.map((action) => (
           <button
@@ -195,13 +199,13 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
   );
 }
 
-export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; active: FinanceWorkspaceTab; onChange: (tab: FinanceWorkspaceTab) => void }) {
+export function FinanceWorkspaceTabs({ lang = 'az', active, onChange }: { lang?: string; active: FinanceWorkspaceTab; onChange: (tab: FinanceWorkspaceTab) => void }) {
   const tabs: Array<[FinanceWorkspaceTab, string]> = [
-    ['overview', 'Baxış'],
-    ['transactions', 'Əməliyyat Yaz'],
-    ['reconciliation', 'Uyğunlaşdırma'],
-    ['deposits', 'Depozitlər'],
-    ['ledger', 'Maliyyə Jurnalı'],
+    ['overview', tx(lang, 'Baxış', 'Обзор', 'Overview')],
+    ['transactions', tx(lang, 'Əməliyyat Yaz', 'Новая операция', 'New transaction')],
+    ['reconciliation', tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation')],
+    ['deposits', tx(lang, 'Depozitlər', 'Депозиты', 'Deposits')],
+    ['ledger', tx(lang, 'Maliyyə Jurnalı', 'Финансовый журнал', 'Finance ledger')],
   ];
   return (
     <div
@@ -435,7 +439,7 @@ export function TransactionDetailDrawer({
   const lifecycleEvents = [
     { label: tx(lang, 'Yaradıldı', 'Создано', 'Created'), by: txRow.created_by, at: txRow.created_at, tone: 'sky' as FinanceStatusTone, active: true },
     { label: tx(lang, 'Təsdiqləndi', 'Подтверждено', 'Approved'), by: txRow.approved_by, at: txRow.approved_at, tone: 'emerald' as FinanceStatusTone, active: Boolean(txRow.approved_at || txRow.approved_by) },
-    { label: tx(lang, 'Ledger-ə post edildi', 'Posted в ledger', 'Posted to ledger'), by: txRow.posted_by, at: txRow.posted_at, tone: 'emerald' as FinanceStatusTone, active: txRow.status === 'posted' || txRow.status === 'reversed' || Boolean(txRow.posted_at) },
+    { label: tx(lang, 'Uçota alındı', 'Проведено в журнале', 'Posted to ledger'), by: txRow.posted_by, at: txRow.posted_at, tone: 'emerald' as FinanceStatusTone, active: txRow.status === 'posted' || txRow.status === 'reversed' || Boolean(txRow.posted_at) },
     { label: tx(lang, 'Reversal edildi', 'Reversed', 'Reversed'), by: txRow.reversed_by, at: txRow.reversed_at, tone: 'rose' as FinanceStatusTone, active: txRow.status === 'reversed' || Boolean(txRow.reversed_at) },
   ];
   const runAction = async (mode: 'approve' | 'reject' | 'reverse', handler: () => Promise<void>) => {
@@ -500,7 +504,7 @@ export function TransactionDetailDrawer({
               >
                 {actionBusy === 'reverse'
                   ? tx(lang, 'Sorğu göndərilir...', 'Запрос отправляется...', 'Submitting request...')
-                  : tx(lang, 'Əks yazılış istə', 'Запросить reversal', 'Request reversal')}
+                  : tx(lang, 'Əks yazılış istə', 'Запросить сторнирование', 'Request reversal')}
               </button>
             ) : null}
           </div>
@@ -563,7 +567,7 @@ export function TransactionDetailDrawer({
         </section>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Əks yazılış tarixçəsi', 'История reversal', 'Reversal history')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Əks yazılış tarixçəsi', 'История сторнирования', 'Reversal history')}</div>
           <div className="space-y-3">
             {(detail.reversal_history || []).map((row) => (
               <div key={row.id} className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-3">
@@ -586,7 +590,7 @@ export function TransactionDetailDrawer({
             ))}
             {(detail.reversal_history || []).length === 0 ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
-                {tx(lang, 'Əks yazılış tarixçəsi yoxdur.', 'Истории reversal нет.', 'No reversal history.')}
+                {tx(lang, 'Əks yazılış tarixçəsi yoxdur.', 'Истории сторнирования нет.', 'No reversal history.')}
               </div>
             ) : null}
           </div>

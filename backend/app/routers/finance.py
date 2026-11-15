@@ -2106,6 +2106,7 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
     )
     supplier_transactions = supplier_query.order_by(FinanceTransaction.created_at.desc()).all()
     supplier_by_id = {row.id: row for row in supplier_transactions}
+    account_codes = {account.id: account.code for account in _finance_accounts_by_code(db, tenant.id).values()}
     mirrored_supplier_txns = set()
     for row in entries:
         if row.type != "out" or not row.description or "Ledger mirror:" not in row.description:
@@ -2113,7 +2114,7 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
         parent_id = row.description.split("Ledger mirror:", 1)[1].strip()
         txn = supplier_by_id.get(parent_id)
         if txn:
-            source = _finance_account_code(db, tenant.id, txn.source_account_id)
+            source = account_codes.get(txn.source_account_id)
             if Decimal(str(row.amount)).quantize(Decimal("0.01")) == Decimal(str(txn.amount)).quantize(Decimal("0.01")) and row.source == source:
                 mirrored_supplier_txns.add(txn.id)
     rows = []
@@ -2133,12 +2134,68 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
             continue
         rows.append({
             "id": txn.id, "type": "out", "category": txn.category or "Təchizatçı Ödənişi",
-            "source": _finance_account_code(db, tenant.id, txn.source_account_id) or "cash",
+            "source": account_codes.get(txn.source_account_id) or "cash",
             "amount": _money(txn.amount),
             "source_kind": "supplier_payment",
             "description": f"{txn.counterparty or 'Təchizatçı'} | {txn.note or txn.category or 'Təchizatçı ödənişi'}",
             "created_by": txn.created_by, "created_at": _iso_utc(txn.created_at),
         })
+    # Manual entries remain journal-backed when legacy wallet sync is disabled.
+    # Use their immutable audit references so unrelated POS and supplier events
+    # are not mistaken for manual activity or duplicated.
+    audit_rows = db.query(AuditLog.action, AuditLog.details).filter(
+        AuditLog.tenant_id == tenant.id,
+        AuditLog.action.in_(["FINANCE_ENTRY_CREATED", "FINANCE_LEGACY_WALLET_SYNC_SKIPPED"]),
+    ).all()
+    manual_ids = set()
+    fee_candidates = set()
+    for action, details in audit_rows:
+        try:
+            value = json.loads(details or "{}")
+            if action == "FINANCE_ENTRY_CREATED" and value.get("ledger_transaction_id"):
+                manual_ids.add(str(value["ledger_transaction_id"]))
+            if action == "FINANCE_LEGACY_WALLET_SYNC_SKIPPED" and value.get("transaction_type") == "expense" and value.get("transaction_id"):
+                fee_candidates.add(str(value["transaction_id"]))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    mirrors_by_txn: dict[str, list[FinanceEntry]] = {}
+    for row in entries:
+        if row.description and "Ledger mirror:" in row.description:
+            mirror_id = row.description.split("Ledger mirror:", 1)[1].strip()
+            mirrors_by_txn.setdefault(mirror_id, []).append(row)
+    if manual_ids or fee_candidates:
+        manual_rows = []
+        manual_id_list = list(manual_ids | fee_candidates)
+        for start_index in range(0, len(manual_id_list), 500):
+            manual_rows.extend(db.query(FinanceTransaction).filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.id.in_(manual_id_list[start_index:start_index + 500]),
+                FinanceTransaction.status == "posted",
+            ).all())
+        entry_ids = {row.id for row in entries}
+        for txn in manual_rows:
+            if txn.id not in manual_ids and not (
+                txn.category == "Bank Komissiyası" and
+                (txn.note or "").startswith(("Komissiya: Xərc ödənişi (", "Transfer komissiyası:"))
+            ):
+                continue
+            if txn.legacy_finance_entry_id in entry_ids:
+                continue
+            is_income = txn.transaction_type in {"income", "investor_injection"} or (
+                txn.transaction_type == "internal_transfer" and account_codes.get(txn.source_account_id) == "debt"
+            )
+            source = account_codes.get(txn.destination_account_id if is_income else txn.source_account_id) or "cash"
+            direction = "in" if is_income else "out"
+            if any(row.type == direction and row.source == source and
+                   Decimal(str(row.amount)).quantize(Decimal("0.01")) == Decimal(str(txn.amount)).quantize(Decimal("0.01"))
+                   for row in mirrors_by_txn.get(txn.id, [])):
+                continue
+            rows.append({
+                "id": txn.id, "type": direction,
+                "category": txn.category or "", "source": source,
+                "amount": _money(txn.amount), "description": txn.note or "",
+                "created_by": txn.created_by, "created_at": _iso_utc(txn.created_at),
+            })
     rows.sort(key=lambda row: row["created_at"] or "", reverse=True)
     return rows
 
@@ -2249,6 +2306,9 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
 
     _gl_bridge.emit(db, tenant.id, _gl_entry, actor=user.username, event_type="FinanceEntry")
 
+    # SQLAlchemy assigns mirror IDs on flush; return the durable ID to clients.
+    if mirror_rows:
+        db.flush()
     entry_id = mirror_rows[0].id if mirror_rows else (posted_txn.id if posted_txn else None)
 
     db.add(

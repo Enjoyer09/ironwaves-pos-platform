@@ -346,3 +346,83 @@ def test_old_entry_request_hash_remains_compatible_with_new_optional_counterpart
     old_data = {"actor": MAKER.username, "kind": "entry", "payload": _canonical(old_payload)}
     assert record.request_hash == hashlib.sha256(json.dumps(old_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
     assert finance.create_entry(payload, db, tenant, MAKER)["replayed"] is True
+
+
+def test_manual_expense_remains_visible_when_legacy_sync_is_disabled(ctx):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': False})))
+    db.commit()
+    result = finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash', amount='15', description='local test'), db, tenant, MAKER)
+    rows = finance.list_entries(db, tenant, CHECKER)
+    assert any(row['id'] == result['id'] for row in rows)
+
+
+def test_manual_expense_projection_does_not_duplicate_legacy_mirror(ctx):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': True})))
+    db.commit()
+    result = finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash', amount='15', description='mirror test'), db, tenant, MAKER)
+    rows = [row for row in finance.list_entries(db, tenant, CHECKER) if row['category'] == 'Xammal']
+    assert len(rows) == 1
+    assert rows[0]['id'] == result['id']
+
+
+def test_unrelated_or_mismatched_mirror_does_not_hide_manual_transaction(ctx):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': False})))
+    db.commit()
+    result = finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash', amount='15', description='manual source'), db, tenant, MAKER)
+    db.add(FinanceEntry(tenant_id=tenant.id, type='out', category='Other', source='cash', amount=D('2'),
+                        description=f'Incorrect | Ledger mirror: {result["id"]}', created_by='test'))
+    db.commit()
+    rows = finance.list_entries(db, tenant, CHECKER)
+    assert any(row['id'] == result['id'] and row['amount'] == '15.00' for row in rows)
+
+
+def test_bank_fee_remains_visible_when_legacy_sync_is_disabled(ctx):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': False})))
+    db.add(Setting(tenant_id=tenant.id, key='bank_commission', value=json.dumps({'card_transfer_percent': 1})))
+    db.commit()
+    finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='card', amount='100', include_bank_commission=True), db, tenant, MAKER)
+    rows = finance.list_entries(db, tenant, CHECKER)
+    assert any(row['category'] == 'Bank Komissiyası' and row['amount'] == '1.00' for row in rows)
+
+
+@pytest.mark.parametrize('sync_enabled', [True, False])
+def test_card_expense_fee_appears_once_in_activity(ctx, sync_enabled):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': sync_enabled})))
+    db.add(Setting(tenant_id=tenant.id, key='bank_commission', value=json.dumps({'card_transfer_percent': 1})))
+    db.commit()
+    finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='card', amount='100', include_bank_commission=True), db, tenant, MAKER)
+    fees = [row for row in finance.list_entries(db, tenant, CHECKER) if row['category'] == 'Bank Komissiyası']
+    assert len(fees) == 1 and fees[0]['amount'] == '1.00'
+
+
+@pytest.mark.parametrize('sync_enabled', [True, False])
+def test_approved_transfer_commission_appears_once_in_activity(ctx, sync_enabled):
+    db, tenant = ctx
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': sync_enabled})))
+    db.add(Setting(tenant_id=tenant.id, key='bank_commission', value=json.dumps({'card_transfer_percent': 1})))
+    db.commit()
+    pending = finance.transfer(TransferIn(direction='card_to_cash', amount='500', allow_pending_approval=True,
+        idempotency_key='activity-fee-transfer-01'), db, tenant, MAKER)
+    finance.approve_ledger_transaction(pending['transaction_id'], db, tenant, CHECKER)
+    fees = [row for row in finance.list_entries(db, tenant, CHECKER) if row['category'] == 'Bank Komissiyası']
+    assert len(fees) == 1 and fees[0]['amount'] == '5.00'
+
+
+def test_activity_projection_never_reads_another_tenants_audit_or_transaction(ctx):
+    db, tenant = ctx
+    other_id = str(uuid.uuid4())
+    other = Tenant(id=other_id, name='Other test tenant', slug=f'other-{other_id}', domain=f'{other_id}.test', status='active')
+    db.add(other)
+    db.flush()
+    fs.post_finance_transaction(db, tenant_id=other_id, transaction_type='investor_injection', amount=D('100'),
+                                source_code='investor', destination_code='cash', created_by='setup')
+    db.commit()
+    result = finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash', amount='12',
+                                  description='other-tenant-only'), db, other, MAKER)
+    assert any(row['id'] == result['id'] for row in finance.list_entries(db, other, CHECKER))
+    assert all(row.get('description') != 'other-tenant-only' for row in finance.list_entries(db, tenant, CHECKER))

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCsv } from '../src/components/admin/financev2/exporters.ts';
+import { financeBusinessDate } from '../src/lib/time.ts';
+import { financeAmount } from '../src/lib/financeAmounts.ts';
 import { subledgerReport } from '../src/components/admin/financev2/reportExports.ts';
 
 const report = (rows) => ({
@@ -52,4 +54,20 @@ test('csv neutralises formulas preceded by whitespace', () => {
   assert.match(csv, /'  =1\+1/);
   assert.match(csv, /' -1\+2/);
   assert.match(csv, /-12\.50/);
+});
+
+
+test('finance activity uses Baku calendar days regardless of device timezone', () => {
+  assert.equal(financeBusinessDate('2026-10-24T19:59:59Z'), '2026-10-24');
+  assert.equal(financeBusinessDate('2026-10-24T20:00:00Z'), '2026-10-25');
+  assert.equal(financeBusinessDate('2026-10-25T19:59:59'), '2026-10-25');
+  assert.equal(financeBusinessDate('2026-10-25T20:00:00Z'), '2026-10-26');
+});
+
+
+test('finance form amounts reject malformed, infinite and negative values', () => {
+  for (const value of ['', 'abc', 'Infinity', 'NaN', '-1', '0', '0.001', '1.001']) assert.equal(financeAmount(value), null);
+  assert.equal(financeAmount('0', true)?.toString(), '0');
+  assert.equal(financeAmount('0.01')?.toString(), '0.01');
+  assert.equal(financeAmount('-0.01', true), null);
 });

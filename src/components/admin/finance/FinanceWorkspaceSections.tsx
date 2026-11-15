@@ -8,10 +8,12 @@ import {
 } from '../../../api/finance';
 import { tx, formatFriendlyFinanceNote } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
+import { financeAmount } from '../../../lib/financeAmounts';
 import {
   FinanceControlCard,
   FinanceMiniMetric,
   FinanceStatusBadge,
+  financeStatusLabel,
   type FinanceWorkspaceTab,
 } from './FinanceWorkspaceParts';
 
@@ -32,8 +34,8 @@ export function FinanceApprovalPreview({
 }) {
   return (
     <FinanceControlCard
-      title={tx(lang, 'Təsdiq qutusu', 'Тəsdiq qutusu', 'Təsdiq qutusu')}
-      subtitle={tx(lang, 'Riskli əməliyyatların qısa növbəsi', 'Riskli əməliyyatların qısa növbəsi', 'Riskli əməliyyatların qısa növbəsi')}
+      title={tx(lang, 'Təsdiq qutusu', 'Ожидают подтверждения', 'Approvals')}
+      subtitle={tx(lang, 'Riskli əməliyyatların qısa növbəsi', 'Очередь операций для проверки', 'Transactions awaiting review')}
     >
       <div className="space-y-3">
         {pendingApprovals.slice(0, 3).map((row) => (
@@ -61,7 +63,7 @@ export function FinanceApprovalPreview({
         ))}
         {pendingApprovals.length === 0 ? (
           <div className="rounded-2xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm font-bold text-emerald-100">
-            {tx(lang, 'Hazırda təsdiq gözləyən əməliyyat yoxdur.', 'Hazırda təsdiq gözləyən əməliyyat yoxdur.', 'Hazırda təsdiq gözləyən əməliyyat yoxdur.')}
+            {tx(lang, 'Hazırda təsdiq gözləyən əməliyyat yoxdur.', 'Нет операций, ожидающих подтверждения.', 'No transactions are awaiting approval.')}
           </div>
         ) : null}
       </div>
@@ -70,7 +72,7 @@ export function FinanceApprovalPreview({
           onClick={onOpenAll}
           className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
         >
-          {tx(lang, 'Hamısını aç', 'Hamısını aç', 'Hamısını aç')}
+          {tx(lang, 'Hamısını aç', 'Открыть все', 'Open all')}
         </button>
       </div>
     </FinanceControlCard>
@@ -103,18 +105,18 @@ export function FinanceOverviewInsightsCard({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <FinanceMiniMetric label={tx(lang, 'Mədaxil', 'Поступления', 'Incoming')} value={incoming} tone="emerald" />
         <FinanceMiniMetric label={tx(lang, 'Xərc', 'Расходы', 'Expenses')} value={outgoing} tone="rose" />
-        <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Ən böyük xərc', 'Ən böyük xərc')} value={biggestExpenseAmount} tone="amber" />
-        <FinanceMiniMetric label={tx(lang, 'Açıq təsdiqlər', 'Açıq təsdiqlər', 'Açıq təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
+        <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Наибольший расход', 'Largest expense')} value={biggestExpenseAmount} tone="amber" />
+        <FinanceMiniMetric label={tx(lang, 'Açıq təsdiqlər', 'Ожидают подтверждения', 'Pending approvals')} value={String(pendingApprovalsCount)} tone="violet" />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={onExpense} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Xərc yaz', 'Xərc yaz', 'Xərc yaz')}
+          {tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense')}
         </button>
         <button onClick={onTransfer} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Transfer et', 'Transfer et', 'Transfer et')}
+          {tx(lang, 'Transfer et', 'Перевести', 'Transfer')}
         </button>
         <button onClick={onOpenLedger} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Jurnala bax', 'Jurnala bax', 'Jurnala bax')}
+          {tx(lang, 'Jurnala bax', 'Открыть журнал', 'View ledger')}
         </button>
       </div>
     </FinanceControlCard>
@@ -150,10 +152,10 @@ export function FinanceControlSummaryPanel({
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button onClick={onOpenReconciliation} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç')}
+          {tx(lang, 'Uyğunlaşdırmaya keç', 'Перейти к сверке', 'Go to reconciliation')}
         </button>
         <button onClick={onOpenInvestor} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Investor bölməsini aç', 'Investor bölməsini aç', 'Investor bölməsini aç')}
+          {tx(lang, 'Investor bölməsini aç', 'Открыть раздел инвестора', 'Open investor section')}
         </button>
       </div>
     </FinanceControlCard>
@@ -178,12 +180,12 @@ export function FinanceActionWorkspace({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-            {tx(lang, 'Aktiv iş sahəsi', 'Aktiv iş sahəsi', 'Aktiv iş sahəsi')}
+            {tx(lang, 'Aktiv iş sahəsi', 'Активная область', 'Active workspace')}
           </div>
           <div className="mt-1 text-base font-black text-white">{title}</div>
         </div>
         <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
-          {tx(lang, 'Baxışa qayıt', 'Baxışa qayıt', 'Baxışa qayıt')}
+          {tx(lang, 'Baxışa qayıt', 'Вернуться к обзору', 'Back to overview')}
         </button>
       </div>
       {children}
@@ -280,10 +282,10 @@ export function FinanceLedgerTab({
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 md:p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'İki tərəfli maliyyə jurnalı', 'Двойной ledger', 'Double-entry journal')}</div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'İki tərəfli maliyyə jurnalı', 'Журнал двойной записи', 'Double-entry journal')}</div>
           <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Maliyyə jurnalı', 'Ledger операции', 'Ledger Transactions')}</h3>
           <p className="mt-1 text-sm text-slate-300">
-            {tx(lang, 'Hər yazılmış əməliyyat debit/credit entry-lərlə və audit izi ilə izlənir.', 'Каждая posted transaction отслеживается debit/credit записями.', 'Every posted transaction is tracked with debit/credit entries.')}
+            {tx(lang, 'Hər əməliyyat mühasibat yazılışları və audit izi ilə izlənir.', 'Каждая операция отслеживается по проводкам и журналу аудита.', 'Each transaction is tracked through ledger entries and an audit trail.')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -298,9 +300,9 @@ export function FinanceLedgerTab({
       <div className="mb-4 md:mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-3.5 md:p-4">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Jurnal filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Jurnal filterləri', 'Фильтры журнала', 'Ledger filters')}</div>
             <p className="mt-1 text-xs font-bold text-slate-400">
-              {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || visibleLedgerTransactions.length} {tx(lang, 'əməliyyat göstərilir', 'transaction показано', 'transactions shown')}
+              {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || visibleLedgerTransactions.length} {tx(lang, 'əməliyyat göstərilir', 'операций показано', 'transactions shown')}
               {ledgerPageLoading ? ` · ${tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}` : ''}
             </p>
           </div>
@@ -311,7 +313,7 @@ export function FinanceLedgerTab({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-2">
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Axtarış', 'Поиск', 'Search')}</span>
-            <input className="neon-input min-h-12" value={ledgerSearch} onChange={(e) => onLedgerSearchChange(e.target.value)} placeholder={tx(lang, 'ID, qeyd, reference, user...', 'ID, комментарий, reference, user...', 'ID, note, reference, user...')} />
+            <input className="neon-input min-h-12" value={ledgerSearch} onChange={(e) => onLedgerSearchChange(e.target.value)} placeholder={tx(lang, 'ID, qeyd, istinad, istifadəçi...', 'ID, комментарий, ссылка, пользователь...', 'ID, note, reference, user...')} />
           </label>
           <label className="space-y-2">
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Əməliyyat növü', 'Тип', 'Type')}</span>
@@ -327,7 +329,7 @@ export function FinanceLedgerTab({
             <select className="neon-input min-h-12" value={ledgerStatusFilter} onChange={(e) => onLedgerStatusFilterChange(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün statuslar', 'Все статусы', 'All statuses')}</option>
               {ledgerTransactionStatuses.map((statusValue) => (
-                <option key={statusValue} value={statusValue}>{tx(lang, statusValue === 'pending_approval' ? 'Təsdiq gözləyir' : statusValue === 'approved' ? 'Təsdiqlənib' : statusValue === 'posted' ? 'Yazılıb' : statusValue === 'rejected' ? 'Rədd edilib' : statusValue === 'reversed' ? 'Əks yazılış edilib' : statusValue === 'draft' ? 'Qaralama' : statusValue, statusValue, statusValue)}</option>
+                <option key={statusValue} value={statusValue}>{financeStatusLabel(statusValue, lang)}</option>
               ))}
             </select>
           </label>
@@ -482,6 +484,9 @@ export function FinanceReconciliationWorkspace({
   onSubmit,
   submitting,
   reconciliations,
+  historyError,
+  historyLoading,
+  balanceAvailable,
 }: {
   lang: string;
   expectedReconcileBalance: Decimal;
@@ -496,19 +501,22 @@ export function FinanceReconciliationWorkspace({
   onSubmit: () => void;
   submitting?: boolean;
   reconciliations: FinanceReconciliation[];
+  historyError?: boolean;
+  historyLoading?: boolean;
+  balanceAvailable: boolean;
 }) {
   return (
     <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-3.5 md:p-4">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FinanceMiniMetric label={tx(lang, 'Gözlənilən', 'Gözlənilən', 'Gözlənilən')} value={`${expectedReconcileBalance.toFixed(2)} ₼`} tone="sky" />
-            <FinanceMiniMetric label={tx(lang, 'Sayılmış', 'Sayılmış', 'Sayılmış')} value={`${new Decimal(reconcileCounted || 0).toFixed(2)} ₼`} tone="emerald" />
-            <FinanceMiniMetric label={tx(lang, 'Fərq', 'Fərq', 'Fərq')} value={`${reconcileVariance.toFixed(2)} ₼`} tone={reconcileVariance.abs().gt(0.01) ? 'rose' : 'emerald'} />
+            <FinanceMiniMetric label={tx(lang, 'Gözlənilən', 'Ожидается', 'Expected')} value={balanceAvailable ? `${expectedReconcileBalance.toFixed(2)} ₼` : '—'} tone="sky" />
+            <FinanceMiniMetric label={tx(lang, 'Sayılmış', 'Подсчитано', 'Counted')} value={financeAmount(reconcileCounted, true) ? `${financeAmount(reconcileCounted, true)!.toFixed(2)} ₼` : '—'} tone="emerald" />
+            <FinanceMiniMetric label={tx(lang, 'Fərq', 'Разница', 'Difference')} value={balanceAvailable && financeAmount(reconcileCounted, true) ? `${reconcileVariance.toFixed(2)} ₼` : '—'} tone={!balanceAvailable || !financeAmount(reconcileCounted, true) ? 'sky' : reconcileVariance.abs().gt(0.01) ? 'rose' : 'emerald'} />
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3">
             <label className="field-stack form-card">
-              <span className="field-label">{tx(lang, 'Hesab / Kassa', 'Hesab / Kassa', 'Hesab / Kassa')}</span>
+              <span className="field-label">{tx(lang, 'Hesab / Kassa', 'Счет / касса', 'Account / cash')}</span>
               <select className="neon-input min-h-13" value={reconcileAccount} onChange={(e) => setReconcileAccount(e.target.value)}>
                 {(ledgerAccounts.length ? ledgerAccounts : [
                   { code: 'cash', name: 'Nağd Kassa' },
@@ -520,31 +528,33 @@ export function FinanceReconciliationWorkspace({
               </select>
             </label>
             <label className="field-stack form-card">
-              <span className="field-label">{tx(lang, 'Sayılmış məbləğ', 'Sayılmış məbləğ', 'Sayılmış məbləğ')}</span>
+              <span className="field-label">{tx(lang, 'Sayılmış məbləğ', 'Подсчитанная сумма', 'Counted amount')}</span>
               <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" inputMode="decimal" data-virtual-keyboard-mode="numeric" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
-              <span className="field-hint">{tx(lang, 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.')}</span>
+              <span className="field-hint">{tx(lang, 'Fiziki sayılmış qalığı yazın.', 'Введите фактически подсчитанный остаток.', 'Enter the physically counted balance.')}</span>
             </label>
             <label className="field-stack form-card">
-              <span className="field-label">{tx(lang, 'Qeyd', 'Qeyd', 'Qeyd')}</span>
+              <span className="field-label">{tx(lang, 'Qeyd', 'Примечание', 'Note')}</span>
               <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
             </label>
             <div className="sticky bottom-2 z-10 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
               <button
-                disabled={Boolean(submitting)}
+                disabled={Boolean(submitting) || !balanceAvailable}
                 onClick={() => onSubmit()}
                 className="glossy-gold min-h-14 w-full rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
               >
                 {submitting
                   ? tx(lang, 'Yazılır...', 'Сохранение...', 'Saving...')
-                  : tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
+                  : tx(lang, 'Uyğunlaşdırmanı tamamla', 'Завершить сверку', 'Complete reconciliation')}
               </button>
             </div>
           </div>
         </div>
         <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Son uyğunlaşdırmalar', 'Son uyğunlaşdırmalar', 'Son uyğunlaşdırmalar')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Son uyğunlaşdırmalar', 'Последние сверки', 'Recent reconciliations')}</div>
           <div className="space-y-3">
-            {reconciliations.slice(0, 8).map((row) => (
+            {historyError ? <div role="alert" className="rounded-2xl border border-amber-400/30 p-4 text-sm text-amber-100">{tx(lang, 'Uyğunlaşdırma tarixçəsi yenilənmədi.', 'История сверок не обновлена.', 'Reconciliation history could not be refreshed.')}</div> : null}
+            {historyLoading ? <div role="status" className="p-4 text-sm text-slate-400">{tx(lang, 'Tarixçə yüklənir…', 'Загрузка истории…', 'Loading history…')}</div> : null}
+            {!historyLoading && reconciliations.slice(0, 8).map((row) => (
               <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -556,14 +566,14 @@ export function FinanceReconciliationWorkspace({
                   </span>
                 </div>
                 <div className="mt-2 text-xs text-slate-400">
-                  {tx(lang, 'Gözlənilən', 'Gözlənilən', 'Gözlənilən')} {new Decimal(row.expected_balance || 0).toFixed(2)} ₼ · {tx(lang, 'Sayılmış', 'Sayılmış', 'Sayılmış')} {new Decimal(row.counted_balance || 0).toFixed(2)} ₼
+                  {tx(lang, 'Gözlənilən', 'Ожидается', 'Expected')} {new Decimal(row.expected_balance || 0).toFixed(2)} ₼ · {tx(lang, 'Sayılmış', 'Подсчитано', 'Counted')} {new Decimal(row.counted_balance || 0).toFixed(2)} ₼
                 </div>
                 {row.notes && <div className="mt-2 text-xs text-slate-500">{row.notes}</div>}
               </div>
             ))}
-            {reconciliations.length === 0 && (
+            {!historyError && !historyLoading && reconciliations.length === 0 && (
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
-                {tx(lang, 'Hələ uyğunlaşdırma qeydi yoxdur.', 'Hələ uyğunlaşdırma qeydi yoxdur.', 'Hələ uyğunlaşdırma qeydi yoxdur.')}
+                {tx(lang, 'Hələ uyğunlaşdırma qeydi yoxdur.', 'Сверок пока нет.', 'No reconciliations yet.')}
               </div>
             )}
           </div>

@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from types import SimpleNamespace
 import os
+import json
 import threading
 import uuid
 
@@ -204,3 +205,34 @@ def test_concurrent_same_key_different_payload_has_one_winner(sessions, tenant_i
     with sessions() as db:
         assert db.query(FinanceOperationRequest).filter_by(tenant_id=tenant_id, idempotency_key="concurrent-conflict-key-0001").count() == 1
         assert db.query(FinanceTransaction).filter_by(tenant_id=tenant_id, transaction_type="expense").count() == 1
+
+
+def test_manual_entry_visible_once_in_activity_with_or_without_legacy_mirror(sessions, tenant_id):
+    from app.schemas import FinanceEntryIn
+    for enabled, amount in ((False, '23'), (True, '27')):
+        with sessions() as db:
+            tenant = db.get(Tenant, tenant_id)
+            setting = db.query(Setting).filter_by(tenant_id=tenant_id, key='finance_policy').first()
+            if setting is None:
+                setting = Setting(tenant_id=tenant_id, key='finance_policy', value='{}')
+                db.add(setting)
+            setting.value = json.dumps({'legacy_wallet_sync_enabled': enabled})
+            db.commit()
+            result = finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash', amount=amount,
+                description=f'synthetic activity {enabled}'), db, tenant, MAKER)
+            rows = [row for row in finance.list_entries(db, tenant, CHECKER) if row.get('description', '').startswith(f'synthetic activity {enabled}')]
+            assert len(rows) == 1 and rows[0]['id'] == result['id']
+
+
+def test_card_expense_commission_visible_without_legacy_sync(sessions, tenant_id):
+    from app.schemas import FinanceEntryIn
+    with sessions() as db:
+        tenant = db.get(Tenant, tenant_id)
+        db.add(Setting(tenant_id=tenant_id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': False})))
+        db.add(Setting(tenant_id=tenant_id, key='bank_commission', value=json.dumps({'card_transfer_percent': 1})))
+        fs.post_finance_transaction(db, tenant_id=tenant_id, transaction_type='investor_injection', amount=D('200'),
+                                    source_code='investor', destination_code='card', created_by='setup')
+        db.commit()
+        finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='card', amount='100', include_bank_commission=True), db, tenant, MAKER)
+        fees = [row for row in finance.list_entries(db, tenant, CHECKER) if row['category'] == 'Bank Komissiyası']
+        assert len(fees) == 1 and fees[0]['amount'] == '1.00'

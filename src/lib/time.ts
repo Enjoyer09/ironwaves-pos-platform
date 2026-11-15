@@ -23,6 +23,15 @@ export const parseRestaurantLocalTimestamp = (value?: string | null) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+// Compare finance activity against the restaurant business day, independently of the browser timezone.
+export const financeBusinessDate = (value?: string | null): string | null => {
+  const parsed = parseServerUtcTimestamp(value);
+  if (!parsed) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: BAKU_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(parsed);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
 export const formatServerUtcTime = (value?: string | null, lang?: string | null) => {
   const parsed = parseServerUtcTimestamp(value);
   return parsed

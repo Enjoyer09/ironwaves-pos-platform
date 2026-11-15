@@ -15,6 +15,7 @@ vaxt və ya səhv seqment min müştəriyə gedir və geri alınmır. Kilidlən�
 import importlib
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -221,7 +222,7 @@ def test_schedule_requires_body(monkeypatch):
     ops = _ops()
     with pytest.raises(HTTPException) as err:
         ops.create_push_schedule(
-            payload=ops.PushScheduleIn(body="   ", scheduled_at="2026-10-12T09:00:00"),
+            payload=ops.PushScheduleIn(body="   ", scheduled_at=(datetime.now(timezone.utc) + timedelta(days=1)).isoformat()),
             db=_FakeDB(), tenant=TENANT, user=ADMIN,
         )
     assert err.value.status_code == 400
@@ -233,7 +234,7 @@ def test_schedule_rejects_non_https_url(monkeypatch, url):
     ops = _ops()
     with pytest.raises(HTTPException) as err:
         ops.create_push_schedule(
-            payload=ops.PushScheduleIn(body="Salam", url=url, scheduled_at="2026-10-12T09:00:00"),
+            payload=ops.PushScheduleIn(body="Salam", url=url, scheduled_at=(datetime.now(timezone.utc) + timedelta(days=1)).isoformat()),
             db=_FakeDB(), tenant=TENANT, user=ADMIN,
         )
     assert err.value.status_code == 400

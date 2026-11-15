@@ -219,7 +219,7 @@ class FinanceRequestIn(BaseModel):
 
 
 class FinanceEntryIn(FinanceRequestIn):
-    counterparty: str | None = Field(default=None, max_length=255)
+    counterparty: str | None = Field(default=None, max_length=120)
     type: str
     category: str
     category_code: str | None = None
