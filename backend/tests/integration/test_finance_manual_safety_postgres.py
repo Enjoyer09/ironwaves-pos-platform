@@ -11,14 +11,14 @@ import uuid
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 import app.gl.models  # noqa: F401
 from app.gl import bridge, shadow
 from app.gl.engine import ensure_chart
 from app.gl.legacy_migration import migrate_tenant, reconcile_dual_tenant
-from app.models import FinanceLedgerEntry, FinanceOperationRequest, FinanceReconciliation, FinanceTransaction, Setting, Tenant
+from app.models import AuditLog, FinanceActivityReference, FinanceLedgerEntry, FinanceOperationRequest, FinanceReconciliation, FinanceTransaction, Setting, Tenant
 from app.routers import finance
 from app.schemas import FinanceReconciliationIn, FinanceTransactionIn, TransferIn
 from app.services import finance_service as fs
@@ -64,6 +64,36 @@ def assert_balanced(sessions, tid, cash):
             report = reconcile_dual_tenant(db, tid)
             assert report["ok"], [row for row in report["checks"] if not row["ok"]]
             db.commit()
+
+
+def test_activity_references_follow_audit_inserts_without_scanning_audit(sessions, tenant_id):
+    with sessions() as db:
+        tenant = db.get(Tenant, tenant_id)
+        manual_id, fee_id = str(uuid.uuid4()), str(uuid.uuid4())
+        db.add_all([
+            AuditLog(tenant_id=tenant_id, user="test", action="FINANCE_ENTRY_CREATED",
+                     details=json.dumps({"ledger_transaction_id": manual_id})),
+            AuditLog(tenant_id=tenant_id, user="test", action="FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+                     details=json.dumps({"transaction_type": "expense", "transaction_id": fee_id})),
+            AuditLog(tenant_id=tenant_id, user="test", action="FINANCE_ENTRY_CREATED", details="not json"),
+        ])
+        db.flush()
+        references = db.query(FinanceActivityReference).filter(
+            FinanceActivityReference.tenant_id == tenant_id,
+            FinanceActivityReference.transaction_id.in_([manual_id, fee_id]),
+        ).all()
+        assert {(row.transaction_id, row.kind) for row in references} == {(manual_id, "manual"), (fee_id, "fee")}
+        statements = []
+        def capture(_conn, _cursor, statement, _parameters, _context, _many):
+            statements.append(statement)
+        event.listen(db.get_bind(), "before_cursor_execute", capture)
+        try:
+            today = datetime.now(ZoneInfo("Asia/Baku")).date().isoformat()
+            finance.list_entries_period(today, today, 1, 0, db, tenant, CHECKER)
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", capture)
+        assert not any("audit_logs" in statement for statement in statements)
+        db.rollback()
 
 
 def test_concurrent_manual_expenses_cannot_spend_same_money(sessions, tenant_id):

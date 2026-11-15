@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import and_, case, exists, false, func, literal, or_, select, union_all
 from sqlalchemy.orm import Session, aliased
 
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceTransaction
+from app.models import AuditLog, FinanceAccount, FinanceActivityReference, FinanceEntry, FinanceTransaction
 
 
 def _within(column, start: datetime | None, end: datetime | None):
@@ -45,7 +45,22 @@ def _audit_transaction_ids(db: Session, tenant_id: str, start: datetime | None, 
 
 def activity_rows(db: Session, tenant_id: str, start: datetime | None, end: datetime | None):
     """Return a composable SQL relation; callers apply LIMIT/cursor in SQL."""
-    manual_ids, fee_ids = _audit_transaction_ids(db, tenant_id, start, end)
+    if db.get_bind().dialect.name == "postgresql":
+        def has_reference(kind: str):
+            return exists(select(literal(1)).select_from(FinanceActivityReference).where(
+                FinanceActivityReference.tenant_id == tenant_id,
+                FinanceActivityReference.transaction_id == FinanceTransaction.id,
+                FinanceActivityReference.kind == kind,
+                *_within(FinanceActivityReference.created_at, start, end),
+            ).correlate(FinanceTransaction))
+
+        manual_reference = has_reference("manual")
+        fee_reference = has_reference("fee")
+    else:
+        # SQLite unit tests do not run the PostgreSQL audit trigger.
+        manual_ids, fee_ids = _audit_transaction_ids(db, tenant_id, start, end)
+        manual_reference = FinanceTransaction.id.in_(manual_ids) if manual_ids else false()
+        fee_reference = FinanceTransaction.id.in_(fee_ids) if fee_ids else false()
     entry = FinanceEntry
     supplier = aliased(FinanceTransaction)
     supplier_account = aliased(FinanceAccount)
@@ -130,9 +145,9 @@ def activity_rows(db: Session, tenant_id: str, start: datetime | None, end: date
         ).correlate(transaction, manual_source, manual_destination)
     )
     manual_filter = or_(
-        transaction.id.in_(manual_ids) if manual_ids else false(),
+        manual_reference,
         and_(
-            transaction.id.in_(fee_ids) if fee_ids else false(),
+            fee_reference,
             transaction.category == "Bank Komissiyası",
             or_(transaction.note.like("Komissiya: Xərc ödənişi (%"),
                 transaction.note.like("Transfer komissiyası:%")),
