@@ -404,7 +404,7 @@ def _sales_reconciliation_totals(
 
 
 def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
-    ledger_balances = _ledger_balances_snapshot(db, tenant_id)
+    ledger_balances = _ledger_balances_snapshot(db, tenant_id, ensure_accounts=False)
     cash_balance = ledger_balances.get("cash", Decimal("0.00"))
     deposit_balance = ledger_balances.get("deposit", Decimal("0.00"))
     investor_ledger_balance = ledger_balances.get("investor", Decimal("0.00"))
@@ -886,7 +886,7 @@ def _ledger_equity_total(db: Session, tenant_id: str) -> tuple[Decimal, list[str
 
 
 def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
-    balances = _ledger_balances_snapshot(db, tenant_id)
+    balances = _ledger_balances_snapshot(db, tenant_id, ensure_accounts=False)
     cash = balances.get("cash", Decimal("0.00"))
     card = balances.get("card", Decimal("0.00"))
     safe = balances.get("safe", Decimal("0.00"))
@@ -1283,7 +1283,7 @@ def _transfer_requests_for(db: Session, tenant_id: str, transaction_ids: list[st
 
 def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
     accounts = _finance_accounts_by_code(db, tenant_id)
-    balances = _ledger_balances_snapshot(db, tenant_id)
+    balances = _ledger_balances_snapshot(db, tenant_id, ensure_accounts=False)
     policy = _finance_policy(db, tenant_id)
     alerts: list[dict] = []
 

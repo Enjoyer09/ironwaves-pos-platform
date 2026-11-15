@@ -426,3 +426,18 @@ def test_activity_projection_never_reads_another_tenants_audit_or_transaction(ct
                                   description='other-tenant-only'), db, other, MAKER)
     assert any(row['id'] == result['id'] for row in finance.list_entries(db, other, CHECKER))
     assert all(row.get('description') != 'other-tenant-only' for row in finance.list_entries(db, tenant, CHECKER))
+
+
+def test_finance_reads_do_not_create_accounts_for_empty_tenant(ctx):
+    db, _ = ctx
+    tenant_id = str(uuid.uuid4())
+    tenant = Tenant(id=tenant_id, name='Empty finance tenant', slug=f'empty-{tenant_id}',
+                    domain=f'{tenant_id}.test', status='active')
+    db.add(tenant)
+    db.flush()
+
+    finance.get_finance_summary(db, tenant, CHECKER)
+    finance.get_finance_anomalies(db, tenant, CHECKER)
+    finance.get_finance_reports_overview(None, None, db, tenant, CHECKER)
+
+    assert db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).count() == 0
