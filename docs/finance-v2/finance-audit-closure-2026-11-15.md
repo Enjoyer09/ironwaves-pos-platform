@@ -17,7 +17,7 @@ Source: `outputs/finance-audit-2026-10-25/AUDIT_AZ.md` in the original workspace
 | F11 | Ledger export fetches and verifies every page. |
 | F12 | Legacy CSV cells neutralize spreadsheet formulas. |
 | F13 | The report labels the balance sheet as current and period reports as selected-range results. |
-| F14 | Routine finance screens request a selected-period server aggregate without downloading activity history. The new period endpoint accepts date ranges and returns at most 500 activity rows per page; CSV loads verified pages on demand. A 10,000-row synthetic PostgreSQL period returned a 100-row page and aggregate in 0.177 seconds. The server still materializes the selected period to reconcile legacy mirrors and audit-backed journal activity, so very large custom periods should continue to be monitored. |
+| F14 | Routine finance screens request a selected-period server aggregate without downloading activity history. Activity is projected by a SQL union, with the page selected using database `LIMIT` and a stable `(created_at, id)` cursor; CSV follows the cursor and verifies its row count. The aggregate streams rows in batches instead of materializing the selected period in application memory. A 10,000-row synthetic PostgreSQL period returned a 100-row page and aggregate in 0.189 seconds. Audit JSON references are still scanned per request, and CSV pages recompute aggregates; a durable indexed projection remains future scale work. |
 | F15 | New entries persist a separate counterparty name; historical records are not rewritten. |
 | F16 | Overview cashflow labels reflect the selected date interval. |
 | F17 | Finance workspace status, tabs, audit text, and approval text use consistent localized terminology. |

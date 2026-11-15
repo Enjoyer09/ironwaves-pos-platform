@@ -1,6 +1,8 @@
 """Manual finance races on PostgreSQL; use only a disposable integration DB."""
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 import os
 import json
@@ -222,6 +224,16 @@ def test_manual_entry_visible_once_in_activity_with_or_without_legacy_mirror(ses
                 description=f'synthetic activity {enabled}'), db, tenant, MAKER)
             rows = [row for row in finance.list_entries(db, tenant, CHECKER) if row.get('description', '').startswith(f'synthetic activity {enabled}')]
             assert len(rows) == 1 and rows[0]['id'] == result['id']
+            today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
+            expected = finance.list_entries(db, tenant, CHECKER, date_from=today, date_to=today)
+            first = finance.list_entries_period(today, today, 1, 0, db, tenant, CHECKER)
+            collected = first['rows'][:]
+            cursor = first['next_cursor']
+            while cursor:
+                page = finance.list_entries_period(today, today, 1, 0, db, tenant, CHECKER, cursor=cursor)
+                collected.extend(page['rows'])
+                cursor = page['next_cursor']
+            assert collected == expected
 
 
 def test_card_expense_commission_visible_without_legacy_sync(sessions, tenant_id):

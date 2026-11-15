@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 import app.gl.models  # noqa: F401
@@ -237,6 +237,8 @@ def test_supplier_payment_projection_is_visible_once_and_not_as_a_profit_expense
     supplier_rows = [row for row in rows if row["category"] == "Təchizatçı Ödənişi"]
     assert len(supplier_rows) == 1 and supplier_rows[0]["id"] != txn.id
     assert supplier_rows[0]["source_kind"] == "supplier_payment"
+    period = finance.list_entries_period(today, today, 10, 0, db, tenant, CHECKER)
+    assert period['rows'] == finance.list_entries(db, tenant, CHECKER, date_from=today, date_to=today)
 
 
 def test_report_period_uses_baku_business_day_boundaries():
@@ -382,6 +384,9 @@ def test_unrelated_or_mismatched_mirror_does_not_hide_manual_transaction(ctx):
     db.commit()
     rows = finance.list_entries(db, tenant, CHECKER)
     assert any(row['id'] == result['id'] and row['amount'] == '15.00' for row in rows)
+    today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
+    period = finance.list_entries_period(today, today, 10, 0, db, tenant, CHECKER)
+    assert period['rows'] == finance.list_entries(db, tenant, CHECKER, date_from=today, date_to=today)
 
 
 def test_bank_fee_remains_visible_when_legacy_sync_is_disabled(ctx):
@@ -454,7 +459,15 @@ def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
         finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash',
                              amount=amount, description=f'period expense {index}'), db, tenant, MAKER)
     today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
-    first = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER)
+    statements = []
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _many):
+        statements.append(statement)
+    event.listen(db.get_bind(), 'before_cursor_execute', capture_sql)
+    try:
+        first = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER)
+    finally:
+        event.remove(db.get_bind(), 'before_cursor_execute', capture_sql)
+    assert any('LIMIT' in sql.upper() and 'finance_activity_rows' in sql for sql in statements)
     second = finance.list_entries_period(today, today, 2, 2, db, tenant, CHECKER)
     assert first['total'] == 3
     assert [row['id'] for row in first['rows']] != [row['id'] for row in second['rows']]
@@ -464,3 +477,33 @@ def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
     assert first['summary']['expenses']['count'] == 3
     wide = finance.list_entries_period('2024-01-01', today, 0, 0, db, tenant, CHECKER)
     assert wide['total'] == 3 and wide['rows'] == []
+
+
+def test_sql_activity_page_matches_legacy_projection_and_cursor(ctx):
+    db, tenant = ctx
+    finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='cash',
+                         amount='10', description='mirrored expense'), db, tenant, MAKER)
+    db.add(Setting(tenant_id=tenant.id, key='finance_policy', value=json.dumps({'legacy_wallet_sync_enabled': False})))
+    db.add(Setting(tenant_id=tenant.id, key='bank_commission', value=json.dumps({'card_transfer_percent': 1})))
+    db.commit()
+    finance.create_entry(FinanceEntryIn(type='out', category='Xammal', source='card',
+                         amount='20', description='journal expense', include_bank_commission=True), db, tenant, MAKER)
+    supplier = fs.create_finance_transaction_record(db, tenant_id=tenant.id,
+        transaction_type='supplier_payment', status='posted', amount=D('7'),
+        source_code='cash', destination_code='payable', created_by='maker', note='supplier settlement')
+    db.commit()
+    today = datetime.now(ZoneInfo('Asia/Baku')).date().isoformat()
+    expected = finance.list_entries(db, tenant, CHECKER, date_from=today, date_to=today)
+    first = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER)
+    collected = first['rows'][:]
+    cursor = first['next_cursor']
+    while cursor:
+        page = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER, cursor=cursor)
+        collected.extend(page['rows'])
+        cursor = page['next_cursor']
+    assert first['total'] == len(expected) == len(collected)
+    assert collected == expected
+    assert any(row['id'] == supplier.id and row['source_kind'] == 'supplier_payment' for row in collected)
+    with pytest.raises(HTTPException) as error:
+        finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER, cursor='invalid')
+    assert error.value.status_code == 400

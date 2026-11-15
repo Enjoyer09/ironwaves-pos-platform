@@ -734,6 +734,7 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
 export type FinanceActivityPeriod = {
   rows: FinanceEntry[];
   total: number;
+  next_cursor: string | null;
   summary: {
     incoming: string;
     outgoing: string;
@@ -746,18 +747,19 @@ export type FinanceActivityPeriod = {
 };
 
 export const fetch_finance_activity_period = async (
-  tenant_id: string, date_from: string, date_to: string, limit = 0, offset = 0,
+  tenant_id: string, date_from: string, date_to: string, limit = 0, offset = 0, cursor?: string,
 ): Promise<FinanceActivityPeriod> => {
   if (!isBackendEnabled()) {
     const rows = get_finance_entries(tenant_id).filter((row) => {
       const day = financeBusinessDate(row.created_at);
       return day !== null && day >= date_from && day <= date_to;
     });
-    return { rows: rows.slice(offset, offset + limit), total: rows.length,
+    return { rows: rows.slice(offset, offset + limit), total: rows.length, next_cursor: null,
       summary: { incoming: '0', outgoing: '0', net: '0', deposits: '0', entries_count: 0, biggest_expense: null,
         expenses: { total: '0', count: 0, by_category: [] } } };
   }
   const params = new URLSearchParams({ date_from, date_to, limit: String(limit), offset: String(offset) });
+  if (cursor) params.set('cursor', cursor);
   const data = await apiRequest<any>(`/api/v1/finance/entries/period?${params}`, { method: 'GET', tenantId: tenant_id });
   const mapRow = (row: any): FinanceEntry & { source_kind?: string } => ({
     id: String(row.id), tenant_id, type: String(row.type) as 'in' | 'out',
@@ -767,6 +769,7 @@ export const fetch_finance_activity_period = async (
     source_kind: row.source_kind || undefined, is_deleted: false,
   });
   return { rows: (data.rows || []).map(mapRow), total: Number(data.total || 0),
+    next_cursor: typeof data.next_cursor === 'string' ? data.next_cursor : null,
     summary: { incoming: String(data.summary?.incoming || '0'), outgoing: String(data.summary?.outgoing || '0'),
       net: String(data.summary?.net || '0'), deposits: String(data.summary?.deposits || '0'),
       entries_count: Number(data.summary?.entries_count || 0),

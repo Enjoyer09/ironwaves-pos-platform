@@ -1,4 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
+import base64
+import binascii
 from functools import wraps
 from inspect import signature
 from zoneinfo import ZoneInfo
@@ -6,7 +8,7 @@ from decimal import Decimal
 from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -34,6 +36,7 @@ from app.models import (
 )
 from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransactionIn, InvestorRepayIn, TransferIn
 from app.services.finance_requests import reserve_request, complete_request, transfer_request
+from app.services.finance_activity import activity_rows
 from app.services import finance_transfers
 
 
@@ -2224,6 +2227,7 @@ def list_entries_period(
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user=Depends(get_current_user),
+    cursor: str | None = None,
 ):
     _ensure_finance_read_access(user)
     try:
@@ -2232,15 +2236,34 @@ def list_entries_period(
         raise HTTPException(status_code=400, detail="Invalid finance period")
     if first > last:
         raise HTTPException(status_code=400, detail="Finance period start must not follow end")
-    rows = list_entries(db, tenant, user, date_from=date_from, date_to=date_to)
+    if cursor and offset:
+        raise HTTPException(status_code=400, detail="Use cursor or offset, not both")
+    start, end = _period_bounds(date_from, date_to)
+    activity = activity_rows(db, tenant.id, start, end)
+
+    def payload(row) -> dict:
+        values = row._mapping
+        item = {
+            "id": values["id"], "type": values["type"], "category": values["category"],
+            "source": values["source"], "amount": _money(values["amount"]),
+            "description": values["description"], "created_by": values["created_by"],
+            "created_at": _iso_utc(values["created_at"]),
+        }
+        if values["source_kind"]:
+            item["source_kind"] = values["source_kind"]
+        return item
+
     incoming = outgoing = deposits = Decimal("0")
     count = 0
+    total = 0
     biggest_expense = None
     expense_total = Decimal("0")
     expense_count = 0
     expense_categories: dict[str, Decimal] = {}
     excluded = {"internal_transfer", "founder_investment", "investor_liability", "borrowed_to_cash_mirror", "borrowed_funds_in"}
-    for row in rows:
+    for record in db.execute(select(activity).execution_options(yield_per=500)):
+        row = payload(record)
+        total += 1
         category = _normalize_text(row.get("category"))
         description = _normalize_text(row.get("description"))
         source = _normalize_text(row.get("source"))
@@ -2263,10 +2286,41 @@ def list_entries_period(
             incoming += amount
         else:
             outgoing += amount
-            if biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])):
+            if (biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])) or
+                (amount == Decimal(str(biggest_expense["amount"])) and
+                 (row["created_at"], row["id"]) > (biggest_expense["created_at"], biggest_expense["id"]))):
                 biggest_expense = row
+    page_rows = []
+    next_cursor = None
+    if limit:
+        page_query = select(activity).order_by(activity.c.created_at.desc(), activity.c.id.desc())
+        if cursor:
+            try:
+                if len(cursor) > 256:
+                    raise ValueError("Cursor too long")
+                encoded = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
+                cursor_time, cursor_id = json.loads(encoded)
+                cursor_datetime = datetime.fromisoformat(cursor_time)
+                if (cursor_datetime.tzinfo is not None or not isinstance(cursor_id, str)
+                    or not 1 <= len(cursor_id) <= 36):
+                    raise ValueError("Invalid cursor")
+            except (ValueError, TypeError, UnicodeDecodeError, binascii.Error):
+                raise HTTPException(status_code=400, detail="Invalid activity cursor")
+            page_query = page_query.where(or_(
+                activity.c.created_at < cursor_datetime,
+                and_(activity.c.created_at == cursor_datetime, activity.c.id < cursor_id),
+            ))
+        elif offset:
+            page_query = page_query.offset(offset)
+        records = db.execute(page_query.limit(limit + 1)).all()
+        has_more = len(records) > limit
+        page_rows = [payload(record) for record in records[:limit]]
+        if has_more:
+            last_record = records[limit - 1]._mapping
+            marker = json.dumps([last_record["created_at"].isoformat(), last_record["id"]], separators=(",", ":"))
+            next_cursor = base64.urlsafe_b64encode(marker.encode()).decode().rstrip("=")
     return {
-        "rows": rows[offset:offset + limit], "total": len(rows),
+        "rows": page_rows, "total": total, "next_cursor": next_cursor,
         "summary": {"incoming": _money(incoming), "outgoing": _money(outgoing),
                     "net": _money(incoming - outgoing), "deposits": _money(deposits),
                     "entries_count": count, "biggest_expense": biggest_expense,

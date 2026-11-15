@@ -39,6 +39,7 @@ import {
 } from '../../api/finance';
 import { isBackendEnabled } from '../../api/client';
 import { financeAmount } from '../../lib/financeAmounts';
+import { collectFinanceActivityPages } from '../../lib/financeActivityPages';
 import { csvCell } from './financev2/exporters';
 import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
@@ -1165,17 +1166,9 @@ export default function FinancePanel() {
     let exportEntries = filteredEntries;
     if (isBackendEnabled()) {
       try {
-        const all: typeof filteredEntries = [];
-        let expectedTotal: number | null = null;
-        do {
-          const page = await fetch_finance_activity_period(tenant_id, fromDate, toDate, 500, all.length);
-          if (expectedTotal !== null && page.total !== expectedTotal) throw new Error('Activity changed during export');
-          expectedTotal = page.total;
-          if (!page.rows.length && all.length < expectedTotal) throw new Error('Incomplete activity export');
-          all.push(...page.rows);
-        } while (all.length < (expectedTotal ?? 0));
-        if (new Set(all.map((row) => row.id)).size !== all.length) throw new Error('Duplicate activity export row');
-        exportEntries = all;
+        exportEntries = await collectFinanceActivityPages(
+          (cursor) => fetch_finance_activity_period(tenant_id, fromDate, toDate, 500, 0, cursor),
+        );
       } catch {
         notify('error', tx(lang, 'Giriş-çıxış ixracı tamamlanmadı. Yenidən cəhd edin.', 'Экспорт операций не завершён. Повторите попытку.', 'Activity export did not complete. Please retry.'));
         return;

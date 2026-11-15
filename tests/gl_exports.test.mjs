@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildCsv } from '../src/components/admin/financev2/exporters.ts';
 import { financeBusinessDate } from '../src/lib/time.ts';
 import { financeAmount } from '../src/lib/financeAmounts.ts';
+import { collectFinanceActivityPages } from '../src/lib/financeActivityPages.ts';
 import { subledgerReport } from '../src/components/admin/financev2/reportExports.ts';
 
 const report = (rows) => ({
@@ -16,6 +17,25 @@ test('csv starts with BOM and uses semicolons', () => {
   assert.ok(csv.startsWith('\uFEFFSınaq balansı'));
   assert.ok(csv.includes('221.1;Kassa;10.00'));
   assert.ok(csv.trimEnd().endsWith(';Cəmi;10.00'));
+});
+
+test('finance activity export follows cursors and verifies every row', async () => {
+  const pages = [
+    { rows: [{ id: 'a' }, { id: 'b' }], total: 3, next_cursor: 'after-b' },
+    { rows: [{ id: 'c' }], total: 3, next_cursor: null },
+  ];
+  const seen = [];
+  const rows = await collectFinanceActivityPages(async (cursor) => {
+    seen.push(cursor);
+    return pages[seen.length - 1];
+  });
+  assert.deepEqual(seen, [undefined, 'after-b']);
+  assert.deepEqual(rows.map((row) => row.id), ['a', 'b', 'c']);
+  await assert.rejects(() => collectFinanceActivityPages(async () =>
+    ({ rows: [{ id: 'a' }], total: 2, next_cursor: null })), /Incomplete/);
+  await assert.rejects(() => collectFinanceActivityPages(async (cursor) => cursor
+    ? { rows: [{ id: 'a' }], total: 2, next_cursor: null }
+    : { rows: [{ id: 'a' }], total: 2, next_cursor: 'next' }), /Duplicate/);
 });
 
 test('csv quotes delimiters and quotes', () => {
