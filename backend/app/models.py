@@ -566,6 +566,21 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class FinanceActivityReference(Base):
+    """Indexed journal references projected from finance audit events."""
+
+    __tablename__ = "finance_activity_references"
+    __table_args__ = (
+        Index("ix_finance_activity_ref_lookup", "tenant_id", "transaction_id", "kind", "created_at"),
+    )
+
+    audit_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    transaction_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class KitchenOrder(Base):
     __tablename__ = "kitchen_orders"
 
