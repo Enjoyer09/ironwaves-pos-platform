@@ -2264,23 +2264,33 @@ def list_entries_period(
         expense_count = 0
         expense_categories: dict[str, Decimal] = {}
         excluded = {"internal_transfer", "founder_investment", "investor_liability", "borrowed_to_cash_mirror", "borrowed_funds_in"}
+        biggest_record = None
+        biggest_amount = Decimal("0")
+        category_cache: dict[str | None, tuple[str, str | None]] = {}
+        source_cache: dict[str | None, str] = {}
         for record in db.execute(select(activity).execution_options(yield_per=500)):
-            row = payload(record)
+            row = record._mapping
             total += 1
-            category = _normalize_text(row.get("category"))
-            description = _normalize_text(row.get("description"))
-            source = _normalize_text(row.get("source"))
-            amount = Decimal(str(row["amount"]))
+            raw_category = row["category"]
+            if raw_category not in category_cache:
+                category_cache[raw_category] = (_normalize_text(raw_category), _finance_category_code(raw_category))
+            category, category_code = category_cache[raw_category]
+            description = _normalize_text(row["description"])
+            raw_source = row["source"]
+            if raw_source not in source_cache:
+                source_cache[raw_source] = _normalize_text(raw_source)
+            source = source_cache[raw_source]
+            amount = row["amount"]
             if row["type"] == "out":
                 expense_total += amount
                 expense_count += 1
-                label = row.get("category") or "Digər Xərc"
+                label = row["category"] or "Digər Xərc"
                 expense_categories[label] = expense_categories.get(label, Decimal("0")) + amount
             is_deposit = "depozit" in category or "depozit" in description or "deposit" in description
             if row["type"] == "in" and is_deposit:
                 deposits += amount
-            if (row.get("source_kind") == "supplier_payment" or
-                _finance_category_code(row.get("category")) in excluded or
+            if (row["source_kind"] == "supplier_payment" or
+                category_code in excluded or
                 "kassa acilisi" in category or is_deposit or source in {"investor", "debt"} or
                 "auto liability mirror" in description or "auto mirror" in description or "shift opening cash" in description):
                 continue
@@ -2289,10 +2299,13 @@ def list_entries_period(
                 incoming += amount
             else:
                 outgoing += amount
-                if (biggest_expense is None or amount > Decimal(str(biggest_expense["amount"])) or
-                    (amount == Decimal(str(biggest_expense["amount"])) and
-                     (row["created_at"], row["id"]) > (biggest_expense["created_at"], biggest_expense["id"]))):
-                    biggest_expense = row
+                if (biggest_record is None or amount > biggest_amount or
+                    (amount == biggest_amount and
+                     (row["created_at"], row["id"]) >
+                     (biggest_record._mapping["created_at"], biggest_record._mapping["id"]))):
+                    biggest_record = record
+                    biggest_amount = amount
+        biggest_expense = payload(biggest_record) if biggest_record is not None else None
     elif include_total:
         total = db.execute(select(func.count()).select_from(activity)).scalar_one()
     else:

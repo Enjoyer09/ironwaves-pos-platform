@@ -475,6 +475,8 @@ def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
     assert first['summary']['outgoing'] == '60.00'
     assert first['summary']['entries_count'] == 3
     assert first['summary']['expenses']['count'] == 3
+    assert first['summary']['biggest_expense']['amount'] == '30.00'
+    assert first['summary']['expenses']['by_category'] == [{'category': 'Xammal', 'amount': '60.00'}]
     export_page = finance.list_entries_period(today, today, 2, 0, db, tenant, CHECKER, include_summary=False)
     assert export_page['summary'] is None
     assert export_page['total'] == first['total']
