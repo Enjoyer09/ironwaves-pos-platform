@@ -2230,8 +2230,8 @@ def list_entries_period(
         first, last = date.fromisoformat(date_from), date.fromisoformat(date_to)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid finance period")
-    if first > last or (last - first).days > 366:
-        raise HTTPException(status_code=400, detail="Finance period must be at most 366 days")
+    if first > last:
+        raise HTTPException(status_code=400, detail="Finance period start must not follow end")
     rows = list_entries(db, tenant, user, date_from=date_from, date_to=date_to)
     incoming = outgoing = deposits = Decimal("0")
     count = 0

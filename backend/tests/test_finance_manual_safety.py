@@ -462,3 +462,5 @@ def test_activity_period_pages_and_summarizes_full_selected_day(ctx):
     assert first['summary']['outgoing'] == '60.00'
     assert first['summary']['entries_count'] == 3
     assert first['summary']['expenses']['count'] == 3
+    wide = finance.list_entries_period('2024-01-01', today, 0, 0, db, tenant, CHECKER)
+    assert wide['total'] == 3 and wide['rows'] == []
