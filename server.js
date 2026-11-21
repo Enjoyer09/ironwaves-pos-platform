@@ -56,6 +56,9 @@ function setCacheHeaders(filePath, res) {
     fileName === 'registerSW.js' ||
     fileName === 'manifest.webmanifest' ||
     fileName === 'print-agent-latest.json' ||
+    fileName === 'print-agent-windows-checksums.json' ||
+    fileName === 'ironwaves-print-agent-setup.exe' ||
+    fileName === 'ironwaves-print-agent-windows.zip' ||
     /^workbox-.*\.js$/i.test(fileName)
   ) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

@@ -9,7 +9,7 @@ const manifest=await manifestResponse.json();assert.equal(manifest.latest_window
 const results=[];
 for(const name of ['ironwaves-print-agent-setup.exe','ironwaves-print-agent-windows.zip']){
  const metadata=expected.artifacts[name];const url=base+'/downloads/'+name;
- const head=await fetch(url,{method:'HEAD'});assert.equal(head.status,200);assert.equal(Number(head.headers.get('content-length')),metadata.bytes);assert.equal((await head.arrayBuffer()).byteLength,0);
+ const head=await fetch(url,{method:'HEAD'});assert.equal(head.status,200);assert.match(head.headers.get('cache-control'),/no-cache/);assert.equal(Number(head.headers.get('content-length')),metadata.bytes);assert.equal((await head.arrayBuffer()).byteLength,0);
  const response=await fetch(url);assert.equal(response.status,200);const hash=crypto.createHash('sha256');let bytes=0,signature;
  for await(const chunk of response.body){signature||=Buffer.from(chunk).subarray(0,4);bytes+=chunk.length;hash.update(chunk);}
  assert.equal(bytes,metadata.bytes);assert.equal(hash.digest('hex'),metadata.sha256);
