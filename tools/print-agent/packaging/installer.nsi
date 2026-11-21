@@ -11,7 +11,7 @@ OutFile "${APP_ROOT}\dist\ironwaves-print-agent-setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\iRonWaves Print Agent"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-VIProductVersion "0.6.0.0"
+VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "iRonWaves Print Agent"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "iRonWaves Print Agent Setup"

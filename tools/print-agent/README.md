@@ -1,4 +1,4 @@
-# iRonWaves Print Agent 0.6.0
+# iRonWaves Print Agent 0.6.1
 
 Windows x64 local print helper; separate RAW queues and persistent job IDs.
 The existing macOS source path remains supported; this release packages Windows only.

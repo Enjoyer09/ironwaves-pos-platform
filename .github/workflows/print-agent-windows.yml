@@ -30,7 +30,7 @@ jobs:
         run: ./tools/print-agent/packaging/windows-smoke.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-print-agent-0.6.0
+          name: windows-print-agent
           path: |
             tools/print-agent/dist/*.exe
             tools/print-agent/dist/*.zip

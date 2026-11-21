@@ -1,4 +1,4 @@
-iRonWaves Print Agent — Windows 0.6.0
+iRonWaves Print Agent — Windows 0.6.1
 
 Quraşdırma: ironwaves-print-agent-setup.exe faylını açın. ZIP yükləmisinizsə,
 əvvəl arxivi çıxarın; setup.bat və ya setup-windows.ps1 eyni installer-i açır.
@@ -10,7 +10,7 @@ söndürmür. Printer adları, tenant ayarları və əvvəlki job jurnalı saxla
 Quraşdırma bitdikdə Start iRonWaves Print Agent seçimi agenti səssiz açır.
 Windows-a girişdə agent istifadəçinin HKCU Run qeydi vasitəsilə açılır.
 
-0.6.0 — çap işi qorunması və RAW növbələri
+0.6.1 — çap işi qorunması və RAW növbələri
 
 - POST /print-raw və /print-html üçün optional job_id: 16–100 ASCII hərf/rəqəm/_/-.
 - Eyni işi təkrar göndərərkən eyni job_id və eyni məzmunu istifadə edin. Agent işi ikinci dəfə göndərmir. Eyni ID + başqa məzmun HTTP 409 qaytarır.

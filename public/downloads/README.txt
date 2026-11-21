@@ -1,4 +1,4 @@
-iRonWaves Print Agent — Windows 0.6.0 (x64, Windows 10/11)
+iRonWaves Print Agent — Windows 0.6.1 (x64, Windows 10/11)
 
 ironwaves-print-agent-setup.exe — istifadəçi hesabında quraşdırılan Windows installer-i.
 ironwaves-print-agent-windows.zip — eyni installer, setup.bat, setup-windows.ps1 və təlimat.
