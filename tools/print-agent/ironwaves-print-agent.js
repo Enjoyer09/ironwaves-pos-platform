@@ -20,13 +20,13 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.5.9';
+const VERSION = '0.6.0';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
 // One-time compiled native WinSpool Helper for instantaneous raw printing (<0.015s)
 const RAW_DLL_PATH = path.join(os.tmpdir(), 'ironwaves-rawprinter.dll');
-const RAW_EXE_PATH = path.join(os.tmpdir(), 'ironwaves-rawprint.exe');
+const RAW_EXE_PATH = path.join(os.tmpdir(), 'ironwaves-rawprint-v060.exe');
 let rawAssemblyReady = false;
 
 // Allow requests from ironwaves.store subdomains and localhost during dev
@@ -167,7 +167,7 @@ public class Program {
             if (StartDocPrinter(hPrinter, 1, di)) {
                 if (StartPagePrinter(hPrinter)) {
                     int dwWritten = 0;
-                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten);
+                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten) && dwWritten == bytes.Length;
                     EndPagePrinter(hPrinter);
                 }
                 EndDocPrinter(hPrinter);
@@ -193,7 +193,14 @@ Add-Type -TypeDefinition $code -OutputAssembly '${safeExePath}' -OutputType Cons
   return rawAssemblyReady;
 }
 
-async function listPrinters(forceRefresh = false) {
+let printerDiscovery = null;
+function listPrinters(forceRefresh = false) {
+  if (!forceRefresh && cachedPrinters && Date.now() - lastPrintersFetchTime < PRINTER_CACHE_TTL_MS) return Promise.resolve(cachedPrinters);
+  if (printerDiscovery) return printerDiscovery;
+  printerDiscovery = discoverPrinters(forceRefresh).finally(() => { printerDiscovery = null; });
+  return printerDiscovery;
+}
+async function discoverPrinters(forceRefresh = false) {
   const now = Date.now();
   if (!forceRefresh && cachedPrinters && (now - lastPrintersFetchTime < PRINTER_CACHE_TTL_MS)) {
     return cachedPrinters;
@@ -359,25 +366,107 @@ async function resolvePrinterName(requested) {
   return best || '';
 }
 
-// ─── Sequential Mutex Queue for HTML / Kiosk Prints ─────────────────────────
-// Prevents race conditions when a kitchen ticket and cash receipt are sent
-// within seconds of each other, ensuring default printer settings never collide.
-let printMutexChain = Promise.resolve();
-
-function queuePrintTask(taskFn) {
-  const next = printMutexChain.then(() => taskFn(), () => taskFn());
-  printMutexChain = next.catch(() => {});
+// HTML changes Windows' default printer, so HTML jobs retain a global lock.
+// RAW targets a resolved printer explicitly and only waits for that printer.
+const rawPrinterQueues = new Map();
+let htmlPrintChain = Promise.resolve();
+function queuePrinterTask(printer, task) {
+  const key = normalizeName(printer);
+  const previous = rawPrinterQueues.get(key) || Promise.resolve();
+  const next = previous.then(task, task);
+  const tail = next.catch(() => {});
+  rawPrinterQueues.set(key, tail);
+  tail.then(() => { if (rawPrinterQueues.get(key) === tail) rawPrinterQueues.delete(key); });
+  return next;
+}
+async function resolvePrintTarget(payload) {
+  const requested = String(payload.printer_name || payload.printerName || '').trim();
+  const resolved = requested ? await resolvePrinterName(requested) : '';
+  const target = resolved || systemStartupDefaultPrinter || await getDefaultPrinterName();
+  if (!target) throw new Error('Printer tapılmadı');
+  return target;
+}
+async function printHtml(payload) {
+  const target = await resolvePrintTarget(payload);
+  const run = () => queuePrinterTask(target, () => printHtmlInternal(payload, target));
+  const next = htmlPrintChain.then(run, run);
+  htmlPrintChain = next.catch(() => {});
   return next;
 }
 
-// ─── Core print logic ─────────────────────────────────────────────────────────
-async function printHtml(payload) {
-  return queuePrintTask(async () => {
-    return printHtmlInternal(payload);
+// Write-ahead receipts store only a payload hash and status, never receipt text.
+// An interrupted or failed spool attempt is UNKNOWN: it must not be replayed.
+const crypto = require('crypto');
+const JOB_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const JOB_LIMIT = 10000;
+const jobMemory = new Map();
+let jobDirectoryReady = false;
+let journalCount = 0;
+let lastJournalPrune = 0;
+function jobDirectory() { return path.join(os.homedir(), '.ironwaves-print', 'jobs-v1'); }
+function prepareJobDirectory() {
+  if (jobDirectoryReady && Date.now() - lastJournalPrune < 3600000) return;
+  fs.mkdirSync(jobDirectory(), { recursive: true, mode: 0o700 });
+  const files = fs.readdirSync(jobDirectory()).filter(n => /^[a-zA-Z0-9_-]{16,100}\.json$/.test(n));
+  journalCount = files.length;
+  for (const name of files) {
+    const file = path.join(jobDirectory(), name);
+    // Keep interrupted work conservatively; discard only expired terminal jobs.
+    const row = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (['submitted', 'unknown'].includes(row.status) && Date.now() - row.created_at > JOB_TTL_MS) {
+      fs.unlinkSync(file); journalCount--; jobMemory.delete(row.job_id);
+    }
+  }
+  jobDirectoryReady = true; lastJournalPrune = Date.now();
+}
+function saveJob(row) {
+  prepareJobDirectory();
+  const file = path.join(jobDirectory(), row.job_id + '.json');
+  const temporary = file + '.tmp';
+  const fd = fs.openSync(temporary, 'w', 0o600);
+  try { fs.writeFileSync(fd, JSON.stringify(row)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fs.renameSync(temporary, file);
+}
+function validJobId(id) { return typeof id === 'string' && /^[a-zA-Z0-9_-]{16,100}$/.test(id); }
+function readJob(id) {
+  if (!validJobId(id)) throw new Error('Invalid job_id');
+  if (jobMemory.has(id)) return jobMemory.get(id);
+  prepareJobDirectory();
+  const file = path.join(jobDirectory(), id + '.json');
+  if (!fs.existsSync(file)) return null;
+  const row = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (row.status === 'queued' || row.status === 'processing') {
+    row.status = 'unknown'; saveJob(row);
+  }
+  return row;
+}
+function publicJob(row) { return { job_id: row.job_id, status: row.status }; }
+function submitPrintJob(kind, payload) {
+  if (!validJobId(payload.job_id)) { const e = new Error('Invalid job_id'); e.statusCode = 400; throw e; }
+  const content = String(kind === 'raw' ? (payload.raw || payload.raw_commands || '') : (payload.html || ''));
+  if (!content.trim()) throw new Error('Print content is required');
+  const fingerprint = crypto.createHash('sha256').update(JSON.stringify([kind, normalizeName(payload.printer_name || payload.printerName), content, payload.forceRawCut === true])).digest('hex');
+  const existing = readJob(payload.job_id);
+  if (existing) {
+    if (existing.fingerprint !== fingerprint) { const e = new Error('job_id already used for different content'); e.statusCode = 409; throw e; }
+    return publicJob(existing);
+  }
+  // Fail closed rather than evicting live duplicate protection under pressure.
+  if (journalCount >= JOB_LIMIT) throw new Error('Print job journal is full');
+  const row = { job_id: payload.job_id, fingerprint, status: 'queued', created_at: Date.now() };
+  saveJob(row); journalCount++; jobMemory.set(row.job_id, row);
+  Promise.resolve().then(async () => {
+    row.status = 'processing'; saveJob(row);
+    await (kind === 'raw' ? printRaw(payload) : printHtml(payload));
+    row.status = 'submitted'; saveJob(row);
+  }).catch(() => {
+    row.status = 'unknown';
+    try { saveJob(row); } catch (_) { /* persisted processing also fails closed after restart */ }
   });
+  return publicJob(row);
 }
 
-async function printHtmlInternal(payload) {
+async function printHtmlInternal(payload, resolvedTarget) {
   if (!['win32', 'darwin'].includes(process.platform)) {
     throw new Error('Print Agent currently supports Windows and macOS');
   }
@@ -449,17 +538,7 @@ async function printHtmlInternal(payload) {
   const userDir = path.join(dir, 'chrome-profile');
   fs.mkdirSync(userDir, { recursive: true });
 
-  // Resolve target printer name
-  let targetPrinter = '';
-  if (printerName) {
-    targetPrinter = await resolvePrinterName(printerName);
-    if (!targetPrinter) {
-      log(`Printer "${printerName}" not found in installed printers. Falling back to default "${systemStartupDefaultPrinter}".`);
-      targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName().catch(() => ''));
-    }
-  } else {
-    targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName().catch(() => ''));
-  }
+  const targetPrinter = resolvedTarget;
 
   log(`Resolved target printer: "${targetPrinter}" (requested: "${printerName}")`);
 
@@ -469,6 +548,7 @@ async function printHtmlInternal(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
     
     if (browser) {
+      let spoolFile;
       const chromeArgs = [
         '--headless',
         `--user-data-dir=${userDir}`,
@@ -516,19 +596,18 @@ async function printHtmlInternal(payload) {
           pngFile
         ], 3000);
 
-        const lpArgs = [];
-        if (targetPrinter) lpArgs.push('-d', targetPrinter);
-        lpArgs.push(pngFile);
-        await runCommand('/usr/bin/lp', lpArgs, 15000);
+        spoolFile = pngFile;
       } catch (err) {
         const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         const textFile = path.join(dir, 'receipt.txt');
         fs.writeFileSync(textFile, textContent, 'utf8');
-        const lpArgs = [];
-        if (targetPrinter) lpArgs.push('-d', targetPrinter);
-        lpArgs.push(textFile);
-        await runCommand('/usr/bin/lp', lpArgs, 15000);
+        spoolFile = textFile;
       }
+      const lpArgs = [];
+      if (targetPrinter) lpArgs.push('-d', targetPrinter);
+      lpArgs.push(spoolFile);
+      // Spool exactly once; a timeout here must not trigger the text fallback.
+      await runCommand('/usr/bin/lp', lpArgs, 15000);
     } else {
       const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const textFile = path.join(dir, 'receipt.txt');
@@ -609,7 +688,7 @@ async function printHtmlInternal(payload) {
   if (payload && payload.forceRawCut === true) {
     const CUT_DELAY_MS = 1200;
     setTimeout(() => {
-      sendCut(targetPrinter || previousDefault || printerName).catch(() => {});
+      sendCut(targetPrinter || printerName).catch(() => {});
     }, CUT_DELAY_MS);
   }
 
@@ -618,7 +697,7 @@ async function printHtmlInternal(payload) {
     queued: true,
     method: 'chrome-kiosk',
     browser: path.basename(browser),
-    printer_name: targetPrinter || previousDefault || printerName || 'default',
+    printer_name: targetPrinter || printerName || 'default',
   };
 }
 
@@ -720,23 +799,14 @@ if (Test-Path '${safeDllPath}') {
 
 // ─── Direct High-Speed ESC/POS Print (0.05s) ───────────────────────────────
 async function printRaw(payload) {
-  return queuePrintTask(async () => {
-    return printRawInternal(payload);
-  });
+  const target = await resolvePrintTarget(payload);
+  return queuePrinterTask(target, () => printRawInternal(payload, target));
 }
 
-async function printRawInternal(payload) {
-  const rawData = String(payload.raw || payload.raw_commands || '').trim();
-  if (!rawData) throw new Error('raw commands are required');
+async function printRawInternal(payload, targetPrinter) {
+  const rawData = String(payload.raw || payload.raw_commands || '');
+  if (!rawData.trim()) throw new Error('raw commands are required');
   const reqName = String(payload.printer_name || '').trim();
-  let targetPrinter = '';
-  if (reqName) {
-    targetPrinter = await resolvePrinterName(reqName);
-  }
-  if (!targetPrinter) {
-    targetPrinter = systemStartupDefaultPrinter || (await getDefaultPrinterName());
-  }
-
   if (process.platform === 'darwin') {
     const tmpFile = path.join(os.tmpdir(), `iw-raw-${Date.now()}.bin`);
     fs.writeFileSync(tmpFile, rawData, 'latin1');
@@ -762,7 +832,8 @@ async function printRawInternal(payload) {
         console.log(`[print-raw] Direct winspool raw sent to "${printer}" in <15ms.`);
         return { ok: true, method: 'winspool-native-exe', printer_name: printer || 'default' };
       } catch (exeErr) {
-        console.warn('[print-raw] Native exe failed, trying PowerShell:', exeErr && exeErr.message ? exeErr.message : exeErr);
+        // A native timeout/failure can occur after partial submission. Never resend.
+        throw exeErr;
       }
     }
 
@@ -806,7 +877,7 @@ public class RawPrinterFast {
             if (StartDocPrinter(hPrinter, 1, di)) {
                 if (StartPagePrinter(hPrinter)) {
                     int dwWritten = 0;
-                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten);
+                    ok = WritePrinter(hPrinter, pUnmanaged, bytes.Length, out dwWritten) && dwWritten == bytes.Length;
                     EndPagePrinter(hPrinter);
                 }
                 EndDocPrinter(hPrinter);
@@ -847,7 +918,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      sendJson(res, 200, { ok: true, name: 'ironwaves-print-agent', version: VERSION, platform: process.platform });
+      sendJson(res, 200, { ok: true, name: 'ironwaves-print-agent', version: VERSION, platform: process.platform, capabilities: { print_jobs: true } });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/version') {
@@ -858,9 +929,19 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { ok: true, printers: await listPrinters() });
       return;
     }
+    if (req.method === 'GET' && url.pathname.startsWith('/jobs/')) {
+      const id = url.pathname.slice('/jobs/'.length);
+      if (!validJobId(id)) { sendJson(res, 400, { ok: false, error: 'Invalid job_id' }); return; }
+      const row = readJob(id);
+      sendJson(res, row ? 200 : 404, row ? { ok: true, job: publicJob(row) } : { ok: false, error: 'Job not found' });
+      return;
+    }
     if (req.method === 'POST' && url.pathname === '/print-raw') {
       const raw = await readBody(req);
       const payload = JSON.parse(raw || '{}');
+      if (payload.job_id !== undefined) {
+        const job = submitPrintJob('raw', payload); sendJson(res, 202, { ok: true, job }); return;
+      }
       const result = await printRaw(payload);
       sendJson(res, 200, { ok: true, result });
       return;
@@ -868,6 +949,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/print-html') {
       const raw = await readBody(req);
       const payload = JSON.parse(raw || '{}');
+      if (payload.job_id !== undefined) {
+        const job = submitPrintJob('html', payload); sendJson(res, 202, { ok: true, job }); return;
+      }
       const result = await printHtml(payload);
       sendJson(res, 200, { ok: true, result });
       return;
@@ -875,7 +959,7 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { ok: false, error: 'Not found' });
   } catch (error) {
-    sendJson(res, 500, { ok: false, error: String(error && error.message ? error.message : error) });
+    sendJson(res, error.statusCode || 500, { ok: false, error: String(error && error.message ? error.message : error) });
   }
 });
 
@@ -932,8 +1016,8 @@ function startServer() {
     listPrinters(true).catch(() => {});
     if (process.platform === 'win32') {
       ensureRawAssemblyCompiled().catch(() => {});
-      registerAutostart();
-      showTrayIcon();
+      if (process.env.IW_PRINT_AGENT_AUTOSTART !== '0') registerAutostart();
+      if (process.env.IW_PRINT_AGENT_TRAY !== '0') showTrayIcon();
     }
   });
 }
@@ -961,7 +1045,7 @@ function registerAutostart() {
     if (!exePath || exePath.endsWith('node.exe') || exePath.endsWith('node')) return; // skip dev mode
     // Use PowerShell Set-ItemProperty — handles paths with spaces, parentheses (1), etc.
     // cmd.exe reg add fails on such paths with "ERROR: Invalid syntax"
-    const safeExePath = exePath.replace(/'/g, "''");
+    const safeExePath = (`"${exePath}"`).replace(/'/g, "''");
     const psCmd =
       `Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' ` +
       `-Name 'iRonWavesPrintAgent' -Value '${safeExePath}' -Type String`;

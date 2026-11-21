@@ -2,10 +2,7 @@ import { withThermalReceiptPrintCss } from './receipt_print_css';
 
 const AGENT_BASE_URL = 'http://127.0.0.1:17777';
 const REQUEST_TIMEOUT_MS = 15000;
-// Local agent prints via a Chrome→PDF→spool chain that can exceed 2.5s on macOS.
-// A too-short timeout aborts a print the agent actually accepted, dropping the
-// browser back to the QZ branch → the SAME ticket prints twice (P1-2). 8s covers
-// the slow-agent case while still failing fast if the agent is genuinely down.
+// Legacy agents acknowledge only after spooling; a lost response is treated as unknown.
 const AGENT_PRINT_TIMEOUT_MS = 8000;
 
 // Cyrillic (Basic + Supplement). Raw ESC/POS is forced to code page PC437, which
@@ -90,51 +87,75 @@ export function printHtmlViaBrowserIframe(html: string, paperWidth?: '58mm' | '8
   }
 }
 
-export async function printRawViaLocalAgent(rawCommands: string, printerName?: string): Promise<boolean> {
-  if (!rawCommands || !rawCommands.trim()) return false;
-  try {
-    // FIX-PERF: 3500ms → 6000ms. macOS-da `lp` spooler busy olduqda 4-5s
-    // çəkə bilər (print agent artıq ESC/POS raw bytes-ı winspool/lp-ə
-    // göndərir, printer hardware 200-500ms). Çox qısa timeout = həmişə
-    // fallback-ə düşür = əlavə 8-10s gecikmə. 6s normal spooler üçün
-    // kifayətdir, həqiqi down agent isə 1-2s-də aydın olur.
-    const response = await fetch(`${AGENT_BASE_URL}/print-raw`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        raw: rawCommands,
-        printer_name: String(printerName || '').trim() || undefined,
-      }),
-      signal: timeoutSignal(6000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+type AgentAttempt = { success: boolean; notSent?: boolean; unsupported?: boolean; pending?: boolean; error?: string; jobId: string };
+function newPrintJobId(): string {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
 }
-
-export async function printViaLocalAgent(html: string, printerName?: string): Promise<boolean> {
-  const safeHtml = withThermalReceiptPrintCss(html);
-  if (!safeHtml.trim()) return false;
+async function timedFetch(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), ms);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  finally { window.clearTimeout(timer); }
+}
+const uncertainPrintMessage = 'Çapın vəziyyəti təsdiqlənmədi. Təkrar çek göndərilmədi; printer növbəsini yoxlayın.';
+async function submitAgentPrint(kind: 'raw' | 'html', content: string, printerName: string | undefined, jobId: string): Promise<AgentAttempt> {
+  // A failed preflight means this call has not submitted a print.
+  let supportsJobs = false;
   try {
-    const response = await fetch(`${AGENT_BASE_URL}/print-html`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        html: safeHtml,
-        printer_name: String(printerName || '').trim() || undefined,
-      }),
-      signal: timeoutSignal(AGENT_PRINT_TIMEOUT_MS),
-    });
-    return response.ok;
-  } catch {
-    return false;
+    const health = await timedFetch(`${AGENT_BASE_URL}/health`, { method: 'GET' }, 1500);
+    if (!health.ok) return { success: false, notSent: true, jobId };
+    const data = await health.json();
+    supportsJobs = data?.capabilities?.print_jobs === true;
+  } catch { return { success: false, notSent: true, jobId }; }
+  try {
+    const response = await timedFetch(`${AGENT_BASE_URL}/print-${kind}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [kind]: content, printer_name: String(printerName || '').trim() || undefined, job_id: jobId }),
+    }, kind === 'raw' ? 6000 : AGENT_PRINT_TIMEOUT_MS);
+    if (response.ok) {
+      if (supportsJobs) {
+        const data = await response.json();
+        if (data?.job?.job_id !== jobId || !['queued', 'processing', 'submitted'].includes(data?.job?.status)) {
+          return { success: false, error: uncertainPrintMessage, jobId };
+        }
+        return { success: true, pending: data.job.status !== 'submitted', jobId };
+      }
+      return { success: true, jobId };
+    }
+    // Older agents may not implement RAW at all. A missing route did not spool.
+    if (response.status === 404 || response.status === 405) return { success: false, notSent: true, unsupported: true, jobId };
+    if (response.status === 409) return { success: false, jobId, error: 'Çap ID-si başqa çek üçün istifadə edilib. Təkrar çap göndərilmədi.' };
+    // Even an HTTP error can follow a partial spool submission on older agents.
+  } catch { /* Recover status below; never start a second print engine. */ }
+  if (supportsJobs) {
+    try {
+      const response = await timedFetch(`${AGENT_BASE_URL}/jobs/${encodeURIComponent(jobId)}`, { method: 'GET' }, 1500);
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.job?.job_id === jobId && ['queued', 'processing', 'submitted'].includes(data?.job?.status)) {
+          return { success: true, pending: data.job.status !== 'submitted', jobId };
+        }
+      }
+    } catch { /* An unobservable job must not be replayed automatically. */ }
   }
+  return { success: false, error: uncertainPrintMessage, jobId };
+}
+export async function printRawViaLocalAgent(rawCommands: string, printerName?: string): Promise<boolean> {
+  if (!rawCommands.trim()) return false;
+  return (await submitAgentPrint('raw', rawCommands, printerName, newPrintJobId())).success;
+}
+export async function printViaLocalAgent(html: string, printerName?: string): Promise<boolean> {
+  const content = withThermalReceiptPrintCss(html);
+  if (!content.trim()) return false;
+  return (await submitAgentPrint('html', content, printerName, newPrintJobId())).success;
 }
 
 export type PrintDirectResult = {
   method: 'agent' | 'qz' | 'browser' | 'none';
   success: boolean;
+  jobId?: string;
+  /** Accepted by the agent; physical paper output has not been confirmed. */
+  pending?: boolean;
   /** Filled when printing failed and the caller should surface it to the user. */
   error?: string;
 };
@@ -159,111 +180,39 @@ function friendlyQzError(err: unknown): string {
 
 export async function printDirectOrFallback(
   html: string,
-    options?: {
-    printerName?: string;
-    useQz?: boolean;
-    paperWidth?: '58mm' | '80mm';
-    printEngine?: 'pixel_html' | 'raw_escpos';
-    rawCommands?: string;
-    allowBrowserFallback?: boolean;
-    preferHtml?: boolean;
+  options?: {
+    printerName?: string; useQz?: boolean; paperWidth?: '58mm' | '80mm';
+    printEngine?: 'pixel_html' | 'raw_escpos'; rawCommands?: string;
+    allowBrowserFallback?: boolean; preferHtml?: boolean;
+    /** Reuse only for a retry of the same logical job, never a manual reprint. */
+    jobId?: string;
   }
 ): Promise<PrintDirectResult> {
-  const browserFallbackAllowed = options?.allowBrowserFallback !== false;
-  let lastError = '';
-
-  // 1) İldırım Sürətli ESC/POS Rejimi (~50-300ms):
-  //    Mətbəx çekləri və kassa çekləri birbaşa Print Agent-in /print-raw
-  //    axınına göndərilir (Chrome/HTML gözləməsi 0-a enir).
-  //
-  // FIX-PERF: Əvvəl 3.5s timeout idi, amma macOS-da `lp` spooler busy
-  // olduqda 4-5s çəkə bilir → timeout → HTML path-ə düşürdü → 8s daha
-  // gözləyirdi → cəmi 12-15s gecikmə. Timeout-u 6s-ə qaldırırıq ki,
-  // real spooler vaxtını versin.
-  //
-  // FIX-PERF (Windows): Agent-inilk printer enumarasyası (PowerShell
-  // Get-CimInstance) 1-3s çəkə bilər. Seq raw→browser fallback 6s+0.3s =
-  // 6.3s. Bu yerinə raw + browser fallback PARALLEL race edirik — ən
-  // sürətli bitən (adətən raw <500ms, browser ~100ms) qalib gəlir.
-  // Bu cəmi 10-15s gecikməni <500ms-ə endirir.
-  if (options?.rawCommands && !options?.preferHtml) {
-    const rawPromise = printRawViaLocalAgent(options.rawCommands, options?.printerName);
-    const browserPromise = browserFallbackAllowed
-      ? Promise.resolve(printHtmlViaBrowserIframe(html, options?.paperWidth))
-      : Promise.resolve(false);
-
-    const [rawSuccess, browserSuccess] = await Promise.all([rawPromise, browserPromise]);
-
-    if (rawSuccess) {
-      return { method: 'agent', success: true };
-    }
-    if (browserSuccess) {
-      return { method: 'browser', success: true, error: 'raw agent cavity vermədi — browser print işlədi' };
-    }
-    lastError = 'raw ESC/POS cavab vermədi (timeout)';
-  }
-
-  // 2) Əgər istifadəçi açıq şəkildə QZ Tray seçibsə, QZ birinci sınansın (agent timeout gözlənilməsin)
+  const rawSafe = Boolean(options?.rawCommands) && !options?.preferHtml;
+  const jobId = options?.jobId || newPrintJobId();
   if (options?.useQz === true) {
     try {
       const { qzPrintHtml, qzPrintRaw } = await import('./qz');
-      const rawSafe = Boolean(options?.rawCommands) && !options?.preferHtml;
-      if (rawSafe) {
-        await qzPrintRaw(options!.rawCommands as string, options?.printerName);
-      } else {
-        await qzPrintHtml(html, {
-          printerName: options?.printerName,
-          paperWidth: options?.paperWidth || '80mm',
-        });
-      }
-      return { method: 'qz', success: true };
+      if (rawSafe) await qzPrintRaw(options!.rawCommands!, options?.printerName);
+      else await qzPrintHtml(html, { printerName: options?.printerName, paperWidth: options?.paperWidth || '80mm' });
+      return { method: 'qz', success: true, jobId };
     } catch (err) {
-      lastError = friendlyQzError(err);
-      console.warn('QZ Tray print attempted but failed:', err);
+      // QZ can also lose its acknowledgement after dispatch; do not double-print.
+      return { method: 'none', success: false, jobId, error: friendlyQzError(err) };
     }
   }
-
-  // FIX-PERF: Raw ESC/POS agent cavab vermədi (timeout və ya network xətası).
-  // HTML agent path-i: `setDefaultPrinter` PowerShell (1-2s) + Chrome kiosk (2-3s) +
-  // 3.5s sleep = 6-8s gözləmə. Bunun əvəzinə dərhal browser iframe fallback
-  // sınaırıq (~100-300ms) — çap 10-15s gecikmək əvəzinə təxminən eyni
-  // sürətlə işləyir. Brauzer fallback həm də agent-ə bağlı olmayan
-  // etibarlı fallback-dır.
-  if (options?.rawCommands && !options?.preferHtml && browserFallbackAllowed) {
-    const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
-    if (browserSuccess) {
-      return { method: 'browser', success: true, error: 'raw agent cavab vermədi — browser print istifadə edildi' };
-    }
+  let result = await submitAgentPrint(rawSafe ? 'raw' : 'html',
+    rawSafe ? options!.rawCommands! : withThermalReceiptPrintCss(html), options?.printerName, jobId);
+  if (rawSafe && result.unsupported) {
+    result = await submitAgentPrint('html', withThermalReceiptPrintCss(html), options?.printerName, jobId);
   }
-
-  // 3) Əsas HTML Çap Yolu: Lokal Print Agent (yalnız raw + browser fallback
-  // hər ikisi uğursuz olduqda — bu addım yalnız tam etibarlılıq üçündür)
-  try {
-    const agentSuccess = await printViaLocalAgent(html, options?.printerName);
-    if (agentSuccess) {
-      return { method: 'agent', success: true };
-    }
-  } catch (e: any) {
-    lastError = e?.message || '';
+  if (result.success) return { method: 'agent', success: true, jobId, pending: result.pending };
+  if (!result.notSent) return { method: 'none', success: false, jobId, error: result.error || uncertainPrintMessage };
+  // Browser fallback is safe only before dispatch or after an explicit missing route.
+  if (options?.allowBrowserFallback !== false && printHtmlViaBrowserIframe(html, options?.paperWidth)) {
+    return { method: 'browser', success: true, jobId };
   }
-
-  // 4) Brauzer fallback (yalnız icazə verildikdə)
-  if (browserFallbackAllowed) {
-    const browserSuccess = printHtmlViaBrowserIframe(html, options?.paperWidth);
-    if (browserSuccess) {
-      return { method: 'browser', success: true };
-    }
-  }
-
-  return {
-    method: 'none',
-    success: false,
-    error:
-      lastError ||
-      'Çap Agent (və ya QZ Tray) tapılmadı. Termal çeklər brauzer dialoqu ilə ' +
-        'düzgün çap olunmur (başlıq/fayl yolu və avto-kəsmə yoxdur). Zəhmət olmasa ' +
-        'iRonWaves Print Agent-i işə salın: `npm run print-agent`.',
-  };
+  return { method: 'none', success: false, jobId, error: 'Çap agentinə qoşulmaq mümkün olmadı. Agentin açıq olduğunu yoxlayın.' };
 }
 
 export async function localPrintAgentHealth(): Promise<boolean> {

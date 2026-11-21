@@ -1,0 +1,39 @@
+name: Windows Print Agent
+on:
+  push:
+    branches: ['codex/print-agent-release-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-package:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:print
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm ci --prefix tools/print-agent --ignore-scripts
+      - name: Install NSIS if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe')) { choco install nsis --yes --no-progress }
+      - run: npm --prefix tools/print-agent run build:all
+      - name: Test packaged binary and installer without printing
+        shell: pwsh
+        run: ./tools/print-agent/packaging/windows-smoke.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-print-agent-0.6.0
+          path: |
+            tools/print-agent/dist/*.exe
+            tools/print-agent/dist/*.zip
+            tools/print-agent/dist/checksums.json
+            tools/print-agent/dist/windows-smoke.json
+          if-no-files-found: error

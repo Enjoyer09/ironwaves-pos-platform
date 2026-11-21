@@ -14,6 +14,7 @@
     "sync:ios:customer": "npm run build:customer && npx cap sync ios",
     "open:ios": "npx cap open ios",
     "run:ios": "npm run sync:ios:customer && npx cap open ios",
+    "test:print": "node --test tools/print-agent/tests/print-jobs.test.cjs tests/print_agent_client.test.mjs",
     "test:smoke": "esbuild tests/crm_local_smoke.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/crm_local_smoke.test.mjs --log-level=warning && node --test tests/.build/crm_local_smoke.test.mjs",
     "test:gl": "esbuild tests/gl_exports.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/gl_exports.test.mjs --log-level=warning && node --test tests/.build/gl_exports.test.mjs",
     "test:gl:bills": "esbuild tests/gl_bills.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/gl_bills.test.mjs --log-level=warning && node --test tests/.build/gl_bills.test.mjs",

@@ -1,24 +1,24 @@
 {
   "name": "ironwaves-print-agent",
   "private": true,
-  "version": "0.5.8",
+  "version": "0.6.0",
   "type": "commonjs",
   "main": "ironwaves-print-agent.js",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "start": "node ironwaves-print-agent.js",
-    "build:exe": "pkg ironwaves-print-agent.js --targets node18-win-x64 --output dist/ironwaves-print-agent.exe --public",
+    "build:exe": "pkg ironwaves-print-agent.js --targets node22-win-x64 --output dist/ironwaves-print-agent.exe --public --no-bytecode",
     "build:mac:exe:arm64": "pkg ironwaves-print-agent.js --targets node18-macos-arm64 --output dist/ironwaves-print-agent-macos-arm64 --public",
     "build:mac:exe:x64": "pkg ironwaves-print-agent.js --targets node18-macos-x64 --output dist/ironwaves-print-agent-macos-x64 --public",
     "build:mac:pkg": "bash ./build/macos/build-macos-pkg.sh",
-    "build:installer": "powershell -ExecutionPolicy Bypass -File ./build/build-installer.ps1",
-    "build:installer:nsis": "bash ./build/build-installer-nsis.sh",
-    "build:zip": "bash ./build/build-zip.sh",
-    "build:all": "npm run build:exe && npm run build:zip && npm run build:installer:nsis",
-    "build:publish": "cp build/ironwaves-print-agent-setup.exe ../../public/downloads/ && cp ironwaves-print-agent-windows.zip ../../public/downloads/",
+    "build:installer": "node packaging/build-windows.cjs --installer-only",
+    "build:zip": "node packaging/build-windows.cjs --zip-only",
+    "build:all": "node packaging/build-windows.cjs",
+    "build:publish": "node packaging/publish-windows.cjs",
     "build:mac:all": "npm run build:mac:exe:arm64 && npm run build:mac:exe:x64 && npm run build:mac:pkg",
     "build:mac:publish": "cp dist/ironwaves-print-agent-macos-*.pkg ../../public/downloads/"
   },
   "devDependencies": {
-    "pkg": "^5.8.1"
+    "@yao-pkg/pkg": "6.25.0"
   }
 }

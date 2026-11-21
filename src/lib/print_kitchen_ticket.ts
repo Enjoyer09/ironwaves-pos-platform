@@ -16,32 +16,15 @@ export interface PrintKitchenTicketOptions {
   allowBrowserFallback?: boolean;
   /**
    * İdiompo­tentlik açarı. Verilirse, eyni açar ilə təkrar çap `print_dedupe`
-   * vasitəsilə (2 saat TTL) qarşısından alınır. Verilmədikdə məzmun-haşından
-   * avtomatik yaradılır.
+   * vasitəsilə (2 saat TTL) qarşısından alınır. Agent üçün də sabit ID yaranır.
+   * Yalnız dedupe === true və açıq dedupeKey olduqda işləyir.
    */
   dedupeKey?: string;
   /**
-   * Dedupe aktivləşdirilsin? Standart `true`. Manual təkrar-çap üçün `false`
+   * Dedupe aktivləşdirilsin? Standart `false`. Manual təkrar-çap üçün `false`
    * ötürülməlidir ki, eyni çek təkrar çap olunsun.
    */
   dedupe?: boolean;
-}
-
-function hashTicket(ticket: KitchenTicketData): string {
-  try {
-    const payload = JSON.stringify({
-      t: ticket.table_label || ticket.table_name || ticket.order_id || '',
-      o: ticket.order_type || '',
-      i: (ticket.items || []).map((it) => `${it.qty}x${it.item_name}`).sort(),
-    });
-    let h = 0;
-    for (let i = 0; i < payload.length; i += 1) {
-      h = (h * 31 + payload.charCodeAt(i)) | 0;
-    }
-    return Math.abs(h).toString(36);
-  } catch {
-    return 'unknown';
-  }
 }
 
 /**
@@ -75,8 +58,15 @@ export async function printKitchenTicket(
   const html = buildKitchenTicketHtml({ ticket, lang, companyName, paperWidth });
   const rawCmds = buildKitchenTicketEscPos(ticket, { paperWidth });
 
+  // Automatic retries of one KDS ticket share an agent job ID, including reloads.
+  // Manual reprints deliberately receive a fresh ID in printDirectOrFallback.
+  const jobId = dedupeKey ? `kds_${Array.from(new Uint8Array(await crypto.subtle.digest(
+    'SHA-256', new TextEncoder().encode(`${window.location.origin}:${dedupeKey}`),
+  ))).map(byte => byte.toString(16).padStart(2, '0')).join('')}` : undefined;
+
   const res = await printDirectOrFallback(html, {
     printerName,
+    jobId,
     useQz,
     paperWidth,
     printEngine: printEngine === 'pixel_html' ? 'pixel_html' : 'raw_escpos',

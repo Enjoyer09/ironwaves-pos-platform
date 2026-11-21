@@ -1,0 +1,56 @@
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+$dist = Join-Path $root 'dist'
+$installDir = Join-Path $env:RUNNER_TEMP 'iRonWaves Agent Smoke (upgrade)'
+$installer = Join-Path $dist 'ironwaves-print-agent-setup.exe'
+$expected = (Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
+function PrinterSnapshot {
+  return (ConvertTo-Json -InputObject @(Get-CimInstance Win32_Printer | Sort-Object Name | Select-Object Name,Default,PortName,DriverName) -Compress)
+}
+$printersBefore = PrinterSnapshot
+$history = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.ironwaves-print\jobs-v1'
+New-Item -ItemType Directory -Force $history | Out-Null
+$sentinel = Join-Path $history 'smoke_history_123456789.json'
+@{job_id='smoke_history_123456789';status='submitted';fingerprint='synthetic-only';created_at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json -Compress | Set-Content -Path $sentinel -Encoding utf8NoBOM
+$historyHash = (Get-FileHash $sentinel -Algorithm SHA256).Hash
+function InstallAgent {
+  $p = Start-Process -FilePath $installer -ArgumentList "/S /D=$installDir" -Wait -PassThru
+  return $p.ExitCode
+}
+if ((InstallAgent) -ne 0) { throw 'Silent install failed' }
+$binary = Join-Path $installDir 'ironwaves-print-agent.exe'
+if (!(Test-Path $binary)) { throw 'Installed binary missing' }
+if ((Get-FileHash $binary).Hash -ne (Get-FileHash (Join-Path $dist 'ironwaves-print-agent.exe')).Hash) { throw 'Installed executable mismatch' }
+$env:IW_PRINT_AGENT_AUTOSTART='0'
+$env:IW_PRINT_AGENT_TRAY='0'
+$env:IW_PRINT_AGENT_PORT='17777'
+$process = Start-Process -FilePath $binary -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dist 'smoke.stdout.log') -RedirectStandardError (Join-Path $dist 'smoke.stderr.log')
+try {
+  $health = $null
+  for ($n=0; $n -lt 40; $n++) {
+    try { $health=Invoke-RestMethod 'http://127.0.0.1:17777/health' -TimeoutSec 2; break } catch { Start-Sleep -Milliseconds 250 }
+  }
+  if (!$health -or $health.version -ne $expected -or !$health.capabilities.print_jobs) { throw 'Packaged agent health/version/capability failed' }
+  $job = Invoke-RestMethod 'http://127.0.0.1:17777/jobs/smoke_history_123456789' -TimeoutSec 5
+  if ($job.job.status -ne 'submitted') { throw 'Persisted job history failed' }
+  # Real C# compilation, no OpenPrinter or WritePrinter call.
+  $helper=Join-Path ([IO.Path]::GetTempPath()) 'ironwaves-rawprint-v060.exe'
+  for ($n=0; $n -lt 80 -and !(Test-Path $helper); $n++) { Start-Sleep -Milliseconds 250 }
+  if (!(Test-Path $helper)) { throw 'Native helper did not compile on Windows' }
+  # An active agent must block upgrades; installer must never kill it.
+  if ((InstallAgent) -ne 42) { throw 'Busy agent upgrade was not refused' }
+  $null=Invoke-RestMethod 'http://127.0.0.1:17777/health' -TimeoutSec 3
+} finally {
+  Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 500
+if ((InstallAgent) -ne 0) { throw 'Safe idle upgrade failed' }
+if ((Get-FileHash $sentinel).Hash -ne $historyHash) { throw 'Upgrade modified existing job history' }
+if ((PrinterSnapshot) -ne $printersBefore) { throw 'Printer configuration changed' }
+$metadata = Get-Content (Join-Path $dist 'checksums.json') -Raw | ConvertFrom-Json
+foreach ($name in @('ironwaves-print-agent.exe','ironwaves-print-agent-setup.exe','ironwaves-print-agent-windows.zip')) {
+  $hash=(Get-FileHash (Join-Path $dist $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($metadata.artifacts.$name.sha256 -ne $hash) { throw "Artifact hash mismatch: $name" }
+}
+@{version=$expected;platform='windows';packaged_binary=$true;native_helper_compile=$true;installer=$true;busy_upgrade_refused=$true;idle_upgrade=$true;job_history_preserved=$true;printer_configuration_preserved=$true;physical_prints=0} | ConvertTo-Json | Set-Content (Join-Path $dist 'windows-smoke.json') -Encoding utf8NoBOM
+Write-Host 'Packaged Windows agent and safe installer smoke passed; no physical printing.'
