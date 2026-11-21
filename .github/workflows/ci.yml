@@ -62,7 +62,8 @@ jobs:
 
       - name: Migration syntax check
         env:
-          DATABASE_URL: "sqlite:///./ci_test.db"
+          # Offline SQL generation must use the production PostgreSQL dialect.
+          DATABASE_URL: "postgresql://ci:ci@127.0.0.1/offline_sql_only"
           JWT_SECRET: "ci-test-secret"
           SUPERADMIN_PASSWORD: "ci-superadmin-password"
         run: alembic upgrade head --sql > /tmp/alembic_preview.sql
@@ -113,6 +114,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Print client and agent tests
+        run: npm run test:print
 
       # Vite does not type-check. Undefined identifiers (e.g. isManagerUser, zReceiptRef)
       # shipped to production and crashed waiter screens, so tsc is a hard gate now.

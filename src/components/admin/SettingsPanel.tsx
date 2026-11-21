@@ -1109,8 +1109,9 @@ export default function SettingsPanel() {
     try {
       const response = await fetch(`${window.location.origin.replace(/\/+$/, '')}/downloads/print-agent-latest.json`, { method: 'GET' });
       if (response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { minimum_version?: string };
-        const minVersion = String(payload?.minimum_version || '').trim();
+        const payload = (await response.json().catch(() => ({}))) as { minimum_version?: string; minimum_windows_version?: string };
+        const requiredVersion = /Windows/i.test(navigator.userAgent) ? (payload?.minimum_windows_version || payload?.minimum_version) : payload?.minimum_version;
+        const minVersion = String(requiredVersion || '').trim();
         if (minVersion) setPrintAgentMinVersion(minVersion);
       }
     } catch {

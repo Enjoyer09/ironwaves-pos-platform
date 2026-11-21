@@ -1,21 +1,15 @@
-iRonWaves Print Agent - Windows və macOS artifact-ları
+iRonWaves Print Agent — Windows 0.6.0 (x64, Windows 10/11)
 
-Bu qovluq Ayarlar -> Cap -> "Printer Agent quraşdırılması" pəncərəsindən serv olunur:
+ironwaves-print-agent-setup.exe — istifadəçi hesabında quraşdırılan Windows installer-i.
+ironwaves-print-agent-windows.zip — eyni installer, setup.bat, setup-windows.ps1 və təlimat.
+print-agent-windows-checksums.json — Windows CI-də yoxlanmış faylların SHA256/ölçüləri.
+print-agent-latest.json — platformaya görə versiya məlumatı.
 
-Windows:
-  ironwaves-print-agent-setup.exe        - NSIS ilə hazırlanmış Windows quraşdırıcısı (EXE installer)
-  ironwaves-print-agent-windows.zip      - Portable ZIP (ironwaves-print-agent.exe + setup-windows.ps1 + köməkçi .bat faylları)
+Yeniləmə: cari çapları tamamlayın, köhnə agenti tray menyusundan bağlayın,
+sonra installer-i açın. Installer işləyən agenti zorla bağlamır və printer
+növbəsini təmizləmir. Tenant məlumatı və printer ayarları dəyişmir.
+Quraşdırma bitdikdə Start iRonWaves Print Agent seçimi ilə agenti açın.
 
-macOS:
-  ironwaves-print-agent-macos-arm64.pkg  - Apple Silicon (.pkg, LaunchAgent ilə auto-start)
-  ironwaves-print-agent-macos-x64.pkg    - Intel Mac (.pkg, LaunchAgent ilə auto-start)
-
-Digər:
-  print-agent-latest.json               - Versiya manifesti ("Yeniləmə var?" yoxlaması)
-  qz-digital-certificate.txt            - QZ Tray sertifikatı (əgər QZ istifadə olunursa)
-
-Agent haqqında:
-  - Windows 10/11 (x64) və macOS 11+ (arm64/x64) dəstəklənir.
-  - 127.0.0.1:17777 ünvanında dinleyir; POS bu ünvana çap göndərir.
-  - Tələb: Google Chrome (HTML çapı üçün). macOS-da /Applications/Google Chrome.app.
-  - Auto-start: Windows Startup qovluğu; macOS LaunchAgent (RunAtLoad + KeepAlive).
+Agent localhost 127.0.0.1:17777 üzərində işləyir. Node.js ayrıca tələb olunmur.
+RAW çapında printerlər üçün ayrı növbələr və job ID üzrə təkrar sorğu qorunması var.
+HTML çapı Chrome/Edge tələb edir. Bu buraxılış macOS paketlərini yeniləmir.

@@ -33,6 +33,8 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  '.exe': 'application/octet-stream',
+  '.zip': 'application/zip',
 };
 
 const SPA_FALLBACK_FILE = path.join(distDir, 'index.html');
@@ -53,6 +55,7 @@ function setCacheHeaders(filePath, res) {
     fileName === 'sw.js' ||
     fileName === 'registerSW.js' ||
     fileName === 'manifest.webmanifest' ||
+    fileName === 'print-agent-latest.json' ||
     /^workbox-.*\.js$/i.test(fileName)
   ) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -65,7 +68,7 @@ function setCacheHeaders(filePath, res) {
   res.setHeader('Cache-Control', 'public, max-age=300');
 }
 
-function sendFile(filePath, res) {
+function sendFile(filePath, res, headOnly = false) {
   fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
       res.statusCode = 404;
@@ -74,8 +77,10 @@ function sendFile(filePath, res) {
     }
     const ext = path.extname(filePath).toLowerCase();
     res.setHeader('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
+    res.setHeader('Content-Length', stat.size);
     setSecurityHeaders(res);
     setCacheHeaders(filePath, res);
+    if (headOnly) { res.end(); return; }
     fs.createReadStream(filePath).pipe(res);
   });
 }
@@ -205,16 +210,16 @@ const server = http.createServer((req, res) => {
   const hasExtension = path.extname(pathname) !== '';
 
   if (insideDist && hasExtension) {
-    sendFile(candidate, res);
+    sendFile(candidate, res, req.method === 'HEAD');
     return;
   }
 
   if (insideDist && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-    sendFile(candidate, res);
+    sendFile(candidate, res, req.method === 'HEAD');
     return;
   }
 
-  sendFile(SPA_FALLBACK_FILE, res);
+  sendFile(SPA_FALLBACK_FILE, res, req.method === 'HEAD');
 });
 
 server.listen(port, '0.0.0.0', () => {

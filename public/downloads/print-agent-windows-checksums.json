@@ -1,0 +1,18 @@
+{
+  "version": "0.6.0",
+  "source_sha256": "c50b4252c9d081499659076d20d40786164e4b79840f04260529d6747112e527",
+  "artifacts": {
+    "ironwaves-print-agent.exe": {
+      "sha256": "524d64a486eaea863b57ef2f22bafde78f72581bfd51cd046521fd85b3c1217f",
+      "bytes": 57633979
+    },
+    "ironwaves-print-agent-setup.exe": {
+      "sha256": "b32fb064cc5ed4eef237e2a79abd1401656b2a252e504242e7fe2b1279430d7a",
+      "bytes": 15235278
+    },
+    "ironwaves-print-agent-windows.zip": {
+      "sha256": "e643afff05c47f6d7e7bb0bc0288b882b96445779af943886c346365dfb46347",
+      "bytes": 15222551
+    }
+  }
+}

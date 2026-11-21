@@ -1,105 +1,54 @@
-# iRonWaves Print Agent
+# iRonWaves Print Agent 0.6.0
 
-Local Windows (+ macOS) silent print helper for iRonWaves POS.
+Windows x64 local print helper; separate RAW queues and persistent job IDs.
+The existing macOS source path remains supported; this release packages Windows only.
 
-## User experience (sıfır iş öhdəliyi)
+## Build and verify
 
-1. User `ironwaves-print-agent-setup.exe`-ni yükləyib qurur.
-2. Installer "Next → Install → Finish" — başqa heç nə soruşmur.
-3. Agent sistem tepsisindən (tray) işə düşür — pəncərə, terminal yoxdur.
-4. Windows-a hər giriş etdikdə agent avtomatik başlayır (Registry `HKCU\Run`).
-5. POS bir dəfə ayarlarda printer adını yazır — bundan sonra hər çap sessiz gedir.
-
-## Texniki arxitektura
-
-```
-Browser (POS)  →  POST http://127.0.0.1:17777/print-html  →  Agent
-                                                              ↓
-                                                 Chrome --kiosk-printing (dialog yoxdur)
-                                                              ↓
-                                                    Printer ← spool job
-                                                              ↓
-                                                 Chrome prosesi 12 saniyə sonra kill olunur
+```sh
+npm ci --prefix tools/print-agent --ignore-scripts
+npm run test:print
+npm run typecheck
+npm run build
+npm --prefix tools/print-agent run build:all
 ```
 
-## Endpoints
+Packaging uses pinned `@yao-pkg/pkg` with a Node 22 runtime, and NSIS 3.
+On Windows the default NSIS location is `C:\Program Files (x86)\NSIS\makensis.exe`;
+set MAKENSIS to override. The Windows workflow builds and runs the executable,
+compiles the native helper, tests silent install, refuses an upgrade while the
+agent runs, then tests an idle upgrade. Job history and Windows printer settings
+are compared; the workflow never prints a physical ticket.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | `{ ok, version, platform }` |
-| GET | `/version` | `{ ok, version }` |
-| GET | `/printers` | `{ ok, printers: [{name, default}] }` |
-| POST | `/print-html` | `{ html, printer_name? }` → `{ ok, result }` |
+Artifacts are in `tools/print-agent/dist`: standalone executable, installer,
+ZIP, `checksums.json`, and the Windows CI `windows-smoke.json` evidence.
+The ZIP contains the same installer plus setup.bat, setup-windows.ps1 and README.
+`npm --prefix tools/print-agent run build:publish` verifies version, source hash
+(Windows CRLF or LF), and artifact SHA256 before copying tested downloads to public.
+`node tools/print-agent/packaging/verify-downloads.mjs <base-url>` checks the
+served installer/ZIP bytes and hashes, HEAD behavior, and live manifest.
 
-## Build — Windows `.exe` + installer
+## Install / upgrade
 
-**Tələb:** Windows PC, Node.js 20+, [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+Finish outstanding print jobs, quit the previous agent from its tray menu, and
+run the installer. It runs as the current user, requires no separate Node
+installation, and starts silently through launch-silent.vbs. It never clears
+spooler jobs or edits printer/tenant settings. It refuses to replace a running
+agent. Its uninstall action retains job history and printer configuration.
 
-```powershell
-cd tools\print-agent
+## Protocol
 
-# 1. Asılılıqları yüklə
-npm install
+GET /health advertises capabilities.print_jobs. POST /print-raw and /print-html
+accept optional job_id; new clients use one ID per logical job. HTTP 202 means
+accepted, not paper output confirmed. GET /jobs/{id} exposes queued, processing,
+submitted or unknown. Same ID/different payload gives HTTP 409. Interrupted or
+uncertain spool attempts never auto-replay. Explicit manual reprints use new IDs.
 
-# 2. Standalone .exe + Inno Setup installer birlikdə build et
-npm run build:all
-```
+Only hashes/status metadata is persisted under ~/.ironwaves-print/jobs-v1.
+Terminal receipts expire after seven days; the journal has a 10000-record cap
+and fails closed on write/corruption/capacity errors. Distinct agents on distinct
+computers are not coordinated by this local protocol. See README.txt for details.
 
-Nəticə:
-```
-tools\print-agent\dist\ironwaves-print-agent-setup.exe
-```
-
-## Deploy
-
-```powershell
-# POS-un public qovluğuna kopyala
-copy tools\print-agent\dist\ironwaves-print-agent-setup.exe public\downloads\ironwaves-print-agent-setup.exe
-```
-
-Sonra `public/downloads/print-agent-latest.json` içindəki `latest_version` dəyərini yeni versiya ilə yenilə.
-
----
-
-## macOS `.pkg` installer
-
-```bash
-cd tools/print-agent
-npm install
-npm run build:mac:all
-```
-
-Output: `tools/print-agent/dist/ironwaves-print-agent-macos-installer.pkg`
-
----
-
-## Inkişaf — lokal test
-
-```powershell
-cd tools\print-agent
-node ironwaves-print-agent.js
-```
-
-Health check:
-```
-curl http://127.0.0.1:17777/health
-curl http://127.0.0.1:17777/printers
-```
-
----
-
-## Sistem tepsisi (Tray) ikonası
-
-`tools/print-agent/icon.ico` mövcud olduqda agent tray-da göstərilir.
-İkon olmasa belə agent işləyir (tray ikonasız).
-
-Tövsiyə: 256×256 ICO faylı. Windows Task Manager-də `ironwaves-print-agent.exe` kimi görünür.
-
----
-
-## Versiya tarixi
-
-| Versiya | Dəyişiklik |
-|---------|------------|
-| 0.2.0 | Tray ikonası, terminal pəncərəsiz background iş, Chrome-u çap sonrası kill edir, EADDRINUSE-da silent exit |
-| 0.1.0 | İlk MVP — Chrome kiosk print |
+Runtime flags IW_PRINT_AGENT_AUTOSTART=0 and IW_PRINT_AGENT_TRAY=0 suppress only
+autostart registration/tray startup for isolated package smoke tests. Normal
+installs retain both. They do not enable simulated printing or alter printer settings.
