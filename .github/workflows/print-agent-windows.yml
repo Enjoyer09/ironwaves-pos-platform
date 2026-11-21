@@ -18,7 +18,7 @@ jobs:
       - run: npm ci
       - run: npm run test:print
       - run: npm run typecheck
-      - run: npm run build
+      # The frontend build runs on Linux in CI; Windows validates the agent package.
       - run: npm ci --prefix tools/print-agent --ignore-scripts
       - name: Install NSIS if needed
         shell: pwsh
