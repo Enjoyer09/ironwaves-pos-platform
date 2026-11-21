@@ -1,3 +1,6 @@
+from app.services.inventory_batches import stock_consumption_qty
+from app.services.recipe_links import ingredient_for_recipe, menu_link
+from app.services.inventory_lock import lock_inventory
 import hashlib
 import hmac
 import json
@@ -236,6 +239,7 @@ async def process_delivery_order_logic(
     order_id: str,
     raw_items: list,
 ) -> dict:
+    lock_inventory(db, tenant.id)
     tenant_id = tenant.id
     provider_title = "Bolt Food" if provider == "bolt" else "Wolt"
     cashier_name = "Bolt Food Integration" if provider == "bolt" else "Wolt Integration"
@@ -308,11 +312,12 @@ async def process_delivery_order_logic(
         })
 
         if menu_item:
-            recipes = db.query(Recipe).filter(Recipe.tenant_id == tenant_id, func.lower(Recipe.menu_item_name) == menu_item.item_name.lower()).all()
+            recipes = db.query(Recipe).filter(Recipe.tenant_id == tenant_id, menu_link(tenant_id, menu_item.item_name)).all()
             for recipe in recipes:
-                inventory = db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant_id, func.lower(InventoryItem.name) == recipe.ingredient_name.lower()).first()
+                inventory = ingredient_for_recipe(db, tenant_id, recipe)
                 if inventory:
                     qty_required = (Decimal(str(recipe.quantity_required)) * qty).quantize(Decimal("0.0001"))
+                    qty_required = stock_consumption_qty(qty_required)
                     stock_ops.append((inventory, qty_required))
                     cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
 

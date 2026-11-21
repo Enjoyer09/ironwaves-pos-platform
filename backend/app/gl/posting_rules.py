@@ -690,3 +690,37 @@ def correct_sale(db: Session, tenant_id: str, corrected: SaleCompleted, *, actor
     today = gl.business_today()
     storno = gl.reverse_journal(db, tenant_id, current.id, actor=actor, reason=f"Satış düzəlişi: {reason}", posting_date=today, require_approval=False)
     return [storno, post_event(db, tenant_id, replace(corrected, version=version, posting_date=today), actor=actor)]
+
+
+@dataclass(frozen=True)
+class StockCountSurplus:
+    count_id: str
+    posting_date: date
+    amount: Decimal
+    reason: str
+
+    def spec(self, tax: TaxSettings) -> JournalSpec:
+        amount = _pos(self.amount, "Amount")
+        lines = _Lines()
+        lines.dr("inventory", amount, self.reason)
+        lines.cr("other_income", amount, self.reason)
+        return JournalSpec("adjustment", lines.build(), self.reason, "stock_count_surplus",
+                           self.count_id, f"stock_count:{self.count_id}", self.posting_date)
+
+
+@dataclass(frozen=True)
+class StockValuationAdjusted:
+    valuation_id: str
+    posting_date: date
+    amount: Decimal
+    reversal: bool
+    reason: str
+
+    def spec(self, tax: TaxSettings) -> JournalSpec:
+        amount = _pos(self.amount, "Amount")
+        lines = _Lines()
+        debit, credit = ("inventory", "inventory_writeoff") if self.reversal else ("inventory_writeoff", "inventory")
+        lines.dr(debit, amount, self.reason)
+        lines.cr(credit, amount, self.reason)
+        return JournalSpec("adjustment", lines.build(), self.reason, "stock_valuation",
+                           self.valuation_id, f"stock_valuation:{self.valuation_id}", self.posting_date)

@@ -1,3 +1,5 @@
+from app.services.recipe_links import ingredient_for_recipe, menu_link
+from app.services.inventory_lock import lock_inventory
 import json
 import secrets
 from datetime import datetime, timezone
@@ -642,6 +644,7 @@ def void_sale(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    lock_inventory(db, tenant.id)
     row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
@@ -653,15 +656,11 @@ def void_sale(
         for item in items:
             recipes = (
                 db.query(Recipe)
-                .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
+                .filter(Recipe.tenant_id == tenant.id, menu_link(tenant.id, item.get("item_name") or ""))
                 .all()
             )
             for recipe in recipes:
-                inventory = (
-                    db.query(InventoryItem)
-                    .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
-                    .first()
-                )
+                inventory = ingredient_for_recipe(db, tenant.id, recipe)
                 if not inventory:
                     continue
                 add_qty = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))

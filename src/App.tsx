@@ -17,7 +17,7 @@ import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offl
 import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notification_read_live, mark_staff_notifications_read_live } from './api/reports';
 import { getActiveTenantId, getResolvedTenantIdFromHost, setActiveTenantId } from './lib/tenant';
-import { get_low_stock_items } from './api/inventory';
+import { get_inventory_items_live } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
@@ -1037,9 +1037,13 @@ export default function App() {
     const onceKey = `low_stock_popup_seen_${user.tenant_id}_${user.username}`;
     if (sessionStorage.getItem(onceKey) === '1') return;
 
+    let cancelled = false;
+    void (async () => {
     try {
       const threshold = Number(settings?.inventory_settings?.default_critical_threshold ?? 5);
-      const lows = get_low_stock_items(user.tenant_id, threshold);
+      const inventory = await get_inventory_items_live(user.tenant_id);
+      if (cancelled) return;
+      const lows = inventory.filter((r: any) => Number(r.stock_qty) <= Number(r.min_limit ?? threshold));
       if (lows.length > 0) {
         setLowStockModal(
           lows.map((l: any) => ({
@@ -1052,8 +1056,10 @@ export default function App() {
       }
       sessionStorage.setItem(onceKey, '1');
     } catch {
-      sessionStorage.setItem(onceKey, '1');
+      // Retry on a later load; a network failure is not proof of adequate stock.
     }
+    })();
+    return () => { cancelled = true; };
   }, [hasValidUser, user?.tenant_id, user?.username, user?.role, settings?.inventory_settings?.default_critical_threshold]);
 
   useEffect(() => {

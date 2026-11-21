@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     app_name: str = "iRonWaves POS API"
     app_env: str = "development"
+    release_read_only: bool = False
     app_url: str = "http://localhost:8000"
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.0

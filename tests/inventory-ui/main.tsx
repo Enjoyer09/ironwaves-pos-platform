@@ -1,0 +1,10 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import InventoryPanel from '../../src/components/admin/InventoryPanel';
+import { useAppStore } from '../../src/store';
+import { setClientAuthSession } from '../../src/api/client';
+import '../../src/index.css';
+localStorage.setItem('ironwaves_custom_api_base_url', 'http://127.0.0.1:8018');
+setClientAuthSession({ access_token: 'synthetic-ui-only', user: { tenant_id: 'ui-tenant' } });
+useAppStore.setState({ user: { id: 'ui-admin', username: 'ui-admin', role: 'admin', tenant_id: 'ui-tenant' } as any, lang: 'az', notify: (type: string, message: string) => { document.getElementById('notifications')!.textContent = `${type}: ${message}`; } });
+createRoot(document.getElementById('root')!).render(<><div id="notifications" role="status"/><InventoryPanel /></>);

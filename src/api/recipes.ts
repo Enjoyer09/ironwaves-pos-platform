@@ -552,7 +552,7 @@ export async function delete_recipe_ingredient_live(recipe_id: string, user: str
 
 export async function replace_recipe_live(
   menu_item_name: string,
-  ingredients: Array<{ ingredient_name: string; quantity_required: Decimal.Value; quantity_unit?: string }>,
+  ingredients: Array<{ ingredient_name: string; inventory_item_id?: string | null; quantity_required: Decimal.Value; quantity_unit?: string }>,
   tenant_id: string = 'tenant_default',
 ) {
   if (!isBackendEnabled()) {
@@ -584,6 +584,7 @@ export async function replace_recipe_live(
         menu_item_name,
         ingredients: ingredients.map((row) => ({
           ingredient_name: row.ingredient_name,
+          inventory_item_id: row.inventory_item_id || null,
           quantity_required: new Decimal(row.quantity_required).toFixed(4),
           quantity_unit: row.quantity_unit || null,
         })),

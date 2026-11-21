@@ -1,0 +1,215 @@
+// Run only against the isolated fixture in backend/tests/ui/inventory_app.py.
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const output = new URL('../outputs/inventory-ui/', import.meta.url);
+await mkdir(output, { recursive: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const results = [], failures = [], external = [];
+const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+await context.route('**/*', route => {
+  const url = new URL(route.request().url());
+  if (['127.0.0.1', 'localhost'].includes(url.hostname) || ['data:', 'blob:'].includes(url.protocol)) return route.continue();
+  external.push(url.hostname); return route.abort();
+});
+const page = await context.newPage();
+page.on('pageerror', e => failures.push(e.message));
+const check = async (name, test) => { await test(); results.push(name); console.log('PASS', name); };
+try {
+  await page.goto('http://127.0.0.1:5178/tests/inventory-ui/index.html');
+  await page.getByRole('cell', { name: 'UI Milk', exact: true }).waitFor();
+  await check('Inventory loads from synthetic backend', async () => assert.equal(await page.getByRole('cell', { name: 'UI Milk', exact: true }).count(), 1));
+  await page.getByRole('button', { name: 'Resept əlaqələrini yoxla', exact: true }).click();
+  await check('Ambiguous recipe is listed without automatic selection', async () => {
+    await page.getByText('Yoxlanmalı resept əlaqəsi: 1.', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'Əlaqəni seç', exact: true }).click();
+    assert.equal(await page.getByLabel('Xammal əlaqəsi', { exact: true }).inputValue(), '');
+  });
+  await page.getByLabel('Xammal əlaqəsi', { exact: true }).selectOption('ui-salt-a');
+  await page.getByLabel('Menyu əlaqəsi', { exact: true }).selectOption('ui-menu');
+  await page.getByLabel('Əlaqə düzəlişinin səbəbi').fill('Synthetic browser test');
+  await page.getByRole('button', { name: 'Seçilmiş əlaqəni təsdiqlə' }).click();
+  await check('Explicit recipe ID binding succeeds', async () => { await page.getByText('Yoxlanmalı resept əlaqəsi: 0.', { exact: false }).waitFor(); });
+  await page.getByRole('button', { name: 'Sayım və anbar hərəkət jurnalı', exact: true }).click();
+  await page.getByLabel('Məhsul', { exact: true }).selectOption('ui-milk');
+  await page.getByRole('button', { name: 'Hərəkətləri göstər', exact: true }).click();
+  await page.getByRole('columnheader', { name: 'Əvvəl', exact: true }).waitFor();
+  await check('Count posts once even on rapid repeated click', async () => {
+    const input = page.getByLabel('Faktiki sayılmış miqdar (litr)', { exact: true });
+    await input.fill('8'); await page.getByLabel('Sayımın səbəbi', { exact: true }).fill('Synthetic physical count');
+    const response = page.waitForResponse(r => r.url().endsWith('/ui-milk/count') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Sayımı və maliyyə fərqini təsdiqlə', exact: true }).dblclick();
+    assert.equal((await response).status(), 200);
+    await page.getByText('Sistemdəki qalıq: 8.000.', { exact: false }).waitFor();
+  });
+  await check('Financial reconciliation is visible', async () => {
+    await page.getByRole('button', { name: 'Anbarı maliyyə ilə tutuşdur', exact: true }).click();
+    await page.getByText('Anbar dəyəri:', { exact: false }).waitFor();
+  });
+  const milkRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'UI Milk', exact: true }) });
+  await check('Loss error preserves entered form and successful retry closes it', async () => {
+    await milkRow.getByRole('button', { name: 'Məxaric', exact: true }).click();
+    await page.getByLabel('İtki miqdarı', { exact: true }).fill('1000');
+    await page.getByLabel('İtkinin səbəbi', { exact: true }).fill('Synthetic damaged stock');
+    let response = page.waitForResponse(r => r.url().endsWith('/ui-milk/loss') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Təsdiqlə', exact: true }).click();
+    assert.equal((await response).status(), 400);
+    assert.equal(await page.getByLabel('İtki miqdarı', { exact: true }).inputValue(), '1000');
+    await page.getByLabel('İtki miqdarı', { exact: true }).fill('1');
+    response = page.waitForResponse(r => r.url().endsWith('/ui-milk/loss') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Təsdiqlə', exact: true }).click();
+    assert.equal((await response).status(), 200);
+    await page.getByRole('heading', { name: 'Zay/İtki Yaz', exact: true }).waitFor({state:'hidden'});
+  });
+  await check('Payable receipt requires supplier and updates stock once', async () => {
+    await milkRow.getByRole('button', { name: 'Mədaxil', exact: true }).click();
+    await page.getByLabel('Mədaxil miqdarı', { exact: true }).fill('1');
+    await page.getByLabel('Mədaxil məbləği', { exact: true }).fill('0');
+    assert.equal(await page.getByRole('button', { name: 'Təsdiqlə', exact: true }).isDisabled(), true);
+    await page.getByLabel('Təchizatçı', { exact: true }).selectOption('ui-supplier');
+    const response = page.waitForResponse(r => r.url().endsWith('/ui-milk/restock') && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Təsdiqlə', exact: true }).dblclick();
+    assert.equal((await response).status(), 200);
+  });
+  await check('Nonzero stock cannot be deleted through UI', async () => {
+    await milkRow.getByRole('button', { name: 'Sil', exact: true }).click();
+    const response = page.waitForResponse(r => r.url().endsWith('/ui-milk') && r.request().method() === 'DELETE');
+    await page.getByRole('button', { name: 'Silməni Təsdiqlə', exact: true }).click();
+    assert.equal((await response).status(), 409);
+    assert.equal(await milkRow.count(), 1);
+    await page.getByRole('button', { name: 'Ləğv et', exact: true }).click();
+  });
+  await page.getByRole('button', { name: 'Hərəkətləri göstər', exact: true }).click();
+  await page.getByRole('button', { name: 'Anbarı maliyyə ilə tutuşdur', exact: true }).click();
+  await page.getByText('Anbar dəyəri: 14.00', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Partiyalar, FEFO və dəyərsizləşmə', exact: true }).click();
+  await page.getByLabel('Uçot məhsulu', { exact: true }).selectOption('ui-milk');
+  const batchRegion = page.getByRole('region', { name: 'Partiya siyahısı', exact: true });
+  const dates = await (await page.request.get('http://127.0.0.1:8018/api/v1/catalog/inventory/ui-milk/batches')).json();
+  const day = offset => { const d = new Date(`${dates.business_date}T12:00:00Z`); d.setUTCDate(d.getUTCDate()+offset); return d.toISOString().slice(0,10); };
+  await check('Legacy stock policy is explicit and reversible without quantity changes', async () => {
+    await page.getByRole('button',{name:'Tarixsiz məhsul üçün köhnə rejimə icazə ver',exact:true}).click();
+    await page.getByRole('button',{name:'Mənfi qalıqla satışı blokla',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Mənfi qalıqla satışı blokla',exact:true}).click();
+    await page.getByRole('button',{name:'Tarixsiz məhsul üçün köhnə rejimə icazə ver',exact:true}).waitFor();
+    const current=await (await page.request.get('http://127.0.0.1:8018/api/v1/catalog/inventory')).json();
+    const milk=current.find(r=>r.id==='ui-milk');
+    assert.equal(milk.stock_qty,'8.000'); assert.equal(milk.legacy_negative_allowed,false);
+  });
+  await check('Expiry requirement blocks undated lots without changing stock', async () => {
+    await page.getByRole('button', { name: 'Son istifadə tarixini məcburi et', exact: true }).click();
+    await page.getByRole('button', { name: 'Tarix tələbini söndür', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Partiyaları göstər', exact: true }).click();
+    await page.getByText(/Satışa yararlı: 0(?:\.0+)? litr/).waitFor();
+  });
+  await check('Expired batch cannot be released; verified future date succeeds', async () => {
+    await batchRegion.getByRole('button', { name: 'Partiyanı idarə et', exact: true }).first().click();
+    await page.getByLabel('Partiya kodu', { exact: true }).fill('UI-EARLY');
+    await page.getByLabel('Yoxlanmış son istifadə tarixi', { exact: true }).fill(day(-1));
+    await page.getByLabel('Partiya statusu', { exact: true }).selectOption('available');
+    await page.getByLabel('Partiya əməliyyatının səbəbi', { exact: true }).fill('Synthetic verified expiry');
+    let response = page.waitForResponse(r => r.url().includes('/batches/') && r.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Tarix və statusu saxla', exact: true }).click();
+    assert.equal((await response).status(),400);
+    await page.getByLabel('Yoxlanmış son istifadə tarixi', { exact: true }).fill(day(2));
+    response = page.waitForResponse(r => r.url().includes('/batches/') && r.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Tarix və statusu saxla', exact: true }).click();
+    assert.equal((await response).status(),200);
+    await batchRegion.getByRole('row').filter({ hasText: 'UI-EARLY' }).waitFor();
+    await batchRegion.getByRole('row').filter({ hasText: 'Tarix bilinmir' }).getByRole('button', { name: 'Partiyanı idarə et', exact: true }).click();
+    await page.getByLabel('Partiya kodu', { exact: true }).fill('UI-LATE');
+    await page.getByLabel('Yoxlanmış son istifadə tarixi', { exact: true }).fill(day(10));
+    await page.getByLabel('Partiya statusu', { exact: true }).selectOption('available');
+    await page.getByLabel('Partiya əməliyyatının səbəbi', { exact: true }).fill('Synthetic verified receipt');
+    response = page.waitForResponse(r => r.url().includes('/batches/') && r.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Tarix və statusu saxla', exact: true }).click();
+    assert.equal((await response).status(),200);
+    await batchRegion.getByRole('row').filter({ hasText: 'UI-LATE' }).waitFor();
+  });
+  const nrvInput = page.getByLabel('Xalis realizasiya dəyəri (₼ / litr)', { exact: true });
+  await check('NRV write-down posts one expense and retains quantity', async () => {
+    await nrvInput.fill('1');
+    await page.getByLabel('Qiymətləndirmənin səbəbi', { exact: true }).fill('Synthetic market price decrease');
+    const response = page.waitForResponse(r => r.url().endsWith('/ui-milk/valuation') && r.request().method()==='POST');
+    await page.getByRole('button', { name:'Qiymətləndirməni maliyyəyə yaz', exact:true }).dblclick();
+    const result = await (await response).json();
+    assert.equal(result.amount,'6.00'); assert.equal(result.kind,'write_down');
+    await page.getByText('Qiymətləndirmə və maliyyə yazılışı saxlanıldı.', {exact:true}).waitFor();
+    const inventory = await (await page.request.get('http://127.0.0.1:8018/api/v1/catalog/inventory')).json();
+    assert.equal(inventory.find(r=>r.id==='ui-milk').stock_qty,'8.000');
+  });
+  await check('NRV reversal cannot exceed original weighted cost', async () => {
+    await nrvInput.fill('100');
+    await page.getByLabel('Qiymətləndirmənin səbəbi', { exact: true }).fill('Synthetic market recovery');
+    const response = page.waitForResponse(r => r.url().endsWith('/ui-milk/valuation') && r.request().method()==='POST');
+    await page.getByRole('button', { name:'Qiymətləndirməni maliyyəyə yaz', exact:true }).click();
+    const result = await (await response).json();
+    assert.equal(result.amount,'6.00'); assert.equal(result.kind,'reversal'); assert.equal(result.unit_cost,'1.7500');
+    await page.getByText('Qiymətləndirmə və maliyyə yazılışı saxlanıldı.', {exact:true}).waitFor();
+  });
+  await check('Expired lot disposal writes off only the selected lot', async () => {
+    await page.getByRole('button', {name:'Partiyaları göstər',exact:true}).click();
+    await batchRegion.getByRole('row').filter({hasText:'UI-LATE'}).getByRole('button',{name:'Partiyanı idarə et',exact:true}).click();
+    await page.getByLabel('Yoxlanmış son istifadə tarixi', {exact:true}).fill(day(-1));
+    await page.getByLabel('Partiya statusu', {exact:true}).selectOption('quarantine');
+    await page.getByLabel('Partiya əməliyyatının səbəbi',{exact:true}).fill('Synthetic expired lot review');
+    let response = page.waitForResponse(r=>r.url().includes('/batches/')&&r.request().method()==='PUT');
+    await page.getByRole('button',{name:'Tarix və statusu saxla',exact:true}).click(); assert.equal((await response).status(),200);
+    await batchRegion.getByRole('row').filter({hasText:'UI-LATE'}).getByRole('button',{name:'Partiyanı idarə et',exact:true}).click();
+    await page.getByLabel('Partiya əməliyyatının səbəbi',{exact:true}).fill('Synthetic expired lot disposal');
+    await page.getByLabel('Partiyadan itkiyə silinəcək miqdar',{exact:true}).fill('1');
+    response = page.waitForResponse(r=>r.url().endsWith('/ui-milk/loss')&&r.request().method()==='POST');
+    await page.getByRole('button',{name:'Seçilmiş miqdarı itkiyə yaz',exact:true}).click(); assert.equal((await response).status(),200);
+    await page.getByText('Partiya itkisi və maliyyə yazılışı saxlanıldı.',{exact:true}).waitFor();
+    const batches = await (await page.request.get('http://127.0.0.1:8018/api/v1/catalog/inventory/ui-milk/batches')).json();
+    assert.equal(batches.items.find(b=>b.lot_code==='UI-LATE').quantity_remaining,'0.000');
+    assert.equal(batches.items.find(b=>b.lot_code==='UI-EARLY').quantity_remaining,'7.000');
+  });
+  await check('Mobile dated receipt creates a traceable perishable product', async () => {
+    await page.setViewportSize({width:390,height:844});
+    await page.getByRole('button',{name:'Xammal Əlavə Et',exact:true}).click();
+    await page.getByLabel('Xammal adı',{exact:true}).fill('UI Dated Juice');
+    await page.getByLabel('İlkin miqdar',{exact:true}).fill('2');
+    await page.getByLabel('Əsas ölçü vahidi',{exact:true}).selectOption('litr');
+    await page.getByLabel('Toplam alış qiyməti',{exact:true}).fill('0');
+    await page.getByLabel('Təchizatçı',{exact:true}).selectOption('ui-supplier');
+    await page.getByLabel('Partiya nömrəsi',{exact:true}).fill('NEW-JUICE-LOT');
+    await page.getByRole('checkbox',{name:'Bu məhsul üçün son istifadə tarixi tələb olunsun',exact:true}).check();
+    assert.equal(await page.getByRole('button',{name:'Əlavə Et',exact:true}).isDisabled(),true);
+    await page.getByLabel('İlkin partiyanın son istifadə tarixi',{exact:true}).fill(day(5));
+    const width=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,view:innerWidth}));
+    assert.ok(width.doc<=width.view+1,JSON.stringify(width));
+    await page.screenshot({path:new URL('mobile-receipt.png',output).pathname,fullPage:true});
+    const response=page.waitForResponse(r=>r.url().endsWith('/catalog/inventory')&&r.request().method()==='POST');
+    await page.getByRole('button',{name:'Əlavə Et',exact:true}).click();
+    const received=await (await response).json();
+    assert.equal(received.expiry_required,true);
+    const batches=await (await page.request.get(`http://127.0.0.1:8018/api/v1/catalog/inventory/${received.id}/batches`)).json();
+    assert.equal(batches.items[0].lot_code,'NEW-JUICE-LOT');
+    assert.equal(batches.items[0].expires_on,day(5));
+    assert.equal(batches.sale_eligible_qty,'2.000');
+    await page.setViewportSize({width:1440,height:1000});
+  });
+  await page.getByRole('button',{name:'Dəyərsizləşmə tarixçəsi',exact:true}).click();
+  await page.getByRole('button',{name:'Anbarı maliyyə ilə tutuşdur',exact:true}).click();
+  await page.getByText('Anbar dəyəri: 12.25',{exact:false}).waitFor();
+  await page.screenshot({ path: new URL('desktop.png', output).pathname, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await check('Mobile controls fit viewport', async () => {
+    const width = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, view: innerWidth }));
+    assert.ok(width.doc <= width.view + 1, JSON.stringify(width));
+  });
+  await page.screenshot({ path: new URL('mobile.png', output).pathname, fullPage: true });
+  await check('Offline load shows explicit error and blocks counting', async () => {
+    await page.route('**/api/v1/catalog/inventory', route => route.abort());
+    await page.reload();
+    await page.getByRole('alert').filter({ hasText: 'Cari anbar məlumatı təsdiqlənmədi' }).waitFor();
+    assert.equal(await page.getByRole('cell', { name: 'UI Milk', exact: true }).count(), 0);
+  });
+  assert.deepEqual(failures, []);
+  await writeFile(new URL('results.json', output), JSON.stringify({ results, pageErrors: failures, blockedExternalHosts: [...new Set(external)] }, null, 2));
+} catch (e) {
+  await page.screenshot({ path: new URL('failure.png', output).pathname, fullPage: true });
+  console.error((await page.locator('body').innerText()).slice(0,4000));
+  throw e;
+} finally { await browser.close(); }

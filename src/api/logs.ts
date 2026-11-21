@@ -48,10 +48,11 @@ export async function get_logs_live(
   limit: number = 100,
   fromDate?: string,
   toDate?: string,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; actionPrefix?: string },
 ) {
   if (!isBackendEnabled()) return get_logs(tenant_id, limit, fromDate, toDate);
   const qs = new URLSearchParams({ limit: String(limit) });
+  if (options?.actionPrefix) qs.set('action_prefix', options.actionPrefix);
   if (fromDate) qs.set('from_date', fromDate);
   if (toDate) qs.set('to_date', toDate);
   try {

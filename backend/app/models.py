@@ -3,8 +3,8 @@ import secrets
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import text, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -329,8 +329,11 @@ class InventoryItem(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(32), nullable=False)
     category: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    stock_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    stock_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"), active_history=True)
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0.0000"))
+    cost_basis_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0.0000"), nullable=False)
+    expiry_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    legacy_negative_allowed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     min_limit: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
 
 
@@ -339,6 +342,8 @@ class Recipe(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    inventory_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("inventory_items.id", ondelete="RESTRICT"), nullable=True, index=True)
+    menu_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("menu_items.id", ondelete="RESTRICT"), nullable=True, index=True)
     menu_item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     ingredient_name: Mapped[str] = mapped_column(String(255), nullable=False)
     quantity_required: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0.0000"))
@@ -1020,3 +1025,144 @@ class Supplier(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+
+
+class InventoryMovement(Base):
+    __tablename__ = "inventory_movements"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    item_id: Mapped[str] = mapped_column(String(36), index=True)
+    item_name: Mapped[str] = mapped_column(String(255))
+    unit: Mapped[str] = mapped_column(String(32))
+    quantity_before: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    quantity_after: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4))
+    kind: Mapped[str] = mapped_column(String(40))
+    actor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+# Record all ORM stock changes, including sales, voids, imports and manual receipts,
+# in the same transaction. Historical audit logs are not treated as a stock ledger.
+from sqlalchemy import event, inspect
+from sqlalchemy.orm import Session
+
+
+@event.listens_for(Session, "before_flush")
+def _record_inventory_movements(session, flush_context, instances):
+    if any(isinstance(row, (InventoryMovement, InventoryBatchMovement, InventoryValuation)) for row in list(session.dirty) + list(session.deleted)):
+        raise ValueError("Inventory movements are immutable; post a correction instead")
+    for row in list(session.new) + list(session.dirty):
+        if not isinstance(row, InventoryItem):
+            continue
+        if row in session.new and row.cost_basis_unit_cost is None:
+            row.cost_basis_unit_cost = Decimal(str(row.unit_cost or 0))
+        state = inspect(row)
+        history = state.attrs.stock_qty.history
+        if row not in session.new and not history.has_changes():
+            continue
+        before = Decimal(str(history.deleted[0] or 0)) if history.deleted else Decimal("0")
+        after = Decimal(str(row.stock_qty or 0))
+        if row.id is None:
+            row.id = str(uuid.uuid4())
+        context = dict(session.info.get("inventory_context", {}))
+        if not context:
+            import json
+            for audit in reversed(list(session.new)):
+                if isinstance(audit, AuditLog) and audit.tenant_id == row.tenant_id and str(audit.action).startswith("INVENTORY_"):
+                    try:
+                        details = json.loads(audit.details or "{}")
+                    except (ValueError, TypeError):
+                        continue
+                    if details.get("item_name") == row.name:
+                        context = {"kind": audit.action, "actor": audit.user, "reason": audit.details}
+                        break
+        movement = InventoryMovement(id=str(uuid.uuid4()), tenant_id=row.tenant_id, item_id=row.id, item_name=row.name,
+            unit=row.unit, quantity_before=before, quantity_after=after,
+            unit_cost=Decimal(str(row.unit_cost or 0)), kind=context.get("kind", "opening" if row in session.new else "stock_change"),
+            actor=context.get("actor"), reason=context.get("reason"))
+        session.add(movement)
+        from app.services.inventory_batches import record_batch_movement
+        record_batch_movement(session, row, before, after, movement, context)
+
+
+@event.listens_for(Session, "before_flush")
+def _link_new_recipes(session, flush_context, instances):
+    from sqlalchemy import func
+    for recipe in list(session.new) + list(session.dirty):
+        if not isinstance(recipe, Recipe):
+            continue
+        for model, attr, name_attr, old_name in (
+            (InventoryItem, "inventory_item_id", "name", recipe.ingredient_name),
+            (MenuItem, "menu_item_id", "item_name", recipe.menu_item_name),
+        ):
+            current = getattr(recipe, attr)
+            if current:
+                target = next((r for r in session.new if isinstance(r, model) and r.id == current), None) or session.get(model, current)
+                if not target or target.tenant_id != recipe.tenant_id:
+                    raise ValueError("Recipe reference must belong to the same tenant")
+                continue
+            candidates = [r for r in session.new if isinstance(r, model) and r.tenant_id == recipe.tenant_id
+                          and str(getattr(r, name_attr)).strip().lower() == str(old_name).strip().lower()]
+            candidates += session.query(model).filter(model.tenant_id == recipe.tenant_id,
+                func.lower(func.trim(getattr(model, name_attr))) == str(old_name).strip().lower()).all()
+            if len(candidates) == 1:
+                if candidates[0].id is None:
+                    candidates[0].id = str(uuid.uuid4())
+                setattr(recipe, attr, candidates[0].id)
+
+
+class InventoryBatch(Base):
+    __tablename__ = "inventory_batches"
+    __table_args__ = (Index("ix_inventory_batch_fefo", "tenant_id", "item_id", "expires_on", "received_at"),
+        Index("ix_inventory_batch_active", "tenant_id", "item_id", "expires_on", "received_at", postgresql_where=text("quantity_remaining <> 0"), sqlite_where=text("quantity_remaining <> 0")))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    supplier_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=True)
+    invoice_no: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lot_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    expires_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    quantity_received: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    quantity_remaining: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    purchase_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="available", nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class InventoryBatchMovement(Base):
+    __tablename__ = "inventory_batch_movements"
+    __table_args__ = (Index("ix_inventory_batch_movement_lookup", "tenant_id", "batch_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(36), ForeignKey("inventory_batches.id"), nullable=False)
+    movement_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("inventory_movements.id"), nullable=True)
+    batch: Mapped[InventoryBatch] = relationship()
+    movement: Mapped[InventoryMovement | None] = relationship()
+    quantity_delta: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class InventoryValuation(Base):
+    __tablename__ = "inventory_valuations"
+    __table_args__ = (Index("ix_inventory_valuation_lookup", "tenant_id", "item_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    cost_basis_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    previous_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    nrv_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    new_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    transaction_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("finance_transactions.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

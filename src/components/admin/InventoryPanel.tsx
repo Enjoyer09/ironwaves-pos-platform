@@ -1,3 +1,7 @@
+import { inventoryMessage } from '../../lib/inventoryPresentation';
+import InventoryLifecyclePanel from './InventoryLifecyclePanel';
+import RecipeLinkReview from './RecipeLinkReview';
+import InventoryControlPanel from './InventoryControlPanel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, get_inventory_policy_live, add_inventory_item_live, update_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
@@ -16,6 +20,8 @@ export default function InventoryPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [items, setItems] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [dataReady, setDataReady] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [itemsPageSize, setItemsPageSize] = useState(10);
   const [historyPageSize, setHistoryPageSize] = useState(10);
@@ -85,6 +91,8 @@ export default function InventoryPanel() {
       ]);
       if (!mountedRef.current) return;
       setItems(Array.isArray(data) ? data : []);
+      setLoadError('');
+      setDataReady(true);
       setSuppliers(loadedSuppliers || []);
       const invSettings = settings.inventory_settings || {
         default_critical_threshold: 5,
@@ -98,8 +106,10 @@ export default function InventoryPanel() {
         await loadHistory();
       }
     } catch (e: any) {
+      setLoadError(inventoryMessage(e));
+      setDataReady(false);
       if (!options?.silent) {
-        notify('error', tx(lang, 'Anbar məlumatı yüklənmədi: ', 'Данные склада не загрузились: ', 'Inventory failed to load: ') + String(e?.message || e));
+        notify('error', tx(lang, 'Anbar məlumatı yüklənmədi: ', 'Данные склада не загрузились: ', 'Inventory failed to load: ') + inventoryMessage(e));
       }
     } finally {
       loadingRef.current = false;
@@ -110,7 +120,7 @@ export default function InventoryPanel() {
     if (historyLoadingRef.current) return;
     historyLoadingRef.current = true;
     try {
-      const logs = await get_logs_live(tenant_id, 60);
+      const logs = await get_logs_live(tenant_id, 60, undefined, undefined, { actionPrefix: 'INVENTORY_' });
       if (!mountedRef.current) return;
       setHistory(
         (logs || [])
@@ -125,6 +135,13 @@ export default function InventoryPanel() {
   };
 
   const [newName, setNewName] = useState('');
+  const [newLot, setNewLot] = useState('');
+  const [newExpiry, setNewExpiry] = useState('');
+  const [newExpiryRequired, setNewExpiryRequired] = useState(false);
+  const [newBatchStatus, setNewBatchStatus] = useState<'available' | 'quarantine'>('available');
+  const [restockLot, setRestockLot] = useState('');
+  const [restockExpiry, setRestockExpiry] = useState('');
+  const [restockBatchStatus, setRestockBatchStatus] = useState<'available' | 'quarantine'>('available');
   const [newQty, setNewQty] = useState('');
   const [newCost, setNewCost] = useState('');
   const [newUnit, setNewUnit] = useState('qram');
@@ -135,10 +152,12 @@ export default function InventoryPanel() {
   const [newSupplierId, setNewSupplierId] = useState('');
   const [newInvoiceNo, setNewInvoiceNo] = useState('');
   const [newMinLimit, setNewMinLimit] = useState('5');
-  const [measureType, setMeasureType] = useState<'çəki' | 'say' | 'həcm'>('çəki');
   const [isAdding, setIsAdding] = useState(false);
+  const mutationRef = useRef(false);
+  const [mutationBusy, setMutationBusy] = useState(false);
   const [lossModal, setLossModal] = useState<{ id: string; name: string } | null>(null);
   const [lossQty, setLossQty] = useState('');
+  const [lossReason, setLossReason] = useState('');
   const [search, setSearch] = useState('');
   const [restockModal, setRestockModal] = useState<{ id: string; name: string } | null>(null);
   const [restockQty, setRestockQty] = useState('');
@@ -154,7 +173,6 @@ export default function InventoryPanel() {
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: string; unit: string; min_limit: string } | null>(null);
   const [editCustomType, setEditCustomType] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
-  const [deletePass, setDeletePass] = useState('');
   const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -211,7 +229,7 @@ export default function InventoryPanel() {
       }
       setIsClearing(true);
       const { clear_inventory_live } = await import('../../api/inventory');
-      await clear_inventory_live(tenant_id, user?.username || 'admin');
+      await clear_inventory_live(tenant_id, user?.username || 'admin', clearConfirmPassword);
       notify(
         'success',
         tx(
@@ -273,7 +291,7 @@ export default function InventoryPanel() {
   const restockSupplierMissing = !restockSupplierId
     && (restockPaymentSource === 'payable' || (requireSupplier && isPositiveDecimalInput(restockTotalPrice)));
   const restockValid = isPositiveDecimalInput(restockQty) && isNonNegativeDecimalInput(restockTotalPrice) && !restockSupplierMissing;
-  const addSupplierMissing = requireSupplier && !newSupplierId && isPositiveDecimalInput(newCost);
+  const addSupplierMissing = !newSupplierId && (newPaymentSource === 'payable' || (requireSupplier && isPositiveDecimalInput(newCost)));
 
   const inventoryTypeOptions = useMemo(
     () => Array.from(
@@ -295,12 +313,16 @@ export default function InventoryPanel() {
       notify('error', supplierRequiredMessage);
       return;
     }
-    const selectedSupplier = requireSupplier ? suppliers.find((s) => s.id === newSupplierId) : null;
+    const selectedSupplier = suppliers.find((s) => s.id === newSupplierId);
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    setMutationBusy(true);
     try {
       const qty = parseDecimalInput(newQty);
       const totalPrice = parseDecimalInput(newCost);
       await add_inventory_item_live({
         tenant_id,
+        lot_code: newLot.trim(), expires_on: newExpiry || undefined, expiry_required: newExpiryRequired, batch_status: newBatchStatus,
         name: newName,
         stock_qty: qty,
         unit: newUnit,
@@ -314,6 +336,7 @@ export default function InventoryPanel() {
         invoice_no: newInvoiceNo.trim() || undefined,
       }, user?.username || 'Admin');
       setNewName('');
+      setNewLot(''); setNewExpiry(''); setNewExpiryRequired(false); setNewBatchStatus('available');
       setNewQty('');
       setNewCost('');
       setNewMinLimit('5');
@@ -327,19 +350,31 @@ export default function InventoryPanel() {
       await loadData();
       notify('success', tx(lang, 'Məhsul yadda saxlanıldı', 'Продукт сохранен', 'Inventory item saved'));
     } catch(e:any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + inventoryMessage(e));
+    } finally {
+      mutationRef.current = false;
+      setMutationBusy(false);
     }
   };
 
   const handleLoss = async (id: string, name: string, qtyRaw: string) => {
     const qty = parseDecimalInput(qtyRaw);
-    if (qty.lte(0)) return;
+    if (qty.lte(0) || !lossReason.trim()) return;
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    setMutationBusy(true);
     try {
-      await record_loss_live(id, qty, 'Zay oldu', user?.username || 'Admin');
+      await record_loss_live(id, qty, lossReason.trim(), user?.username || 'Admin');
+      setLossModal(null);
+      setLossQty('');
+      setLossReason('');
       notify('success', tx(lang, 'İtki maliyyəyə yazıldı və anbardan silindi!', 'Списание записано в финансы и удалено со склада!'));
       await loadData();
     } catch(e:any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + inventoryMessage(e));
+    } finally {
+      mutationRef.current = false;
+      setMutationBusy(false);
     }
   };
 
@@ -355,8 +390,12 @@ export default function InventoryPanel() {
       return;
     }
 
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    setMutationBusy(true);
     try {
       await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
+        lot_code: restockLot.trim(), expires_on: restockExpiry || undefined, batch_status: restockBatchStatus,
         payment_source: restockPaymentSource,
         supplier: restockSupplier.trim() || undefined,
         supplier_id: restockSupplierId || undefined,
@@ -370,6 +409,7 @@ export default function InventoryPanel() {
       notify('success', tx(lang, 'Mədaxil yazıldı', 'Пополнение сохранено'));
       setRestockModal(null);
       setRestockQty('');
+      setRestockLot(''); setRestockExpiry(''); setRestockBatchStatus('available');
       setRestockTotalPrice('');
       setRestockPaymentSource('payable');
       setRestockSupplier('');
@@ -377,7 +417,10 @@ export default function InventoryPanel() {
       setRestockInvoiceNo('');
       await loadData();
     } catch (e: any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + inventoryMessage(e));
+    } finally {
+      mutationRef.current = false;
+      setMutationBusy(false);
     }
   };
 
@@ -423,7 +466,7 @@ export default function InventoryPanel() {
       setEditCustomType('');
       await loadData();
     } catch (e: any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + inventoryMessage(e));
     }
   };
 
@@ -516,6 +559,9 @@ export default function InventoryPanel() {
         `${itemName} was updated`,
       );
     }
+    if (action === 'INVENTORY_BATCH_UPDATED') return tx(lang, `${itemName}: partiyanın tarixi və ya statusu yeniləndi`, `${itemName}: обновлены срок или статус партии`, `${itemName}: batch date or status updated`);
+    if (action === 'INVENTORY_VALUATION') return tx(lang, `${itemName}: ${details.kind === 'reversal' ? 'dəyərsizləşmə bərpa edildi' : 'dəyərsizləşmə yazıldı'} (${details.amount} ₼)`, `${itemName}: переоценка запасов (${details.amount} ₼)`, `${itemName}: inventory valuation (${details.amount} ₼)`);
+    if (action === 'INVENTORY_COUNT') return tx(lang, `${itemName}: faktiki sayım (${details.counted_qty} ${details.unit || ''})`, `${itemName}: инвентаризация (${details.counted_qty} ${details.unit || ''})`, `${itemName}: stock count (${details.counted_qty} ${details.unit || ''})`);
     if (action === 'INVENTORY_CONSUMED') {
       const qtyStr = formatHistQty(details.qty_removed);
       return tx(
@@ -570,19 +616,23 @@ export default function InventoryPanel() {
 
   return (
     <div className="space-y-6">
+      {loadError && <p role="alert" className="text-red-300">Cari anbar məlumatı təsdiqlənmədi: {loadError} <button onClick={() => void loadData()}>Yenidən yoxla</button></p>}
+      {isBackendEnabled() && <InventoryLifecyclePanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />}
+      {isBackendEnabled() && dataReady && <RecipeLinkReview items={items} />}
+      {isBackendEnabled() && <InventoryControlPanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />}
       {lossModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Zay/İtki Yaz', 'Списание потерь')}</h3>
             <p className="mb-3 text-sm text-slate-300">{lossModal.name}</p>
-            <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} value={lossQty} onChange={(e) => setLossQty(e.target.value)} />
+            <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} aria-label="İtki miqdarı" value={lossQty} onChange={(e) => setLossQty(e.target.value)} />
+            <input className="neon-input mt-3" aria-label={tx(lang, 'İtkinin səbəbi', 'Причина списания')} placeholder={tx(lang, 'İtkinin səbəbi', 'Причина списания')} maxLength={500} value={lossReason} onChange={e => setLossReason(e.target.value)} />
             <div className="mt-4 flex gap-2">
               <button
-                className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                disabled={mutationBusy || !lossReason.trim() || !isPositiveDecimalInput(lossQty)}
+                className="glossy-gold rounded-lg px-4 py-2 font-semibold disabled:opacity-60"
                 onClick={() => {
                   void handleLoss(lossModal.id, lossModal.name, lossQty);
-                  setLossModal(null);
-                  setLossQty('');
                 }}
               >
                 {tx(lang, 'Təsdiqlə', 'Подтвердить')}
@@ -601,10 +651,10 @@ export default function InventoryPanel() {
             <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Mədaxil et', 'Пополнить')}</h3>
             <p className="mb-3 text-sm text-slate-300">{restockModal.name}</p>
             <div className="grid grid-cols-2 gap-2">
-              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} value={restockQty} onChange={(e) => setRestockQty(e.target.value)} />
-              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
-              <select className="neon-input" value={restockPaymentSource} onChange={(e) => setRestockPaymentSource(e.target.value as any)}>
-                <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
+              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} aria-label="Mədaxil miqdarı" value={restockQty} onChange={(e) => setRestockQty(e.target.value)} />
+              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} aria-label="Mədaxil məbləği" value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
+              <select className="neon-input" aria-label="Mədaxilin ödəniş mənbəyi" value={restockPaymentSource} onChange={(e) => setRestockPaymentSource(e.target.value as any)}>
+                <option value="payable">{tx(lang, 'Təchizatçıya borc', 'Долг поставщику', 'Supplier credit')}</option>
                 <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
                 <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
                 <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
@@ -614,8 +664,8 @@ export default function InventoryPanel() {
                 value={restockSupplierId}
                 aria-label={tx(lang, 'Təchizatçı', 'Поставщик', 'Supplier')}
                 aria-required={requireSupplier || restockPaymentSource === 'payable'}
-                aria-invalid={requireSupplier && restockSupplierMissing}
-                aria-describedby={requireSupplier && restockSupplierMissing ? 'inv-restock-supplier-hint' : undefined}
+                aria-invalid={restockSupplierMissing}
+                aria-describedby={restockSupplierMissing ? 'inv-restock-supplier-hint' : undefined}
                 onChange={(e) => {
                   const selectedId = e.target.value;
                   setRestockSupplierId(selectedId);
@@ -630,13 +680,20 @@ export default function InventoryPanel() {
               </select>
               <input className="neon-input col-span-2 animate-fade-in" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
             </div>
-            {requireSupplier && restockSupplierMissing ? (
+            <div className="mt-3 space-y-2">
+              <label className="block">Partiya nömrəsi<input className="neon-input w-full" maxLength={120} value={restockLot} onChange={e => setRestockLot(e.target.value)} /></label>
+              <label className="block">Son istifadə tarixi<input type="date" className="neon-input w-full" value={restockExpiry} onChange={e => setRestockExpiry(e.target.value)} /></label>
+              <label className="block">Partiyanın qəbulu<select aria-label="Partiyanın qəbulu" className="neon-input w-full" value={restockBatchStatus} onChange={e => setRestockBatchStatus(e.target.value as any)}><option value="available">Satışa yararlı</option><option value="quarantine">Karantin — satışa buraxılmır</option></select></label>
+              {items.find(r => r.id === restockModal.id)?.expiry_required && !restockExpiry && <p className="text-amber-200">Bu məhsul üçün son istifadə tarixini daxil edin.</p>}
+              <p className="text-xs text-slate-400">Son istifadə tarixi daxil olmaqla yararlıdır. Vaxtı keçmiş partiya yalnız karantinə qəbul edilir.</p>
+            </div>
+            {restockSupplierMissing ? (
               <p id="inv-restock-supplier-hint" className="mt-2 text-sm text-amber-200" aria-live="polite">{supplierRequiredMessage}</p>
             ) : null}
             <div className="mt-4 flex gap-2">
               <button
                 className="glossy-gold min-h-11 rounded-lg px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={requireSupplier && !restockValid}
+                disabled={mutationBusy || !restockValid || (Boolean(items.find(r => r.id === restockModal.id)?.expiry_required) && !restockExpiry)}
                 onClick={() => { void handleRestock(restockModal.id); }}
               >
                 {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
@@ -689,6 +746,8 @@ export default function InventoryPanel() {
               <select
                 className="neon-input"
                 value={editModal.unit}
+                disabled
+                title="Əsas ölçü vahidi dəyişdirilə bilməz"
                 onChange={(e) => setEditModal((prev) => prev ? { ...prev, unit: e.target.value } : prev)}
               >
                 {(inventoryConfig.unit_options || []).map((unit) => (
@@ -721,28 +780,26 @@ export default function InventoryPanel() {
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Məhsulu sil', 'Удалить продукт')}</h3>
             <p className="mb-3 text-sm text-slate-300">{deleteModal.name}</p>
-            <input className="neon-input" type="password" placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора')} value={deletePass} onChange={(e) => setDeletePass(e.target.value)} />
+
             <div className="mt-4 flex gap-2">
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={() => {
-                  void deletePass; // Password gate removed here; backend authorization is the source of truth.
                   void (async () => {
                     try {
                       await delete_inventory_item_live(deleteModal.id, user?.username || 'Admin');
                       notify('success', tx(lang, 'Məhsul silindi', 'Продукт удален'));
                       setDeleteModal(null);
-                      setDeletePass('');
                       await loadData();
                     } catch (e: any) {
-                      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+                      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + inventoryMessage(e));
                     }
                   })();
                 }}
               >
                 {tx(lang, 'Silməni Təsdiqlə', 'Подтвердить удаление')}
               </button>
-              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setDeleteModal(null); setDeletePass(''); }}>
+              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setDeleteModal(null);  }}>
                 {tx(lang, 'Ləğv et', 'Отмена')}
               </button>
             </div>
@@ -820,43 +877,43 @@ export default function InventoryPanel() {
 
       {isAdding && (
         <div className="metal-panel p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
-          <input className="neon-input min-h-13 col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} value={newName} onChange={e => setNewName(e.target.value)} />
-          <select className="neon-input min-h-13" value={newType} onChange={e => setNewType(e.target.value)}>
+          <label className="block md:col-span-2">Partiya nömrəsi<input className="neon-input w-full" maxLength={120} value={newLot} onChange={e => setNewLot(e.target.value)} /></label>
+          <label className="block md:col-span-2">İlkin partiyanın son istifadə tarixi<input type="date" className="neon-input w-full" value={newExpiry} onChange={e => setNewExpiry(e.target.value)} /></label>
+          <label className="block md:col-span-2">İlkin partiyanın qəbulu<select aria-label="İlkin partiyanın qəbulu" className="neon-input w-full" value={newBatchStatus} onChange={e => setNewBatchStatus(e.target.value as any)}><option value="available">Satışa yararlı</option><option value="quarantine">Karantin — satışa buraxılmır</option></select></label>
+          <label className="md:col-span-2"><input type="checkbox" checked={newExpiryRequired} onChange={e => setNewExpiryRequired(e.target.checked)} /> Bu məhsul üçün son istifadə tarixi tələb olunsun</label>
+          <label className="block md:col-span-2">Xammal adı<input className="neon-input w-full min-h-13 min-w-0 md:col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} aria-label="Xammal adı" value={newName} onChange={e => setNewName(e.target.value)} /></label>
+          <label className="block">Kateqoriya<select className="neon-input w-full min-h-13 min-w-0" value={newType} onChange={e => setNewType(e.target.value)}>
             {inventoryTypeOptions.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
             <option value="__custom__">{tx(lang, 'Yeni kateqoriya...', 'Новая категория...', 'New category...')}</option>
-          </select>
+          </select></label>
           {newType === '__custom__' && (
             <input
-              className="neon-input min-h-13"
+              className="neon-input min-h-13 min-w-0"
               placeholder={tx(lang, 'Manual kateqoriya adı', 'Название категории вручную', 'Manual category name')}
               value={customType}
               onChange={e => setCustomType(e.target.value)}
             />
           )}
-          <select className="neon-input min-h-13" value={measureType} onChange={e => setMeasureType(e.target.value as any)}>
-            <option value="çəki">{tx(lang, 'Çəki', 'Вес', 'Weight')}</option>
-            <option value="say">{tx(lang, 'Say', 'Штуки', 'Count')}</option>
-            <option value="həcm">{tx(lang, 'Həcm', 'Объем', 'Volume')}</option>
-          </select>
-          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 1.2)', 'Количество (напр.: 1.2)', 'Quantity (e.g. 1.2)')} value={newQty} onChange={e => setNewQty(e.target.value)} />
-          <select className="neon-input min-h-13" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
+
+          <label className="block">İlkin miqdar<input className="neon-input w-full min-h-13 min-w-0" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 1.2)', 'Количество (напр.: 1.2)', 'Quantity (e.g. 1.2)')} aria-label="İlkin miqdar" value={newQty} onChange={e => setNewQty(e.target.value)} /></label>
+          <label className="block">Əsas ölçü vahidi<select className="neon-input w-full min-h-13 min-w-0" aria-label="Əsas ölçü vahidi" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
             {(inventoryConfig.unit_options || []).map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
-          </select>
-          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
-          <select className="neon-input min-h-13" value={newPaymentSource} onChange={(e) => setNewPaymentSource(e.target.value as any)}>
-            <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
+          </select></label>
+          <label className="block">Toplam alış qiyməti (₼)<input className="neon-input w-full min-h-13 min-w-0" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} aria-label="Toplam alış qiyməti" value={newCost} onChange={e => setNewCost(e.target.value)} /></label>
+          <label className="block">Ödəniş mənbəyi<select className="neon-input w-full min-h-13 min-w-0" aria-label="İlkin mədaxilin ödəniş mənbəyi" value={newPaymentSource} onChange={(e) => setNewPaymentSource(e.target.value as any)}>
+            <option value="payable">{tx(lang, 'Təchizatçıya borc', 'Долг поставщику', 'Supplier credit')}</option>
             <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
             <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
-          </select>
-          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
-          {requireSupplier ? (
+          </select></label>
+          <label className="block">Minimum qalıq<input className="neon-input w-full min-h-13 min-w-0" type="text" inputMode="decimal" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} /></label>
+          {(requireSupplier || newPaymentSource === 'payable') ? (
             <select
-              className="neon-input min-h-13"
+              className="neon-input min-h-13 min-w-0"
               value={newSupplierId}
               aria-label={tx(lang, 'Təchizatçı', 'Поставщик', 'Supplier')}
               aria-required={isPositiveDecimalInput(newCost)}
@@ -870,15 +927,15 @@ export default function InventoryPanel() {
               ))}
             </select>
           ) : (
-            <input className="neon-input min-h-13" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
+            <label className="block">Təchizatçı adı (istəyə bağlı)<input className="neon-input w-full min-h-13 min-w-0" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} /></label>
           )}
-          <input className="neon-input min-h-13" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={newInvoiceNo} onChange={e => setNewInvoiceNo(e.target.value)} />
+          <label className="block">Faktura nömrəsi (istəyə bağlı)<input className="neon-input w-full min-h-13 min-w-0" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={newInvoiceNo} onChange={e => setNewInvoiceNo(e.target.value)} /></label>
           {addSupplierMissing ? (
             <p id="inv-add-supplier-hint" className="text-sm text-amber-200" aria-live="polite">{supplierRequiredMessage}</p>
           ) : null}
           <button
             onClick={() => { void handleAdd(); }}
-            disabled={!newName.trim() || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost) || addSupplierMissing}
+            disabled={!dataReady || mutationBusy || (newExpiryRequired && !newExpiry) || !newName.trim() || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost) || addSupplierMissing}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed min-h-13 px-4 py-3 rounded-lg font-semibold"
           >
             {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
@@ -921,8 +978,9 @@ export default function InventoryPanel() {
             </select>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <p className="mb-2 text-xs text-slate-400 sm:hidden">Bütün sütunlar üçün cədvəli sağa sürüşdürün.</p>
+        <div className="overflow-x-auto" role="region" aria-label="Anbar məhsulları" tabIndex={0}>
+          <table className="w-full min-w-[900px] text-left [&_th]:px-3 [&_td]:px-3">
             <thead>
               <tr className="text-slate-300 border-b border-slate-700/70">
                 <th className="pb-3">{tx(lang, 'Xammal Adı', 'Название сырья', 'Item Name')}</th>
@@ -954,8 +1012,8 @@ export default function InventoryPanel() {
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => openEditModal(item)} className="rounded-lg border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-200">{tx(lang, 'Düzəlt', 'Изменить', 'Edit')}</button>
-                      <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded-lg border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
-                      <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
+                      <button onClick={() => { setRestockModal({ id: item.id, name: item.name }); setRestockLot(''); setRestockExpiry(''); setRestockBatchStatus('available'); }} className="rounded-lg border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
+                      <button onClick={() => { setLossModal({ id: item.id, name: item.name }); setLossReason(''); setLossQty(''); }} className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
                       <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded-lg border border-red-300/40 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
                     </div>
                   </td>
@@ -1038,7 +1096,7 @@ export default function InventoryPanel() {
       </div>
 
       {/* Dangerous Operations Section for Admin/Manager */}
-      {['admin', 'super_admin', 'finance_admin', 'manager'].includes(String(user?.role || '').toLowerCase()) && (
+      {['admin', 'super_admin', 'manager'].includes(String(user?.role || '').toLowerCase()) && (
         <div className="metal-panel p-6 border-rose-500/30 bg-rose-950/5">
           <h2 className="text-xl font-bold flex items-center gap-3 text-rose-300">
             <span className="text-rose-500">⚠️</span>

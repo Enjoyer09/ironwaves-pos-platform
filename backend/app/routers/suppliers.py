@@ -1,3 +1,4 @@
+from app.services.inventory_lock import lock_inventory
 from datetime import datetime
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
@@ -175,6 +176,7 @@ def pay_supplier(
     user: User = Depends(get_current_user),
 ):
     _ensure_supplier_write_access(user)
+    lock_inventory(db, tenant.id)
     supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.tenant_id == tenant.id).first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")

@@ -1,10 +1,11 @@
+import { withFinanceRequestKey } from '../lib/financeRequests';
 import { v4 as uuidv4 } from 'uuid';
 import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { create_finance_entry } from './finance';
 import { InventoryItem } from '../types/inventory';
 import { getDB, setDB } from '../lib/db_sim';
-import { apiRequest, isBackendEnabled } from './client';
+import { apiRequest, isBackendEnabled, getClientAuthSession } from './client';
 
 const isRecoverableNetworkFailure = (error: unknown) => {
   const message = String((error as any)?.message || error || '').toLowerCase();
@@ -121,7 +122,7 @@ export function record_loss(item_id: string, qty_removed: Decimal, reason: strin
 
     const allInventory = getDB<any>('inventory');
     const found = allInventory.find(i => i.id === item_id);
-    const tenant_id = found?.tenant_id || 'tenant_default';
+    const tenant_id = getClientAuthSession().user?.tenant_id || found?.tenant_id || 'tenant_default';
     const inventoryItems = getInventory(tenant_id);
     const item = inventoryItems.find(i => i.id === item_id);
     if (!item) throw new Error('Məhsul tapılmadı.');
@@ -156,7 +157,7 @@ export function record_loss(item_id: string, qty_removed: Decimal, reason: strin
 export function update_inventory_item(item_id: string, updates: Partial<InventoryItem>, user: string = 'system') {
   const allInventory = getDB<any>('inventory');
   const found = allInventory.find(i => i.id === item_id);
-  const tenant_id = found?.tenant_id || 'tenant_default';
+  const tenant_id = getClientAuthSession().user?.tenant_id || found?.tenant_id || 'tenant_default';
   const inventoryItems = getInventory(tenant_id);
   const index = inventoryItems.findIndex(i => i.id === item_id);
   if (index === -1) throw new Error('Məhsul tapılmadı.');
@@ -170,7 +171,7 @@ export function update_inventory_item(item_id: string, updates: Partial<Inventor
 export function delete_inventory_item(item_id: string, user: string = 'system') {
   const allInventory = getDB<any>('inventory');
   const found = allInventory.find(i => i.id === item_id);
-  const tenant_id = found?.tenant_id || 'tenant_default';
+  const tenant_id = getClientAuthSession().user?.tenant_id || found?.tenant_id || 'tenant_default';
   const inventoryItems = getInventory(tenant_id);
   const item = inventoryItems.find(i => i.id === item_id);
   if (!item) throw new Error('Məhsul tapılmadı.');
@@ -223,9 +224,6 @@ export async function get_inventory_items_live(tenant_id: string = 'tenant_defau
     // backend/NeonDB-dir; local cache yalnız offline fallback və lokal rejim üçündür.
     return Array.isArray(rows) ? rows.map((row) => ({ ...row, tenant_id: row?.tenant_id || tenant_id })) : [];
   } catch (error) {
-    if (isRecoverableNetworkFailure(error)) {
-      return get_inventory_items(tenant_id);
-    }
     throw error;
   }
 }
@@ -261,15 +259,33 @@ export async function add_inventory_item_live(data: {
   /** Required by the backend for receipts with a value when the tenant's ledger mode is dual. */
   supplier_id?: string;
   invoice_no?: string;
+  lot_code?: string;
+  expires_on?: string;
+  batch_status?: 'available' | 'quarantine';
+  expiry_required?: boolean;
 }, user: string = 'system') {
   if (!isBackendEnabled()) {
     return add_inventory_item(data, user);
   }
   try {
-    const created = await apiRequest<any>('/api/v1/catalog/inventory', {
+    const created = await withFinanceRequestKey(data.tenant_id || 'tenant_default', user, 'inventory:create', {
+        lot_code: data.lot_code || null, expires_on: data.expires_on || null, batch_status: data.batch_status || 'available', expiry_required: data.expiry_required || false,
+        name: data.name,
+        stock_qty: new Decimal(data.stock_qty).toFixed(3),
+        unit: data.unit,
+        category: data.category,
+        type: data.type,
+        unit_cost: new Decimal(data.unit_cost).toFixed(4),
+        min_limit: new Decimal(data.min_limit).toFixed(3),
+        payment_source: String(data.payment_source || 'payable'),
+        supplier: String(data.supplier || '').trim() || null,
+        supplier_id: String(data.supplier_id || '').trim() || null,
+        invoice_no: String(data.invoice_no || '').trim() || null,
+      }, (key) => apiRequest<any>('/api/v1/catalog/inventory', {
       method: 'POST',
       tenantId: null,
-      body: {
+      body: { idempotency_key: key,
+        lot_code: data.lot_code || null, expires_on: data.expires_on || null, batch_status: data.batch_status || 'available', expiry_required: data.expiry_required || false,
         name: data.name,
         stock_qty: new Decimal(data.stock_qty).toFixed(3),
         unit: data.unit,
@@ -282,7 +298,7 @@ export async function add_inventory_item_live(data: {
         supplier_id: String(data.supplier_id || '').trim() || null,
         invoice_no: String(data.invoice_no || '').trim() || null,
       },
-    });
+    }));
     const inventoryItems = getInventory(data.tenant_id || 'tenant_default');
     const filtered = inventoryItems.filter((row) => String(row.id) !== String(created?.id));
     const resolvedTenantId = created?.tenant_id || data.tenant_id || 'tenant_default';
@@ -301,16 +317,25 @@ export async function restock_item_live(
   qty_added: Decimal,
   total_price: Decimal,
   user: string = 'system',
-  options?: { payment_source?: string; supplier?: string; supplier_id?: string; invoice_no?: string },
+  options?: { payment_source?: string; supplier?: string; supplier_id?: string; invoice_no?: string; lot_code?: string; expires_on?: string; batch_status?: 'available' | 'quarantine' },
 ) {
   if (!isBackendEnabled()) {
     return restock_item(tenant_id, item_id, qty_added, total_price, user);
   }
   try {
-    const updated = await apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/restock`, {
+    const updated = await withFinanceRequestKey(tenant_id, user, 'inventory:restock', { item_id,
+        lot_code: options?.lot_code || null, expires_on: options?.expires_on || null, batch_status: options?.batch_status || 'available',
+        qty_added: new Decimal(qty_added).toFixed(3),
+        total_price: new Decimal(total_price).toFixed(2),
+        payment_source: String(options?.payment_source || 'payable'),
+        supplier: String(options?.supplier || '').trim() || null,
+        supplier_id: String(options?.supplier_id || '').trim() || null,
+        invoice_no: String(options?.invoice_no || '').trim() || null,
+      }, (key) => apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/restock`, {
       method: 'POST',
       tenantId: null,
-      body: {
+      body: { idempotency_key: key,
+        lot_code: options?.lot_code || null, expires_on: options?.expires_on || null, batch_status: options?.batch_status || 'available',
         qty_added: new Decimal(qty_added).toFixed(3),
         total_price: new Decimal(total_price).toFixed(2),
         payment_source: String(options?.payment_source || 'payable'),
@@ -318,7 +343,7 @@ export async function restock_item_live(
         supplier_id: String(options?.supplier_id || '').trim() || null,
         invoice_no: String(options?.invoice_no || '').trim() || null,
       },
-    });
+    }));
     const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
     saveInventory(tenant_id, [...inventoryItems, { ...updated, tenant_id: updated?.tenant_id || tenant_id }]);
     emitInventoryUpdated(tenant_id, { action: 'restock', item_id: updated?.id || item_id });
@@ -369,17 +394,20 @@ export async function record_loss_live(item_id: string, qty_removed: Decimal, re
     return record_loss(item_id, qty_removed, reason, recorded_by);
   }
   try {
-    const result = await apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
+    const result = await withFinanceRequestKey(getClientAuthSession().user?.tenant_id || 'tenant_default', recorded_by, 'inventory:loss', { item_id,
+        qty_removed: new Decimal(qty_removed).toFixed(3),
+        reason,
+      }, (key) => apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
       method: 'POST',
       tenantId: null,
-      body: {
+      body: { idempotency_key: key,
         qty_removed: new Decimal(qty_removed).toFixed(3),
         reason,
       },
-    });
+    }));
     const allInventory = getDB<any>('inventory');
     const found = allInventory.find(i => i.id === item_id);
-    emitInventoryUpdated(found?.tenant_id || 'tenant_default', { action: 'loss', item_id });
+    emitInventoryUpdated(getClientAuthSession().user?.tenant_id || found?.tenant_id || 'tenant_default', { action: 'loss', item_id });
     return result;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
@@ -398,7 +426,7 @@ export async function delete_inventory_item_live(item_id: string, user: string =
     });
     const allInventory = getDB<any>('inventory');
     const found = allInventory.find(i => i.id === item_id);
-    const tenant_id = found?.tenant_id || 'tenant_default';
+    const tenant_id = getClientAuthSession().user?.tenant_id || found?.tenant_id || 'tenant_default';
     const filtered = getInventory(tenant_id).filter(i => i.id !== item_id);
     saveInventory(tenant_id, filtered);
     emitInventoryUpdated(tenant_id, { action: 'delete', item_id });
@@ -416,7 +444,7 @@ export function clear_inventory(tenant_id: string = 'tenant_default', user: stri
   return true;
 }
 
-export async function clear_inventory_live(tenant_id: string = 'tenant_default', user: string = 'system') {
+export async function clear_inventory_live(tenant_id: string = 'tenant_default', user: string = 'system', password?: string) {
   if (!isBackendEnabled()) {
     return clear_inventory(tenant_id, user);
   }
@@ -425,6 +453,7 @@ export async function clear_inventory_live(tenant_id: string = 'tenant_default',
       '/api/v1/catalog/clear-inventory',
       {
         method: 'POST',
+        body: { password },
         tenantId: null,
       }
     );

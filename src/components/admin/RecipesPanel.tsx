@@ -147,7 +147,7 @@ export default function RecipesPanel() {
     }
   };
 
-  const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
+  const selectedIngredientMeta = ingredients.find((i) => i.id === newIngredient) || null;
   const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
   const filteredIngredients = React.useMemo(() => {
     const search = normalizeText(ingredientSearch).trim();
@@ -264,7 +264,7 @@ export default function RecipesPanel() {
     if (!selectedMenu || !newIngredient || !newQty) return;
 
     try {
-      const invItem = ingredients.find(i => i.name === newIngredient);
+      const invItem = ingredients.find(i => i.id === newIngredient);
       const qty = new Decimal(newQty || 0);
       const unitCost = new Decimal(invItem?.unit_cost || 0);
       const normalizedQty = convertToInventoryUnit(qty, newQtyUnit, String(invItem?.unit || newQtyUnit));
@@ -274,7 +274,8 @@ export default function RecipesPanel() {
           id: `draft_${Date.now()}`,
           tenant_id,
           menu_item_name: selectedMenu,
-          ingredient_name: newIngredient,
+          ingredient_name: invItem?.name || '',
+          inventory_item_id: invItem?.id,
           quantity_required: qty.toFixed(4),
           quantity_unit: newQtyUnit,
           unit: invItem?.unit || newQtyUnit,
@@ -473,6 +474,7 @@ export default function RecipesPanel() {
         selectedMenu,
         draftRecipeItems.map((item) => ({
           ingredient_name: item.ingredient_name,
+          inventory_item_id: item.inventory_item_id,
           quantity_required: item.quantity_required,
           quantity_unit: item.quantity_unit || item.unit,
         })),
@@ -670,7 +672,7 @@ export default function RecipesPanel() {
                   >
                       <option value="">{tx(lang, '-- Anbardan Xammal Seç --', '-- Выберите ингредиент со склада --', '-- Select inventory ingredient --')}</option>
                     {filteredIngredients.map(inv => (
-                      <option key={inv.id} value={inv.name}>{inv.name} (Stok: {inv.stock_qty} {inv.unit})</option>
+                      <option key={inv.id} value={inv.id}>{inv.name} (Stok: {inv.stock_qty} {inv.unit})</option>
                     ))}
                   </select>
                   <input 
@@ -760,7 +762,7 @@ export default function RecipesPanel() {
                                     if (r.id !== item.id) return r;
                                     const qty = new Decimal(val || 0);
                                     const unitCost = new Decimal(r.unit_cost || 0);
-                                    const invItem = ingredients.find((i) => i.name === r.ingredient_name);
+                                    const invItem = ingredients.find((i) => r.inventory_item_id ? i.id === r.inventory_item_id : i.name === r.ingredient_name);
                                     const normalizedQty = convertToInventoryUnit(qty, r.quantity_unit || r.unit, String(invItem?.unit || r.unit));
                                     return {
                                       ...r,

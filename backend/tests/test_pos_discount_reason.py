@@ -12,6 +12,7 @@ class FakeUser:
     role = "admin"
 
 def test_create_sale_requires_reason_for_manual_discount(monkeypatch):
+    monkeypatch.setattr(pos, "lock_inventory", lambda *_: None)
     # Mock shift and session guards to let execution proceed to the discount checks
     monkeypatch.setattr(pos, "_active_shift", lambda *_: True)
     monkeypatch.setattr(pos, "_staff_shift_session_open", lambda *_: True)

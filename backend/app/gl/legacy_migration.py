@@ -74,6 +74,8 @@ JOURNAL_TYPE_BY_LEGACY = {
     "inventory_restock": "purchase",
     "supplier_payment": "purchase",
     "inventory_loss": "adjustment",
+    "inventory_nrv_write_down": "adjustment",
+    "inventory_nrv_reversal": "adjustment",
     "cash_adjustment": "adjustment",
     "reconciliation_adjustment": "adjustment",
     "reversal": "reversal",
@@ -94,7 +96,7 @@ def map_role(code: str, txn_type: str, category: str | None) -> str:
     if code == "revenue":
         return "other_income" if _norm(category) in OTHER_INCOME_CATEGORIES else "sales_revenue"
     if code == "expense":
-        if txn_type == "inventory_loss":
+        if txn_type in {"inventory_loss", "inventory_nrv_write_down", "inventory_nrv_reversal"}:
             return "inventory_writeoff"
         return EXPENSE_CATEGORY_ROLES.get(_norm(category), "general_expense")
     role = LEGACY_CODE_TO_ROLE.get(code)

@@ -127,10 +127,15 @@ def restore_generic_model_rows(
 ) -> int:
     if not isinstance(rows, list):
         return 0
-    # Delete existing rows and commit immediately so INSERT doesn't hit
-    # duplicate key errors (PostgreSQL enforces PK even within same txn).
+    if getattr(model, "__tablename__", "") == "inventory_items":
+        from app.models import InventoryBatch
+        from fastapi import HTTPException
+        if db.query(InventoryBatch.id).filter(InventoryBatch.tenant_id == tenant_id, InventoryBatch.quantity_remaining != 0).first():
+            raise HTTPException(409, "Partiya uçotu olan anbar köhnə əvəzetmə importu ilə bərpa edilə bilməz. Tam baza snapshot-ından istifadə edin; qalıqlar dəyişdirilmədi.")
+    # Keep replacement in the caller transaction: a failed import must restore
+    # the original rows, including stock and recipe references.
     db.query(model).filter(model.tenant_id == tenant_id).delete(synchronize_session=False)
-    db.commit()
+    db.flush()
     restored_count = 0
     for idx, row in enumerate(rows):
         if not isinstance(row, dict):
@@ -146,6 +151,8 @@ def restore_generic_model_rows(
             key = column.name
             if key == "tenant_id":
                 setattr(instance, key, tenant_id)
+                continue
+            if getattr(model, "__tablename__", "") == "recipes" and key in {"inventory_item_id", "menu_item_id"}:
                 continue
             # Skip primary key ID from backup to avoid conflicts with other tenants.
             # Let PostgreSQL generate a new ID via sequence/default.

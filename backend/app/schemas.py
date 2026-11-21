@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 
@@ -102,20 +102,27 @@ class MenuItemUpdateIn(BaseModel):
 
 
 class InventoryItemCreateIn(BaseModel):
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=120)
+    lot_code: str | None = Field(default=None, max_length=120)
+    expires_on: date | None = None
+    batch_status: str = Field(default="available", pattern="^(available|quarantine)$")
+    expiry_required: bool = False
     name: str
-    stock_qty: Decimal
-    unit: str
+    stock_qty: Decimal = Field(ge=0, decimal_places=3, max_digits=14)
+    unit: str = Field(min_length=1, max_length=32)
     category: str | None = None
     type: str | None = None
-    unit_cost: Decimal
-    min_limit: Decimal = Decimal("0")
+    unit_cost: Decimal = Field(ge=0, decimal_places=4, max_digits=12)
+    min_limit: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=3, max_digits=14)
     payment_source: str | None = "payable"
     supplier: str | None = None
     supplier_id: str | None = None
-    invoice_no: str | None = None
+    invoice_no: str | None = Field(default=None, max_length=120)
 
 
 class InventoryItemUpdateIn(BaseModel):
+    legacy_negative_allowed: bool | None = None
+    expiry_required: bool | None = None
     name: str | None = None
     unit: str | None = None
     category: str | None = None
@@ -124,23 +131,38 @@ class InventoryItemUpdateIn(BaseModel):
 
 
 class InventoryRestockIn(BaseModel):
-    qty_added: Decimal
-    total_price: Decimal
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=120)
+    lot_code: str | None = Field(default=None, max_length=120)
+    expires_on: date | None = None
+    batch_status: str = Field(default="available", pattern="^(available|quarantine)$")
+    qty_added: Decimal = Field(gt=0, decimal_places=3, max_digits=14)
+    total_price: Decimal = Field(ge=0, decimal_places=2, max_digits=14)
     payment_source: str | None = "payable"
     supplier: str | None = None
     supplier_id: str | None = None
-    invoice_no: str | None = None
+    invoice_no: str | None = Field(default=None, max_length=120)
 
 
 class InventoryLossIn(BaseModel):
-    qty_removed: Decimal
-    reason: str
+    batch_id: str | None = None
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=120)
+    qty_removed: Decimal = Field(gt=0, decimal_places=3, max_digits=14)
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def nonempty_reason(cls, value):
+        if not value.strip():
+            raise ValueError("Loss reason is required")
+        return value.strip()
 
 
 class RecipeIngredientCreateIn(BaseModel):
+    inventory_item_id: str | None = None
+    menu_item_id: str | None = None
     menu_item_name: str
     ingredient_name: str
-    quantity_required: Decimal
+    quantity_required: Decimal = Field(gt=0, decimal_places=4)
     quantity_unit: str | None = None
 
 

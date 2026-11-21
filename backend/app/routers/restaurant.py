@@ -1,3 +1,4 @@
+from app.services.inventory_lock import lock_inventory
 import json
 import secrets
 import uuid
@@ -2620,6 +2621,7 @@ def act_on_order_item(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    lock_inventory(db, tenant.id)
     item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Order item not found")
@@ -2729,6 +2731,7 @@ def settle_check(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    lock_inventory(db, tenant.id)
     _ensure_floor_admin(user)
     _require_active_sales_shift(db, tenant.id, user)
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()

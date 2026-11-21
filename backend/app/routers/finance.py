@@ -1036,11 +1036,12 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
     )
 
     expense_filters = _finance_transaction_period_filters(tenant_id, start, end) + [
-        FinanceTransaction.transaction_type == "expense",
+        FinanceTransaction.transaction_type.in_(["expense", "inventory_loss", "inventory_nrv_write_down", "inventory_nrv_reversal"]),
     ]
+    expense_amount = case((FinanceTransaction.transaction_type == "inventory_nrv_reversal", -FinanceTransaction.amount), else_=FinanceTransaction.amount)
     operating_expenses = Decimal(
         str(
-            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            db.query(func.coalesce(func.sum(expense_amount), 0))
             .filter(*expense_filters)
             .scalar()
             or 0

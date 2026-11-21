@@ -1,3 +1,6 @@
+from app.services.inventory_batches import stock_consumption_qty
+from app.services.recipe_links import load_recipe_inventory
+from app.services.inventory_lock import lock_inventory
 import json
 import logging
 import secrets
@@ -585,6 +588,7 @@ def validate_pos_campaign(
 
 @router.post("/sale", response_model=SaleCreateOut)
 def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    lock_inventory(db, tenant.id)
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
@@ -847,32 +851,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         for item in payload.cart_items
         if str(item.item_name or "").strip()
     }
-    recipe_rows = (
-        db.query(Recipe)
-        .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name).in_(menu_item_names))
-        .all()
-        if menu_item_names
-        else []
-    )
-    recipes_by_item: dict[str, list[Recipe]] = defaultdict(list)
-    ingredient_names: set[str] = set()
-    for recipe in recipe_rows:
-        key = str(recipe.menu_item_name or "").strip().lower()
-        recipes_by_item[key].append(recipe)
-        ingredient_name = str(recipe.ingredient_name or "").strip().lower()
-        if ingredient_name:
-            ingredient_names.add(ingredient_name)
-    inventory_rows = (
-        db.query(InventoryItem)
-        .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name).in_(ingredient_names))
-        .all()
-        if ingredient_names
-        else []
-    )
-    inventory_by_name = {
-        str(row.name or "").strip().lower(): row
-        for row in inventory_rows
-    }
+    recipes_by_item, inventory_by_recipe = load_recipe_inventory(db, tenant.id, menu_item_names)
     for index, item in enumerate(payload.cart_items):
         line_cogs_totals[index] = Decimal("0.0000")
         line_cogs_unresolved[index] = False
@@ -885,7 +864,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         for recipe in recipes:
             if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
                 continue
-            inventory = inventory_by_name.get(str(recipe.ingredient_name or "").strip().lower())
+            inventory = inventory_by_recipe.get(recipe.id)
             if not inventory:
                 line_cogs_unresolved[index] = True
                 continue
@@ -897,6 +876,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 if yield_rule
                 else base_qty_required
             )
+            qty_required = stock_consumption_qty(qty_required)
             # if Decimal(str(inventory.stock_qty)) < qty_required:
             #     raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))

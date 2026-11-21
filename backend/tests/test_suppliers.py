@@ -44,6 +44,7 @@ def test_suppliers_write_access():
 
 
 def test_pay_supplier_validations(monkeypatch):
+    monkeypatch.setattr(suppliers, "lock_inventory", lambda *args: None)
     # Mock database query to return a fake supplier
     fake_supplier = Supplier(
         id="supplier-1",

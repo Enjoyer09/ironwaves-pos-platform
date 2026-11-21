@@ -1,4 +1,7 @@
 from __future__ import annotations
+from app.services.inventory_batches import stock_consumption_qty
+from app.services.recipe_links import ingredient_for_recipe, menu_link
+from app.services.inventory_lock import lock_inventory
 
 import json
 import csv
@@ -700,7 +703,7 @@ def _sanitize_nonstandard_json(raw: str) -> str:
 def _serialize_value(value):
     if isinstance(value, Decimal):
         return str(value)
-    if isinstance(value, datetime):
+    if isinstance(value, (datetime, date)):
         return value.isoformat()
     return value
 
@@ -926,6 +929,7 @@ def _record_doner_batch_consumption(
 
 
 def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[tuple[InventoryItem, Decimal]], Decimal]:
+    lock_inventory(db, tenant_id)
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
     line_cogs_totals: dict[int, Decimal] = {}
@@ -939,7 +943,7 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
         skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
         recipes = (
             db.query(Recipe)
-            .filter(Recipe.tenant_id == tenant_id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
+            .filter(Recipe.tenant_id == tenant_id, menu_link(tenant_id, item.get("item_name") or ""))
             .all()
         )
         if not recipes:
@@ -947,17 +951,14 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
         for recipe in recipes:
             if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
                 continue
-            inventory = (
-                db.query(InventoryItem)
-                .filter(InventoryItem.tenant_id == tenant_id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
-                .first()
-            )
+            inventory = ingredient_for_recipe(db, tenant_id, recipe)
             if not inventory:
                 line_cogs_unresolved[index] = True
                 continue
             base_qty_required = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
             yield_rule = _find_yield_rule(db, tenant_id, inventory)
             sold_ready_qty, qty_required = _apply_yield_to_qty(base_qty_required, yield_rule)
+            qty_required = stock_consumption_qty(qty_required)
             if Decimal(str(inventory.stock_qty or 0)) < qty_required:
                 # BahaY: Don't block - stock might be miscounted or not yet entered.
                 # Allow negative stock, log a warning instead of raising.
@@ -1779,7 +1780,7 @@ def export_database_backup(
             for row in db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).all()
         ],
         "inventory": [
-            _serialize_model_row(row, ["id", "tenant_id", "name", "unit", "category", "stock_qty", "unit_cost", "min_limit"])
+            _serialize_model_row(row, ["id", "tenant_id", "name", "unit", "category", "stock_qty", "unit_cost", "cost_basis_unit_cost", "expiry_required", "legacy_negative_allowed", "min_limit"])
             for row in db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).all()
         ],
         "customers": [
@@ -1791,7 +1792,7 @@ def export_database_backup(
             for row in db.query(CustomerConsent).filter(CustomerConsent.tenant_id == tenant.id).all()
         ],
         "recipes": [
-            _serialize_model_row(row, ["id", "tenant_id", "menu_item_name", "ingredient_name", "quantity_required"])
+            _serialize_model_row(row, ["id", "tenant_id", "menu_item_name", "ingredient_name", "inventory_item_id", "menu_item_id", "quantity_required"])
             for row in db.query(Recipe).filter(Recipe.tenant_id == tenant.id).all()
         ],
         "happy_hours": [
@@ -1906,6 +1907,11 @@ def export_database_backup(
             for row in db.query(AgentInsight).filter(AgentInsight.tenant_id == tenant.id).all()
         ],
     }
+    from app.models import InventoryBatch, InventoryBatchMovement, InventoryValuation, InventoryMovement
+    for key, model in (("inventory_batches", InventoryBatch), ("inventory_batch_movements", InventoryBatchMovement),
+                       ("inventory_valuations", InventoryValuation), ("inventory_movements", InventoryMovement)):
+        payload[key] = [_serialize_model_row(row) for row in db.query(model).filter(model.tenant_id == tenant.id).all()]
+    payload["_inventory_lifecycle_version"] = 1
     return payload
 
 
@@ -8077,6 +8083,7 @@ def pay_table(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    lock_inventory(db, tenant.id)
     row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -8957,6 +8964,7 @@ def delete_happy_hour(
 @router.get("/logs")
 def list_logs(
     limit: int = Query(default=100, ge=1, le=1000),
+    action_prefix: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
     db: Session = Depends(get_db),
@@ -8964,6 +8972,8 @@ def list_logs(
     user: User = Depends(get_current_user),
 ):
     query = db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id)
+    if action_prefix:
+        query = query.filter(AuditLog.action.startswith(action_prefix, autoescape=True))
     if from_date:
         query = query.filter(AuditLog.created_at >= datetime.fromisoformat(f"{from_date}T00:00:00"))
     if to_date:

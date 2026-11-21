@@ -23,6 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services.release_guard import ReleaseReadOnlyMiddleware
 from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User, CentralBackupLog
 from app.realtime import realtime_hub
@@ -68,6 +69,7 @@ def _init_error_tracking() -> None:
 _init_error_tracking()
 app = FastAPI(title=settings.app_name)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(ReleaseReadOnlyMiddleware, enabled=settings.release_read_only)
 logging.basicConfig(level=getattr(logging, str(settings.log_level or "INFO").upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("ironwaves.api")
 

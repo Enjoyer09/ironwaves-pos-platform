@@ -451,16 +451,15 @@ def test_dual_restock_with_supplier_tags_partner(db, tenant):
     ok(db, tenant.id)
 
 
-def test_legacy_restock_without_supplier_still_allowed(db, tenant):  # no setting recorded
-    from app.models import FinanceTransaction
-
+def test_legacy_payable_restock_without_supplier_rejected(db, tenant):
+    from fastapi import HTTPException
     bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
     db.commit()
     item = _item(db, tenant.id)
-    out = _restock(db, tenant, item.id, payment_source="payable", supplier="Bazar")
-    assert D(out["stock_qty"]) == D("10")
-    assert db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant.id,
-                                               FinanceTransaction.transaction_type == "inventory_restock").count() == 1
+    with pytest.raises(HTTPException) as exc:
+        _restock(db, tenant, item.id, payment_source="payable", supplier="Bazar")
+    assert exc.value.status_code == 400
+    assert D(str(item.stock_qty)) == D("0")
 
 
 def test_dual_create_item_with_stock_requires_supplier(db, tenant):
@@ -514,9 +513,9 @@ def test_dual_tenant_without_the_setting_needs_no_supplier(db, tenant, state):
 
     _supplier_setting(db, tenant.id, False if state == "off" else None)
     item = _item(db, tenant.id)
-    out = _restock(db, tenant, item.id, payment_source="payable")  # no supplier
+    out = _restock(db, tenant, item.id, payment_source="cash")  # cash purchase remains optional
     assert D(out["stock_qty"]) == D("10")
-    assert [ln.partner_id for ln in _stock_ap_lines(db, tenant.id)] == [None]  # the AP line is simply unassigned
+    assert not _stock_ap_lines(db, tenant.id)
     # create-with-stock: new-item branch and merge branch
     payload = InventoryItemCreateIn(name="Sugar", stock_qty=D("2"), unit="kg", unit_cost=D("5"), payment_source="cash")
     catalog.create_inventory_item(payload, db=db, tenant=tenant, user=ADMIN)
@@ -569,7 +568,7 @@ def test_legacy_tenant_follows_the_setting_too(db, tenant):
     bridge.set_ledger_mode(db, tenant.id, "legacy", actor="owner", reason="x")
     db.commit()
     item = _item(db, tenant.id)
-    _restock(db, tenant, item.id, payment_source="payable")  # legacy, nothing recorded: optional (today's behaviour)
+    _restock(db, tenant, item.id, payment_source="cash")  # cash supplier optional without policy
     _supplier_setting(db, tenant.id, True)
     with pytest.raises(HTTPException) as exc:  # legacy + ON: decoupled from the ledger mode
         _restock(db, tenant, item.id, payment_source="payable")
