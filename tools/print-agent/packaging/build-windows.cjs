@@ -19,7 +19,7 @@ if (!flags.has('--zip-only')) {
   run(nsis,[`${prefix}DAPP_ROOT=${root}`,`${prefix}DVERSION=${version}`,path.join(__dirname,'installer.nsi')]);
 }
 if (!flags.has('--installer-only')) {
-  const files=['dist/ironwaves-print-agent.exe','launch-silent.vbs','README.txt'];
+  const files=['dist/ironwaves-print-agent-setup.exe','setup.bat','setup-windows.ps1','README.txt'];
   const archive=path.join(dist,'ironwaves-print-agent-windows.zip');
   if(process.platform==='win32') {
     const quote=s=>"'"+s.replace(/'/g,"''")+"'";

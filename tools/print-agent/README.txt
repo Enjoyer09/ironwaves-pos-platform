@@ -1,22 +1,16 @@
-iRonWaves Print Agent - Windows Setup & Troubleshooting
+iRonWaves Print Agent — Windows 0.6.0
 
-Bu qovluqdaki fayllar və onların təyinatı:
+Quraşdırma: ironwaves-print-agent-setup.exe faylını açın. ZIP yükləmisinizsə,
+əvvəl arxivi çıxarın; setup.bat və ya setup-windows.ps1 eyni installer-i açır.
+Admin hüququ və ayrıca Node.js quraşdırılması lazım deyil.
 
-1. setup.bat
-Agentyi 1-kliklə arxa planda səssizcə işə salmaq üçün quraşdırıcı. Sadəcə cüt klikləyin. Kompüter hər açıldıqda agent avtomatik işə düşəcək.
+Yeniləmə: cari çaplar bitsin. Mövcud agenti tray menyusundan bağlayın, sonra
+setup-u başladın. Installer işləyən agenti və ya printer növbələrini zorla
+söndürmür. Printer adları, tenant ayarları və əvvəlki job jurnalı saxlanılır.
+Quraşdırma bitdikdə Start iRonWaves Print Agent seçimi agenti səssiz açır.
+Windows-a girişdə agent istifadəçinin HKCU Run qeydi vasitəsilə açılır.
 
-2. clear-queue.bat (Problem Həll Edici)
-Əgər Windows çap idarəçisi (spooler) ilişərsə və printer eyni çeki və ya boş kağızı durmadan çap edərsə, bu faylın üzərinə sağ klikləyib "Run as Administrator" (Admin olaraq işə sal) seçin. Çap növbəsini anında sıfırlayacaq və printeri sakitləşdirəcək.
-
-3. setup-windows.ps1
-setup.bat tərəfindən arxa planda işə salınan əsas quraşdırma skripti. Qlobal Node.js tapılmadıqda rəsmi node.exe-ni avtomatik yükləyir.
-
-4. ironwaves-print-agent.js
-POS platformasından gələn çapetmə istəklərini qəbul edən və səssizcə çapa göndərən əsas çap agenti proqramı.
-
-Hər hansı bir sualınız və ya texniki çətinliyiniz olduqda, iRonWaves Dəstək Xidməti ilə əlaqə saxlayın.
-
-0.6.0 — çap işi qorunması və RAW növbələri (mənbə versiyası, hələ dərc edilməyib)
+0.6.0 — çap işi qorunması və RAW növbələri
 
 - POST /print-raw və /print-html üçün optional job_id: 16–100 ASCII hərf/rəqəm/_/-.
 - Eyni işi təkrar göndərərkən eyni job_id və eyni məzmunu istifadə edin. Agent işi ikinci dəfə göndərmir. Eyni ID + başqa məzmun HTTP 409 qaytarır.
