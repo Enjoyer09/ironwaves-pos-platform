@@ -1344,6 +1344,9 @@ async def on_startup():
             "[startup] Runtime schema migrations are disabled. "
             "Run `alembic upgrade head` during deploy before starting app replicas."
         )
+    if settings.release_read_only:
+        logging.getLogger("ironwaves.release").info("Read-only release verification: seed, repair and background writers are paused")
+        return
     _run_data_retention_cleanup()
     _start_retention_scheduler()
     with SessionLocal() as db:

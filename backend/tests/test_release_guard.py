@@ -28,3 +28,20 @@ def test_release_gate_preserves_reads_and_blocks_mutations(enabled):
         if enabled:
             assert response.headers['Retry-After'] == '30'
     assert app.state.writes == (0 if enabled else 4)
+
+
+@pytest.mark.asyncio
+async def test_release_readonly_startup_does_not_run_background_or_seed_writers(monkeypatch):
+    from app import main
+    monkeypatch.setattr(main.settings, 'release_read_only', True)
+    monkeypatch.setattr(main.settings, 'startup_create_all_enabled', False)
+    monkeypatch.setattr(main, '_assert_redis_available_for_production', lambda: None)
+    monkeypatch.setattr(main, '_assert_demo_seed_safety', lambda: None)
+    monkeypatch.setattr(main, '_schema_ready_for_current_version', lambda: True)
+    monkeypatch.setattr(main.realtime_hub, 'set_loop', lambda loop: None)
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Read-only release must not run a writer')
+    for name in ['_run_data_retention_cleanup', '_start_retention_scheduler', '_seed_initial_data', '_seed_demo_tenant', '_repair_customer_discounts',
+                 'start_background_agent', 'start_backup_scheduler', 'start_birthday_scheduler', 'start_push_scheduler', 'start_gl_shadow_scheduler']:
+        monkeypatch.setattr(main, name, forbidden)
+    await main.on_startup()
