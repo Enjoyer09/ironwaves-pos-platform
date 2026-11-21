@@ -17,7 +17,15 @@ function InstallAgent {
   $p = Start-Process -FilePath $installer -ArgumentList "/S /D=$installDir" -Wait -PassThru
   return $p.ExitCode
 }
+$startup = [Environment]::GetFolderPath('Startup')
+$legacyShortcut = Join-Path $startup 'iRonWavesPrintAgent.lnk'
+$unrelatedShortcut = Join-Path $startup 'UnrelatedAgentSmoke.lnk'
+$wsh = New-Object -ComObject WScript.Shell
+foreach ($file in @($legacyShortcut,$unrelatedShortcut)) { $link=$wsh.CreateShortcut($file); $link.TargetPath="$env:WINDIR\System32\notepad.exe"; $link.Save() }
+$unrelatedHash=(Get-FileHash $unrelatedShortcut).Hash
 if ((InstallAgent) -ne 0) { throw 'Silent install failed' }
+if (Test-Path $legacyShortcut) { throw 'Legacy duplicate autostart shortcut remained' }
+if ((Get-FileHash $unrelatedShortcut).Hash -ne $unrelatedHash) { throw 'Unrelated startup shortcut changed' }
 $binary = Join-Path $installDir 'ironwaves-print-agent.exe'
 if (!(Test-Path $binary)) { throw 'Installed binary missing' }
 if ((Get-FileHash $binary).Hash -ne (Get-FileHash (Join-Path $dist 'ironwaves-print-agent.exe')).Hash) { throw 'Installed executable mismatch' }
@@ -52,5 +60,5 @@ foreach ($name in @('ironwaves-print-agent.exe','ironwaves-print-agent-setup.exe
   $hash=(Get-FileHash (Join-Path $dist $name) -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($metadata.artifacts.$name.sha256 -ne $hash) { throw "Artifact hash mismatch: $name" }
 }
-@{version=$expected;platform='windows';packaged_binary=$true;native_helper_compile=$true;installer=$true;busy_upgrade_refused=$true;idle_upgrade=$true;job_history_preserved=$true;printer_configuration_preserved=$true;physical_prints=0} | ConvertTo-Json | Set-Content (Join-Path $dist 'windows-smoke.json') -Encoding utf8NoBOM
+@{version=$expected;platform='windows';packaged_binary=$true;native_helper_compile=$true;installer=$true;busy_upgrade_refused=$true;idle_upgrade=$true;job_history_preserved=$true;printer_configuration_preserved=$true;legacy_autostart_migrated=$true;unrelated_startup_preserved=$true;physical_prints=0} | ConvertTo-Json | Set-Content (Join-Path $dist 'windows-smoke.json') -Encoding utf8NoBOM
 Write-Host 'Packaged Windows agent and safe installer smoke passed; no physical printing.'

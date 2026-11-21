@@ -38,6 +38,10 @@ Function .onInit
   safe:
 FunctionEnd
 Section "Install"
+  ; Older ZIP setups used this exact per-user shortcut in addition to HKCU Run.
+  ; Remove only our legacy launcher to prevent two agents at next login.
+  SetShellVarContext current
+  Delete "$SMSTARTUP\iRonWavesPrintAgent.lnk"
   SetOutPath "$INSTDIR"
   File "${APP_ROOT}\dist\ironwaves-print-agent.exe"
   File "${APP_ROOT}\launch-silent.vbs"
