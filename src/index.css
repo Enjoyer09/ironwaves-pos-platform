@@ -3817,10 +3817,15 @@ html {
 @media (min-width: 1024px) and (max-width: 1100px) and (max-height: 800px) {
   .table-order-detail > div { padding: 0.5rem !important; }
   .table-order-detail .table-order-summary { display: none !important; }
+  .table-order-detail .table-order-tabs { margin-top: 0.3rem !important; padding: 0.25rem !important; }
+  .table-order-detail .table-order-tabs [role='tablist'] { flex-wrap: nowrap; gap: 0.25rem; }
+  .table-order-detail .table-order-tabs [role='tab'] { padding: 0.4rem 0.6rem; white-space: nowrap; }
+  .table-order-detail .table-new-order-title { display: none; }
   .table-order-detail .table-lock-tools { max-width: 100%; }
   .table-order-detail .table-lock-tools[open] { flex-basis: 100%; }
   .table-order-detail .table-lock-tools button { margin: 0.5rem 0.5rem 0 0; }
-  .table-order-detail .table-order-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .table-order-detail .table-order-actions { display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+  .table-order-detail .table-lock-actions { grid-column: 1 / -1; }
   .table-order-detail .table-order-actions button { min-height: 2.5rem; padding: 0.4rem 0.6rem; }
   .table-order-detail .metal-panel,
   .table-order-detail .neon-input,

@@ -2601,60 +2601,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                   )}
-	                  <div className={`mt-2 flex flex-wrap gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
-                    {tableLockHolder && (
-	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
-                        {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
-                      </div>
-                    )}
-                    {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
-                      <details className="table-lock-tools">
-                        <summary className="cursor-pointer rounded-full border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100">{tx(lang, 'Masa kilidi', 'Блокировка стола', 'Table lock')}</summary>
-                        <div className="mt-2 grid gap-2 md:grid-cols-2">
-                          <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
-                          <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await unlock_table_live(t.id, lockReason || 'manager override');
-                              notify('success', tx(lang, 'Masa lock-u açıldı', 'Блокировка стола снята', 'Table lock released'));
-                              setLockReason('');
-                              await refreshActiveTableDetail(t.id);
-                            } catch (e: any) {
-                              notify('error', e?.message || tx(lang, 'Lock açılmadı', 'Блокировка не снята', 'Lock was not released'));
-                            }
-                          }}
-                          className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100"
-                        >
-                          {tx(lang, 'Lock-u aç', 'Снять блокировку', 'Unlock')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              if (!lockTransferTarget.trim()) {
-                                notify('error', tx(lang, 'Yeni owner yazın', 'Укажите нового владельца', 'Enter new owner'));
-                                return;
-                              }
-                              await transfer_table_lock_live(t.id, lockTransferTarget.trim(), lockReason || 'manager transfer');
-                              notify('success', tx(lang, 'Masa ötürüldü', 'Стол передан', 'Table transferred'));
-                              setLockTransferTarget('');
-                              setLockReason('');
-                              await refreshActiveTableDetail(t.id);
-                            } catch (e: any) {
-                              notify('error', e?.message || tx(lang, 'Masa ötürülmədi', 'Стол не передан', 'Table was not transferred'));
-                            }
-                          }}
-                          className="rounded-full border border-violet-300/30 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-100"
-                        >
-                          {tx(lang, 'Owner-i ötür', 'Передать владельца', 'Transfer owner')}
-                        </button>
-                      </details>
-                    )}
-                  </div>
-	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2 ${isBahaYLab && tableWorkspaceTab === 'compose' ? 'hidden' : ''}`}>
+		                  <div className={`table-order-tabs mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2 ${isBahaYLab && tableWorkspaceTab === 'compose' ? 'hidden' : ''}`}>
 	                    <div className="flex flex-wrap gap-2" role="tablist" aria-label={tx(lang, 'Masa iş sahəsi', 'Рабочая область стола', 'Table workspace')}>
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
@@ -2756,7 +2703,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 		                  <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-	                        <div className="text-lg font-bold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
+	                        <div className="table-new-order-title text-lg font-bold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
                       </div>
                       <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
                         {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {draftTotal} ₼
@@ -2888,8 +2835,59 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                    </button>
 	                  </div>
                   <div className={`table-order-actions mt-2 flex flex-wrap justify-end gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
-                    {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
-                    {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
+                  <div className={`table-lock-actions flex flex-wrap gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
+                    {tableLockHolder && (
+	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
+                        {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
+                      </div>
+                    )}
+                    {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
+                      <details className="table-lock-tools">
+                        <summary className="cursor-pointer rounded-full border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100">{tx(lang, 'Masa kilidi', 'Блокировка стола', 'Table lock')}</summary>
+                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                          <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
+                          <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await unlock_table_live(t.id, lockReason || 'manager override');
+                              notify('success', tx(lang, 'Masa lock-u açıldı', 'Блокировка стола снята', 'Table lock released'));
+                              setLockReason('');
+                              await refreshActiveTableDetail(t.id);
+                            } catch (e: any) {
+                              notify('error', e?.message || tx(lang, 'Lock açılmadı', 'Блокировка не снята', 'Lock was not released'));
+                            }
+                          }}
+                          className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100"
+                        >
+                          {tx(lang, 'Lock-u aç', 'Снять блокировку', 'Unlock')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (!lockTransferTarget.trim()) {
+                                notify('error', tx(lang, 'Yeni owner yazın', 'Укажите нового владельца', 'Enter new owner'));
+                                return;
+                              }
+                              await transfer_table_lock_live(t.id, lockTransferTarget.trim(), lockReason || 'manager transfer');
+                              notify('success', tx(lang, 'Masa ötürüldü', 'Стол передан', 'Table transferred'));
+                              setLockTransferTarget('');
+                              setLockReason('');
+                              await refreshActiveTableDetail(t.id);
+                            } catch (e: any) {
+                              notify('error', e?.message || tx(lang, 'Masa ötürülmədi', 'Стол не передан', 'Table was not transferred'));
+                            }
+                          }}
+                          className="rounded-full border border-violet-300/30 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-100"
+                        >
+                          {tx(lang, 'Owner-i ötür', 'Передать владельца', 'Transfer owner')}
+                        </button>
+                      </details>
+                    )}
+                  </div>
                     {tableNeedsSafeCancel && (
                       <button
                         type="button"
