@@ -145,11 +145,6 @@ function FloorView(props: FloorViewProps) {
           <div className="text-lg font-bold text-slate-100">
             {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Əsas Zal', 'Основной зал', 'Main Floor')}
           </div>
-          {isManager && (
-          <div className="mt-1 text-sm text-slate-400">
-            {tx(lang, 'Floor plan görünüşü. Masaya toxunaraq seating və açıq check axınına keçin.', 'План зала. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'Floor plan view. Tap a table to continue into seating and open check flow.')}
-          </div>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
         {!floorEditMode && (
@@ -191,13 +186,13 @@ function FloorView(props: FloorViewProps) {
             <span className="min-w-10 text-right">{tableGridScale}%</span>
           </label>
         )}
-        <button
+        {floorEditMode && <button
           type="button"
           onClick={() => setFloorEditMode((prev) => !prev)}
           className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
         >
           {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
-        </button>
+        </button>}
         {floorEditMode && (
           <button
             type="button"

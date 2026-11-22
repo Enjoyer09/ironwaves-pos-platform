@@ -3153,7 +3153,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         onPrint={printTableReceiptOnly}
       />
 
-      <div className={`mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
+      <div className={`tables-main-header mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
         <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masalar', 'Столы', 'Tables')}</h2>
         {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -3173,9 +3173,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             <CalendarClock size={16} className="mr-2 inline" />
             {tx(lang, 'Rezervasiyalar', 'Брони', 'Reservations')}
           </button>
-          <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
+          <details className="tables-manage-menu relative">
+            <summary className="min-h-10 cursor-pointer rounded-xl border border-slate-500 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-100">{tx(lang, 'Zalı idarə et', 'Управление залом', 'Manage floor')}</summary>
+            <div className="absolute right-0 z-30 mt-2 flex min-w-56 flex-col gap-2 rounded-xl border border-slate-500 bg-slate-900 p-2 shadow-xl">
+          <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-11 px-3 py-2 rounded-xl flex items-center justify-center gap-2 font-bold">
             <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
           </button>
+          {workspaceView === 'floor' && (
+            <>
+              <button type="button" onClick={() => setShowCreateFloorPlan(true)} className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-bold text-slate-100">{tx(lang, 'Yeni zal/zona', 'Новый зал/зона', 'New floor/zone')}</button>
+              <button type="button" onClick={() => setFloorEditMode((prev) => !prev)} className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-bold text-slate-100">{floorEditMode ? tx(lang, 'Redaktoru bağla', 'Закрыть редактор', 'Close editor') : tx(lang, 'Zal redaktoru', 'Редактор зала', 'Floor editor')}</button>
+            </>
+          )}
           {selectedFloorTable && !tablesById[selectedFloorTable.id]?.is_occupied && (
             <button
               type="button"
@@ -3185,6 +3194,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               {tx(lang, 'Masanı sil', 'Удалить стол', 'Delete table')}
             </button>
           )}
+            </div>
+          </details>
         </div>
         )}
       </div>
@@ -3234,16 +3245,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 );
               })}
               
-              {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-                <button
-                  type="button"
-                  onClick={() => setShowCreateFloorPlan(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-[#1a1d21] text-slate-300 hover:bg-[#24282e] hover:text-white transition-all active:scale-95"
-                  title={tx(lang, 'Yeni zal/zona əlavə et', 'Добавить новый зал', 'Add new floor plan')}
-                >
-                  <Plus size={16} />
-                </button>
-              )}
             </div>
             )}
 

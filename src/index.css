@@ -3815,6 +3815,12 @@ html {
 
 /* Keep the checkout usable on common 1024×768 Windows tills. */
 @media (min-width: 1024px) and (max-width: 1100px) and (max-height: 800px) {
+  .tables-page-shell { padding: 0.65rem !important; }
+  .tables-page-shell .tables-main-header { margin-bottom: 0.5rem !important; }
+  .tables-page-shell .tables-glass-panel,
+  .tables-page-shell .table-card-glass { backdrop-filter: none !important; background-color: #1b2a40 !important; border-color: #718198 !important; }
+  .tables-page-shell .text-slate-400,
+  .tables-page-shell .text-slate-500 { color: #d5dfec !important; }
   .table-order-detail > div { padding: 0.5rem !important; }
   .table-order-detail .table-order-summary { display: none !important; }
   .table-order-detail .table-order-tabs { margin-top: 0.3rem !important; padding: 0.25rem !important; }
