@@ -2215,19 +2215,19 @@ html {
   html[data-theme='light'] [class*='text-yellow-300'],
   html[data-theme='light'] [class*='text-amber-200'],
   html[data-theme='light'] [class*='text-amber-300'] {
-    color: #d97706 !important;
+    color: #92400e !important;
   }
 
   html[data-theme='light'] [class*='text-cyan-200'],
   html[data-theme='light'] [class*='text-cyan-300'] {
-    color: #0891b2 !important;
+    color: #155e75 !important;
   }
 
   html[data-theme='light'] [class*='text-emerald-200'],
   html[data-theme='light'] [class*='text-emerald-300'],
   html[data-theme='light'] [class*='text-emerald-400'],
   html[data-theme='light'] [class*='text-green-200'] {
-    color: #059669 !important;
+    color: #065f46 !important;
   }
 
   html[data-theme='light'] [class*='text-rose-200'],
