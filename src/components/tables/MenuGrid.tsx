@@ -253,7 +253,7 @@ function MenuGrid({
   if (!isBahaYLab) {
     // 15" POS Touchscreen Optimized Grid for Classic Mode
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <div className="table-menu-grid flex min-h-0 flex-1 flex-col gap-2.5">
         {/* Search & Fast Mode Bar */}
         <div className="flex gap-2 items-center">
           <input
