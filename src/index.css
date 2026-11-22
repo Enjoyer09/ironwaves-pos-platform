@@ -1783,6 +1783,11 @@ html {
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }
   }
+  /* Menu cards have light backgrounds in this theme; product names must follow. */
+  html[data-theme='light'] .table-menu-grid .table-menu-product-name {
+    color: #0f172a !important;
+  }
+
   /* Table cards need solid surfaces and readable actions on bright tills. */
   html[data-theme='light'] .tables-page-shell .table-grid-card--available {
     background: #f1f5f9 !important;

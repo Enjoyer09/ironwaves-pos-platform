@@ -326,7 +326,7 @@ function MenuGrid({
                 )}
 
                 <div className="min-w-0 pr-5">
-                  <div className="text-sm font-bold leading-tight text-white line-clamp-2">
+                  <div className="table-menu-product-name text-sm font-bold leading-tight text-white line-clamp-2">
                     {item.item_name}
                   </div>
                 </div>
@@ -387,7 +387,7 @@ function MenuGrid({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-2"
+      className="table-menu-grid flex min-h-0 flex-1 flex-col gap-2"
       onTouchStart={handleSwipeStart}
       onTouchEnd={handleSwipeEnd}
     >
@@ -607,7 +607,7 @@ function MenuGrid({
                   {/* Behance 210280099 Structured Bottom Bar: Left-Aligned Title & Price + Right Tactile Action */}
                   <div className={`flex flex-col justify-between ${hideImages ? 'p-3 min-h-[82px]' : 'px-2.5 py-2 min-h-[48px]'}`}>
                     <div className="flex items-start justify-between gap-1.5">
-                      <div className="font-bold leading-snug text-white line-clamp-1 text-xs sm:text-[13px] text-left">
+                      <div className="table-menu-product-name font-bold leading-snug text-white line-clamp-1 text-xs sm:text-[13px] text-left">
                         {group.base}
                       </div>
                     </div>
