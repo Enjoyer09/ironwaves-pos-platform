@@ -600,7 +600,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6 text-slate-100">
+    <div className="kitchen-workspace h-full overflow-y-auto p-6 text-slate-100">
       {!isOnline && (
         <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
           <div className="font-semibold">{tx(lang, 'Offline mətbəx rejimi aktivdir', 'Офлайн режим кухни активен', 'Offline kitchen mode is active')}</div>

@@ -769,7 +769,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative space-y-5 bg-slate-950/20 text-slate-100">
+    <div className="dashboard-workspace relative space-y-5 bg-slate-950/20 text-slate-100">
       <div className="relative z-10 space-y-5">
         {children}
       </div>

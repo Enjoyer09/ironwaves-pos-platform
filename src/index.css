@@ -4454,3 +4454,64 @@ button, a, [role="button"] { min-height: 32px; }
 @media (max-width: 767px), (pointer: coarse) {
   .finance-workspace button, .finance-workspace [role="button"] { min-height: 44px; }
 }
+
+/* Bright terminal: keep foreground and background pairs legible across modules. */
+html[data-theme='light'] .table-order-detail .table-menu-grid .table-menu-product-name,
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card .text-white {
+  color: #0f172a !important;
+  opacity: 1 !important;
+}
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card {
+  background: #e9f0f8 !important;
+  border-color: #64748b !important;
+}
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card .text-\[\#F6B100\],
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card .text-amber-300 {
+  color: #92400e !important;
+}
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card .text-slate-300,
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card .text-slate-400 {
+  color: #334155 !important;
+}
+html[data-theme='light'] .table-order-detail .table-menu-grid .pos-product-card img {
+  opacity: 1 !important;
+}
+html[data-theme='light'] .finance-workspace .finance-kpi-card .text-white,
+html[data-theme='light'] .finance-workspace .finance-kpi-card .text-slate-300 {
+  color: #0f172a !important;
+}
+html[data-theme='light'] .finance-workspace .finance-kpi-card .text-white { font-weight: 800; }
+html[data-theme='light'] .finance-workspace [class*='bg-emerald-950'],
+html[data-theme='light'] .finance-workspace [class*='bg-sky-950'],
+html[data-theme='light'] .finance-workspace [class*='bg-violet-950'],
+html[data-theme='light'] .finance-workspace [class*='bg-amber-950'],
+html[data-theme='light'] .finance-workspace [class*='bg-rose-950'] {
+  background: #e9f0f8 !important;
+  border-color: #64748b !important;
+}
+html[data-theme='light'] .kitchen-workspace .metal-panel,
+html[data-theme='light'] .z-report-workspace .metal-panel,
+html[data-theme='light'] .dashboard-workspace .metal-panel {
+  background: #e9f0f8 !important;
+  border-color: #64748b !important;
+  backdrop-filter: none !important;
+}
+html[data-theme='light'] .kitchen-workspace .text-slate-300,
+html[data-theme='light'] .kitchen-workspace .text-slate-400,
+html[data-theme='light'] .z-report-workspace .text-slate-300,
+html[data-theme='light'] .z-report-workspace .text-slate-400,
+html[data-theme='light'] .dashboard-workspace .text-slate-300,
+html[data-theme='light'] .dashboard-workspace .text-slate-400 {
+  color: #334155 !important;
+}
+html[data-theme='light'] .dashboard-workspace [class*='bg-emerald-950'],
+html[data-theme='light'] .dashboard-workspace [class*='bg-sky-950'],
+html[data-theme='light'] .dashboard-workspace [class*='bg-violet-950'] {
+  background: #e9f0f8 !important;
+  border-color: #64748b !important;
+}
+html[data-theme='light'] .dashboard-workspace [class*='bg-emerald-950'] .text-emerald-100,
+html[data-theme='light'] .dashboard-workspace [class*='bg-sky-950'] .text-sky-100,
+html[data-theme='light'] .dashboard-workspace [class*='bg-violet-950'] .text-violet-100 {
+  color: #0f172a !important;
+}

@@ -960,7 +960,7 @@ export default function ZReportPanel() {
     : summaryNetSales.toFixed(2);
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="z-report-workspace space-y-6 text-slate-100">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{tx(lang, 'Z-Hesabat Paneli', 'Панель Z-отчета')}</h2>
         {printSettings.use_qz && (

@@ -109,7 +109,7 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
     rose: 'border-rose-400/25 bg-rose-950/35 text-rose-100',
   } as const;
   return (
-    <div className={`rounded-[24px] border p-3.5 md:p-4 ${toneMap[tone]}`}>
+    <div className={`finance-kpi-card rounded-[24px] border p-3.5 md:p-4 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
         <div className="text-right text-xs font-black uppercase tracking-[0.16em] text-slate-300">KPI</div>
