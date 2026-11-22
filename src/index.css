@@ -3820,6 +3820,8 @@ html {
   .table-order-detail .table-lock-tools { max-width: 100%; }
   .table-order-detail .table-lock-tools[open] { flex-basis: 100%; }
   .table-order-detail .table-lock-tools button { margin: 0.5rem 0.5rem 0 0; }
+  .table-order-detail .table-order-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .table-order-detail .table-order-actions button { min-height: 2.5rem; padding: 0.4rem 0.6rem; }
   .table-order-detail .metal-panel,
   .table-order-detail .neon-input,
   .table-order-detail .pos2-product-card { backdrop-filter: none !important; }

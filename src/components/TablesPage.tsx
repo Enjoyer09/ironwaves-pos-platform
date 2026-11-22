@@ -2688,28 +2688,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   {tableWorkspaceTab === 'history' && (
                     <HistoryTab rounds={rounds} lang={lang} />
                   )}
-		                  <div className={`order-2 mt-3 flex-none ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab ? 'hidden' : ''}`}>
-	                    {/* Trigger bar */}
-	                    <button
-	                      type="button"
-	                      onClick={() => setShowSentSlideUp(true)}
-	                      className="flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/50 px-4 py-3 text-left transition hover:bg-slate-800/60 active:scale-[0.99]"
-	                    >
-	                      <div className="flex items-center gap-2.5">
-	                        <div className="flex -space-x-1.5">
-                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'READY') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.READY.dot}`} />}
-                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'PREPARING') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.PREPARING.dot}`} />}
-                          {sentDisplayItems.some((it: any) => ['SENT', 'NEW'].includes(normalizeOrderItemStatus(it.status))) && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.SENT.dot}`} />}
-                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'VOID_REQUESTED') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.VOID_REQUESTED.dot} animate-pulse`} />}
-	                        </div>
-	                        <span className="text-sm font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
-	                      </div>
-	                      <div className="flex items-center gap-2">
-	                        <span className="rounded-full bg-slate-700/80 px-2.5 py-0.5 text-xs font-bold text-slate-100">{sentDisplayItems.length}</span>
-	                        <span className="text-lg text-slate-400">↑</span>
-	                      </div>
-	                    </button>
-	                  </div>
 	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
 	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden">
 	                      <BahaYTableCompose
@@ -2887,6 +2865,65 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           }}
                         />
 
+		                  <div className={`mt-2 flex-none ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab ? 'hidden' : ''}`}>
+	                    {/* Trigger bar */}
+	                    <button
+	                      type="button"
+	                      onClick={() => setShowSentSlideUp(true)}
+	                      className="flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/50 px-4 py-3 text-left transition hover:bg-slate-800/60 active:scale-[0.99]"
+	                    >
+	                      <div className="flex items-center gap-2.5">
+	                        <div className="flex -space-x-1.5">
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'READY') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.READY.dot}`} />}
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'PREPARING') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.PREPARING.dot}`} />}
+                          {sentDisplayItems.some((it: any) => ['SENT', 'NEW'].includes(normalizeOrderItemStatus(it.status))) && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.SENT.dot}`} />}
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'VOID_REQUESTED') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.VOID_REQUESTED.dot} animate-pulse`} />}
+	                        </div>
+	                        <span className="text-sm font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
+	                      </div>
+	                      <div className="flex items-center gap-2">
+	                        <span className="rounded-full bg-slate-700/80 px-2.5 py-0.5 text-xs font-bold text-slate-100">{sentDisplayItems.length}</span>
+	                        <span className="text-lg text-slate-400">↑</span>
+	                      </div>
+	                    </button>
+	                  </div>
+                  <div className={`table-order-actions mt-2 flex flex-wrap justify-end gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
+                    {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
+                    {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
+                    {tableNeedsSafeCancel && (
+                      <button
+                        type="button"
+                        className="inline-flex min-h-12 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/25 px-5 py-3 text-sm font-semibold text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!isManagerUser || !userCanEditTable}
+                        onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                      >
+                        {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
+                      </button>
+                    )}
+                    {t.is_occupied && (
+                      <button
+                        className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!userCanEditTable}
+                        onClick={() => {
+                          if (hasEmptyActiveCheckTotalMismatch(t)) {
+                            notify('error', tx(lang, 'Bu masada məbləğ görünür, amma sifariş siyahısı boşdur. Səhv bağlanmaması üçün hesab açılmadı.', 'У стола есть сумма, но список заказов пуст. Закрытие заблокировано, чтобы не создать неверную продажу.', 'This table shows a total but the order list is empty, so closing is blocked.'));
+                            setShowFullOrderList(true);
+                            return;
+                          }
+                          setPayTableId(t.id);
+                          setViewTableId(null);
+                          setPaymentMethod('Nəğd');
+                          setSplitCount('2');
+                          setSplitParts([]);
+                          setSplitCash('0');
+                          setTableDiscountPercent('0');
+                        }}
+                      >
+                        {tx(lang, 'Hesabı Al', 'Закрыть счет')}
+                      </button>
+                    )}
+                  </div>
+
                         {/* Classic Mode Note & Quick Modifiers Editor */}
                         {classicEditingRowForNote && (
                           <OrderNoteModal
@@ -3015,42 +3052,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                   )}
-                  <div className={`mt-4 flex justify-end gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
-                    {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
-                    {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
-                    {tableNeedsSafeCancel && (
-                      <button
-                        type="button"
-                        className="inline-flex min-h-12 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/25 px-5 py-3 text-sm font-semibold text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!isManagerUser || !userCanEditTable}
-                        onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
-                      >
-                        {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
-                      </button>
-                    )}
-                    {t.is_occupied && (
-                      <button
-                        className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!userCanEditTable}
-                        onClick={() => {
-                          if (hasEmptyActiveCheckTotalMismatch(t)) {
-                            notify('error', tx(lang, 'Bu masada məbləğ görünür, amma sifariş siyahısı boşdur. Səhv bağlanmaması üçün hesab açılmadı.', 'У стола есть сумма, но список заказов пуст. Закрытие заблокировано, чтобы не создать неверную продажу.', 'This table shows a total but the order list is empty, so closing is blocked.'));
-                            setShowFullOrderList(true);
-                            return;
-                          }
-                          setPayTableId(t.id);
-                          setViewTableId(null);
-                          setPaymentMethod('Nəğd');
-                          setSplitCount('2');
-                          setSplitParts([]);
-                          setSplitCash('0');
-                          setTableDiscountPercent('0');
-                        }}
-                      >
-                        {tx(lang, 'Hesabı Al', 'Закрыть счет')}
-                      </button>
-                    )}
-                  </div>
                 </>
               );
             })()}
