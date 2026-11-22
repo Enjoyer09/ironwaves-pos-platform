@@ -1123,11 +1123,6 @@ export default function SettingsPanel() {
 
   const downloadPrintAgentWindowsZip = async () => {
     try {
-      const probe = await fetch(printAgentWindowsZipUrl, { method: 'HEAD', cache: 'no-store' });
-      if (!probe.ok) {
-        notify('error', tx(lang, 'Printer Agent ZIP faylı serverdə tapılmadı. Support ilə əlaqə saxlayın.', 'Файл ZIP Printer Agent не найден на сервере. Обратитесь в поддержку.', 'Printer Agent ZIP file was not found on the server. Please contact support.'));
-        return;
-      }
       const link = document.createElement('a');
       link.href = printAgentWindowsZipUrl;
       link.download = 'ironwaves-print-agent-windows.zip';
@@ -1145,19 +1140,6 @@ export default function SettingsPanel() {
 
   const downloadPrintAgentSetup = async () => {
     try {
-      const probe = await fetch(printAgentSetupUrl, { method: 'HEAD', cache: 'no-store' });
-      if (!probe.ok) {
-        notify(
-          'error',
-          tx(
-            lang,
-            'Printer Agent setup faylı serverdə tapılmadı. Support ilə əlaqə saxlayın.',
-            'Файл setup Printer Agent не найден на сервере. Обратитесь в поддержку.',
-            'Printer Agent setup file was not found on the server. Please contact support.',
-          ),
-        );
-        return;
-      }
       const link = document.createElement('a');
       link.href = printAgentSetupUrl;
       link.download = 'ironwaves-print-agent-setup.exe';
@@ -1195,19 +1177,6 @@ export default function SettingsPanel() {
 
   const downloadPrintAgentMacPkg = async () => {
     try {
-      const probe = await fetch(printAgentMacPkgUrl, { method: 'HEAD', cache: 'no-store' });
-      if (!probe.ok) {
-        notify(
-          'error',
-          tx(
-            lang,
-            'macOS Printer Agent paketi serverdə tapılmadı. Support ilə əlaqə saxlayın.',
-            'Пакет macOS Printer Agent не найден на сервере. Обратитесь в поддержку.',
-            'macOS Printer Agent package was not found on the server. Please contact support.',
-          ),
-        );
-        return;
-      }
       const link = document.createElement('a');
       link.href = printAgentMacPkgUrl;
       link.download = `ironwaves-print-agent-macos-${printAgentMacArch}.pkg`;
