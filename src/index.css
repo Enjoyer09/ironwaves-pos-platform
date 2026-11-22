@@ -1783,6 +1783,54 @@ html {
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }
   }
+  /* Table cards need solid surfaces and readable actions on bright tills. */
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available {
+    background: #f1f5f9 !important;
+    border-color: #64748b !important;
+    box-shadow: 0 2px 7px rgba(15, 23, 42, 0.14) !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--dirty {
+    background: #fff1f2 !important;
+    border-color: #be123c !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available h3,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .text-slate-200,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--dirty h3,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--dirty .text-slate-200 {
+    color: #0f172a !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .text-slate-400,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--dirty .text-slate-400 {
+    color: #334155 !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .table-grid-avatar,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--dirty .table-grid-avatar {
+    background: #dbeafe !important;
+    border-color: #64748b !important;
+    color: #1e3a5f !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .text-emerald-300,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .group-hover\:text-emerald-200 {
+    color: #065f46 !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--available .bg-emerald-500\/25 {
+    background: #d1fae5 !important;
+    border-color: #047857 !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied {
+    background: #243247 !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 3px 9px rgba(15, 23, 42, 0.2) !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied h3,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied .text-slate-200,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied .text-slate-400 {
+    color: #f8fafc !important;
+  }
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied .text-amber-300,
+  html[data-theme='light'] .tables-page-shell .table-grid-card--occupied .text-\[\#F6B100\] {
+    color: #fde68a !important;
+  }
 }
 
 @layer utilities {

@@ -217,7 +217,7 @@ function TableGrid({
               onMouseDown={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
               onMouseUp={clearLongPress}
               onMouseLeave={clearLongPress}
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-150 active:scale-[0.98] cursor-pointer select-none shadow-sm ${
+              className={`table-grid-card ${isOccupiedState ? 'table-grid-card--occupied' : status === 'DIRTY' ? 'table-grid-card--dirty' : 'table-grid-card--available'} group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-150 active:scale-[0.98] cursor-pointer select-none shadow-sm ${
                 isOccupiedState
                   ? 'border-amber-500/40 bg-gradient-to-br from-[#241a0d]/90 to-[#141822]/95 hover:border-amber-400/80 shadow-md shadow-amber-500/10'
                   : status === 'DIRTY'
@@ -253,7 +253,7 @@ function TableGrid({
               {/* Row 2: Center Avatar / Waiter & Guest Info (Behance 210280099 Center Block) */}
               <div className="my-3 flex items-center gap-2.5">
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-black tracking-wider ${
+                  className={`table-grid-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-black tracking-wider ${
                     isOccupiedState
                       ? 'bg-[#F6B100] text-slate-950 shadow-sm'
                       : 'bg-[#262b33] text-slate-300 border border-white/10'
