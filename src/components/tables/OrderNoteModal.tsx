@@ -105,7 +105,7 @@ export default function OrderNoteModal({
   return (
     <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
       <div
-        className="w-full sm:max-w-md flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-950 border border-slate-700/60 shadow-2xl max-h-[85vh] sm:max-h-[90vh] p-4"
+        className="table-order-note-dialog w-full sm:max-w-md flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-950 border border-slate-700/60 shadow-2xl max-h-[85vh] sm:max-h-[90vh] p-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

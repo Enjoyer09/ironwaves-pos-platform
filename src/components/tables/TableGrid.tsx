@@ -122,7 +122,7 @@ function TableGrid({
             <button
               type="button"
               onClick={() => { playHapticTouch(); setStatusFilter('ALL'); }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+              className={`table-status-filter rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
                 statusFilter === 'ALL'
                   ? 'bg-[#2a2f37] text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
@@ -133,7 +133,7 @@ function TableGrid({
             <button
               type="button"
               onClick={() => { playHapticTouch(); setStatusFilter('AVAILABLE'); }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+              className={`table-status-filter rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
                 statusFilter === 'AVAILABLE'
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                   : 'text-slate-400 hover:text-emerald-300'
@@ -144,7 +144,7 @@ function TableGrid({
             <button
               type="button"
               onClick={() => { playHapticTouch(); setStatusFilter('OCCUPIED'); }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
+              className={`table-status-filter rounded-lg px-3 py-1.5 text-xs font-bold transition whitespace-nowrap shrink-0 tabular-nums ${
                 statusFilter === 'OCCUPIED'
                   ? 'bg-[#F6B100] text-slate-950'
                   : 'text-slate-400 hover:text-amber-300'

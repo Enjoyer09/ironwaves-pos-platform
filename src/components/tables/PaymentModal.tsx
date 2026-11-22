@@ -52,7 +52,7 @@ export default function PaymentModal(props: PaymentModalProps) {
   return (
     <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/75 backdrop-blur-xs p-0 md:items-center md:p-4" onClick={onCancel}>
       <div
-        className="metal-panel w-full max-w-lg max-h-[94dvh] overflow-y-auto rounded-t-[28px] p-5 md:rounded-3xl shadow-2xl border border-slate-700/80"
+        className="metal-panel table-payment-dialog w-full max-w-lg max-h-[94dvh] overflow-y-auto rounded-t-[28px] p-5 md:rounded-3xl shadow-2xl border border-slate-700/80"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />

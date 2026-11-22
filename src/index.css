@@ -1837,6 +1837,14 @@ html {
     color: #fde68a !important;
   }
 }
+@layer base {
+  html[data-theme='light'] .table-order-detail button.text-slate-300,
+  html[data-theme='light'] .pos3-shell button.text-slate-300,
+  html[data-theme='light'] .pos3-shell .text-slate-400,
+  html[data-theme='light'] .tables-page-shell .text-slate-300 { color: #334155 !important; }
+  html[data-theme='light'] .pos3-checkout .text-slate-300 { color: #334155 !important; }
+  html[data-theme='light'] .pos3-shell .pos3-checkout .text-slate-400 { color: #1e293b !important; }
+}
 
 @layer utilities {
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -4236,9 +4244,9 @@ a, button, select, input, textarea, [role="button"] {
     color: #8494a7 !important;
   }
 
-  /* Light theme doesn't need this override — its contrast is fine */
+  /* Muted text must also clear 4.5:1 on the light work surfaces. */
   html[data-theme='light'] .text-slate-400 {
-    color: #64748b !important;
+    color: #334155 !important;
   }
   html[data-theme='light'] .text-slate-500 {
     color: #475569 !important;
@@ -4435,7 +4443,7 @@ html:active-view-transition-type(backward)::view-transition-new(tab-content) {
 .text-white\/50, .text-white\/55 { color: rgba(255, 255, 255, 0.80) !important; }
 
 /* Light theme contrast: slate-400 ~2.9:1 -> slate-500 ~5.7:1 on white */
-html[data-theme='light'] .text-slate-400 { color: #64748b !important; }
+html[data-theme='light'] .text-slate-400 { color: #334155 !important; }
 html[data-theme='light'] .text-slate-500 { color: #475569 !important; }
 
 /* Touch targets (Apple HIG minimum 36-44px) — interactive elements */
@@ -4514,4 +4522,106 @@ html[data-theme='light'] .dashboard-workspace [class*='bg-emerald-950'] .text-em
 html[data-theme='light'] .dashboard-workspace [class*='bg-sky-950'] .text-sky-100,
 html[data-theme='light'] .dashboard-workspace [class*='bg-violet-950'] .text-violet-100 {
   color: #0f172a !important;
+}
+
+/* Light workspaces: dark text on the solid light surfaces used by these views. */
+html[data-theme='light'] .dashboard-workspace .text-white,
+html[data-theme='light'] .finance-workspace .text-white {
+  color: #0f172a !important;
+}
+html[data-theme='light'] .dashboard-workspace .text-slate-400,
+html[data-theme='light'] .finance-workspace .text-slate-400,
+html[data-theme='light'] .dashboard-workspace .text-slate-300,
+html[data-theme='light'] .finance-workspace .text-slate-300 {
+  color: #334155 !important;
+}
+html[data-theme='light'] .pos3-shell .pos3-rail-chip,
+html[data-theme='light'] .pos3-shell .pos3-action-label,
+html[data-theme='light'] .pos3-shell .pos3-card-fallback-mark,
+html[data-theme='light'] .pos3-shell .pos3-qty-value {
+  color: #0f172a !important;
+}
+html[data-theme='light'] .settings-panel .bg-slate-700.text-white {
+  color: #0f172a !important;
+}
+html[data-theme='light'] .pos3-rail-chip,
+html[data-theme='light'] .pos3-action-label,
+html[data-theme='light'] .pos3-shell .text-slate-400,
+html[data-theme='light'] .table-status-filter {
+  color: #334155 !important;
+}
+html[data-theme='light'] .tables-page-shell .text-slate-300,
+html[data-theme='light'] .tables-page-shell .text-slate-400,
+html[data-theme='light'] .dashboard-workspace .text-slate-300,
+html[data-theme='light'] .dashboard-workspace .text-slate-400,
+html[data-theme='light'] .finance-workspace .text-slate-300,
+html[data-theme='light'] .finance-workspace .text-slate-400,
+html[data-theme='light'] .kitchen-workspace .text-slate-400 { color: #334155 !important; }
+html[data-theme='light'] .kitchen-workspace .bg-slate-900\/90 .text-slate-400 { color: #f8fafc !important; }
+html[data-theme='light'] .dashboard-workspace .text-orange-400 { color: #9a3412 !important; }
+html[data-theme='light'] .dashboard-workspace .text-violet-200 { color: #6b21a8 !important; }
+html[data-theme='light'] .finance-workspace .text-sky-300 { color: #155e75 !important; }
+html[data-theme='light'] .finance-workspace .text-indigo-200 { color: #3730a3 !important; }
+html[data-theme='light'] .finance-workspace .text-indigo-50,
+html[data-theme='light'] .finance-workspace .text-indigo-100 { color: #312e81 !important; }
+html[data-theme='light'] .table-order-detail .table-menu-grid button.text-slate-400,
+html[data-theme='light'] .tables-page-shell .text-slate-400,
+html[data-theme='light'] .dashboard-workspace .text-slate-400,
+html[data-theme='light'] .dashboard-workspace .text-slate-300,
+html[data-theme='light'] .finance-workspace .text-slate-400,
+html[data-theme='light'] .finance-workspace .text-slate-300,
+html[data-theme='light'] .pos3-shell .text-slate-400,
+html[data-theme='light'] .pos3-rail-chip { color: #334155 !important; }
+@layer base {
+  html[data-theme='light'] .fixed.inset-0 .metal-panel {
+    background: #fff !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+    backdrop-filter: none !important;
+  }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-slate-100,
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-slate-200,
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-slate-300,
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-slate-400 { color: #334155 !important; }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .neon-btn { background: #f1f5f9 !important; color: #0f172a !important; }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .glossy-gold { background: #facc15 !important; color: #422006 !important; }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-yellow-400 { color: #854d0e !important; }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-rose-500 { color: #9f1239 !important; }
+  html[data-theme='light'] .table-payment-dialog .text-white,
+  html[data-theme='light'] .table-payment-dialog .text-amber-400 { color: #78350f !important; }
+  html[data-theme='light'] .table-payment-dialog [class*='bg-slate-9'],
+  html[data-theme='light'] .table-payment-dialog [class*='bg-slate-8'] {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #1e293b !important;
+  }
+  html[data-theme='light'] .table-payment-dialog .text-emerald-400 { color: #065f46 !important; }
+  html[data-theme='light'] .table-payment-dialog .text-sky-200 { color: #075985 !important; }
+  html[data-theme='light'] .table-order-note-dialog .text-yellow-400 { color: #854d0e !important; }
+  html[data-theme='light'] .table-order-note-dialog .text-slate-300 { color: #334155 !important; }
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-rose-500,
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-rose-400,
+  html[data-theme='light'] .fixed.inset-0 .metal-panel .text-rose-200 { color: #9f1239 !important; }
+  html[data-theme='light'] .settings-panel .bg-slate-700.text-white { color: #0f172a !important; }
+  html[data-theme='light'] .bg-slate-700.text-white { color: #0f172a !important; }
+}
+/* Important declarations inside Tailwind layers outrank unlayered important rules. */
+@layer components {
+  html[data-theme='light'] .table-order-detail .table-menu-grid button.text-slate-400,
+  html[data-theme='light'] .tables-page-shell .text-slate-400,
+  html[data-theme='light'] .dashboard-workspace .text-slate-400,
+  html[data-theme='light'] .dashboard-workspace .text-slate-300,
+  html[data-theme='light'] .finance-workspace .text-slate-400,
+  html[data-theme='light'] .finance-workspace .text-slate-300,
+  html[data-theme='light'] .pos3-shell .text-slate-400,
+  html[data-theme='light'] .pos3-rail-chip,
+  html[data-theme='light'] .pos3-action-label { color: #334155 !important; }
+  html[data-theme='light'] .kitchen-workspace .bg-slate-900\/90 .text-slate-400 { color: #f8fafc !important; }
+  html[data-theme='light'] .kitchen-workspace .text-slate-400 { color: #334155 !important; }
+  html[data-theme='light'] .finance-workspace .text-indigo-200,
+  html[data-theme='light'] .finance-workspace .text-indigo-50,
+  html[data-theme='light'] .finance-workspace .text-indigo-100 { color: #312e81 !important; }
+  html[data-theme='light'] .finance-workspace .text-amber-100 { color: #78350f !important; }
+  html[data-theme='light'] .tables-page-shell [class*='text-slate-400'] { color: #334155 !important; }
+  html[data-theme='light'] .pos3-shell .pos3-action-label { color: #1e293b !important; }
 }
