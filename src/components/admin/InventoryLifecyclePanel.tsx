@@ -6,7 +6,7 @@ import { withFinanceRequestKey } from '../../lib/financeRequests';
 
 const inputNumber = (value: string, places: number) => new RegExp(`^\\d+(?:[.,]\\d{1,${places}})?$`).test(value.trim());
 const normalized = (value: string) => value.trim().replace(',', '.');
-const button = 'neon-btn px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed';
+const button = 'neon-btn !min-h-11 px-4 py-2 text-xs md:text-sm font-bold rounded-xl transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function InventoryLifecyclePanel({ items, tenantId, actor, onSaved }: { items: any[]; tenantId: string; actor: string; onSaved: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
@@ -53,9 +53,23 @@ export default function InventoryLifecyclePanel({ items, tenantId, actor, onSave
     const difference = target.minus(item.unit_cost).mul(item.stock_qty);
     preview = `Yeni uçot dəyəri: ${target.toFixed(4)} ₼ / ${item.unit}. ${difference.lt(0) ? 'Dəyərsizləşmə xərci' : 'Əvvəlki dəyərsizləşmənin bərpası'}: ${difference.abs().toFixed(2)} ₼.`;
   }
-  return <section className="metal-panel p-4 space-y-3">
-    <button className={button} aria-expanded={open} onClick={() => setOpen(!open)}>Partiyalar, FEFO və dəyərsizləşmə</button>
-    {open && <>
+  return (
+    <section className={open ? "w-full rounded-2xl border border-slate-700/70 bg-slate-900/60 subpanel-expanded p-4 space-y-3 mt-1 shadow-sm" : "inline-block"}>
+      <div className="flex items-center justify-between gap-2">
+        <button className={`${button} ${open ? 'neon-chip-active font-black ring-1 ring-amber-400/50' : ''}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+          Partiyalar, FEFO və dəyərsizləşmə
+        </button>
+        {open && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="px-3 py-1.5 rounded-xl border border-slate-700/70 text-xs font-bold text-slate-400 hover:text-slate-200 transition"
+          >
+            ✕ Bağla
+          </button>
+        )}
+      </div>
+      {open && <>
       <p className="text-sm text-slate-300">Satışda əvvəl son istifadə tarixi daha yaxın olan yararlı partiya silinir. Karantin və vaxtı keçmiş partiyalar satışa çıxmır. Son istifadə tarixi həmin günün sonunadək keçərlidir.</p>
       <label className="block">Uçot məhsulu<select aria-label="Uçot məhsulu" className="neon-input w-full" disabled={busy} value={itemId} onChange={e => setItemId(e.target.value)}><option value="">Məhsul seçin</option>{items.map(r => <option key={r.id} value={r.id}>{r.name} — {r.stock_qty} {r.unit}</option>)}</select></label>
       {item && <>
@@ -116,5 +130,6 @@ export default function InventoryLifecyclePanel({ items, tenantId, actor, onSave
       {message && <p role="status" className="text-emerald-200">{message}</p>}
       {error && <p role="alert" className="text-red-300">{error}</p>}
     </>}
-  </section>;
+    </section>
+  );
 }

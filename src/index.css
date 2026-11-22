@@ -4624,4 +4624,23 @@ html[data-theme='light'] .pos3-rail-chip { color: #334155 !important; }
   html[data-theme='light'] .finance-workspace .text-amber-100 { color: #78350f !important; }
   html[data-theme='light'] .tables-page-shell [class*='text-slate-400'] { color: #334155 !important; }
   html[data-theme='light'] .pos3-shell .pos3-action-label { color: #1e293b !important; }
+  html[data-theme='light'] .inventory-workspace .text-slate-100 { color: #0f172a !important; }
+  html[data-theme='light'] .inventory-workspace .text-slate-200 { color: #1e293b !important; }
+  html[data-theme='light'] .inventory-workspace .text-slate-300 { color: #334155 !important; }
+  html[data-theme='light'] .inventory-workspace .text-slate-400 { color: #475569 !important; }
+  html[data-theme='light'] .inventory-workspace .ai-signals-box {
+    background: #eef2ff !important;
+    border-color: #c7d2fe !important;
+  }
+  html[data-theme='light'] .inventory-workspace .ai-signals-box .text-indigo-200,
+  html[data-theme='light'] .inventory-workspace .ai-signals-box .text-indigo-300 {
+    color: #3730a3 !important;
+  }
+  html[data-theme='light'] .inventory-workspace .subpanel-expanded {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+  html[data-theme='light'] .inventory-workspace .subpanel-expanded .text-slate-300 {
+    color: #334155 !important;
+  }
 }

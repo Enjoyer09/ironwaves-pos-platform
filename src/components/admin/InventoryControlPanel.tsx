@@ -27,9 +27,27 @@ export default function InventoryControlPanel({ items, tenantId, actor, onSaved 
     const rows = await apiRequest<any[]>(`/api/v1/catalog/inventory/${encodeURIComponent(itemId)}/movements?limit=50&offset=${nextPage * 50}`, { tenantId: null });
     setMoves(rows); setPage(nextPage); setHistoryLoaded(true);
   };
-  return <section className="metal-panel p-4 space-y-3">
-    <button className="neon-btn px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => setOpen(!open)} aria-expanded={open}>Sayım və anbar hərəkət jurnalı</button>
-    {open && <>
+  return (
+    <section className={open ? "w-full rounded-2xl border border-slate-700/70 bg-slate-900/60 subpanel-expanded p-4 space-y-3 mt-1 shadow-sm" : "inline-block"}>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          className={`neon-btn !min-h-11 px-4 py-2 text-xs md:text-sm font-bold rounded-xl transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${open ? 'neon-chip-active font-black ring-1 ring-amber-400/50' : ''}`}
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+        >
+          Sayım və anbar hərəkət jurnalı
+        </button>
+        {open && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="px-3 py-1.5 rounded-xl border border-slate-700/70 text-xs font-bold text-slate-400 hover:text-slate-200 transition"
+          >
+            ✕ Bağla
+          </button>
+        )}
+      </div>
+      {open && <>
       <p className="text-sm text-slate-300">Jurnal yeni uçotun başlanmasından sonrakı hərəkətləri göstərir. Sayım fərqi maliyyəyə yazılır. Sayım artığı və izlənməyən qaytarılmalar yoxlanana qədər karantində saxlanır.</p>
       <label className="block">Məhsul<select aria-label="Məhsul" className="neon-input w-full" value={itemId} disabled={busy} onChange={e => { setItemId(e.target.value); setMoves([]); setHistoryLoaded(false); setCount(''); setPage(0); }}><option value="">Məhsul seçin</option>{items.map(r => <option key={r.id} value={r.id}>{r.name} — {r.stock_qty} {r.unit}</option>)}</select></label>
       <button className="neon-btn px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!itemId || busy} onClick={() => void run(() => history(0))}>Hərəkətləri göstər</button>
@@ -51,5 +69,6 @@ export default function InventoryControlPanel({ items, tenantId, actor, onSaved 
       {report && <div role="status"><p>Anbar dəyəri: {report.stock_value} ₼ · Maliyyə: {report.ledger_value} ₼ · Fərq: {report.value_difference} ₼</p><p>{report.balanced ? 'Qalıqlar uyğundur' : `Araşdırılmalı fərq var. Miqdar fərqi olan məhsullar: ${report.quantity_differences.length}`}</p><p>İlkin maya dəyəri: {report.historical_cost_value} ₼ · Dəyərsizləşmə fərqi: {report.valuation_reduction} ₼</p><p>Partiya ilə miqdar fərqi: {report.batch_differences?.length || 0} məhsul.</p><p>{report.note}</p>{report.quantity_differences.map((r: any) => <p key={r.item_id}>{r.name}: sistem {r.stock_qty}, jurnal {r.journal_qty}</p>)}</div>}
       {error && <p role="alert" className="text-red-300">{error}</p>}
     </>}
-  </section>;
+    </section>
+  );
 }

@@ -10,7 +10,7 @@ import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { useAppStore } from '../../store';
-import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { tx } from '../../i18n';
 import { apiRequest, getApiBaseUrl, isBackendEnabled } from '../../api/client';
 import { verifyLocalCredential } from '../../lib/local_auth';
@@ -22,6 +22,7 @@ export default function InventoryPanel() {
   const [items, setItems] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
   const [dataReady, setDataReady] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [itemsPageSize, setItemsPageSize] = useState(10);
   const [historyPageSize, setHistoryPageSize] = useState(10);
@@ -615,11 +616,31 @@ export default function InventoryPanel() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 inventory-workspace">
       {loadError && <p role="alert" className="text-red-300">Cari anbar məlumatı təsdiqlənmədi: {loadError} <button onClick={() => void loadData()}>Yenidən yoxla</button></p>}
-      {isBackendEnabled() && <InventoryLifecyclePanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />}
-      {isBackendEnabled() && dataReady && <RecipeLinkReview items={items} />}
-      {isBackendEnabled() && <InventoryControlPanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />}
+      {/* Qabaqcıl Nəzarət və Əlaqələr Toolbar / Advanced Inventory Controls */}
+      {isBackendEnabled() && (
+        <div className="metal-panel rounded-2xl p-3 md:p-3.5 shadow-sm space-y-2.5">
+          <div className="flex items-center justify-between gap-2.5 border-b border-slate-700/50 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-amber-400/10 text-amber-500">
+                <SlidersHorizontal size={15} />
+              </span>
+              <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                {tx(lang, 'Qabaqcıl Anbar Nəzarəti', 'Расширенный контроль склада', 'Advanced Inventory Tools')}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              {tx(lang, 'Partiyalar, reseptlər və sayım jurnalı', 'Партии, рецепты и журнал инвентаризации', 'Batches, recipes, and count journals')}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            <InventoryLifecyclePanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />
+            {dataReady && <RecipeLinkReview items={items} />}
+            <InventoryControlPanel items={dataReady ? items : []} tenantId={tenant_id} actor={user?.username || 'Admin'} onSaved={() => loadData({ includeHistory: true })} />
+          </div>
+        </div>
+      )}
       {lossModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="metal-panel w-full max-w-md p-5">
@@ -806,28 +827,87 @@ export default function InventoryPanel() {
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-2xl font-bold">{tx(lang, 'Anbar İdarəetməsi', 'Управление складом', 'Inventory Management')}</h2>
-        <div className="flex flex-col gap-2 md:flex-row">
+      {/* Başlıq və Axtarış / Header & Action Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight">
+            {tx(lang, 'Anbar İdarəetməsi', 'Управление складом', 'Inventory Management')}
+          </h2>
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700/60">
+            {filteredItems.length} {tx(lang, 'xammal', 'сырье', 'items')}
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5">
           <input
-            className="neon-input min-h-13"
+            className="neon-input !min-h-11 h-11 w-44 sm:w-60 text-sm"
             placeholder={tx(lang, 'Anbar axtarışı...', 'Поиск по складу...', 'Search inventory...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button onClick={() => setIsAdding(!isAdding)} className="neon-btn min-h-13 px-4 py-3 rounded-lg flex items-center justify-center gap-2">
-            <Plus size={20} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье', 'Add Inventory Item')}
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="glossy-gold !min-h-11 h-11 px-4 rounded-xl flex items-center justify-center gap-2 font-bold text-sm active:scale-95 transition shadow-sm shrink-0"
+          >
+            <Plus size={18} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье', 'Add Inventory Item')}
           </button>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-indigo-500/25 bg-indigo-950/20 p-4 md:p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
-              {tx(lang, 'AI Anbar Siqnalları', 'AI сигналы склада', 'AI Inventory Signals')}
+      {/* AI Anbar Siqnalları / Compact & Collapsible AI signals */}
+      <div className="ai-signals-box rounded-2xl border border-indigo-500/25 bg-indigo-950/20 p-3.5 transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="p-1 rounded-lg bg-indigo-500/15 text-indigo-400">
+              🤖
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
+                  {tx(lang, 'AI Anbar Siqnalları', 'AI сигналы склада', 'AI Inventory Signals')}
+                </span>
+                {aiInsights.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                    {aiInsights.length} {tx(lang, 'kritik', 'критич.', 'critical')}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-900/40 text-indigo-300">
+                    {tx(lang, 'Stabil', 'Стабильно', 'Stable')}
+                  </span>
+                )}
+              </div>
+              {!aiExpanded && aiInsights.length === 0 && (
+                <div className="text-xs text-indigo-200/70">
+                  {tx(lang, 'Son 14 gün üzrə kritik anbar siqnalı tapılmadı.', 'Критических сигналов склада не найдено.', 'No critical inventory signals found in the last 14 days.')}
+                </div>
+              )}
             </div>
-            <div className="mt-1 text-sm text-indigo-100">
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={runAiInventoryInsights}
+              disabled={aiLoading}
+              className="min-h-9 rounded-xl border border-indigo-400/30 bg-indigo-400/15 px-3 text-xs font-black text-indigo-100 transition hover:bg-indigo-400/25 disabled:opacity-60"
+            >
+              {aiLoading
+                ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
+                : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiExpanded(!aiExpanded)}
+              className="min-h-9 px-2.5 rounded-xl border border-indigo-400/20 text-xs font-bold text-indigo-300 hover:bg-indigo-400/15 transition flex items-center gap-1"
+            >
+              <span>{aiExpanded ? tx(lang, 'Gizlət', 'Скрыть', 'Hide') : tx(lang, 'Bax', 'Смотреть', 'View')}</span>
+              {aiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded AI details */}
+        {aiExpanded && (
+          <div className="mt-3 pt-3 border-t border-indigo-500/20 space-y-3">
+            <div className="text-xs text-indigo-200">
               {tx(
                 lang,
                 'Son 14 gün üzrə kritik stok və resept bağlantısı tövsiyələri.',
@@ -835,44 +915,34 @@ export default function InventoryPanel() {
                 'Critical stock and recipe-link recommendations for the last 14 days.',
               )}
             </div>
+            {aiError ? (
+              <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{aiError}</div>
+            ) : null}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {aiInsights.map((item) => (
+                <div key={item.id} className="rounded-xl border border-indigo-300/20 bg-slate-950/50 p-3.5 shadow-sm">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-indigo-200">{item.phase}</div>
+                  <div className="mt-1 text-sm font-bold text-white">{item.title}</div>
+                  <div className="mt-1.5 text-xs text-slate-300">{item.body}</div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => openInventoryAiAction(item)}
+                      className="rounded-xl border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:border-slate-400"
+                    >
+                      {item.action_label}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!aiLoading && aiInsights.length === 0 && !aiError ? (
+                <div className="col-span-full rounded-xl border border-dashed border-indigo-300/30 bg-slate-950/35 p-3.5 text-center text-xs text-slate-400">
+                  {tx(lang, 'AI kritik anbar siqnalı tapmadı.', 'AI не нашел критических сигналов склада.', 'AI found no critical inventory signal.')}
+                </div>
+              ) : null}
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={runAiInventoryInsights}
-            disabled={aiLoading}
-            className="min-h-11 rounded-2xl border border-indigo-300/45 bg-indigo-400/15 px-4 text-sm font-black text-indigo-50 transition hover:bg-indigo-400/25 disabled:opacity-60"
-          >
-            {aiLoading
-              ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
-              : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
-          </button>
-        </div>
-        {aiError ? (
-          <div className="mt-3 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{aiError}</div>
-        ) : null}
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {aiInsights.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-indigo-300/20 bg-slate-950/50 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-indigo-200">{item.phase}</div>
-              <div className="mt-1 text-sm font-bold text-white">{item.title}</div>
-              <div className="mt-2 text-sm text-slate-300">{item.body}</div>
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => openInventoryAiAction(item)}
-                  className="rounded-xl border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:border-slate-400"
-                >
-                  {item.action_label}
-                </button>
-              </div>
-            </div>
-          ))}
-          {!aiLoading && aiInsights.length === 0 && !aiError ? (
-            <div className="rounded-2xl border border-dashed border-indigo-300/30 bg-slate-950/35 p-4 text-sm text-slate-300">
-              {tx(lang, 'AI kritik anbar siqnalı tapmadı.', 'AI не нашел критических сигналов склада.', 'AI found no critical inventory signal.')}
-            </div>
-          ) : null}
-        </div>
+        )}
       </div>
 
       {isAdding && (
@@ -982,7 +1052,7 @@ export default function InventoryPanel() {
         <div className="overflow-x-auto" role="region" aria-label="Anbar məhsulları" tabIndex={0}>
           <table className="w-full min-w-[900px] text-left [&_th]:px-3 [&_td]:px-3">
             <thead>
-              <tr className="text-slate-300 border-b border-slate-700/70">
+              <tr className="text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700/70 text-xs font-bold uppercase tracking-wider">
                 <th className="pb-3">{tx(lang, 'Xammal Adı', 'Название сырья', 'Item Name')}</th>
                 <th className="pb-3">{tx(lang, 'Tipi', 'Тип', 'Type')}</th>
                 <th className="pb-3">{tx(lang, 'Stok Miqdarı', 'Остаток', 'Stock Qty')}</th>
@@ -994,27 +1064,29 @@ export default function InventoryPanel() {
             </thead>
             <tbody>
               {visibleItems.map((item: any) => (
-                <tr key={item.id} className="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30">
-                  <td className="py-3 font-medium">{item.name}</td>
-                  <td className="py-3">{item.type}</td>
-                  <td className="py-3">{formatQty(item.stock_qty, item.unit)} {item.unit}</td>
-                  <td className="py-3">{formatUnitCost(item.unit_cost)} ₼ / {item.unit}</td>
-                  <td className="py-3">{new Decimal(item.stock_qty || 0).mul(new Decimal(item.unit_cost || 0)).toFixed(2)} ₼</td>
+                <tr key={item.id} className="border-b border-slate-200/80 dark:border-slate-700/50 last:border-0 hover:bg-slate-100/70 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="py-3 font-bold text-slate-900 dark:text-slate-100">{item.name}</td>
+                  <td className="py-3 text-slate-600 dark:text-slate-300 text-sm">{item.type}</td>
+                  <td className="py-3 font-semibold text-slate-800 dark:text-slate-100">{formatQty(item.stock_qty, item.unit)} {item.unit}</td>
+                  <td className="py-3 font-mono text-slate-700 dark:text-slate-300">{formatUnitCost(item.unit_cost)} ₼ / {item.unit}</td>
+                  <td className="py-3 font-mono font-bold text-amber-700 dark:text-yellow-300">{new Decimal(item.stock_qty || 0).mul(new Decimal(item.unit_cost || 0)).toFixed(2)} ₼</td>
                   <td className="py-3">
                     {Number(item.stock_qty || 0) <= Number(item.min_limit ?? inventoryConfig.default_critical_threshold) ? (
-                      <span className="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold flex w-fit items-center gap-1">
+                      <span className="px-2.5 py-1 bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 rounded-full text-xs font-bold flex w-fit items-center gap-1.5">
                         <AlertTriangle size={14}/> {tx(lang, 'Kritik Stok', 'Критический остаток', 'Critical Stock')}
                       </span>
                     ) : (
-                      <span className="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs font-bold">{tx(lang, 'Normal', 'Норма', 'Normal')}</span>
+                      <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 rounded-full text-xs font-bold flex w-fit items-center">
+                        {tx(lang, 'Normal', 'Норма', 'Normal')}
+                      </span>
                     )}
                   </td>
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => openEditModal(item)} className="rounded-lg border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-200">{tx(lang, 'Düzəlt', 'Изменить', 'Edit')}</button>
-                      <button onClick={() => { setRestockModal({ id: item.id, name: item.name }); setRestockLot(''); setRestockExpiry(''); setRestockBatchStatus('available'); }} className="rounded-lg border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
-                      <button onClick={() => { setLossModal({ id: item.id, name: item.name }); setLossReason(''); setLossQty(''); }} className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
-                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded-lg border border-red-300/40 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
+                      <button onClick={() => openEditModal(item)} className="rounded-xl border border-sky-400/40 bg-sky-400/10 px-3 py-1.5 text-xs font-bold text-sky-800 dark:text-sky-200 hover:bg-sky-400/20 active:scale-95 transition">{tx(lang, 'Düzəlt', 'Изменить', 'Edit')}</button>
+                      <button onClick={() => { setRestockModal({ id: item.id, name: item.name }); setRestockLot(''); setRestockExpiry(''); setRestockBatchStatus('available'); }} className="rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 hover:bg-emerald-400/20 active:scale-95 transition">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
+                      <button onClick={() => { setLossModal({ id: item.id, name: item.name }); setLossReason(''); setLossQty(''); }} className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 hover:bg-amber-400/20 active:scale-95 transition">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
+                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded-xl border border-rose-400/40 bg-rose-400/10 px-3 py-1.5 text-xs font-bold text-rose-800 dark:text-rose-200 hover:bg-rose-400/20 active:scale-95 transition">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
                     </div>
                   </td>
                 </tr>
