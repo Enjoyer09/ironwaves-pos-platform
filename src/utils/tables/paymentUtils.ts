@@ -59,12 +59,12 @@ export function normalizeSplitCount(table: { guest_count?: number }, requested: 
 }
 
 /**
- * Normalizes a discount percentage (0-50, integer).
+ * Normalizes a discount percentage (0-100, integer).
  */
 export function normalizeTableDiscountPercent(value: unknown): number {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(50, Math.round(parsed)));
+  return Math.max(0, Math.min(100, Math.round(parsed)));
 }
 
 /**

@@ -112,6 +112,17 @@ def test_fully_covered_staff_meal():
     assert "cash_drawer" not in lines_of(spec)
 
 
+def test_fully_comped_ikram_sale():
+    spec = sale(discount="25.00", cogs="8.50").spec(SIMPLIFIED)
+    assert_balanced(spec)
+    got = lines_of(spec)
+    assert "cash_drawer" not in got
+    assert got["sales_discounts"] == D("25.00")
+    assert got["sales_revenue"] == D("-25.00")
+    assert got["cogs"] == D("8.50")
+    assert got["inventory"] == D("-8.50")
+
+
 @pytest.mark.parametrize("kw,code", [
     (dict(), "empty_sale"),
     (dict(payments=(pr.SalePayment("cash", "-1"),)), "negative_amount"),

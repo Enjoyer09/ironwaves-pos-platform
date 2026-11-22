@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
-import { Banknote, CreditCard, Split, Tag, Check, X } from 'lucide-react';
+import { Banknote, CreditCard, Split, Tag, Check, X, Gift } from 'lucide-react';
 import {
   buildEqualSplitParts,
   getMaxSplitCount,
@@ -14,17 +14,25 @@ import {
 
 const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 50] as const;
 
+const REASON_PRESET_CHIPS = [
+  { label: 'İkram / Qonaq', ru: 'Угощение', en: 'Complimentary' },
+  { label: 'Müdiriyyət hesabı', ru: 'Счет руководства', en: 'Management' },
+  { label: 'Müəssisə / Nümayəndəlik', ru: 'Представительский счет', en: 'House Account' },
+  { label: 'Daimi müştəri', ru: 'Постоянный клиент', en: 'VIP / Regular' },
+  { label: 'Xidmət kompensasiyası', ru: 'Сервисная компенсация', en: 'Service Recovery' },
+] as const;
+
 export interface PaymentModalProps {
   lang: string;
   table: any;
   breakdown: BillBreakdown;
-  paymentMethod: 'Nəğd' | 'Kart' | 'Split';
+  paymentMethod: 'Nəğd' | 'Kart' | 'Split' | 'İkram';
   tableDiscountPercent: string;
   tableDiscountReason: string;
   splitCash: string;
   splitCount: string;
   splitParts: SplitPart[];
-  onPaymentMethodChange: (m: 'Nəğd' | 'Kart' | 'Split') => void;
+  onPaymentMethodChange: (m: 'Nəğd' | 'Kart' | 'Split' | 'İkram') => void;
   onDiscountChange: (value: number | string) => void;
   onDiscountReasonChange: (reason: string) => void;
   onSplitCashChange: (cash: string) => void;
@@ -138,88 +146,160 @@ export default function PaymentModal(props: PaymentModalProps) {
                     {tx(lang, 'Sıfırla', 'Сбросить', 'Reset')}
                   </button>
                 </div>
-                <div className="grid grid-cols-7 gap-1.5">
-                  {TABLE_DISCOUNT_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => onDiscountChange(preset)}
-                      className={`h-9 rounded-xl border text-xs font-black transition active:scale-95 tabular-nums ${
-                        Number(tableDiscountPercent) === preset
-                          ? 'border-amber-200 bg-amber-400 text-slate-950 shadow-sm'
-                          : 'border-amber-300/25 bg-slate-950/50 text-amber-100 hover:border-amber-300/60'
-                      }`}
-                    >
-                      {preset}%
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {TABLE_DISCOUNT_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => onDiscountChange(preset)}
+                        className={`h-9 rounded-xl border text-xs font-black transition active:scale-95 tabular-nums ${
+                          Number(tableDiscountPercent) === preset
+                            ? 'border-amber-200 bg-amber-400 text-slate-950 shadow-sm'
+                            : 'border-amber-300/25 bg-slate-950/50 text-amber-100 hover:border-amber-300/60'
+                        }`}
+                      >
+                        {preset}%
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDiscountChange(100);
+                      if (!tableDiscountReason) {
+                        onDiscountReasonChange(tx(lang, 'İkram / Qonaq hesabı', 'Угощение / За счет заведения', 'Complimentary / House Account'));
+                      }
+                    }}
+                    className={`h-10 w-full rounded-xl border text-xs font-black transition flex items-center justify-center gap-2 active:scale-95 ${
+                      Number(tableDiscountPercent) === 100
+                        ? 'border-purple-300 bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'border-purple-400/40 bg-purple-950/40 text-purple-200 hover:border-purple-300 hover:bg-purple-900/40'
+                    }`}
+                  >
+                    <Gift size={16} className={Number(tableDiscountPercent) === 100 ? 'text-amber-300' : 'text-purple-300'} />
+                    <span>100% {tx(lang, 'İkram / Qonaq / Müəssisə Hesabı', 'Угощение / Счёт заведения', 'Complimentary / House Account')}</span>
+                  </button>
                 </div>
+
                 {Number(tableDiscountPercent) > 0 && (
-                  <input
-                    type="text"
-                    value={tableDiscountReason}
-                    onChange={(e) => onDiscountReasonChange(e.target.value)}
-                    placeholder={tx(lang, 'Endirim səbəbi (məs. Daimi müştəri)', 'Причина скидки', 'Discount reason')}
-                    className="neon-input !min-h-9 h-9 w-full text-xs"
-                    required
-                  />
+                  <div className="space-y-2 pt-1 border-t border-amber-400/20">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-amber-200/90">
+                        {tx(lang, 'Sürətli səbəb seçimi:', 'Быстрый выбор причины:', 'Quick reason select:')}
+                      </label>
+                      {Number(tableDiscountPercent) === 100 && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-300 bg-purple-900/60 px-2 py-0.5 rounded-full border border-purple-400/30">
+                          {tx(lang, '100% İkram', '100% Угощение', '100% Comp')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {REASON_PRESET_CHIPS.map((chip) => {
+                        const chipLabel = tx(lang, chip.label, chip.ru, chip.en);
+                        const isSelected = tableDiscountReason === chipLabel;
+                        return (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={() => onDiscountReasonChange(chipLabel)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 ${
+                              isSelected
+                                ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                                : 'bg-slate-900/80 text-slate-300 border border-slate-700/80 hover:border-slate-500 hover:text-white'
+                            }`}
+                          >
+                            {chipLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      value={tableDiscountReason}
+                      onChange={(e) => onDiscountReasonChange(e.target.value)}
+                      placeholder={tx(lang, 'Və ya səbəbi daxil edin (məs. Müdiriyyət qonağı)', 'Причина скидки', 'Discount reason')}
+                      className="neon-input !min-h-9 h-9 w-full text-xs"
+                      required
+                    />
+                  </div>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* Large Touch Payment Method Selector */}
-        <div className="mt-4">
-          <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-            {tx(lang, 'Ödəniş üsulunu seçin', 'Выберите способ оплаты', 'Select payment method')}
+        {/* Payment Method Selector or 100% Ikram Notice */}
+        {dueNow.equals(0) ? (
+          <div className="mt-4 rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/60 via-slate-900 to-slate-950 p-4 text-center space-y-1.5 shadow-lg">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-400/40">
+              <Gift size={22} className="text-amber-300" />
+            </div>
+            <div className="text-sm font-black text-white">
+              {tx(lang, '100% İkram / Müəssisə Hesabı', '100% Угощение / Счёт заведения', '100% Complimentary / House Account')}
+            </div>
+            <p className="text-xs text-slate-300 max-w-sm mx-auto">
+              {tx(
+                lang,
+                'Bu masanın hesabı tamamilə müəssisə tərəfindən qarşılanır (0.00 ₼). Qonaqdan ödəniş tələb olunmur. Səbəbi təsdiq edib hesabı bağlaya bilərsiniz.',
+                'Счёт стола полностью покрывается заведением (0.00 ₼). Оплата с гостя не требуется. Подтвердите причину и закройте счёт.',
+                'This table bill is fully covered by the house (0.00 ₼). No payment required from guest. Confirm reason and close the bill.'
+              )}
+            </p>
           </div>
-          <div className="grid grid-cols-3 gap-2.5">
-            <button
-              type="button"
-              onClick={() => onPaymentMethodChange('Nəğd')}
-              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
-                paymentMethod === 'Nəğd'
-                  ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200 shadow-lg shadow-emerald-500/15'
-                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
-              }`}
-            >
-              <Banknote size={20} className={paymentMethod === 'Nəğd' ? 'text-emerald-300' : 'text-slate-400'} />
-              <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
-            </button>
+        ) : (
+          <div className="mt-4">
+            <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              {tx(lang, 'Ödəniş üsulunu seçin', 'Выберите способ оплаты', 'Select payment method')}
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                onClick={() => onPaymentMethodChange('Nəğd')}
+                className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                  paymentMethod === 'Nəğd'
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200 shadow-lg shadow-emerald-500/15'
+                    : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <Banknote size={20} className={paymentMethod === 'Nəğd' ? 'text-emerald-300' : 'text-slate-400'} />
+                <span>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => onPaymentMethodChange('Kart')}
-              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
-                paymentMethod === 'Kart'
-                  ? 'border-sky-400 bg-sky-500/20 text-sky-200 shadow-lg shadow-sky-500/15'
-                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
-              }`}
-            >
-              <CreditCard size={20} className={paymentMethod === 'Kart' ? 'text-sky-300' : 'text-slate-400'} />
-              <span>{tx(lang, 'Kart / POS', 'Карта / POS', 'Card / POS')}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => onPaymentMethodChange('Kart')}
+                className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                  paymentMethod === 'Kart'
+                    ? 'border-sky-400 bg-sky-500/20 text-sky-200 shadow-lg shadow-sky-500/15'
+                    : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <CreditCard size={20} className={paymentMethod === 'Kart' ? 'text-sky-300' : 'text-slate-400'} />
+                <span>{tx(lang, 'Kart / POS', 'Карта / POS', 'Card / POS')}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                onPaymentMethodChange('Split');
-                const count = normalizeSplitCount(table, splitCount, splitCount);
-                onSplitCountChange(String(count));
-                onSplitPartsChange(buildEqualSplitParts(count, splitBasis));
-              }}
-              className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
-                paymentMethod === 'Split'
-                  ? 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-lg shadow-amber-500/15'
-                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
-              }`}
-            >
-              <Split size={20} className={paymentMethod === 'Split' ? 'text-amber-300' : 'text-slate-400'} />
-              <span>{tx(lang, 'Hissəli / Split', 'Разделить', 'Split Bill')}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onPaymentMethodChange('Split');
+                  const count = normalizeSplitCount(table, splitCount, splitCount);
+                  onSplitCountChange(String(count));
+                  onSplitPartsChange(buildEqualSplitParts(count, splitBasis));
+                }}
+                className={`flex flex-col items-center justify-center gap-1 h-16 rounded-2xl border-2 font-black text-xs sm:text-sm transition active:scale-95 taktil-target ${
+                  paymentMethod === 'Split'
+                    ? 'border-amber-400 bg-amber-500/20 text-amber-200 shadow-lg shadow-amber-500/15'
+                    : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                <Split size={20} className={paymentMethod === 'Split' ? 'text-amber-300' : 'text-slate-400'} />
+                <span>{tx(lang, 'Hissəli / Split', 'Разделить', 'Split Bill')}</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Cash Denomination & Change Calculator */}
         {paymentMethod === 'Nəğd' && (() => {
@@ -384,12 +464,20 @@ export default function PaymentModal(props: PaymentModalProps) {
           </button>
           <button
             type="button"
-            className="flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 px-6 text-base font-black text-slate-950 shadow-lg shadow-emerald-500/25 hover:brightness-105 active:scale-[0.98] transition taktil-target"
+            className={`flex h-13 flex-1 items-center justify-center gap-2 rounded-2xl px-6 text-base font-black shadow-lg hover:brightness-105 active:scale-[0.98] transition taktil-target ${
+              dueNow.equals(0)
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-purple-500/25'
+                : 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-slate-950 shadow-emerald-500/25'
+            }`}
             onClick={onSettle}
           >
-            <Check size={20} />
-            <span>{tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}</span>
-            <span className="rounded-lg bg-slate-950/15 px-2 py-0.5 text-sm font-black tabular-nums">
+            {dueNow.equals(0) ? <Gift size={20} className="text-amber-300" /> : <Check size={20} />}
+            <span>
+              {dueNow.equals(0)
+                ? tx(lang, 'İkram Hesabını Bağla', 'Закрыть угощение', 'Close Comp Bill')
+                : tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+            </span>
+            <span className="rounded-lg bg-black/20 px-2 py-0.5 text-sm font-black tabular-nums">
               {dueNow.toFixed(2)} ₼
             </span>
           </button>

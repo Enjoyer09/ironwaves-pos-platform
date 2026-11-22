@@ -190,14 +190,17 @@ class SaleCompleted:
         lines.dr("customer_deposits", deposit, "Depozit hesaba tətbiq edildi")
 
         consideration = received + deposit
-        if consideration <= 0 and _pos(self.staff_benefit, "staff_benefit") <= 0:
+        discount = _pos(self.discount, "discount")
+        if consideration <= 0 and _pos(self.staff_benefit, "staff_benefit") <= 0 and discount <= 0:
             raise GLError("A sale needs a payment, an applied deposit or a staff benefit", "empty_sale")
         net, vat = _revenue_split(consideration, tax)
-        discount = _pos(self.discount, "discount")
         discount_net = _revenue_split(discount, tax)[0]
-        lines.cr("sales_revenue", net + discount_net, "Satış gəliri (endirimdən əvvəl)")
-        lines.dr("sales_discounts", discount_net, "Endirim")
-        lines.cr("vat_output", vat, f"ƏDV {tax.vat_rate}%")
+        if net + discount_net > 0:
+            lines.cr("sales_revenue", net + discount_net, "Satış gəliri (endirimdən əvvəl)")
+        if discount_net > 0:
+            lines.dr("sales_discounts", discount_net, "Endirim")
+        if vat > 0:
+            lines.cr("vat_output", vat, f"ƏDV {tax.vat_rate}%")
 
         # ACCT: staff meals booked at sale value without VAT (benefit in kind).
         benefit = _pos(self.staff_benefit, "staff_benefit")

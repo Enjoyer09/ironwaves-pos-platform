@@ -521,7 +521,7 @@ export const pay_table = (
   const remainingItems = payScope === 'seat' ? allItems.filter((item: any) => String(item.seat_label || '') !== seatLabel) : [];
   const itemsTotal = itemsForSale.reduce((acc, item) => acc.plus(new Decimal(item.price || 0).times(item.qty || 0)), new Decimal(0));
   const serviceFeePercent = new Decimal(settings.service_fee_percent || 0);
-  const discountPercent = Decimal.max(new Decimal(0), Decimal.min(new Decimal(options?.discount_percent || 0), new Decimal(50))).toDecimalPlaces(2);
+  const discountPercent = Decimal.max(new Decimal(0), Decimal.min(new Decimal(options?.discount_percent || 0), new Decimal(100))).toDecimalPlaces(2);
   const preDiscountServiceFeeAmount = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
   const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
   const depositAmount = payScope === 'seat'

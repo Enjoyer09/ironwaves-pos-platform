@@ -402,6 +402,7 @@ export async function buildTableReceiptHtml({
         <hr />
         <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${money(breakdown.itemsTotal)} ₼</span></div>
         <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}${Number(breakdown.discountPercent || 0) > 0 ? ` (${Number(breakdown.discountPercent).toFixed(0)}%)` : ''}</span><span>- ${money(breakdown.discountAmount || 0)} ₼</span></div>
+        ${Number(breakdown.discountPercent || 0) >= 100 ? `<div class="muted bold" style="text-align:center;padding:2px 0;">*** ${tx(lang, '100% İKRAM / MÜƏSSİSƏ HESABI', '100% УГОЩЕНИЕ / ЗА СЧЕТ ЗАВЕДЕНИЯ', '100% COMPLIMENTARY / HOUSE ACCOUNT')} ***</div>` : ''}
         ${
           Number(breakdown.serviceFee || 0) > 0
             ? `<div class="line"><span>${tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service Fee')}</span><span>${money(breakdown.serviceFee)} ₼</span></div>`

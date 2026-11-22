@@ -2804,12 +2804,14 @@ def settle_check(
     deposit_amount = Decimal(str(table.deposit_amount or 0)).quantize(Decimal("0.01"))
     service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
     discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
-    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
+    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("100.00")))
     if discount_percent > 0 and not (payload.discount_reason or "").strip():
         raise HTTPException(
             status_code=400,
             detail="Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin! (Discount reason is required for manual discount)"
         )
+    if discount_percent > 0 and not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Yalnız menecer və admin endirim tətbiq edə bilər.")
     pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     pre_discount_final_total = max(items_total + pre_discount_service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
     raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
@@ -2862,17 +2864,21 @@ def settle_check(
     stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, billable_stock_items)
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
+    effective_payment_method = (
+        "ikram" if (discount_percent >= Decimal("100.00") or balance_due <= Decimal("0.00"))
+        else payload.payment_method
+    )
     sale = Sale(
         tenant_id=tenant.id,
         cashier=user.username,
         customer_card_id=None,
-        payment_method=payload.payment_method,
+        payment_method=effective_payment_method,
         order_type="Dine In",
         receipt_code=receipt_code,
         receipt_token=receipt_token,
         total=final_total,
         discount_amount=discount_amount,
-        discount_reason=payload.discount_reason,
+        discount_reason=payload.discount_reason or ("100% İkram / Qonaq hesabı" if discount_percent >= Decimal("100.00") else None),
         cogs=cogs_total,
         items_json=json.dumps([
             {**dict(item), "promo_discount": str(item_promo_discounts[idx].quantize(Decimal("0.01")))}

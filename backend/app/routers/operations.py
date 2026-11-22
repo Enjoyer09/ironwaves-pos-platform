@@ -1078,7 +1078,7 @@ class TablePayIn(BaseModel):
     payment_method: str
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
-    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=50)
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     cup_mode: str | None = "paper"
     pay_scope: str | None = "full"
     seat_label: str | None = None
@@ -8118,7 +8118,7 @@ def pay_table(
     from app.routers.pos import _calculate_discounted_items_total
 
     discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
-    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
+    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("100.00")))
     pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     pre_discount_total = max(items_total + pre_discount_service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
 

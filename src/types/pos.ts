@@ -1,6 +1,6 @@
 import { Decimal } from 'decimal.js';
 
-export type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
+export type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff' | 'İkram';
 export type RefundType = 'VOID' | 'PARTIAL';
 export type CustomerType = 'Normal' | 'Golden' | 'Platinum' | 'Elite' | 'Tələbə' | 'Ikram';
 

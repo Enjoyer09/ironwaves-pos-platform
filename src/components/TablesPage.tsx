@@ -158,7 +158,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [showFullOrderList, setShowFullOrderList] = useState(false);
   const [showSentSlideUp, setShowSentSlideUp] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
+  const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split' | 'İkram'>('Nəğd');
   const [tableDiscountPercent, setTableDiscountPercent] = useState('0');
   const [tableDiscountReason, setTableDiscountReason] = useState('');
   const [splitCash, setSplitCash] = useState('0');
@@ -1337,9 +1337,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     }
     try {
       const { dueNow, splitBasis } = getTableBillBreakdown(table);
+      const isComped = dueNow.equals(0) || Number(tableDiscountPercent) === 100;
+      if (Number(tableDiscountPercent) > 0 && !tableDiscountReason.trim()) {
+        notify('error', tx(lang, 'Zəhmət olmasa endirim / ikram səbəbini qeyd edin!', 'Укажите причину скидки / угощения!', 'Please enter discount / complimentary reason!'));
+        return;
+      }
       let cash: Decimal | null = null;
       let card: Decimal | null = null;
-      if (paymentMethod === 'Split') {
+      if (isComped) {
+        cash = new Decimal(0);
+        card = new Decimal(0);
+      } else if (paymentMethod === 'Split') {
         const participantCount = normalizeSplitCount(table, splitCount);
         const normalized = (splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, splitBasis));
         cash = normalized.filter((r) => r.method === 'Nəğd').reduce((acc, r) => acc.plus(new Decimal(r.amount || 0)), new Decimal(0)).toDecimalPlaces(2);
@@ -1353,13 +1361,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       } else {
         card = dueNow;
       }
+      const effectivePaymentMethod = isComped ? 'İkram' : paymentMethod;
+      const effectiveDiscountReason = tableDiscountReason.trim() || (isComped ? 'İkram / Qonaq hesabı' : null);
       const result = await settle_table_check_live(table.id, {
-        payment_method: paymentMethod,
+        payment_method: effectivePaymentMethod,
         split_cash: cash,
         split_card: card,
         discount_percent: tableDiscountPercent,
-        discount_reason: tableDiscountReason || null,
-        parts: paymentMethod === 'Split' ? (splitParts.length === normalizeSplitCount(table, splitCount) ? splitParts : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)) : undefined,
+        discount_reason: effectiveDiscountReason,
+        parts: !isComped && paymentMethod === 'Split' ? (splitParts.length === normalizeSplitCount(table, splitCount) ? splitParts : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)) : undefined,
       });
 
       // Generate receipt HTML

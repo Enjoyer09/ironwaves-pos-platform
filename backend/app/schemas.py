@@ -445,7 +445,7 @@ class SettleCheckIn(BaseModel):
     payment_method: str
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
-    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=50)
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     discount_reason: str | None = None
     parts: list[RestaurantPaymentPartIn] | None = None
 
