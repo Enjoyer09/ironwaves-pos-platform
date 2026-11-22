@@ -2240,7 +2240,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       {viewTableId && (
         <div
 	          ref={detailPanelRef}
-	          className={`fixed inset-0 z-[90] overflow-hidden bg-[#070b12] ${tableDetailClosing ? 'workspace-slide-out' : 'workspace-slide-in'}`}
+	          className={`table-order-detail fixed inset-0 z-[90] overflow-hidden bg-[#070b12] ${tableDetailClosing ? 'workspace-slide-out' : 'workspace-slide-in'}`}
         >
           <div className="flex h-full flex-col overflow-hidden p-3 md:p-4">
             {(() => {
@@ -2565,7 +2565,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           </button>
                         </div>
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
+                      <div className="table-order-summary mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
                         <div className="rounded-xl bg-slate-950/45 px-3 py-2">
                           <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
                           <div className="mt-0.5 text-sm font-bold text-slate-100">{t.label}</div>
@@ -2608,7 +2608,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     )}
                     {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
-                      <>
+                      <details className="table-lock-tools">
+                        <summary className="cursor-pointer rounded-full border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100">{tx(lang, 'Masa kilidi', 'Блокировка стола', 'Table lock')}</summary>
+                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                          <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
+                          <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
+                        </div>
                         <button
                           type="button"
                           onClick={async () => {
@@ -2646,15 +2651,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         >
                           {tx(lang, 'Owner-i ötür', 'Передать владельца', 'Transfer owner')}
                         </button>
-                      </>
+                      </details>
                     )}
                   </div>
-                  {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && !isBahaYLab && (
-                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr]">
-                      <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
-                      <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
-                    </div>
-                  )}
 	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2 ${isBahaYLab && tableWorkspaceTab === 'compose' ? 'hidden' : ''}`}>
 	                    <div className="flex flex-wrap gap-2" role="tablist" aria-label={tx(lang, 'Masa iş sahəsi', 'Рабочая область стола', 'Table workspace')}>
                       {([

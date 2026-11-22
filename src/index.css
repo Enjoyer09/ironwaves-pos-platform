@@ -3813,6 +3813,44 @@ html {
    Classic POS Interface Overrides
    ========================================== */
 
+/* Keep the checkout usable on common 1024×768 Windows tills. */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 800px) {
+  .table-order-detail > div { padding: 0.5rem !important; }
+  .table-order-detail .table-order-summary { display: none !important; }
+  .table-order-detail .table-lock-tools { max-width: 100%; }
+  .table-order-detail .table-lock-tools[open] { flex-basis: 100%; }
+  .table-order-detail .table-lock-tools button { margin: 0.5rem 0.5rem 0 0; }
+  .table-order-detail .metal-panel,
+  .table-order-detail .neon-input,
+  .table-order-detail .pos2-product-card { backdrop-filter: none !important; }
+  .table-order-detail .metal-panel { background: #182438 !important; }
+  .table-order-detail .text-slate-400,
+  .table-order-detail .text-slate-500 { color: #d5dfec !important; }
+  .compact-pos-shell { padding: 0.5rem 0.65rem !important; }
+  .compact-pos-tabs { margin-bottom: 0.45rem !important; gap: 0.4rem !important; }
+  .compact-pos-grid { gap: 0.45rem !important; }
+  .compact-pos-sidebar { width: 320px !important; padding: 0.6rem !important; }
+  .compact-pos-sidebar .compact-pos-header { margin-bottom: 0.5rem !important; padding-bottom: 0.5rem !important; }
+  html[data-ui-mode='new'] .pos2-workspace { gap: 0.5rem !important; }
+  html[data-ui-mode='new'] .pos2-shell { background: #101827 !important; }
+  html[data-ui-mode='new'] .pos2-menu-pane,
+  html[data-ui-mode='new'] .pos2-checkout-pane {
+    background: #172337 !important;
+    border-color: #64748b !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-ui-mode='new'] .pos2-product-card {
+    background: #203047 !important;
+    border-color: #718198 !important;
+    box-shadow: none !important;
+  }
+  html[data-ui-mode='new'] .pos2-product-card .text-xs,
+  html[data-ui-mode='new'] .pos2-product-card .text-sm { color: #f1f5f9 !important; }
+  .compact-pos-shell .backdrop-blur-xl,
+  .compact-pos-shell .backdrop-blur-xs { backdrop-filter: none !important; }
+}
+
 /* 1. Eliminate bottom dead space on desktop viewports */
 @media (min-width: 1024px) {
   html[data-ui-mode='old'] .compact-pos-shell {
