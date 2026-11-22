@@ -33,8 +33,8 @@ export function AISettingsSection({
       </p>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
-          <input className="neon-input w-full" type="password" value={aiApiKey} onChange={(e) => { setAiApiKey(e.target.value); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
+          <label htmlFor="setting-aisettingssection-1" className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
+          <input id="setting-aisettingssection-1" className="neon-input w-full" type="password" value={aiApiKey} onChange={(e) => { setAiApiKey(e.target.value); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
           <p className="text-[10px] text-slate-500">{tx(lang, 'Key formatına görə provider avtomatik tanınır', 'Провайдер определяется автоматически', 'Provider is auto-detected from key format')}</p>
         </div>
         <div className="space-y-2">

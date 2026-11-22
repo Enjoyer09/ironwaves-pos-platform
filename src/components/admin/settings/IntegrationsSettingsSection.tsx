@@ -163,32 +163,32 @@ export function IntegrationsSettingsSection({
             'Provider/Venue ID and Secret Key settings for Bolt Food and Wolt integrations.',
           )}
         </p>
-        
+
         <div className="border-t border-slate-700/40 pt-4 space-y-3">
           <h3 className="text-md font-semibold text-slate-200">Bolt Food</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
-              <input 
-                type="checkbox" 
-                checked={deliveryIntegrations.bolt_food_enabled} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_enabled: e.target.checked }))} 
+              <input
+                type="checkbox"
+                checked={deliveryIntegrations.bolt_food_enabled}
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_enabled: e.target.checked }))}
               />
               <span>{tx(lang, 'Bolt Food aktiv et', 'Включить Bolt Food', 'Enable Bolt Food')}</span>
             </label>
-            <input 
-              className="neon-input" 
-              value={deliveryIntegrations.bolt_food_provider_id} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_provider_id: e.target.value }))} 
-              placeholder="Provider ID" 
+            <input
+              className="neon-input"
+              value={deliveryIntegrations.bolt_food_provider_id}
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_provider_id: e.target.value }))}
+              placeholder="Provider ID"
               aria-label={tx(lang, 'Bolt Food Provider ID', 'Bolt Food Provider ID', 'Bolt Food Provider ID')}
             />
             <div className="md:col-span-2">
-              <input 
-                className="neon-input w-full" 
+              <input
+                className="neon-input w-full"
                 type="password"
-                value={deliveryIntegrations.bolt_food_secret_key} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
-                placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
+                value={deliveryIntegrations.bolt_food_secret_key}
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))}
+                placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')}
                 aria-label={tx(lang, 'Bolt Food Secret Key', 'Bolt Food Secret Key', 'Bolt Food Secret Key')}
               />
               <p className={`mt-1 text-[11px] ${secretsStored.bolt ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -226,27 +226,27 @@ export function IntegrationsSettingsSection({
           <h3 className="text-md font-semibold text-slate-200">Wolt</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
-              <input 
-                type="checkbox" 
-                checked={deliveryIntegrations.wolt_enabled} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_enabled: e.target.checked }))} 
+              <input
+                type="checkbox"
+                checked={deliveryIntegrations.wolt_enabled}
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_enabled: e.target.checked }))}
               />
               <span>{tx(lang, 'Wolt aktiv et', 'Включить Wolt', 'Enable Wolt')}</span>
             </label>
-            <input 
-              className="neon-input" 
-              value={deliveryIntegrations.wolt_venue_id} 
-              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_venue_id: e.target.value }))} 
-              placeholder="Venue ID" 
+            <input
+              className="neon-input"
+              value={deliveryIntegrations.wolt_venue_id}
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_venue_id: e.target.value }))}
+              placeholder="Venue ID"
               aria-label={tx(lang, 'Wolt Venue ID', 'Wolt Venue ID', 'Wolt Venue ID')}
             />
             <div className="md:col-span-2">
-              <input 
-                className="neon-input w-full" 
+              <input
+                className="neon-input w-full"
                 type="password"
-                value={deliveryIntegrations.wolt_client_secret} 
-                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
-                placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
+                value={deliveryIntegrations.wolt_client_secret}
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))}
+                placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')}
                 aria-label={tx(lang, 'Wolt Client Secret', 'Wolt Client Secret', 'Wolt Client Secret')}
               />
               <p className={`mt-1 text-[11px] ${secretsStored.wolt ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -297,8 +297,8 @@ export function IntegrationsSettingsSection({
           {/* New Mapping Form */}
           <form onSubmit={handleAddDeliveryMenuMapping} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-slate-900/40 p-4 rounded-xl border border-slate-800">
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</label>
-              <select
+              <label htmlFor="setting-integrationssettingssection-1" className="text-xs text-slate-400 block">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</label>
+              <select id="setting-integrationssettingssection-1"
                 className="neon-input w-full bg-slate-950 border border-slate-800"
                 value={newDeliveryMenuMapping.provider}
                 onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, provider: e.target.value as 'bolt' | 'wolt' }))}
@@ -307,10 +307,10 @@ export function IntegrationsSettingsSection({
                 <option value="wolt">Wolt</option>
               </select>
             </div>
-            
+
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul ID', 'Внешний ID продукта', 'External Product ID')}</label>
-              <input
+              <label htmlFor="setting-integrationssettingssection-2" className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul ID', 'Внешний ID продукта', 'External Product ID')}</label>
+              <input id="setting-integrationssettingssection-2"
                 className="neon-input w-full"
                 value={newDeliveryMenuMapping.external_item_id}
                 onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_id: e.target.value }))}
@@ -319,8 +319,8 @@ export function IntegrationsSettingsSection({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul Adı (İxtiyari)', 'Внешнее имя (Опционально)', 'External Name (Optional)')}</label>
-              <input
+              <label htmlFor="setting-integrationssettingssection-3" className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul Adı (İxtiyari)', 'Внешнее имя (Опционально)', 'External Name (Optional)')}</label>
+              <input id="setting-integrationssettingssection-3"
                 className="neon-input w-full"
                 value={newDeliveryMenuMapping.external_item_name}
                 onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_name: e.target.value }))}
@@ -330,8 +330,8 @@ export function IntegrationsSettingsSection({
 
             <div className="space-y-1 flex gap-2">
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-slate-400 block">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт меню', 'Internal Menu Item')}</label>
-                <select
+                <label htmlFor="setting-integrationssettingssection-4" className="text-xs text-slate-400 block">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт меню', 'Internal Menu Item')}</label>
+                <select id="setting-integrationssettingssection-4"
                   className="neon-input w-full bg-slate-950 border border-slate-800"
                   value={newDeliveryMenuMapping.menu_item_id}
                   onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, menu_item_id: e.target.value }))}
@@ -441,20 +441,20 @@ export function IntegrationsSettingsSection({
             <span>{tx(lang, 'İctimai QR menyu aktiv olsun', 'Публичное QR меню активно', 'Enable public QR Menu')}</span>
           </label>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_title: e.target.value }))} />
+            <label htmlFor="setting-integrationssettingssection-5" className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
+            <input id="setting-integrationssettingssection-5" className="neon-input" value={qrMenuSettings.hero_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_title: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Alt başlıq', 'Подзаголовок', 'Hero subtitle')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} />
+            <label htmlFor="setting-integrationssettingssection-6" className="field-label">{tx(lang, 'Alt başlıq', 'Подзаголовок', 'Hero subtitle')}</label>
+            <input id="setting-integrationssettingssection-6" className="neon-input" value={qrMenuSettings.hero_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Poster başlığı', 'Заголовок постера', 'Poster title')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_title: e.target.value }))} />
+            <label htmlFor="setting-integrationssettingssection-7" className="field-label">{tx(lang, 'Poster başlığı', 'Заголовок постера', 'Poster title')}</label>
+            <input id="setting-integrationssettingssection-7" className="neon-input" value={qrMenuSettings.poster_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_title: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Poster alt mətni', 'Подзаголовок постера', 'Poster subtitle')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_subtitle: e.target.value }))} />
+            <label htmlFor="setting-integrationssettingssection-8" className="field-label">{tx(lang, 'Poster alt mətni', 'Подзаголовок постера', 'Poster subtitle')}</label>
+            <input id="setting-integrationssettingssection-8" className="neon-input" value={qrMenuSettings.poster_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_subtitle: e.target.value }))} />
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
@@ -499,16 +499,16 @@ export function IntegrationsSettingsSection({
             </div>
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
-            <input className="neon-input" value={qrMenuSettings.hero_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: e.target.value }))} />
+            <label htmlFor="setting-integrationssettingssection-9" className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
+            <input id="setting-integrationssettingssection-9" className="neon-input" value={qrMenuSettings.hero_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: e.target.value }))} />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Hero şəkil yüklə', 'Загрузить hero-изображение', 'Upload hero image')}</label>
-            <input className="neon-input" type="file" accept="image/*" onChange={handleQrHeroUpload} />
+            <label htmlFor="setting-integrationssettingssection-10" className="field-label">{tx(lang, 'Hero şəkil yüklə', 'Загрузить hero-изображение', 'Upload hero image')}</label>
+            <input id="setting-integrationssettingssection-10" className="neon-input" type="file" accept="image/*" onChange={handleQrHeroUpload} />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Sağ poster şəkli', 'Изображение правого постера', 'Right poster image')}</label>
-            <input className="neon-input" value={qrMenuSettings.poster_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: e.target.value }))} placeholder={tx(lang, 'Kiçik şəkil URL və ya yüklənmiş şəkil', 'URL маленького изображения или загруженное изображение', 'Small image URL or uploaded image')} />
+            <label htmlFor="setting-integrationssettingssection-11" className="field-label">{tx(lang, 'Sağ poster şəkli', 'Изображение правого постера', 'Right poster image')}</label>
+            <input id="setting-integrationssettingssection-11" className="neon-input" value={qrMenuSettings.poster_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: e.target.value }))} placeholder={tx(lang, 'Kiçik şəkil URL və ya yüklənmiş şəkil', 'URL маленького изображения или загруженное изображение', 'Small image URL or uploaded image')} />
             <input className="neon-input" type="file" accept="image/*" onChange={handleQrPosterImageUpload} />
             <div className="text-xs text-slate-400">
               {tx(lang, 'Şəkil avtomatik kiçildilir: maksimum 768 KB fayl, 640px tərəf və ~350 KB saxlanılan data.', 'Изображение автоматически уменьшается: файл до 768 KB, сторона 640px и ~350 KB данных.', 'Image is auto-compressed: max 768 KB file, 640px side and ~350 KB stored data.')}
@@ -520,15 +520,15 @@ export function IntegrationsSettingsSection({
             ) : null}
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Dizayn şablonu', 'Шаблон дизайна', 'Layout preset')}</label>
-            <select className="neon-input" value={qrMenuSettings.layout_preset} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, layout_preset: e.target.value as any }))}>
+            <label htmlFor="setting-integrationssettingssection-12" className="field-label">{tx(lang, 'Dizayn şablonu', 'Шаблон дизайна', 'Layout preset')}</label>
+            <select id="setting-integrationssettingssection-12" className="neon-input" value={qrMenuSettings.layout_preset} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, layout_preset: e.target.value as any }))}>
               <option value="classic">{tx(lang, 'Klassik (Çox addımlı)', 'Классический (Многошаговый)', 'Classic (Multi-step)')}</option>
               <option value="bolt">{tx(lang, 'Bolt Food stili (Tək səhifə)', 'Bolt Food стиль (Одностраничный)', 'Bolt Food style (Single page)')}</option>
             </select>
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Mövzu seçimi', 'Выбор темы', 'Theme preset')}</label>
-            <select className="neon-input" value={qrMenuSettings.theme_preset} onChange={(e) => handleThemePresetChange(e.target.value as any)}>
+            <label htmlFor="setting-integrationssettingssection-13" className="field-label">{tx(lang, 'Mövzu seçimi', 'Выбор темы', 'Theme preset')}</label>
+            <select id="setting-integrationssettingssection-13" className="neon-input" value={qrMenuSettings.theme_preset} onChange={(e) => handleThemePresetChange(e.target.value as any)}>
               <option value="dark">{tx(lang, 'Qaranlıq (Dark)', 'Темная (Dark)', 'Dark')}</option>
               <option value="light">{tx(lang, 'İşıqlı (Light)', 'Светлая (Light)', 'Light')}</option>
               <option value="emerald">{tx(lang, 'Zümrüd (Emerald)', 'Изумрудная (Emerald)', 'Emerald')}</option>
@@ -536,16 +536,16 @@ export function IntegrationsSettingsSection({
             </select>
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
-            <select className="neon-input" value={qrMenuSettings.logo_shape} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, logo_shape: e.target.value as any }))}>
+            <label htmlFor="setting-integrationssettingssection-14" className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
+            <select id="setting-integrationssettingssection-14" className="neon-input" value={qrMenuSettings.logo_shape} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, logo_shape: e.target.value as any }))}>
               <option value="rounded">{tx(lang, 'Yumru künc', 'Скругленный', 'Rounded')}</option>
               <option value="circle">{tx(lang, 'Dairəvi', 'Круглый', 'Circle')}</option>
               <option value="square">{tx(lang, 'Kvadrat', 'Квадратный', 'Square')}</option>
             </select>
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Şrift ailəsi', 'Семейство шрифтов', 'Font family')}</label>
-            <select className="neon-input" value={qrMenuSettings.font_family} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, font_family: e.target.value }))}>
+            <label htmlFor="setting-integrationssettingssection-15" className="field-label">{tx(lang, 'Şrift ailəsi', 'Семейство шрифтов', 'Font family')}</label>
+            <select id="setting-integrationssettingssection-15" className="neon-input" value={qrMenuSettings.font_family} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, font_family: e.target.value }))}>
               <option value="">{tx(lang, 'Standart (Geist Sans)', 'Стандартный (Geist Sans)', 'Default (Geist Sans)')}</option>
               <option value="Inter">Inter</option>
               <option value="Poppins">Poppins</option>
@@ -563,8 +563,8 @@ export function IntegrationsSettingsSection({
           </div>
           {qrMenuSettings.font_family === 'custom' && (
             <div className="field-stack form-card md:col-span-2">
-              <label className="field-label">{tx(lang, 'Xüsusi şrift URL (CSS @font-face)', 'URL шрифта (CSS @font-face)', 'Custom font URL (CSS @font-face)')}</label>
-              <input className="neon-input" value={qrMenuSettings.custom_font_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, custom_font_url: e.target.value }))} placeholder="https://fonts.googleapis.com/css2?family=YourFont&display=swap" />
+              <label htmlFor="setting-integrationssettingssection-16" className="field-label">{tx(lang, 'Xüsusi şrift URL (CSS @font-face)', 'URL шрифта (CSS @font-face)', 'Custom font URL (CSS @font-face)')}</label>
+              <input id="setting-integrationssettingssection-16" className="neon-input" value={qrMenuSettings.custom_font_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, custom_font_url: e.target.value }))} placeholder="https://fonts.googleapis.com/css2?family=YourFont&display=swap" />
               <p className="text-[11px] text-slate-400">{tx(lang, 'Google Fonts və ya hər hansı CSS font URL yapışdırın. Şrift adını yuxarıdakı sahəyə yazın.', 'Вставьте URL Google Fonts или любой CSS font. Имя шрифта укажите выше.', 'Paste a Google Fonts or any CSS font URL. Enter the font name above.')}</p>
             </div>
           )}
@@ -617,8 +617,8 @@ export function IntegrationsSettingsSection({
           </p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Splash tipi', 'Тип splash', 'Splash type')}</label>
-              <select className="neon-input" value={qrMenuSettings.splash_type || 'none'} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_type: e.target.value }))}>
+              <label htmlFor="setting-integrationssettingssection-17" className="text-xs font-semibold text-slate-300">{tx(lang, 'Splash tipi', 'Тип splash', 'Splash type')}</label>
+              <select id="setting-integrationssettingssection-17" className="neon-input" value={qrMenuSettings.splash_type || 'none'} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_type: e.target.value }))}>
                 <option value="none">{tx(lang, 'Söndürülüb (default skeleton)', 'Отключено (скелетон)', 'Disabled (default skeleton)')}</option>
                 <option value="image">{tx(lang, 'Şəkil (JPG/PNG/WebP)', 'Изображение', 'Image')}</option>
                 <option value="gif">{tx(lang, 'GIF (animasiya)', 'GIF (анимация)', 'GIF (animation)')}</option>
@@ -626,8 +626,8 @@ export function IntegrationsSettingsSection({
               </select>
             </div>
             <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Müddət (ms)', 'Длительность (мс)', 'Duration (ms)')}</label>
-              <input className="neon-input" type="number" min="1000" max="10000" step="500" value={qrMenuSettings.splash_duration_ms || 3000} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_duration_ms: Number(e.target.value) }))} />
+              <label htmlFor="setting-integrationssettingssection-18" className="text-xs font-semibold text-slate-300">{tx(lang, 'Müddət (ms)', 'Длительность (мс)', 'Duration (ms)')}</label>
+              <input id="setting-integrationssettingssection-18" className="neon-input" type="number" min="1000" max="10000" step="500" value={qrMenuSettings.splash_duration_ms || 3000} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_duration_ms: Number(e.target.value) }))} />
             </div>
             <div className="field-stack md:col-span-2">
               <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Şəkil/GIF (fayl yüklə və ya URL yapışdır)', 'Изображение/GIF (загрузите или вставьте URL)', 'Image/GIF (upload file or paste URL)')}</label>
@@ -678,12 +678,12 @@ export function IntegrationsSettingsSection({
               )}
             </div>
             <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Overlay text (opsional)', 'Текст поверх (необязательно)', 'Overlay text (optional)')}</label>
-              <input className="neon-input" value={qrMenuSettings.splash_overlay_text || ''} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_overlay_text: e.target.value }))} placeholder={tx(lang, 'Menyuya xoş gəlmisiniz', 'Добро пожаловать', 'Welcome to our menu')} />
+              <label htmlFor="setting-integrationssettingssection-19" className="text-xs font-semibold text-slate-300">{tx(lang, 'Overlay text (opsional)', 'Текст поверх (необязательно)', 'Overlay text (optional)')}</label>
+              <input id="setting-integrationssettingssection-19" className="neon-input" value={qrMenuSettings.splash_overlay_text || ''} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_overlay_text: e.target.value }))} placeholder={tx(lang, 'Menyuya xoş gəlmisiniz', 'Добро пожаловать', 'Welcome to our menu')} />
             </div>
             <div className="field-stack">
-              <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
-              <input className="neon-input" type="color" value={qrMenuSettings.splash_bg_color || '#000000'} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_bg_color: e.target.value }))} />
+              <label htmlFor="setting-integrationssettingssection-20" className="text-xs font-semibold text-slate-300">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
+              <input id="setting-integrationssettingssection-20" className="neon-input" type="color" value={qrMenuSettings.splash_bg_color || '#000000'} onChange={(e) => setQrMenuSettings((p) => ({ ...p, splash_bg_color: e.target.value }))} />
             </div>
           </div>
           {qrMenuSettings.splash_type && qrMenuSettings.splash_type !== 'none' && qrMenuSettings.splash_url && (
@@ -733,8 +733,8 @@ export function IntegrationsSettingsSection({
             <span>{tx(lang, 'Promo / feedback kuponunu aktiv et', 'Включить promo / coupon за feedback', 'Enable promo / feedback coupon')}</span>
           </label>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Feedback portal URL', 'URL feedback портала', 'Feedback portal URL')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-21" className="field-label">{tx(lang, 'Feedback portal URL', 'URL feedback портала', 'Feedback portal URL')}</label>
+            <input id="setting-integrationssettingssection-21"
               className="neon-input"
               value={feedbackSettings.portal_url}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, portal_url: e.target.value }))}
@@ -752,8 +752,8 @@ export function IntegrationsSettingsSection({
             </div>
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Google review URL', 'URL Google review', 'Google review URL')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-22" className="field-label">{tx(lang, 'Google review URL', 'URL Google review', 'Google review URL')}</label>
+            <input id="setting-integrationssettingssection-22"
               className="neon-input"
               value={feedbackSettings.google_review_url}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, google_review_url: e.target.value }))}
@@ -761,8 +761,8 @@ export function IntegrationsSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Feedback kuponu endirim %', 'Скидка купона feedback %', 'Feedback coupon discount %')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-23" className="field-label">{tx(lang, 'Feedback kuponu endirim %', 'Скидка купона feedback %', 'Feedback coupon discount %')}</label>
+            <input id="setting-integrationssettingssection-23"
               className="neon-input"
               type="number"
               min={1}
@@ -772,32 +772,32 @@ export function IntegrationsSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (AZ)', 'Текст кнопки на чеке (AZ)', 'Receipt button text (AZ)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-24" className="field-label">{tx(lang, 'Çek düyməsi mətni (AZ)', 'Текст кнопки на чеке (AZ)', 'Receipt button text (AZ)')}</label>
+            <input id="setting-integrationssettingssection-24"
               className="neon-input"
               value={feedbackSettings.receipt_button_text_az}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_az: e.target.value }))}
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (RU)', 'Текст кнопки на чеке (RU)', 'Receipt button text (RU)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-25" className="field-label">{tx(lang, 'Çek düyməsi mətni (RU)', 'Текст кнопки на чеке (RU)', 'Receipt button text (RU)')}</label>
+            <input id="setting-integrationssettingssection-25"
               className="neon-input"
               value={feedbackSettings.receipt_button_text_ru}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_ru: e.target.value }))}
             />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (EN)', 'Текст кнопки на чеке (EN)', 'Receipt button text (EN)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-26" className="field-label">{tx(lang, 'Çek düyməsi mətni (EN)', 'Текст кнопки на чеке (EN)', 'Receipt button text (EN)')}</label>
+            <input id="setting-integrationssettingssection-26"
               className="neon-input"
               value={feedbackSettings.receipt_button_text_en}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_en: e.target.value }))}
             />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Çek QR mesajı (AZ)', 'Текст QR на чеке (AZ)', 'Receipt QR message (AZ)')}</label>
-            <textarea
+            <label htmlFor="setting-integrationssettingssection-27" className="field-label">{tx(lang, 'Çek QR mesajı (AZ)', 'Текст QR на чеке (AZ)', 'Receipt QR message (AZ)')}</label>
+            <textarea id="setting-integrationssettingssection-27"
               className="neon-input min-h-[90px]"
               value={feedbackSettings.receipt_qr_prompt_az}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_qr_prompt_az: e.target.value }))}
@@ -846,8 +846,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Başlıq Emojisi', 'Эмодзи заголовка', 'Header Emoji Icon')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-28" className="field-label">{tx(lang, 'Başlıq Emojisi', 'Эмодзи заголовка', 'Header Emoji Icon')}</label>
+            <input id="setting-integrationssettingssection-28"
               className="neon-input"
               value={feedbackSettings.emoji_icon}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, emoji_icon: e.target.value }))}
@@ -856,8 +856,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Fon Qradiyenti (CSS)', 'Градиент фона (CSS)', 'Background Gradient (CSS)')}</label>
-            <select
+            <label htmlFor="setting-integrationssettingssection-29" className="field-label">{tx(lang, 'Fon Qradiyenti (CSS)', 'Градиент фона (CSS)', 'Background Gradient (CSS)')}</label>
+            <select id="setting-integrationssettingssection-29"
               className="neon-input"
               value={
                 ['linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
@@ -885,8 +885,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Fərdi Fon Qradiyenti (CSS Kodu)', 'Свой градиент фона (CSS Код)', 'Custom Background Gradient (CSS Code)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-30" className="field-label">{tx(lang, 'Fərdi Fon Qradiyenti (CSS Kodu)', 'Свой градиент фона (CSS Код)', 'Custom Background Gradient (CSS Code)')}</label>
+            <input id="setting-integrationssettingssection-30"
               className="neon-input"
               value={feedbackSettings.bg_gradient}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, bg_gradient: e.target.value }))}
@@ -900,8 +900,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Google Review üçün minimum ulduz', 'Минимум звезд для Google Review', 'Min stars for Google Review button')}</label>
-            <select
+            <label htmlFor="setting-integrationssettingssection-31" className="field-label">{tx(lang, 'Google Review üçün minimum ulduz', 'Минимум звезд для Google Review', 'Min stars for Google Review button')}</label>
+            <select id="setting-integrationssettingssection-31"
               className="neon-input"
               value={feedbackSettings.min_stars_for_google_review}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, min_stars_for_google_review: Number(e.target.value) }))}
@@ -915,8 +915,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Şərh daxil edilməsi məcburi olan hədd (ulduz)', 'Обязательный комментарий при оценке ниже', 'Mandatory comment rating threshold')}</label>
-            <select
+            <label htmlFor="setting-integrationssettingssection-32" className="field-label">{tx(lang, 'Şərh daxil edilməsi məcburi olan hədd (ulduz)', 'Обязательный комментарий при оценке ниже', 'Mandatory comment rating threshold')}</label>
+            <select id="setting-integrationssettingssection-32"
               className="neon-input"
               value={feedbackSettings.required_comment_threshold}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, required_comment_threshold: Number(e.target.value) }))}
@@ -936,8 +936,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (AZ)', 'Заголовок портала (AZ)', 'Portal Heading (AZ)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-33" className="field-label">{tx(lang, 'Portal Başlığı (AZ)', 'Заголовок портала (AZ)', 'Portal Heading (AZ)')}</label>
+            <input id="setting-integrationssettingssection-33"
               className="neon-input"
               value={feedbackSettings.custom_heading_az}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_az: e.target.value }))}
@@ -945,8 +945,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (AZ)', 'Подзаголовок портала (AZ)', 'Portal Subheading (AZ)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-34" className="field-label">{tx(lang, 'Portal Alt Başlığı (AZ)', 'Подзаголовок портала (AZ)', 'Portal Subheading (AZ)')}</label>
+            <input id="setting-integrationssettingssection-34"
               className="neon-input"
               value={feedbackSettings.custom_subheading_az}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_az: e.target.value }))}
@@ -954,8 +954,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (RU)', 'Заголовок портала (RU)', 'Portal Heading (RU)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-35" className="field-label">{tx(lang, 'Portal Başlığı (RU)', 'Заголовок портала (RU)', 'Portal Heading (RU)')}</label>
+            <input id="setting-integrationssettingssection-35"
               className="neon-input"
               value={feedbackSettings.custom_heading_ru}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_ru: e.target.value }))}
@@ -963,8 +963,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (RU)', 'Подзаголовок портала (RU)', 'Portal Subheading (RU)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-36" className="field-label">{tx(lang, 'Portal Alt Başlığı (RU)', 'Подзаголовок портала (RU)', 'Portal Subheading (RU)')}</label>
+            <input id="setting-integrationssettingssection-36"
               className="neon-input"
               value={feedbackSettings.custom_subheading_ru}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_ru: e.target.value }))}
@@ -972,8 +972,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Başlığı (EN)', 'Заголовок портала (EN)', 'Portal Heading (EN)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-37" className="field-label">{tx(lang, 'Portal Başlığı (EN)', 'Заголовок портала (EN)', 'Portal Heading (EN)')}</label>
+            <input id="setting-integrationssettingssection-37"
               className="neon-input"
               value={feedbackSettings.custom_heading_en}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_en: e.target.value }))}
@@ -981,8 +981,8 @@ export function IntegrationsSettingsSection({
           </div>
 
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (EN)', 'Подзаголовок портала (EN)', 'Portal Subheading (EN)')}</label>
-            <input
+            <label htmlFor="setting-integrationssettingssection-38" className="field-label">{tx(lang, 'Portal Alt Başlığı (EN)', 'Подзаголовок портала (EN)', 'Portal Subheading (EN)')}</label>
+            <input id="setting-integrationssettingssection-38"
               className="neon-input"
               value={feedbackSettings.custom_subheading_en}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_en: e.target.value }))}

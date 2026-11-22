@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Settings as SettingsIcon, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -59,7 +58,7 @@ type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 // Extra search keywords per panel id (multi-language) so the settings search box
 // can match panels beyond their visible titles.
 const settingsSectionKeywords: Record<string, string> = {
-  'sec-profile': 'profil business company şirkət voen vergi fiskal logo receipt qəbz компания профиль налог fiscal vat',
+  'sec-profile': 'VÖEN ƏDV ünvan telefon footer alt mətn profil business company şirkət voen vergi fiskal logo receipt qəbz компания профиль налог fiscal vat',
   'sec-email': 'email resend poçt webhook мэйл письмо',
   'sec-delivery': 'bolt wolt çatdırılma delivery интеграция mapping xəritə webhook menyu',
   'sec-print': 'çap printer yazıcı kassa mətbəx escpos qz tray agent check тест',
@@ -91,6 +90,11 @@ export default function SettingsPanel() {
   const { user, lang, notify } = useAppStore();
   const tenantId = user?.tenant_id || 'tenant_default';
   const currentRole = String(user?.role || '').toLowerCase();
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadedTenant, setLoadedTenant] = useState('');
+  const loadVersion = useRef(0);
+  const canEdit = loadState === 'ready' && loadedTenant === tenantId;
+
 
   const [successMsg, setSuccessMsg] = useState('');
   const [panelSuccess, setPanelSuccess] = useState<Record<string, string>>({});
@@ -324,7 +328,15 @@ export default function SettingsPanel() {
   const currentPasswordUser = users.find((u) => u.username === user?.username);
   const totpEnabled = Boolean(currentPasswordUser?.two_factor_enabled);
 
+  const saveSections: Record<string,string> = {business_profile:'sec-profile',email:'sec-email',print:'sec-print',zreport_receipt:'sec-zreport',table_service:'sec-tables',beverage:'sec-beverage',bank:'sec-bankfee',finance_policy:'sec-finance',yield:'sec-yield',session:'sec-security',staff_benefits:'sec-staff',qr_menu:'sec-qr',feedback:'sec-feedback',role_modules:'sec-roles',ai:'sec-ai',delivery_integrations:'sec-delivery'};
+  const savingDrafts = useRef<Record<string,any>>({});
   const flashSuccess = (message: string, panelKey?: string) => {
+    if(panelKey && saveSections[panelKey]) {
+      const id=saveSections[panelKey];
+      confirmBaseline(id,savingDrafts.current[panelKey] ?? draftRef.current[id]);
+      delete savingDrafts.current[panelKey];
+    }
+
     setSuccessMsg(message);
     if (panelKey) {
       setPanelSuccess((prev) => ({ ...prev, [panelKey]: message }));
@@ -343,6 +355,8 @@ export default function SettingsPanel() {
 
   // Standard panel save wrapper: success flash on resolve, error toast on reject, per-panel busy state.
   const runPanelSave = async (panelKey: string, action: () => Promise<void>) => {
+    if (!canEdit || savingPanels[panelKey]) return;
+    savingDrafts.current[panelKey]=JSON.parse(JSON.stringify(draftRef.current[saveSections[panelKey]] ?? null));
     setSavingPanels((prev) => ({ ...prev, [panelKey]: true }));
     try {
       await action();
@@ -365,7 +379,7 @@ export default function SettingsPanel() {
       disabled={Boolean(savingPanels[panelKey])}
       className={saveButtonClass + (savingPanels[panelKey] ? ' opacity-60' : '')}
     >
-      {label}
+      {savingPanels[panelKey] ? tx(lang,'Saxlanılır…','Сохранение…','Saving…') : label}
     </button>
   );
   const renderPanelSuccess = (panelKey: string) =>
@@ -377,11 +391,21 @@ export default function SettingsPanel() {
   const saveButtonClass = 'glossy-gold rounded-xl px-6 py-2 font-bold transition-transform duration-100 active:translate-y-px active:scale-[0.98]';
 
   const loadData = async () => {
+    const version = ++loadVersion.current;
+    setLoadState('loading');
+
     const [profileRes, usersRes, settingsRes] = await Promise.allSettled([
       get_business_profile_live(tenantId),
-      get_users_live(tenantId),
-      get_settings_live(tenantId),
+      ['admin','super_admin'].includes(currentRole) ? get_users_live(tenantId) : Promise.resolve([]),
+      get_settings_live(tenantId, {requireFresh:true}),
     ]);
+    if (version !== loadVersion.current) return;
+    if (profileRes.status !== 'fulfilled' || usersRes.status !== 'fulfilled' || settingsRes.status !== 'fulfilled') {
+      setLoadState('error');
+      return;
+    }
+    setLoadedTenant(tenantId);
+    setLoadState('ready');
     void get_menu_items_live(tenantId).then(setMenuCatalog).catch(() => setMenuCatalog([]));
     void get_inventory_items_live(tenantId).then(setInventoryCatalog).catch(() => setInventoryCatalog([]));
     setDeliveryMenuMappingsLoading(true);
@@ -398,12 +422,12 @@ export default function SettingsPanel() {
       };
       setProfile(nextProfile);
     } else {
-      notify('error', profileRes.reason?.message || tx(lang, 'Biznes profili yüklənmədi', 'Не удалось загрузить профиль бизнеса', 'Failed to load business profile'));
+      notify('error', (profileRes as any).reason?.message || tx(lang, 'Biznes profili yüklənmədi', 'Не удалось загрузить профиль бизнеса', 'Failed to load business profile'));
     }
     if (usersRes.status === 'fulfilled') {
       setUsers(usersRes.value);
     } else {
-      notify('error', usersRes.reason?.message || tx(lang, 'İstifadəçiləri yükləmək alınmadı', 'Не удалось загрузить пользователей', 'Failed to load users'));
+      notify('error', (usersRes as any).reason?.message || tx(lang, 'İstifadəçiləri yükləmək alınmadı', 'Не удалось загрузить пользователей', 'Failed to load users'));
     }
     if (settingsLoaded) {
       const profileWebsite =
@@ -589,12 +613,13 @@ export default function SettingsPanel() {
       });
       void checkPrintAgentStatus();
     } else {
-      notify('error', settingsRes.reason?.message || tx(lang, 'Ayarlar yüklənmədi. Saxlamazdan əvvəl səhifəni yeniləyin — əks halda standart dəyərlər yaza bilər.', 'Не удалось загрузить настройки. Обновите страницу перед сохранением — иначе могут записаться значения по умолчанию.', 'Failed to load settings. Reload the page before saving — otherwise default values may be written.'));
+      notify('error', (settingsRes as any).reason?.message || tx(lang, 'Ayarlar yüklənmədi. Saxlamazdan əvvəl səhifəni yeniləyin — əks halda standart dəyərlər yaza bilər.', 'Не удалось загрузить настройки. Обновите страницу перед сохранением — иначе могут записаться значения по умолчанию.', 'Failed to load settings. Reload the page before saving — otherwise default values may be written.'));
     }
   };
 
   useEffect(() => {
     void loadData();
+    return () => { loadVersion.current++; };
   }, [tenantId, user?.username]);
 
   useEffect(() => {
@@ -662,18 +687,18 @@ export default function SettingsPanel() {
       nka_registration_no: profile.nka_registration_no,
       fiscal_enabled: profile.fiscal_enabled === true,
     }, user?.username || 'admin');
-    await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
+    try { await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() }); }
+    catch { throw new Error(tx(lang,'Biznes məlumatları saxlandı, amma QR ünvanı saxlanmadı. QR ünvanını yenidən yoxlayın.','Профиль сохранён, но QR-адрес не сохранён.','Business profile saved, but QR address failed. Check and retry the QR address.')); }
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'), 'business_profile');
   });
 
-  const saveSessionSettings = async () => {
+  const saveSessionSettings = () => runPanelSave('session', async () => {
+    if (!canEdit) return;
+    savingDrafts.current['session']=JSON.parse(JSON.stringify(draftRef.current[saveSections['session']] ?? null));
     try {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
         staff_pin_length: sessionSettings.staff_pin_length,
-        theme_mode: sessionSettings.theme_mode,
-        ui_mode: 'old',
         login_background_url: sessionSettings.login_background_url || '',
         device_authorization_enabled: sessionSettings.device_authorization_enabled === true,
       });
@@ -682,64 +707,35 @@ export default function SettingsPanel() {
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Sessiya ayarları saxlanmadı', 'Настройки сессии не сохранены', 'Session settings were not saved'));
     }
-  };
+  });
 
   const toggleVirtualKeyboard = async (nextEnabled: boolean) => {
-    setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: nextEnabled }));
+    if(!canEdit)return;
+    const previous=sessionSettings.virtual_keyboard_enabled;
+    setSessionSettings(prev=>({...prev,virtual_keyboard_enabled:nextEnabled}));
     try {
-      await update_session_settings_live({
-        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-        virtual_keyboard_enabled: nextEnabled,
-        staff_pin_length: sessionSettings.staff_pin_length,
-        theme_mode: sessionSettings.theme_mode,
-        ui_mode: 'old',
-        login_background_url: sessionSettings.login_background_url || '',
-      });
-      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-      flashSuccess(
-        nextEnabled
-          ? tx(lang, 'Virtual klaviatura aktiv edildi', 'Виртуальная клавиатура включена', 'Virtual keyboard enabled')
-          : tx(lang, 'Virtual klaviatura söndürüldü', 'Виртуальная клавиатура отключена', 'Virtual keyboard disabled'),
-      );
-    } catch (e: any) {
-      setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: !nextEnabled }));
-      notify('error', e?.message || tx(lang, 'Virtual klaviatura ayarı saxlanmadı', 'Настройка виртуальной клавиатуры не сохранена', 'Virtual keyboard setting was not saved'));
+      await update_session_settings_live({virtual_keyboard_enabled:nextEnabled});
+      window.dispatchEvent(new CustomEvent('settings-updated',{detail:{tenant_id:tenantId}}));
+      flashSuccess(tx(lang,'Klaviatura seçimi saxlandı','Настройка клавиатуры сохранена','Keyboard preference saved'));
+    } catch(e:any) {
+      setSessionSettings(prev=>({...prev,virtual_keyboard_enabled:previous}));
+      notify('error',e?.message || 'Klaviatura seçimi saxlanmadı');
     }
   };
-
   const changeThemeMode = async (nextMode: 'dark' | 'light') => {
-    if (sessionSettings.theme_mode === nextMode) return;
-    const previous = sessionSettings.theme_mode;
-    setSessionSettings((prev) => ({ ...prev, theme_mode: nextMode }));
-    document.documentElement.setAttribute('data-theme', nextMode);
-    document.documentElement.style.colorScheme = nextMode;
+    if(!canEdit || sessionSettings.theme_mode===nextMode)return;
+    const previous=sessionSettings.theme_mode;
+    setSessionSettings(prev=>({...prev,theme_mode:nextMode}));
+    document.documentElement.setAttribute('data-theme',nextMode);
     try {
-      localStorage.setItem('iw_theme_mode', nextMode);
-    } catch {}
-    try {
-      await update_session_settings_live({
-        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
-        staff_pin_length: sessionSettings.staff_pin_length,
-        theme_mode: nextMode,
-        ui_mode: (sessionSettings as any)?.ui_mode || 'old',
-        tables_ui_mode: (sessionSettings as any)?.tables_ui_mode || 'classic',
-        login_background_url: sessionSettings.login_background_url || '',
-      } as any);
-      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-      flashSuccess(
-        nextMode === 'light'
-          ? tx(lang, 'Light rejim aktiv edildi', 'Светлая тема включена', 'Light mode enabled')
-          : tx(lang, 'Dark rejim aktiv edildi', 'Тёмная тема включена', 'Dark mode enabled'),
-      );
-    } catch (e: any) {
-      setSessionSettings((prev) => ({ ...prev, theme_mode: previous }));
-      document.documentElement.setAttribute('data-theme', previous);
-      document.documentElement.style.colorScheme = previous;
-      try {
-        localStorage.setItem('iw_theme_mode', previous);
-      } catch {}
-      notify('error', e?.message || tx(lang, 'Tema ayarı saxlanmadı', 'Настройка темы не сохранена', 'Theme setting was not saved'));
+      await update_session_settings_live({theme_mode:nextMode});
+      localStorage.setItem('iw_theme_mode',nextMode);
+      window.dispatchEvent(new CustomEvent('settings-updated',{detail:{tenant_id:tenantId}}));
+      flashSuccess(tx(lang,'Görünüş seçimi saxlandı','Тема сохранена','Theme preference saved'));
+    } catch(e:any) {
+      setSessionSettings(prev=>({...prev,theme_mode:previous}));
+      document.documentElement.setAttribute('data-theme',previous);
+      notify('error',e?.message || 'Görünüş seçimi saxlanmadı');
     }
   };
 
@@ -952,7 +948,9 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
   });
 
-  const saveDeliveryIntegrations = async () => {
+  const saveDeliveryIntegrations = () => runPanelSave('delivery_integrations', async () => {
+    if (!canEdit) return;
+    savingDrafts.current['delivery_integrations']=JSON.parse(JSON.stringify(draftRef.current[saveSections['delivery_integrations']] ?? null));
     try {
       await update_delivery_integrations_live({
         bolt_food_enabled: deliveryIntegrations.bolt_food_enabled,
@@ -970,9 +968,11 @@ export default function SettingsPanel() {
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'İnteqrasiyaları yadda saxlamaq mümkün olmadı', 'Не удалось сохранить интеграции', 'Failed to save integrations'));
     }
-  };
+  });
 
-  const savePrintSettings = async () => {
+  const savePrintSettings = () => runPanelSave('print', async () => {
+    if (!canEdit) return;
+    savingDrafts.current['print']=JSON.parse(JSON.stringify(draftRef.current[saveSections['print']] ?? null));
     try {
       await update_print_settings_live({
         use_qz: printSettings.use_qz,
@@ -988,7 +988,7 @@ export default function SettingsPanel() {
     } catch {
       notify('error', tx(lang, 'Çap ayarlarını yadda saxlamaq mümkün olmadı', 'Не удалось сохранить настройки печати', 'Failed to save print settings'));
     }
-  };
+  });
 
   const handleTestPrint = async (type: 'cashier' | 'kitchen') => {
     setTestingPrint(type);
@@ -1395,10 +1395,11 @@ export default function SettingsPanel() {
     await update_service_fee_live({
       service_fee_percent: Number(tableServiceSettings.service_fee_percent || 0),
     });
-    await update_table_service_settings_live({
+    try { await update_table_service_settings_live({
       deposit_per_guest_azn: Number(tableServiceSettings.deposit_per_guest_azn || 0),
       reservation_lock_hours: Number(tableServiceSettings.reservation_lock_hours || 0),
-    });
+    }); }
+    catch { throw new Error(tx(lang,'Servis haqqı saxlandı, amma depozit və rezerv qaydaları saxlanmadı. Yenidən yoxlayın.','Сервисный сбор сохранён, но депозит и резерв не сохранены.','Service fee saved, but deposit and reservation settings failed. Check and retry.')); }
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'), 'table_service');
   });
 
@@ -1440,29 +1441,24 @@ export default function SettingsPanel() {
 
 
 
-  const saveAiApiKey = async () => {
+  const saveAiApiKey = () => runPanelSave('ai', async () => {
+    if (!canEdit) return;
+    savingDrafts.current['ai']=JSON.parse(JSON.stringify(draftRef.current[saveSections['ai']] ?? null));
     try {
-      writeScopedStorage('gemini_api_key', aiApiKey);
       await update_api_key_live(aiApiKey, {});
+      writeScopedStorage('gemini_api_key', aiApiKey);
       flashSuccess(tx(lang, 'AI API Key yadda saxlanıldı', 'AI API Key сохранён', 'AI API Key saved'), 'ai');
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'AI API Key saxlanmadı', 'AI API Key не сохранён', 'AI API Key was not saved'));
     }
-  };
+  });
 
   const saveTablesUiMode = async (mode: 'classic' | 'modern') => {
+    if (!canEdit) return;
     setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
     try { localStorage.setItem('iw_tables_ui_mode', mode); localStorage.setItem('iw_pos_ui_mode', mode); } catch {}
     try {
-      await update_session_settings_live({
-        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
-        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
-        staff_pin_length: sessionSettings.staff_pin_length,
-        theme_mode: sessionSettings.theme_mode,
-        ui_mode: 'old',
-        tables_ui_mode: mode,
-        login_background_url: sessionSettings.login_background_url || '',
-      } as any);
+      await update_session_settings_live({ tables_ui_mode: mode } as any);
       notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
     } catch (e: any) {
@@ -1493,17 +1489,17 @@ export default function SettingsPanel() {
     { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface'), cat: 'interface' },
     { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables'), cat: 'operations' },
     { id: 'sec-beverage', label: tx(lang, 'İçkilər', 'Напитки', 'Beverage'), cat: 'operations' },
-    { id: 'sec-bankfee', label: tx(lang, 'Bank Faiz', 'Банк комиссии', 'Bank Fees'), cat: 'finance' },
+    { id: 'sec-bankfee', label: tx(lang, 'Bank komissiyaları', 'Банк комиссии', 'Bank Fees'), cat: 'finance' },
     { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance'), cat: 'finance' },
-    { id: 'sec-yield', label: tx(lang, 'Yield', 'Yield', 'Yield'), cat: 'finance' },
+    { id: 'sec-yield', label: tx(lang, 'Hazırlanma itkisi', 'Потери приготовления', 'Preparation loss'), cat: 'finance' },
     { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security'), cat: 'security' },
-    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff'), cat: 'operations' },
-    { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback'), cat: 'integrations' },
-    { id: 'sec-feedback', label: tx(lang, 'Feedback Portal', 'Портал отзывов', 'Feedback Portal'), cat: 'integrations' },
+    { id: 'sec-staff', label: tx(lang, 'Əməkdaş yemək limiti', 'Лимиты сотрудников', 'Staff meal limits'), cat: 'operations' },
+    { id: 'sec-qr', label: tx(lang, 'QR menyu', 'QR & Отзывы', 'QR & Feedback'), cat: 'integrations' },
+    { id: 'sec-feedback', label: tx(lang, 'Müştəri rəyləri', 'Портал отзывов', 'Feedback Portal'), cat: 'integrations' },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles'), cat: 'security' },
     { id: 'sec-password', label: tx(lang, 'Şifrə/2FA', 'Пароль/2FA', 'Password/2FA'), cat: 'security' },
     { id: 'sec-users', label: tx(lang, 'İstifadəçilər', 'Пользователи', 'Users'), cat: 'security' },
-    { id: 'sec-danger', label: tx(lang, 'Təhlükəli', 'Опасные', 'Danger'), cat: 'security' },
+    { id: 'sec-danger', label: tx(lang, 'Məlumatların silinməsi', 'Опасные', 'Danger'), cat: 'security' },
     { id: 'sec-ai', label: tx(lang, 'AI & Resept', 'AI & Рецепты', 'AI & Recipes'), cat: 'ai' },
   ];
 
@@ -1519,115 +1515,103 @@ export default function SettingsPanel() {
   ];
 
   const [activeSettingsCategory, setActiveSettingsCategory] = useState('general');
+  const [selectedSection, setSelectedSection] = useState('sec-profile');
   const [settingsSearch, setSettingsSearch] = useState('');
+  const admin = ['admin','super_admin'].includes(currentRole);
+  const availableSections = settingsSections.filter(sec => admin || !['sec-security','sec-staff','sec-roles','sec-password','sec-users','sec-danger'].includes(sec.id));
+  const query = settingsSearch.trim().toLocaleLowerCase();
+  const matchingSections = availableSections.filter(sec => {
+    if (!query) return sec.cat === activeSettingsCategory;
+    const aliases: Record<string,string> = {
+      'sec-profile':'VÖEN ƏDV vergi ünvan telefon sayt çek alt yazı',
+      'sec-staff':'günlük limit kofe əməkdaş yemək güzəşt',
+      'sec-tables':'servis haqqı depozit nəfər rezerv saat',
+      'sec-print':'kağız eni 58 80 printer quraşdırma agent test',
+      'sec-security':'avtomatik çıxış dəqiqə pin fon cihaz təsdiqi',
+    };
+    return query.split(/\s+/).every(term => `${sec.label} ${settingsSectionKeywords[sec.id] || ''} ${aliases[sec.id] || ''}`.toLocaleLowerCase().includes(term));
+  });
+  const selectCategory = (category: string) => {
+    setSettingsSearch(''); setActiveSettingsCategory(category);
+    const first=availableSections.find(sec=>sec.cat===category);
+    if(first)setSelectedSection(first.id);
+  };
+  const activeSection = availableSections.find(sec=>sec.id===selectedSection);
 
-  // Non-empty search overrides the category filter and matches across ALL panels
-  // (localized title + extra multi-language keywords per panel).
-  const searchMatchIds = useMemo(() => {
-    const terms = settingsSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return null;
-    return settingsSections
-      .filter((sec) => {
-        const haystack = `${sec.label} ${settingsSectionKeywords[sec.id] || ''}`.toLowerCase();
-        return terms.every((term) => haystack.includes(term));
-      })
-      .map((s) => s.id);
-  }, [settingsSearch, lang]);
-
-  // Toggle section visibility via DOM when category or search changes
-  useEffect(() => {
-    const visibleIds = searchMatchIds
-      ? searchMatchIds
-      : activeSettingsCategory === 'all'
-        ? settingsSections.map((s) => s.id)
-        : settingsSections.filter((s) => s.cat === activeSettingsCategory).map((s) => s.id);
-    const visibleSet = new Set(visibleIds);
-    settingsSections.forEach((sec) => {
-      const el = document.getElementById(sec.id);
-      if (el) el.style.display = visibleSet.has(sec.id) ? '' : 'none';
-    });
-  }, [activeSettingsCategory, searchMatchIds]);
-
-  // Jump to the first matching panel as the search query changes.
-  const lastScrolledQueryRef = useRef('');
-  useEffect(() => {
-    if (!searchMatchIds) {
-      lastScrolledQueryRef.current = '';
-      return;
-    }
-    if (searchMatchIds.length === 0 || lastScrolledQueryRef.current === settingsSearch) return;
-    lastScrolledQueryRef.current = settingsSearch;
-    const first = document.getElementById(searchMatchIds[0]);
-    if (first) {
-      first.style.scrollMarginTop = '96px'; // keep the sticky header from covering the panel
-      first.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [settingsSearch, searchMatchIds]);
+  // Compare each form against its own confirmed baseline. Drafts survive navigation.
+  const draftStates: Record<string,any> = {
+    'sec-profile':profile,'sec-email':emailSettings,'sec-print':printSettings,
+    'sec-zreport':zReportReceiptSettings,'sec-tables':tableServiceSettings,
+    'sec-beverage':beverageServiceSettings,'sec-bankfee':bankCommission,
+    'sec-finance':financePolicy,'sec-yield':yieldManagement,'sec-security':{
+      idle_logout_minutes:sessionSettings.idle_logout_minutes,staff_pin_length:sessionSettings.staff_pin_length,
+      login_background_url:sessionSettings.login_background_url,device_authorization_enabled:sessionSettings.device_authorization_enabled,
+    },'sec-staff':staffBenefits,'sec-qr':qrMenuSettings,'sec-feedback':feedbackSettings,'sec-roles':roleModules,
+    'sec-ai':aiApiKey,
+  };
+  const draftSetters: Record<string,(value:any)=>void> = {
+    'sec-profile':setProfile,'sec-email':setEmailSettings,'sec-print':setPrintSettings,
+    'sec-zreport':setZReportReceiptSettings,'sec-tables':setTableServiceSettings,
+    'sec-beverage':setBeverageServiceSettings,'sec-bankfee':setBankCommission,
+    'sec-finance':setFinancePolicy,'sec-yield':setYieldManagement,
+    'sec-security':value=>setSessionSettings(prev=>({...prev,...value})),
+    'sec-staff':setStaffBenefits,'sec-qr':setQrMenuSettings,'sec-feedback':setFeedbackSettings,
+    'sec-roles':setRoleModules,'sec-ai':setAiApiKey,
+  };
+  const baselineRef = useRef<Record<string,string>>({});
+  const [,setBaselineVersion]=useState(0);
+  useEffect(()=>{
+    if(!canEdit)return;
+    baselineRef.current=Object.fromEntries(Object.entries(draftStates).map(([id,value])=>[id,JSON.stringify(value)]));
+    setBaselineVersion(v=>v+1);
+  },[loadedTenant,loadState]);
+  const dirtySections=Object.entries(draftStates).filter(([id,value])=>baselineRef.current[id]!==undefined && baselineRef.current[id]!==JSON.stringify(value)).map(([id])=>id);
+  const dirtyRef=useRef(dirtySections);dirtyRef.current=dirtySections;
+  const draftRef=useRef(draftStates);draftRef.current=draftStates;
+  const confirmBaseline=(id:string,value:any)=>{
+    baselineRef.current[id]=JSON.stringify(value);setBaselineVersion(v=>v+1);
+  };
+  useEffect(()=>{
+    const warn=(event:BeforeUnloadEvent)=>{if(dirtyRef.current.length){event.preventDefault();event.returnValue='';}};
+    window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
+  },[]);
+  useEffect(()=>{
+    return()=>{if(dirtyRef.current.length)notify('error',tx(lang,'Ayarlar bölməsində saxlanmamış dəyişikliklər var idi.','Остались несохранённые настройки.','There were unsaved settings changes.'));};
+  },[]);
 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Category Tab Strip + Search — mobile + desktop friendly */}
-      <div className="sticky top-0 z-20 rounded-2xl border border-slate-700/60 bg-slate-950/80 backdrop-blur-xl p-2">
-        <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-950/60 px-3">
-          <Search className="shrink-0 text-slate-500" size={16} />
-          <input
-            type="text"
-            value={settingsSearch}
-            onChange={(e) => setSettingsSearch(e.target.value)}
-            placeholder={tx(lang, 'Ayarlar arasında axtar...', 'Поиск по настройкам...', 'Search settings...')}
-            className="w-full bg-transparent py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
-          />
-          {settingsSearch ? (
-            <button
-              type="button"
-              onClick={() => setSettingsSearch('')}
-              className="shrink-0 rounded-lg p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
-              aria-label={tx(lang, 'Axtarışı təmizlə', 'Очистить поиск', 'Clear search')}
-            >
-              <X size={16} />
-            </button>
-          ) : null}
+      <header className="metal-panel p-5">
+        <h1 className="text-2xl font-bold">{tx(lang,'Ayarlar','Настройки','Settings')}</h1>
+        <p className="mt-1 text-sm text-slate-400">{tx(lang,'Nəyi dəyişmək istəyirsiniz? Bölmə seçin, sonra həmin bölməni saxlayın.','Выберите раздел и сохраните его настройки.','Choose a section, then save that section.')}</p>
+        {dirtySections.length>0 && <p role="status" className="mt-2 text-amber-300">{dirtySections.length} {tx(lang,'bölmədə saxlanmamış dəyişiklik var','разделов с изменениями','sections have unsaved changes')}</p>}
+        {successMsg && <p role="status" className="mt-2 text-emerald-300">{successMsg}</p>}
+      </header>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside className="metal-panel min-w-0 self-start p-3 lg:sticky lg:top-3">
+        <label htmlFor="settings-search" className="mb-1 block text-sm font-semibold">{tx(lang,'Ayar axtar','Поиск настроек','Find a setting')}</label>
+        <input id="settings-search" className="neon-input w-full" value={settingsSearch} onChange={event=>setSettingsSearch(event.target.value)} placeholder={tx(lang,'Məsələn: VÖEN, printer…','Например: принтер…','For example: printer…')} />
+        {query && <button type="button" className="mt-2 text-sm text-cyan-300" onClick={()=>setSettingsSearch('')}>{tx(lang,'Axtarışı təmizlə','Очистить поиск','Clear search')}</button>}
+        <nav aria-label={tx(lang,'Ayarlar bölmələri','Разделы настроек','Settings sections')} className="mt-3 flex flex-wrap gap-2 lg:flex-col">
+          {settingsCategories.filter(cat=>cat.id!=='all').map(cat=><button type="button" key={cat.id} aria-current={!query && cat.id===activeSettingsCategory?'page':undefined} onClick={()=>selectCategory(cat.id)} className={`min-h-11 shrink-0 rounded-xl px-3 py-2 text-left text-sm ${!query && activeSettingsCategory===cat.id?'bg-cyan-500/20 text-cyan-100':'text-slate-300 hover:bg-slate-800'}`}>{cat.label}</button>)}
+        </nav>
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-700 pt-3 lg:flex-col" aria-label={tx(lang,'Alt bölmələr','Подразделы','Subsections')}>
+          {matchingSections.map(sec=><button type="button" key={sec.id} onClick={()=>{setSelectedSection(sec.id);setActiveSettingsCategory(sec.cat);setSettingsSearch('');}} aria-current={selectedSection===sec.id?'true':undefined} className={`min-h-11 rounded-lg px-3 py-2 text-left text-sm ${selectedSection===sec.id?'bg-slate-700 text-white':'text-slate-300 hover:bg-slate-800'}`}>{sec.label}{dirtySections.includes(sec.id)?' •':''}</button>)}
+          {!matchingSections.length && <p role="status" className="text-sm text-slate-400">{tx(lang,'Uyğun ayar tapılmadı. Başqa sözlə sınayın.','Настройка не найдена.','No setting found. Try another term.')}</p>}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label={tx(lang, 'Ayarlar kateqoriyaları', 'Категории настроек', 'Settings categories')} style={{ scrollbarWidth: 'none' }}>
-          {settingsCategories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              role="tab"
-              aria-selected={activeSettingsCategory === cat.id}
-              onClick={() => setActiveSettingsCategory(cat.id)}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition active:scale-95 ${
-                activeSettingsCategory === cat.id
-                  ? 'bg-cyan-400/20 border-2 border-cyan-400/50 text-cyan-100 shadow-md shadow-cyan-500/10'
-                  : 'border-2 border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-              }`}
-            >
-              <span className="text-base">{cat.icon}</span>
-              <span className="hidden sm:inline">{cat.label}</span>
-            </button>
-          ))}
+      </aside>
+      <main className="min-w-0">
+        {loadState!=='ready' || loadedTenant!==tenantId ? <div role="status" className="metal-panel mb-4 p-5">
+          <p>{loadState==='error'?tx(lang,'Mövcud ayarlar yüklənmədi. Təhlükəsizlik üçün redaktə bağlıdır.','Не удалось загрузить настройки. Изменения заблокированы.','Settings could not be loaded. Editing is blocked.'):tx(lang,'Mövcud ayarlar yüklənir…','Загрузка настроек…','Loading current settings…')}</p>
+          {loadState==='error' && <button type="button" className="neon-btn mt-3 px-4 py-2" onClick={()=>void loadData()}>{tx(lang,'Yenidən yoxla','Повторить','Retry')}</button>}
+        </div>:null}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-400">{activeSection?.label}</p>
+          {dirtySections.includes(selectedSection) && <button type="button" disabled={!canEdit || Object.values(savingPanels).some(Boolean)} onClick={()=>draftSetters[selectedSection]?.(JSON.parse(baselineRef.current[selectedSection]))} className="neon-btn px-3 py-2 text-sm">{tx(lang,'Bu bölmədəki dəyişiklikləri geri al','Отменить изменения раздела','Discard section changes')}</button>}
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="min-w-0 flex-1 space-y-6">
-      {searchMatchIds && searchMatchIds.length === 0 ? (
-        <div className="metal-panel p-6 text-sm text-slate-400">
-          {tx(lang, 'Bu sorğuya uyğun ayar tapılmadı.', 'По этому запросу ничего не найдено.', 'No settings match this query.')}
-        </div>
-      ) : null}
-      <div className="metal-panel overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-slate-700/70 p-6">
-          <SettingsIcon className="text-cyan-300" size={22} />
-          <div>
-            <h1 className="text-2xl font-black tracking-wide text-slate-100">{tx(lang, 'Ayarlar', 'Настройки', 'Settings')}</h1>
-            <p className="text-xs text-slate-400">{tenantId}</p>
-          </div>
-        </div>
-        {successMsg ? <div className="border-b border-emerald-400/20 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-200">{successMsg}</div> : null}
-      </div>
-
+        <style>{`.settings-content [id^="sec-"]{display:none}.settings-content #${selectedSection}{display:block}`}</style>
+        <fieldset disabled={!canEdit || Object.values(savingPanels).some(Boolean)} aria-busy={!canEdit || Object.values(savingPanels).some(Boolean)} className="settings-content w-full min-w-0 space-y-4 disabled:opacity-60">
       <BusinessProfileSection
         lang={lang}
         notify={notify}
@@ -1832,7 +1816,9 @@ export default function SettingsPanel() {
         menuCatalog={menuCatalog}
         inventoryCatalog={inventoryCatalog}
       />
-    </div>
+        </fieldset>
+      </main>
+      </div>
     </div>
   );
 }

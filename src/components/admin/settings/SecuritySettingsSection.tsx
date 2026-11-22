@@ -422,7 +422,7 @@ export function SecuritySettingsSection({
                   onChange={(e) => setSessionSettings((prev) => ({ ...prev, login_background_url: e.target.value }))}
                 />
               </label>
-              
+
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-400">{tx(lang, 'və ya', 'или', 'or')}</span>
                 <label className="cursor-pointer text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors underline decoration-dotted">
@@ -451,7 +451,7 @@ export function SecuritySettingsSection({
                 </label>
               </div>
             </div>
-            
+
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-900/40 p-3 min-h-[120px] relative overflow-hidden">
               {sessionSettings.login_background_url ? (
                 <>
@@ -494,7 +494,7 @@ export function SecuritySettingsSection({
 
       {/* sec-staff: Staff Benefits */}
       <div id="sec-staff" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Staff Limit Ayarları', 'Настройки лимита staff', 'Staff Benefit Settings')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Əməkdaş yemək limiti', 'Настройки лимита staff', 'Staff Benefit Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
             lang,
@@ -504,7 +504,7 @@ export function SecuritySettingsSection({
           )}
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input
+          <label className="field-stack"><span className="field-label">{tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}</span><input
             className="neon-input md:col-span-2"
             type="number"
             min={0}
@@ -512,8 +512,8 @@ export function SecuritySettingsSection({
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, daily_limit_azn: e.target.value }))}
             placeholder={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
             aria-label={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
-          />
-          <input
+          /></label>
+          <label className="field-stack"><span className="field-label">{tx(lang, 'Kofe üçün maksimum güzəşt (AZN)', 'Лимит скидки на кофе (AZN)', 'Maximum coffee benefit (AZN)')}</span><input
             className="neon-input"
             type="number"
             min={0}
@@ -521,8 +521,8 @@ export function SecuritySettingsSection({
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, coffee_unit_cap_azn: e.target.value }))}
             placeholder={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
             aria-label={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
-          />
-          <input
+          /></label>
+          <label className="field-stack"><span className="field-label">{tx(lang, 'Digər məhsullar üçün maksimum güzəşt (AZN)', 'Лимит прочих скидок (AZN)', 'Maximum other benefit (AZN)')}</span><input
             className="neon-input"
             type="number"
             min={0}
@@ -530,7 +530,7 @@ export function SecuritySettingsSection({
             onChange={(e) => setStaffBenefits((prev) => ({ ...prev, other_unit_cap_azn: e.target.value }))}
             placeholder={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
             aria-label={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
-          />
+          /></label>
           <select
             className="neon-input md:col-span-2"
             value={staffBenefits.allowed_scope}
@@ -856,7 +856,7 @@ export function SecuritySettingsSection({
                 onClick={() => setResetModalOpen(true)}
                 className="rounded-xl border border-red-400/50 px-6 py-2 font-bold text-red-200 hover:bg-red-500/10"
               >
-                {tx(lang, 'Bütün sistemi sıfırla', 'Сбросить систему', 'Reset entire system')}
+                {tx(lang, 'Bu müəssisənin iş məlumatlarını sil', 'Сбросить систему', 'Reset entire system')}
               </button>
             </div>
           </div>
@@ -865,7 +865,7 @@ export function SecuritySettingsSection({
       {resetModalOpen ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Bütün sistemi sıfırla', 'Сбросить всю систему', 'Reset entire system')}</h3>
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Bu müəssisənin iş məlumatlarını sil', 'Сбросить всю систему', 'Reset entire system')}</h3>
             <p className="mt-2 text-sm text-slate-300">
               {tx(
                 lang,

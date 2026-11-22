@@ -27,10 +27,10 @@ export function BusinessProfileSection({
       </h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-1" className="field-label">
             {tx(lang, 'Şirkət adı', 'Название компании', 'Company name')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-1"
             className="neon-input"
             value={profile?.company_name || ''}
             onChange={(e) =>
@@ -39,10 +39,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-2" className="field-label">
             {tx(lang, 'VÖEN', 'ВÖEN (ИНН)', 'VÖEN (TIN)')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-2"
             className="neon-input"
             value={profile?.voen || ''}
             onChange={(e) =>
@@ -51,10 +51,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-3" className="field-label">
             {tx(lang, 'Telefon', 'Телефон', 'Phone')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-3"
             className="neon-input"
             value={profile?.phone || ''}
             onChange={(e) =>
@@ -63,10 +63,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-4" className="field-label">
             {tx(lang, 'Ünvan', 'Адрес', 'Address')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-4"
             className="neon-input"
             value={profile?.address || ''}
             onChange={(e) =>
@@ -75,10 +75,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-5" className="field-label">
             {tx(lang, 'Website', 'Сайт', 'Website')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-5"
             className="neon-input"
             value={profile?.website || ''}
             onChange={(e) =>
@@ -87,10 +87,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-6" className="field-label">
             {tx(lang, 'QR Base URL', 'QR Base URL', 'QR Base URL')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-6"
             className="neon-input"
             value={profile?.qr_base_url || ''}
             onChange={(e) =>
@@ -99,10 +99,10 @@ export function BusinessProfileSection({
           />
         </div>
         <div className="field-stack form-card md:col-span-2">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-7" className="field-label">
             {tx(lang, 'Qəbz alt mətni', 'Текст внизу чека', 'Receipt footer')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-7"
             className="neon-input"
             value={profile?.receipt_footer || ''}
             onChange={(e) =>
@@ -116,10 +116,10 @@ export function BusinessProfileSection({
           </h3>
         </div>
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-8" className="field-label">
             {tx(lang, 'Vergi rejimi', 'Налоговый режим', 'Tax regime')}
           </label>
-          <select
+          <select id="setting-businessprofilesection-8"
             className="neon-input"
             value={profile?.tax_regime || 'simplified'}
             onChange={(e) =>
@@ -136,10 +136,10 @@ export function BusinessProfileSection({
         </div>
         {profile?.tax_regime === 'vat' && (
           <div className="field-stack form-card">
-            <label className="field-label">
+            <label htmlFor="setting-businessprofilesection-9" className="field-label">
               {tx(lang, 'ƏDV dərəcəsi (%)', 'Ставка НДС (%)', 'VAT rate (%)')}
             </label>
-            <input
+            <input id="setting-businessprofilesection-9"
               className="neon-input"
               type="number"
               min="0"
@@ -152,10 +152,10 @@ export function BusinessProfileSection({
           </div>
         )}
         <div className="field-stack form-card">
-          <label className="field-label">
+          <label htmlFor="setting-businessprofilesection-10" className="field-label">
             {tx(lang, 'NKA qeydiyyat №', 'Рег. № ККА', 'NKA registration No')}
           </label>
-          <input
+          <input id="setting-businessprofilesection-10"
             className="neon-input"
             value={profile?.nka_registration_no || ''}
             onChange={(e) =>

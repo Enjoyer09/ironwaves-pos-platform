@@ -207,7 +207,7 @@ export function OperationSettingsSection({
                 className="neon-input"
                 value={printSettings.kitchen_printer_name || ''}
                 onChange={(e) => setPrintSettings((prev) => ({ ...prev, kitchen_printer_name: e.target.value }))}
-                placeholder={tx(lang, 'Mətbəx printer adı və ya IP (məs. Kitchen-80)', 'Имя принтера кухни или IP (напр. Kitchen-80)', 'Kitchen printer name or IP (e.g. Kitchen-80)')}
+                placeholder={tx(lang, 'Windows-da görünən mətbəx printer adı (məs. Kitchen-80)', 'Имя принтера кухни в Windows (напр. Kitchen-80)', 'Kitchen printer name in Windows (e.g. Kitchen-80)')}
               />
             )}
             <label className="flex items-center gap-2 text-xs text-amber-200 mt-2">
@@ -221,6 +221,9 @@ export function OperationSettingsSection({
           </div>
         </div>
 
+        <details className="rounded-xl border border-slate-700 p-3">
+          <summary className="cursor-pointer font-semibold text-slate-200">{tx(lang,'Əlavə çap seçimləri','Дополнительные параметры печати','Advanced print options')}</summary>
+          <div className="mt-3 space-y-4">
         {/* Mətbəx İdarəetmə Rejimi (Kitchen Workflow) */}
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4 flex flex-col gap-2">
           <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
@@ -298,10 +301,10 @@ export function OperationSettingsSection({
         {/* Termal Presetlər və Çap Rejimi */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-cyan-300">
+            <label htmlFor="setting-operationsettingssection-1" className="text-xs font-bold text-cyan-300">
               📏 {tx(lang, 'Kağız Eni (Termal Format)', 'Ширина бумаги (Термо формат)', 'Paper Width (Thermal Preset)')}
             </label>
-            <select
+            <select id="setting-operationsettingssection-1"
               className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
               value={printSettings.paper_width}
               onChange={(e) => setPrintSettings((prev) => ({ ...prev, paper_width: e.target.value as any }))}
@@ -317,25 +320,27 @@ export function OperationSettingsSection({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-purple-300">
+            <label htmlFor="setting-operationsettingssection-2" className="text-xs font-bold text-purple-300">
               ⚡ {tx(lang, 'Çap Rejimi (Print Engine)', 'Режим печати (Print Engine)', 'Print Engine Mode')}
             </label>
-            <select
+            <select id="setting-operationsettingssection-2"
               className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
               value={printSettings.print_engine}
               onChange={(e) => setPrintSettings((prev) => ({ ...prev, print_engine: e.target.value as any }))}
             >
-              <option value="raw_escpos">{tx(lang, 'ESC/POS Raw (Tövsiyə olunur - Ultra Sürətli & Heç vaxt boş çıxmaz)', 'ESC/POS Raw (Рекомендуется - Ультра быстро и без сбоев)', 'ESC/POS Raw (Recommended - Ultra fast & never blank)')}</option>
+              <option value="raw_escpos">{tx(lang, 'Birbaşa termal çap (ESC/POS)', 'Прямая термопечать (ESC/POS)', 'Direct thermal printing (ESC/POS)')}</option>
               <option value="pixel_html">{tx(lang, 'Standart HTML / Qrafik Çap', 'Стандартный HTML / Графическая печать', 'Standard HTML / Pixel Graphics')}</option>
             </select>
             <span className="text-[11px] text-slate-400">
               {printSettings.print_engine === 'raw_escpos'
-                ? tx(lang, 'Birbaşa termal printer başlığına əmrlər göndərir. 0.05 san sürət, təmiz kəsim.', 'Прямые команды на головку термопринтера. 0.05 сек, чистый отрез.', 'Direct ESC/POS commands to thermal printhead. Instant and flawless.')
+                ? tx(lang, 'Birbaşa termal printer başlığına əmrlər göndərir. Çap vaxtı printer və bağlantıdan asılıdır.', 'Прямые команды термопринтеру; время зависит от устройства и подключения.', 'Direct thermal printer commands; timing depends on the printer and connection.')
                 : tx(lang, 'Qrafik formatda HTML çapı.', 'Графическая печать HTML.', 'Pixel HTML graphics print.')}
             </span>
           </div>
         </div>
 
+          </div>
+        </details>
         {/* Canlı Test Çapı Bölməsi */}
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
           <span className="text-xs font-bold text-slate-300 mr-2">🧪 {tx(lang, 'Canlı Test Çapı:', 'Тестовая печать:', 'Live Test Print:')}</span>
@@ -575,8 +580,8 @@ export function OperationSettingsSection({
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}</label>
-            <input
+            <label htmlFor="setting-operationsettingssection-3" className="field-label">{tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}</label>
+            <input id="setting-operationsettingssection-3"
               className="neon-input"
               type="number"
               min={0}
@@ -586,8 +591,8 @@ export function OperationSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN)')}</label>
-            <input
+            <label htmlFor="setting-operationsettingssection-4" className="field-label">{tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN)')}</label>
+            <input id="setting-operationsettingssection-4"
               className="neon-input"
               type="number"
               min={0}
@@ -597,8 +602,8 @@ export function OperationSettingsSection({
             />
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Rezervə bağlama pəncərəsi (saat)', 'Окно блокировки резерва (часы)', 'Reservation lock window (hours)')}</label>
-            <input
+            <label htmlFor="setting-operationsettingssection-5" className="field-label">{tx(lang, 'Rezervə bağlama pəncərəsi (saat)', 'Окно блокировки резерва (часы)', 'Reservation lock window (hours)')}</label>
+            <input id="setting-operationsettingssection-5"
               className="neon-input"
               type="number"
               min={0}
@@ -635,8 +640,8 @@ export function OperationSettingsSection({
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Kofe seçim popup-u', 'Popup выбора кофе', 'Coffee selection popup')}</label>
-            <select
+            <label htmlFor="setting-operationsettingssection-6" className="field-label">{tx(lang, 'Kofe seçim popup-u', 'Popup выбора кофе', 'Coffee selection popup')}</label>
+            <select id="setting-operationsettingssection-6"
               className="neon-input"
               value={beverageServiceSettings.coffee_selection_mode}
               onChange={(e) =>
@@ -659,8 +664,8 @@ export function OperationSettingsSection({
             </div>
           </div>
           <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Endirim tətbiqi sahəsi', 'Область применения скидки', 'Discount scope')}</label>
-            <select
+            <label htmlFor="setting-operationsettingssection-7" className="field-label">{tx(lang, 'Endirim tətbiqi sahəsi', 'Область применения скидки', 'Discount scope')}</label>
+            <select id="setting-operationsettingssection-7"
               className="neon-input"
               value={beverageServiceSettings.discount_scope}
               onChange={(e) =>

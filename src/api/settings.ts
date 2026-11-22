@@ -981,24 +981,27 @@ const isStrongLocalPassword = (password: string) => (
 );
 
 export function update_session_settings(payload: {
-  idle_logout_minutes: number;
+  idle_logout_minutes?: number;
   virtual_keyboard_enabled?: boolean;
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old' | 'new';
+  tables_ui_mode?: 'classic' | 'modern';
   login_background_url?: string;
   device_authorization_enabled?: boolean;
 }) {
   const settings = getSettings();
   const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 4);
   settings.session_settings = {
-    idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes || 0)),
-    virtual_keyboard_enabled: payload.virtual_keyboard_enabled !== false,
+    ...settings.session_settings,
+    ...(payload.tables_ui_mode ? {tables_ui_mode:payload.tables_ui_mode} : {}),
+    idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes ?? settings.session_settings?.idle_logout_minutes ?? 0)),
+    virtual_keyboard_enabled: payload.virtual_keyboard_enabled ?? settings.session_settings?.virtual_keyboard_enabled ?? true,
     staff_pin_length: pinLength === 4 ? 4 : 6,
     theme_mode: payload.theme_mode
       ? (payload.theme_mode === 'light' ? 'light' : 'dark')
       : (settings.session_settings?.theme_mode === 'light' ? 'light' : 'dark'),
-    ui_mode: payload.ui_mode === 'new' ? 'new' : 'old',
+    ui_mode: payload.ui_mode ?? settings.session_settings?.ui_mode ?? 'old',
     login_background_url: payload.login_background_url !== undefined
       ? payload.login_background_url
       : (settings.session_settings?.login_background_url || ''),
@@ -1703,14 +1706,18 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
   return { success: true };
 }
 
-export async function get_settings_live(tenant_id?: string) {
+export async function get_settings_live(tenant_id?: string, options?: { requireFresh?: boolean }) {
   if (!isBackendEnabled()) return get_settings(tenant_id);
   let data: Settings;
   try {
     data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
   } catch (err) {
+    if (options?.requireFresh) throw err;
     console.warn('Settings live fetch failed, using cached fallback:', err);
     return get_settings(tenant_id);
+  }
+  if (options?.requireFresh && (!data || Array.isArray(data) || typeof data !== 'object' || !data.print_settings || !data.session_settings)) {
+    throw new Error('Ayarların cavabı natamamdır. Redaktədən əvvəl yenidən yoxlayın.');
   }
   const requestedTenant = String(resolveTenant(tenant_id));
   const responseTenant = String(data?.tenant_id || '');
@@ -2035,11 +2042,12 @@ export async function update_delivery_integrations_live(payload: {
 }
 
 export async function update_session_settings_live(payload: {
-  idle_logout_minutes: number;
+  idle_logout_minutes?: number;
   virtual_keyboard_enabled?: boolean;
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old' | 'new';
+  tables_ui_mode?: 'classic' | 'modern';
   login_background_url?: string;
   device_authorization_enabled?: boolean;
 }) {

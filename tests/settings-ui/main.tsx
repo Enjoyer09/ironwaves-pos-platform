@@ -1,0 +1,10 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import SettingsPanel from '../../src/components/admin/SettingsPanel';
+import {useAppStore} from '../../src/store';
+import {setClientAuthSession} from '../../src/api/client';
+import '../../src/index.css';
+localStorage.setItem('ironwaves_custom_api_base_url','http://127.0.0.1:18179');
+setClientAuthSession({access_token:'synthetic-settings-audit',user:{tenant_id:'audit-only'}});
+useAppStore.setState({user:{id:'audit-user',username:'audit-admin',role:'admin',tenant_id:'audit-only'} as any,lang:'az',notify:(type:string,message:string)=>{document.getElementById('audit-messages')!.textContent=`${type}: ${message}`;}});
+createRoot(document.getElementById('root')!).render(<><div id="audit-messages" role="status"/><SettingsPanel/></>);

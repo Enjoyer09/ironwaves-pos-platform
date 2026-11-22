@@ -36,6 +36,7 @@ export function InterfaceSettingsSection({
               {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
             </div>
             <button
+              aria-label={tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
               type="button"
               onClick={() => { void toggleVirtualKeyboard(!sessionSettings.virtual_keyboard_enabled); }}
               className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
@@ -116,7 +117,7 @@ export function InterfaceSettingsSection({
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 text-xs text-slate-400">
         {tx(
           lang,
-          'Sessiya təhlükəsizliyi (avtomatik çıxış, Staff PIN uzunluğu, giriş ekranı fonu, cihaz təsdiqi) və staff limitləri ayrıca bölmələrdədir: bax "Təhlükəsizlik" kateqoriyası.',
+          'Sessiya təhlükəsizliyi (avtomatik çıxış, Staff PIN uzunluğu, giriş ekranı fonu, cihaz təsdiqi) və staff limitləri ayrıca bölmələrdədir: bax "Təhlükəsizlik" və "Əməliyyat" kateqoriyaları.',
           'Безопасность сессии (автовыход, длина PIN, фон экрана входа, авторизация устройств) и лимиты персонала находятся в отдельных разделах: категория «Безопасность».',
           'Session security (idle logout, staff PIN length, login background, device authorization) and staff benefits live in separate sections: see the "Security" category.',
         )}

@@ -197,8 +197,8 @@ export function FinanceSettingsSection({
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-1" className="field-label">{tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}</label>
+            <input id="setting-financesettingssection-1"
               className="neon-input"
               type="number"
               min={0}
@@ -208,8 +208,8 @@ export function FinanceSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-2" className="field-label">{tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}</label>
+            <input id="setting-financesettingssection-2"
               className="neon-input"
               type="number"
               min={0}
@@ -245,8 +245,8 @@ export function FinanceSettingsSection({
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Böyük transfer limiti (AZN)', 'Лимит крупного перевода (AZN)', 'Large transfer threshold (AZN)')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-3" className="field-label">{tx(lang, 'Böyük transfer limiti (AZN)', 'Лимит крупного перевода (AZN)', 'Large transfer threshold (AZN)')}</label>
+            <input id="setting-financesettingssection-3"
               className="neon-input"
               type="number"
               min={0}
@@ -256,8 +256,8 @@ export function FinanceSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Uyğunlaşdırma xəbərdarlıq həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-4" className="field-label">{tx(lang, 'Uyğunlaşdırma xəbərdarlıq həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
+            <input id="setting-financesettingssection-4"
               className="neon-input"
               type="number"
               min={0}
@@ -267,8 +267,8 @@ export function FinanceSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Mənfi balans alert toleransı (AZN)', 'Толеранс alert отрицательного баланса (AZN)', 'Negative balance alert tolerance (AZN)')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-5" className="field-label">{tx(lang, 'Mənfi balans alert toleransı (AZN)', 'Толеранс alert отрицательного баланса (AZN)', 'Negative balance alert tolerance (AZN)')}</label>
+            <input id="setting-financesettingssection-5"
               className="neon-input"
               type="number"
               min={0}
@@ -278,8 +278,8 @@ export function FinanceSettingsSection({
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Təsdiq rolları', 'Роли approval', 'Approval roles')}</label>
-            <input
+            <label htmlFor="setting-financesettingssection-6" className="field-label">{tx(lang, 'Təsdiq rolları', 'Роли approval', 'Approval roles')}</label>
+            <input id="setting-financesettingssection-6"
               className="neon-input"
               value={financePolicy.approver_roles}
               onChange={(e) => setFinancePolicy((prev) => ({ ...prev, approver_roles: e.target.value }))}
