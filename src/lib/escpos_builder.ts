@@ -768,13 +768,19 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += ESC + 'E' + '\x01';
   cmd += '=== TEST CAPI ===\n';
   cmd += ESC + 'E' + '\x00';
-  cmd += GS + '!' + '\x00';
+  // Keep the full 80 mm line width, but double the height of receipt details.
+  cmd += GS + '!' + '\x01';
   cmd += `Nov: ${type === 'kitchen' ? 'METBEX' : 'KASSA'}\n`;
   cmd += `Printer: ${sanitizeEscPosText(printerName || 'Default')}\n`;
   cmd += `Saat: ${new Date().toLocaleTimeString()}\n`;
+  cmd += GS + '!' + '\x00';
   cmd += '--------------------------------\n';
+  cmd += GS + '!' + '\x01';
+  cmd += ESC + 'E' + '\x01';
   cmd += '1x Test Mehsul 1         2.50 M\n';
   cmd += '2x Test Mehsul 2         5.00 M\n';
+  cmd += ESC + 'E' + '\x00';
+  cmd += GS + '!' + '\x00';
   cmd += '--------------------------------\n';
   cmd += 'Test capi printere gonderildi\n';
   // The test footer must travel past the cutter before the next ticket starts.

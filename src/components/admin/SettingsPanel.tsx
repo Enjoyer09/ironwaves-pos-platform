@@ -1004,17 +1004,17 @@ export default function SettingsPanel() {
 
       const htmlTest = `
         <div style="text-align: center; padding: 4px 0;">
-          <div style="font-weight: 900; font-size: 13px;">=== TEST CAPI ===</div>
-          <div style="font-size: 11px; margin-top: 2px;">Növ: <b>${type === 'kitchen' ? 'MƏTBƏX' : 'KASSA'}</b></div>
-          <div style="font-size: 11px;">Printer: <b>${targetPrinter || 'Sistem Default'}</b></div>
-          <div style="font-size: 10px; color: #444;">Format: ${printSettings.paper_width} | Rejim: ${isRaw ? 'ESC/POS Raw' : 'HTML Graphics'}</div>
+          <div style="font-weight: 900; font-size: 18px;">=== TEST CAPI ===</div>
+          <div style="font-size: 15px; margin-top: 2px;">Növ: <b>${type === 'kitchen' ? 'MƏTBƏX' : 'KASSA'}</b></div>
+          <div style="font-size: 15px;">Printer: <b>${targetPrinter || 'Sistem Default'}</b></div>
+          <div style="font-size: 13px; color: #222;">Format: ${printSettings.paper_width} | Rejim: ${isRaw ? 'ESC/POS Raw' : 'HTML Graphics'}</div>
           <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;">
+          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800;">
             <span>1x Test Mehsul</span>
             <span>OK</span>
           </div>
           <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="font-size: 10px; font-weight: bold; margin-top: 4px;">Test capi printere gonderildi</div>
+          <div style="font-size: 13px; font-weight: bold; margin-top: 4px;">Test capi printere gonderildi</div>
         </div>
       `;
 
