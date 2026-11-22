@@ -1,4 +1,4 @@
-# iRonWaves Print Agent 0.6.1
+# iRonWaves Print Agent 0.6.2
 
 Windows x64 local print helper; separate RAW queues and persistent job IDs.
 The existing macOS source path remains supported; this release packages Windows only.
@@ -16,8 +16,7 @@ npm --prefix tools/print-agent run build:all
 Packaging uses pinned `@yao-pkg/pkg` with a Node 22 runtime, and NSIS 3.
 On Windows the default NSIS location is `C:\Program Files (x86)\NSIS\makensis.exe`;
 set MAKENSIS to override. The Windows workflow builds and runs the executable,
-compiles the native helper, tests silent install, refuses an upgrade while the
-agent runs, then tests an idle upgrade. Job history and Windows printer settings
+compiles the native helper, tests silent install, refuses an upgrade while print jobs are busy, then tests an idle running-agent upgrade. Job history and Windows printer settings
 are compared; the workflow never prints a physical ticket.
 
 Artifacts are in `tools/print-agent/dist`: standalone executable, installer,
@@ -30,11 +29,12 @@ served installer/ZIP bytes and hashes, HEAD behavior, and live manifest.
 
 ## Install / upgrade
 
-Finish outstanding print jobs, quit the previous agent from its tray menu, and
-run the installer. It runs as the current user, requires no separate Node
-installation, and starts silently through launch-silent.vbs. It never clears
-spooler jobs or edits printer/tenant settings. It refuses to replace a running
-agent. Its uninstall action retains job history and printer configuration.
+Run the installer while signed in as the same Windows user. It waits up to one
+minute for active print jobs, then stops only the verified local Print Agent,
+replaces its files, and writes the user's Windows Run entry even if the finish
+page launch is skipped. Busy jobs or a different program on port 17777 stop the
+upgrade with a message. It never clears spooler jobs or edits printer/tenant
+settings. Its uninstall action retains job history and printer configuration.
 
 ## Protocol
 

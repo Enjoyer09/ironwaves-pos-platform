@@ -24,6 +24,9 @@ $wsh = New-Object -ComObject WScript.Shell
 foreach ($file in @($legacyShortcut,$unrelatedShortcut)) { $link=$wsh.CreateShortcut($file); $link.TargetPath="$env:WINDIR\System32\notepad.exe"; $link.Save() }
 $unrelatedHash=(Get-FileHash $unrelatedShortcut).Hash
 if ((InstallAgent) -ne 0) { throw 'Silent install failed' }
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$startupValue = (Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent
+if ($startupValue -ne ('"' + (Join-Path $installDir 'ironwaves-print-agent.exe') + '"')) { throw 'Windows login autostart was not registered' }
 if (Test-Path $legacyShortcut) { throw 'Legacy duplicate autostart shortcut remained' }
 if ((Get-FileHash $unrelatedShortcut).Hash -ne $unrelatedHash) { throw 'Unrelated startup shortcut changed' }
 $binary = Join-Path $installDir 'ironwaves-print-agent.exe'
@@ -45,14 +48,20 @@ try {
   $helper=Join-Path ([IO.Path]::GetTempPath()) 'ironwaves-rawprint-v060.exe'
   for ($n=0; $n -lt 80 -and !(Test-Path $helper); $n++) { Start-Sleep -Milliseconds 250 }
   if (!(Test-Path $helper)) { throw 'Native helper did not compile on Windows' }
-  # An active agent must block upgrades; installer must never kill it.
+  # A busy job still blocks upgrades, while an idle agent is stopped by setup.
+  @{job_id='smoke_history_123456789';status='processing';fingerprint='synthetic-only';created_at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json -Compress | Set-Content -Path $sentinel -Encoding utf8NoBOM
   if ((InstallAgent) -ne 42) { throw 'Busy agent upgrade was not refused' }
   $null=Invoke-RestMethod 'http://127.0.0.1:17777/health' -TimeoutSec 3
+  @{job_id='smoke_history_123456789';status='submitted';fingerprint='synthetic-only';created_at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json -Compress | Set-Content -Path $sentinel -Encoding utf8NoBOM
+  $historyHash = (Get-FileHash $sentinel -Algorithm SHA256).Hash
+  if ((InstallAgent) -ne 0) { throw 'Idle running agent upgrade failed' }
+  if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) { throw 'Old agent was not stopped by installer' }
 } finally {
   Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
 }
 Start-Sleep -Milliseconds 500
 if ((InstallAgent) -ne 0) { throw 'Safe idle upgrade failed' }
+if ((Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent -ne $startupValue) { throw 'Autostart changed during upgrade' }
 if ((Get-FileHash $sentinel).Hash -ne $historyHash) { throw 'Upgrade modified existing job history' }
 if ((PrinterSnapshot) -ne $printersBefore) { throw 'Printer configuration changed' }
 $metadata = Get-Content (Join-Path $dist 'checksums.json') -Raw | ConvertFrom-Json
@@ -60,5 +69,5 @@ foreach ($name in @('ironwaves-print-agent.exe','ironwaves-print-agent-setup.exe
   $hash=(Get-FileHash (Join-Path $dist $name) -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($metadata.artifacts.$name.sha256 -ne $hash) { throw "Artifact hash mismatch: $name" }
 }
-@{version=$expected;platform='windows';packaged_binary=$true;native_helper_compile=$true;installer=$true;busy_upgrade_refused=$true;idle_upgrade=$true;job_history_preserved=$true;printer_configuration_preserved=$true;legacy_autostart_migrated=$true;unrelated_startup_preserved=$true;physical_prints=0} | ConvertTo-Json | Set-Content (Join-Path $dist 'windows-smoke.json') -Encoding utf8NoBOM
+@{version=$expected;platform='windows';packaged_binary=$true;native_helper_compile=$true;installer=$true;busy_upgrade_refused=$true;idle_running_upgrade=$true;idle_upgrade=$true;windows_autostart=$true;job_history_preserved=$true;printer_configuration_preserved=$true;legacy_autostart_migrated=$true;unrelated_startup_preserved=$true;physical_prints=0} | ConvertTo-Json | Set-Content (Join-Path $dist 'windows-smoke.json') -Encoding utf8NoBOM
 Write-Host 'Packaged Windows agent and safe installer smoke passed; no physical printing.'

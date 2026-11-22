@@ -27,12 +27,13 @@ VIAddVersionKey "FileDescription" "iRonWaves Print Agent Setup"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 Function .onInit
-  ; Never stop an agent or clear the Windows spooler during an upgrade.
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "if (Get-NetTCPConnection -LocalPort 17777 -State Listen -ErrorAction SilentlyContinue) { exit 42 }; exit 0"'
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\prepare-upgrade.ps1 "${APP_ROOT}\packaging\prepare-upgrade.ps1"
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\prepare-upgrade.ps1"'
   Pop $0
   Pop $1
   StrCmp $0 "0" safe
-  MessageBox MB_OK|MB_ICONEXCLAMATION "Finish current print jobs, then quit the existing Print Agent from its tray menu and run setup again. No printer queues or settings were changed." /SD IDOK
+  MessageBox MB_OK|MB_ICONEXCLAMATION "Print Agent is busy, or port 17777 belongs to another program. Finish current print jobs and try setup again. No printer queues or settings were changed. Details: $1" /SD IDOK
   SetErrorLevel 42
   Quit
   safe:
@@ -46,6 +47,8 @@ Section "Install"
   File "${APP_ROOT}\dist\ironwaves-print-agent.exe"
   File "${APP_ROOT}\launch-silent.vbs"
   File "${APP_ROOT}\README.txt"
+  ; Register startup during install even if the finish-page launch is skipped.
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "iRonWavesPrintAgent" '$\"$INSTDIR\ironwaves-print-agent.exe$\"'
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\iRonWavesPrintAgent" "DisplayName" "iRonWaves Print Agent"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\iRonWavesPrintAgent" "DisplayVersion" "${VERSION}"

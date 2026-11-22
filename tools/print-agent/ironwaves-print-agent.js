@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.6.1';
+const VERSION = '0.6.2';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -370,6 +370,7 @@ async function resolvePrinterName(requested) {
 // RAW targets a resolved printer explicitly and only waits for that printer.
 const rawPrinterQueues = new Map();
 let htmlPrintChain = Promise.resolve();
+let activePrints = 0;
 function queuePrinterTask(printer, task) {
   const key = normalizeName(printer);
   const previous = rawPrinterQueues.get(key) || Promise.resolve();
@@ -455,6 +456,7 @@ function submitPrintJob(kind, payload) {
   if (journalCount >= JOB_LIMIT) throw new Error('Print job journal is full');
   const row = { job_id: payload.job_id, fingerprint, status: 'queued', created_at: Date.now() };
   saveJob(row); journalCount++; jobMemory.set(row.job_id, row);
+  activePrints += 1;
   Promise.resolve().then(async () => {
     row.status = 'processing'; saveJob(row);
     await (kind === 'raw' ? printRaw(payload) : printHtml(payload));
@@ -462,7 +464,7 @@ function submitPrintJob(kind, payload) {
   }).catch(() => {
     row.status = 'unknown';
     try { saveJob(row); } catch (_) { /* persisted processing also fails closed after restart */ }
-  });
+  }).finally(() => { activePrints -= 1; });
   return publicJob(row);
 }
 
@@ -918,7 +920,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      sendJson(res, 200, { ok: true, name: 'ironwaves-print-agent', version: VERSION, platform: process.platform, capabilities: { print_jobs: true } });
+      sendJson(res, 200, { ok: true, name: 'ironwaves-print-agent', version: VERSION, platform: process.platform, active_prints: activePrints, capabilities: { print_jobs: true } });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/version') {
@@ -942,7 +944,9 @@ const server = http.createServer(async (req, res) => {
       if (payload.job_id !== undefined) {
         const job = submitPrintJob('raw', payload); sendJson(res, 202, { ok: true, job }); return;
       }
-      const result = await printRaw(payload);
+      activePrints += 1;
+      let result;
+      try { result = await printRaw(payload); } finally { activePrints -= 1; }
       sendJson(res, 200, { ok: true, result });
       return;
     }
@@ -952,7 +956,9 @@ const server = http.createServer(async (req, res) => {
       if (payload.job_id !== undefined) {
         const job = submitPrintJob('html', payload); sendJson(res, 202, { ok: true, job }); return;
       }
-      const result = await printHtml(payload);
+      activePrints += 1;
+      let result;
+      try { result = await printHtml(payload); } finally { activePrints -= 1; }
       sendJson(res, 200, { ok: true, result });
       return;
     }
@@ -962,53 +968,6 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, error.statusCode || 500, { ok: false, error: String(error && error.message ? error.message : error) });
   }
 });
-
-// Stop any process currently holding our port so an update can take over
-// without the user manually killing the old agent first.
-//
-// IMPORTANT: We must ONLY kill the process that is LISTENING on the port,
-// not any client (e.g. Chrome) that has an open connection TO that port.
-// netstat shows both sides of a TCP connection; the old regex matched
-// the remote address column ":17777" in Chrome's row and killed Chrome too.
-// Fix: filter to lines where the LOCAL address ends in :PORT and state is LISTENING.
-function killProcessOnPort(port) {
-  return new Promise((resolve) => {
-    const finish = () => resolve();
-    try {
-      const { exec } = require('child_process');
-      if (process.platform === 'win32') {
-        // PowerShell is more reliable than netstat+findstr for this:
-        // Get-Process by PID of the LISTENING TCP socket, then kill only that PID.
-        // Avoids killing Chrome or other clients connected TO the port.
-        const psScript =
-          `$c = (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue);` +
-          `if ($c) { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue }`;
-        exec(
-          `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
-          { windowsHide: true, timeout: 8000 },
-          () => finish(),
-        );
-      } else {
-        exec(`lsof -ti tcp:${port}`, (err, stdout) => {
-          if (err || !stdout) return finish();
-          String(stdout)
-            .split('\n')
-            .forEach((pid) => {
-              pid = String(pid).trim();
-              if (pid) {
-                try { process.kill(Number(pid), 'SIGKILL'); } catch (_) {}
-              }
-            });
-          finish();
-        });
-      }
-    } catch {
-      finish();
-    }
-  });
-}
-
-let listenRetries = 0;
 
 function startServer() {
   server.listen(PORT, HOST, () => {
@@ -1022,16 +981,10 @@ function startServer() {
   });
 }
 
-server.on('error', async (err) => {
-  if (err.code === 'EADDRINUSE' && listenRetries < 3) {
-    listenRetries += 1;
-    console.warn(`[agent] Port ${PORT} artıq məşğuldur (köhnə agent işləyir). Köhnə instans dayandırılır (cəhd ${listenRetries})...`);
-    await killProcessOnPort(PORT);
-    console.warn('[agent] 1 saniyə sonra yenidən başladılır...');
-    setTimeout(startServer, 1000);
-    return;
-  }
+server.on('error', (err) => {
+  // A second agent never terminates the existing listener.
   console.error('[server error]', err);
+  process.exitCode = 1;
 });
 
 // ─── Windows autostart via Registry ───────────────────────────────────────────
@@ -1099,13 +1052,24 @@ $itemQuit.add_Click({
     $tray.Visible = $false
     $tray.Dispose()
     try { Stop-Process -Id ${agentPid} -Force -ErrorAction SilentlyContinue } catch {}
-    # Also remove autostart registry entry on explicit quit
-    reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "iRonWavesPrintAgent" /f 2>$null
     [System.Windows.Forms.Application]::Exit()
 })
 $menu.Items.Add($itemQuit) | Out-Null
 
 $tray.ContextMenuStrip = $menu
+
+# Setup may stop the old agent. Do not leave its tray icon behind.
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 2000
+$timer.add_Tick({
+    if (-not (Get-Process -Id ${agentPid} -ErrorAction SilentlyContinue)) {
+        $timer.Stop()
+        $tray.Visible = $false
+        $tray.Dispose()
+        [System.Windows.Forms.Application]::Exit()
+    }
+})
+$timer.Start()
 
 # Show notification so user knows agent is running in tray
 $tray.ShowBalloonTip(3000, "iRonWaves Print Agent", "iRonWaves Print Agent v${VERSION} aktivdir", [System.Windows.Forms.ToolTipIcon]::Info)
