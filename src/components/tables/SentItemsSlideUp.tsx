@@ -65,6 +65,9 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
             <div className="text-xs text-slate-400">{items.length} {tx(lang, 'məhsul', 'позиций', 'items')}</div>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={onClose} className="min-h-10 rounded-xl border border-cyan-400/60 bg-cyan-500/20 px-3 text-sm font-bold text-cyan-50">
+              ← {tx(lang, 'Yeni sifarişə qayıt', 'Вернуться к новому заказу', 'Back to new order')}
+            </button>
             {userCanEdit && voidableItems.length > 0 && (
               <button
                 type="button"

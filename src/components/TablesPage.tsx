@@ -2430,7 +2430,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             }`}
                           >
                             <span>📋</span>
-                            <span className="hidden md:inline">{tx(lang, 'Göndərişlər', 'Отправки', 'History')}</span>
+                            <span className="hidden md:inline">{tableWorkspaceTab === 'history' ? tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order') : tx(lang, 'Göndərişlər', 'Отправки', 'History')}</span>
                             <span className="rounded bg-black/25 px-1.5 py-0.2 text-[10px] tabular-nums">{rounds.length}</span>
                           </button>
                         )}
@@ -2623,7 +2623,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
 	                  </div>
 	                  <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
-                  {isBahaYLab && tableWorkspaceTab !== 'compose' && (
+                  {tableWorkspaceTab !== 'compose' && (
                     <button
                       type="button"
                       onClick={() => setTableWorkspaceTab('compose')}
