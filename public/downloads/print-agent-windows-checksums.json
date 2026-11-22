@@ -1,18 +1,18 @@
 {
-  "version": "0.6.1",
-  "source_sha256": "9d85a82450a2ca59bdc35be22d924569fc60622d6c7ffe6eafb77a62a1a1666e",
+  "version": "0.6.2",
+  "source_sha256": "4f19d0dd6dc1c99cfdff433d336a40bd32a347907ea3cad83c85d1c12bce60fa",
   "artifacts": {
     "ironwaves-print-agent.exe": {
-      "sha256": "48a5c4fc97e8992284fefed9a5d4c263fe5e08f8ffd7f7959ed7cfc42a17cb19",
-      "bytes": 57633979
+      "sha256": "e3d76227dd528e31351628ce5901703db4803dd0badb84fb5a64a5bc9d05eb32",
+      "bytes": 57632266
     },
     "ironwaves-print-agent-setup.exe": {
-      "sha256": "869f628af2161abbbadba3f436a413644119c4857c8cf64e84202083d6fe6c2a",
-      "bytes": 15235661
+      "sha256": "cd564f15eb2133646187f72f66fac403b0bc1e442da68a138f7f5b3a79880384",
+      "bytes": 15238356
     },
     "ironwaves-print-agent-windows.zip": {
-      "sha256": "19bd7f88260c17172c9da06b57cbd212e4459be458bef7f228b37c787d2caa2b",
-      "bytes": 15222927
+      "sha256": "35509823d7f9db86d582536c886d33f89796d236b5b90d46841923c6c073e8bf",
+      "bytes": 15225657
     }
   }
 }
