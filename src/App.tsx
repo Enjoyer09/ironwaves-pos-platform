@@ -5,7 +5,7 @@ import { save_push_token_live, record_push_engagement_live } from './api/crm';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid, ChevronDown, Package, Users, Settings as SettingsIcon } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid, ChevronDown, Package, Users, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -738,7 +738,12 @@ export default function App() {
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
   const idleLogoutMinutes = Math.max(0, Number(settings?.session_settings?.idle_logout_minutes || 0));
   const virtualKeyboardEnabled = settings?.session_settings?.virtual_keyboard_enabled !== false;
-  const themeMode: 'dark' | 'light' = (() => {
+  const [themeToggleVersion, setThemeToggleVersion] = useState(0);
+  const themeMode: 'dark' | 'light' = useMemo(() => {
+    try {
+      const terminalTheme = localStorage.getItem(`iw_terminal_theme:${user?.tenant_id || activeTenant}`);
+      if (terminalTheme === 'light' || terminalTheme === 'dark') return terminalTheme;
+    } catch {}
     const fromSettings = settings?.session_settings?.theme_mode;
     if (fromSettings === 'light' || fromSettings === 'dark') return fromSettings;
     try {
@@ -746,7 +751,7 @@ export default function App() {
       if (stored === 'light' || stored === 'dark') return stored;
     } catch {}
     return 'dark';
-  })();
+  }, [themeToggleVersion, settings?.session_settings?.theme_mode, user?.tenant_id, activeTenant]);
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
     // P1-5: analytics used to be force-pushed into every waiter's module list,
@@ -2124,6 +2129,19 @@ export default function App() {
                   </span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.setItem(`iw_terminal_theme:${user?.tenant_id || activeTenant}`, themeMode === 'dark' ? 'light' : 'dark'); } catch {}
+                  setThemeToggleVersion((value) => value + 1);
+                }}
+                className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
+                aria-label={themeMode === 'dark' ? tx(safeLang, 'İşıqlı rejimə keç', 'Светлая тема', 'Switch to light mode') : tx(safeLang, 'Qaranlıq rejimə keç', 'Тёмная тема', 'Switch to dark mode')}
+                title={themeMode === 'dark' ? tx(safeLang, 'İşıqlı rejimə keç', 'Светлая тема', 'Switch to light mode') : tx(safeLang, 'Qaranlıq rejimə keç', 'Тёмная тема', 'Switch to dark mode')}
+              >
+                {themeMode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                <span className="hidden sm:inline">{themeMode === 'dark' ? tx(safeLang, 'İşıqlı', 'Светлая', 'Light') : tx(safeLang, 'Qaranlıq', 'Тёмная', 'Dark')}</span>
+              </button>
               <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
                 className="neon-btn !min-h-9 px-2.5 py-1.5 text-xs"
