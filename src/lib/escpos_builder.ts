@@ -776,8 +776,10 @@ export function buildTestTicketEscPos(type: 'cashier' | 'kitchen', printerName: 
   cmd += '1x Test Mehsul 1         2.50 M\n';
   cmd += '2x Test Mehsul 2         5.00 M\n';
   cmd += '--------------------------------\n';
-  cmd += 'QZ Tray Baglantisi Ugurludur!\n';
-  cmd += ESC + 'd\x02';
+  cmd += 'Test capi printere gonderildi\n';
+  // The test footer must travel past the cutter before the next ticket starts.
+  // XP-80 style printers can leave the last line on the following slip at 2 lines.
+  cmd += ESC + 'd\x05';
   cmd += GS + 'V\x01';
   return cmd;
 }

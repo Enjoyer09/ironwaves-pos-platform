@@ -1014,7 +1014,7 @@ export default function SettingsPanel() {
             <span>OK</span>
           </div>
           <hr style="border-top: 1px dashed #000; margin: 4px 0;" />
-          <div style="font-size: 10px; font-weight: bold; margin-top: 4px;">QZ Tray / Agent Baglantisi Ugurludur!</div>
+          <div style="font-size: 10px; font-weight: bold; margin-top: 4px;">Test capi printere gonderildi</div>
         </div>
       `;
 
