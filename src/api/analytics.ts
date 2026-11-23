@@ -487,14 +487,6 @@ export async function get_sales_list_live(
   return apiRequest<any[]>(`/api/v1/analytics/sales?${qs.toString()}`, { tenantId: null, signal: options?.signal });
 }
 
-export async function get_sale_receipt_html_live(saleId: string): Promise<string> {
-  const response = await apiRequest<{ receipt_html: string }>(
-    `/api/v1/analytics/sales/${encodeURIComponent(saleId)}/receipt-html`,
-    { tenantId: null },
-  );
-  return String(response?.receipt_html || '');
-}
-
 export async function void_sale_with_reason_live(
   tenant_id: string,
   sale_id: string,

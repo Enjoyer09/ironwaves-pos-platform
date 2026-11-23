@@ -636,28 +636,6 @@ def get_sales_list(
     return result
 
 
-@router.get("/sales/{sale_id}/receipt-html")
-def get_sale_receipt_html(
-    sale_id: str,
-    db: Session = Depends(get_db),
-    tenant: Tenant = Depends(get_tenant),
-    user: User = Depends(get_current_user),
-):
-    row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Sale not found")
-    if str(user.role or "").lower() == "staff" and row.cashier != user.username:
-        raise HTTPException(status_code=403, detail="Sale access denied")
-    is_void = db.query(Sale.id).filter(
-        Sale.id == row.id,
-        Sale.tenant_id == tenant.id,
-        _sale_is_void_expr(tenant.id),
-    ).first()
-    if is_void:
-        raise HTTPException(status_code=409, detail="Voided sale cannot be reprinted")
-    return {"receipt_html": row.receipt_html or ""}
-
-
 @router.post("/sales/{sale_id}/void")
 def void_sale(
     sale_id: str,
