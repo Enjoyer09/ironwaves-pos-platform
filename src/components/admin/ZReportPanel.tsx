@@ -37,7 +37,6 @@ import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS, thermalPaperWidthOverride } from '../../lib/receipt_print_css';
 import { printDirectOrFallback, printViaLocalAgent } from '../../lib/local_print_agent';
-import { buildZReportEscPos } from '../../lib/z_report_escpos';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -896,14 +895,11 @@ export default function ZReportPanel() {
     const html = htmlToPrint || safeZReceiptHtml || zReceiptHtml;
     if (!html) return;
     try {
-      const rawCommands = buildZReportEscPos(html, printSettings.paper_width || '80mm');
       const res = await printDirectOrFallback(html, {
         printerName: printSettings.printer_name,
         useQz: printSettings.use_qz,
         paperWidth: printSettings.paper_width,
-        printEngine: 'raw_escpos',
-        rawCommands,
-        allowBrowserFallback: false,
+        allowBrowserFallback: true,
       });
       if (res.success) {
         if (res.method === 'agent') {
