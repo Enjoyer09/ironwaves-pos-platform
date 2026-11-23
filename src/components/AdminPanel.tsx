@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
-import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
+import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_list_live, get_sale_receipt_html_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live, upload_menu_image_live, auto_assign_menu_images } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
@@ -13,7 +13,7 @@ import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../lib/time';
 import { prepareImageUploadFile } from '../lib/image_upload';
-import { qzPrintHtml } from '../lib/qz';
+import { printDirectOrFallback } from '../lib/local_print_agent';
 import { buildSaleReceiptHtml } from '../lib/receipt_html';
 import { get_settings_live, get_business_profile_live } from '../api/settings';
 
@@ -56,6 +56,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   
   const [summary, setSummary] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
+  const [reprintingSaleId, setReprintingSaleId] = useState<string | null>(null);
   const [menu, setMenu] = useState<any[]>([]);
   const [logsData, setLogsData] = useState<any[]>([]);
 
@@ -193,97 +194,45 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   };
 
   const reprintSaleReceipt = async (sale: any) => {
-    const receiptRef = String(sale?.receipt_code || sale?.id || '').trim();
-    if (!receiptRef) {
+    const saleId = String(sale?.id || sale?.sale_id || '').trim();
+    if (!saleId || reprintingSaleId) {
       notify('error', tx(lang, 'Bu satış üçün receipt ID tapılmadı', 'Для этой продажи receipt ID не найден', 'Receipt ID was not found for this sale'));
       return;
     }
-    const token = String(sale?.receipt_token || '').trim();
-
+    setReprintingSaleId(saleId);
     try {
       const settings = await get_settings_live(tenant_id);
       const printSettings = settings?.print_settings || { use_qz: false, printer_name: '' };
-
-      if (printSettings.use_qz) {
-        notify('info', tx(lang, 'QZ Tray vasitəsilə çap edilir...', 'Печать через QZ Tray...', 'Printing via QZ Tray...'));
+      let html = isBackendEnabled()
+        ? await get_sale_receipt_html_live(saleId)
+        : String(sale?.receipt_html || '');
+      if (!html) {
         const profile = await get_business_profile_live(tenant_id);
-        
         const baseUrl = window.location.origin.replace(/\/+$/, '');
+        const receiptRef = String(sale?.receipt_code || saleId).trim();
+        const token = String(sale?.receipt_token || '').trim();
         const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent(token)}`;
-        
-        let feedbackUrl = '';
-        const feedbackSettings = settings?.feedback_settings;
-        if (feedbackSettings?.enabled !== false) {
-          const feedbackBaseUrl = String(feedbackSettings?.portal_url || `${baseUrl}/feedback`).trim();
-          try {
-            const u = new URL(feedbackBaseUrl);
-            u.pathname = '/feedback';
-            u.searchParams.set('tenant_id', tenant_id);
-            u.searchParams.set('sale_id', String(sale?.id || sale?.sale_id || ''));
-            u.searchParams.set('receipt_id', String(receiptRef || ''));
-            u.searchParams.set('r', String(receiptRef || ''));
-            u.searchParams.set('t', String(token || ''));
-            feedbackUrl = u.toString();
-          } catch {
-            feedbackUrl = feedbackBaseUrl;
-          }
-        }
-
-        const html = await buildSaleReceiptHtml({
+        html = await buildSaleReceiptHtml({
           sale,
           profile,
           lang: lang as any,
           receiptUrl,
-          feedbackUrl,
           operator: String(sale?.cashier || ''),
           paperWidth: printSettings.paper_width,
         });
-
-        await qzPrintHtml(html, printSettings.printer_name);
-        notify('success', tx(lang, 'QZ ilə uğurla çap edildi', 'Успешно напечатано через QZ', 'Successfully printed via QZ'));
-        return;
       }
-    } catch (qzError) {
-      console.error('QZ print failed, falling back to browser print:', qzError);
-      notify('warning', tx(
-        lang,
-        'QZ Tray ilə çap alınmadı, brauzer çapına keçilir...',
-        'Ошибка печати через QZ Tray, переключение на печать браузера...',
-        'QZ Tray print failed, falling back to browser print...'
-      ));
-    }
-
-    const url = new URL(window.location.origin);
-    url.searchParams.set('r', receiptRef);
-    if (token) url.searchParams.set('t', token);
-    url.searchParams.set('autoprint', '1');
-    url.searchParams.set('fresh', '1');
-    try {
-      const fallbackKey = `receipt_fallback:${receiptRef}:${token}`;
-      const fallbackPayload = {
-        id: sale?.id,
-        tenant_id: sale?.tenant_id,
-        created_at: sale?.created_at,
-        cashier: sale?.cashier,
-        customer_card_id: sale?.customer_card_id || null,
-        payment_method: sale?.payment_method,
-        split_cash: sale?.split_cash || null,
-        split_card: sale?.split_card || null,
-        order_type: sale?.order_type,
-        total: sale?.total,
-        original_total: sale?.original_total,
-        discount_amount: sale?.discount_amount,
-        items: Array.isArray(sale?.items) ? sale.items : [],
-        status: sale?.status,
-        receipt_html: String(sale?.receipt_html || ''),
-      };
-      sessionStorage.setItem(fallbackKey, JSON.stringify(fallbackPayload));
-    } catch {
-      // ignore fallback cache errors
-    }
-    const popup = window.open(url.toString(), '_blank', 'noopener,noreferrer');
-    if (!popup) {
-      notify('error', tx(lang, 'Receipt pəncərəsi açıla bilmədi', 'Не удалось открыть окно receipt', 'Could not open receipt window'));
+      const result = await printDirectOrFallback(html, {
+        printerName: printSettings.printer_name,
+        paperWidth: printSettings.paper_width || '80mm',
+        allowBrowserFallback: false,
+        preferHtml: true,
+      });
+      if (!result.success) throw new Error(result.error || 'Print Agent unavailable');
+      notify('success', tx(lang, 'Çek Print Agent-ə göndərildi', 'Чек отправлен в Print Agent', 'Receipt sent to Print Agent'));
+    } catch (error) {
+      notify('error', error instanceof Error ? error.message : tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
+    } finally {
+      setReprintingSaleId(null);
     }
   };
 
@@ -993,7 +942,8 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                               </button>
                               <button
                                 className="rounded-lg border border-cyan-300/40 bg-cyan-500/15 px-2 py-1 text-[11px] font-semibold text-cyan-100"
-                                title={tx(lang, 'Çeki yenidən açır və çap pəncərəsini başladır.', 'Открывает чек заново и запускает печать.', 'Reopens the receipt and starts printing.')}
+                                disabled={Boolean(reprintingSaleId) || s.status === 'VOIDED'}
+                                title={tx(lang, 'Satış çekini Print Agent ilə yenidən çap edir.', 'Повторно печатает чек через Print Agent.', 'Reprints the sale receipt via Print Agent.')}
                                 onClick={() => reprintSaleReceipt(s)}
                               >
                                 <span className="inline-flex items-center gap-1">
