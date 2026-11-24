@@ -64,7 +64,7 @@ if ((InstallAgent) -ne 0) { throw 'Safe idle upgrade failed' }
 if ((Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent -ne $startupValue) { throw 'Autostart changed during upgrade' }
 Remove-Item Env:IW_PRINT_AGENT_AUTOSTART -ErrorAction SilentlyContinue
 Remove-Item Env:IW_PRINT_AGENT_TRAY -ErrorAction SilentlyContinue
-Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList ('"' + (Join-Path $installDir 'launch-silent.vbs') + '"') -Wait
+Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList ('"' + (Join-Path $installDir 'launch-silent.vbs') + '"')
 $loginHealth = $null
 for ($n=0; $n -lt 40; $n++) {
   try { $loginHealth=Invoke-RestMethod 'http://127.0.0.1:17777/health' -TimeoutSec 2; break } catch { Start-Sleep -Milliseconds 250 }
