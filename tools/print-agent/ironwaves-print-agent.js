@@ -20,7 +20,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, spawn, exec } = require('child_process');
 
-const VERSION = '0.6.2';
+const VERSION = '0.6.3';
 const HOST = process.env.IW_PRINT_AGENT_HOST || '127.0.0.1';
 const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 
@@ -996,9 +996,13 @@ function registerAutostart() {
   try {
     const exePath = process.execPath; // path to the running .exe
     if (!exePath || exePath.endsWith('node.exe') || exePath.endsWith('node')) return; // skip dev mode
+    const launcher = path.join(path.dirname(exePath), 'launch-silent.vbs');
+    const command = fs.existsSync(launcher)
+      ? `"${path.join(process.env.WINDIR || 'C:\\Windows', 'System32', 'wscript.exe')}" "${launcher}"`
+      : `"${exePath}"`;
     // Use PowerShell Set-ItemProperty — handles paths with spaces, parentheses (1), etc.
     // cmd.exe reg add fails on such paths with "ERROR: Invalid syntax"
-    const safeExePath = (`"${exePath}"`).replace(/'/g, "''");
+    const safeExePath = command.replace(/'/g, "''");
     const psCmd =
       `Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' ` +
       `-Name 'iRonWavesPrintAgent' -Value '${safeExePath}' -Type String`;

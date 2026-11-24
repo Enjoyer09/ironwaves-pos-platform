@@ -48,7 +48,9 @@ Section "Install"
   File "${APP_ROOT}\launch-silent.vbs"
   File "${APP_ROOT}\README.txt"
   ; Register startup during install even if the finish-page launch is skipped.
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "iRonWavesPrintAgent" '$\"$INSTDIR\ironwaves-print-agent.exe$\"'
+  ; Use the same silent launcher as Finish. It sets the working directory before
+  ; starting the EXE, including when Windows runs this entry at login.
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "iRonWavesPrintAgent" '$\"$WINDIR\System32\wscript.exe$\" $\"$INSTDIR\launch-silent.vbs$\"'
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\iRonWavesPrintAgent" "DisplayName" "iRonWaves Print Agent"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\iRonWavesPrintAgent" "DisplayVersion" "${VERSION}"
@@ -69,6 +71,7 @@ Function un.onInit
 FunctionEnd
 Section "Uninstall"
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "iRonWavesPrintAgent"
+  StrCmp $0 '$\"$WINDIR\System32\wscript.exe$\" $\"$INSTDIR\launch-silent.vbs$\"' remove_startup
   StrCmp $0 '$\"$INSTDIR\ironwaves-print-agent.exe$\"' remove_startup
   StrCmp $0 '$INSTDIR\ironwaves-print-agent.exe' remove_startup keep_startup
   remove_startup:

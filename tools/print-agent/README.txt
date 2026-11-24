@@ -1,4 +1,4 @@
-iRonWaves Print Agent — Windows 0.6.2
+iRonWaves Print Agent — Windows 0.6.3
 
 Quraşdırma: ironwaves-print-agent-setup.exe faylını açın. ZIP yükləmisinizsə,
 əvvəl arxivi çıxarın; setup.bat və ya setup-windows.ps1 eyni installer-i açır.
@@ -10,6 +10,14 @@ quraşdırır. Aktiv iş bitməzsə xəbərdarlıq göstərir; printer növbəl�
 printer adları, tenant ayarları və əvvəlki job jurnalı saxlanılır.
 Quraşdırma bitdikdə Start iRonWaves Print Agent seçimi agenti səssiz açır.
 Windows-a girişdə agent istifadəçinin HKCU Run qeydi vasitəsilə açılır.
+
+0.6.3 — Windows girişində etibarlı səssiz açılış
+
+- Startup qeydində quraşdırılmış launch-silent.vbs çağırılır; həmin launcher
+  agenti düzgün iş qovluğundan açır. Köhnə birbaşa EXE qeydi yenilənir.
+- Windows paket testi startup əmrini həqiqətən işə salıb /health yoxlayır.
+- Agent həmin Windows istifadəçisi ilə girişdə açılır; başqa Windows hesabı
+  üçün həmin hesabda da quraşdırma aparılmalıdır.
 
 0.6.2 — çap işi qorunması və RAW növbələri
 

@@ -26,7 +26,7 @@ $unrelatedHash=(Get-FileHash $unrelatedShortcut).Hash
 if ((InstallAgent) -ne 0) { throw 'Silent install failed' }
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $startupValue = (Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent
-if ($startupValue -ne ('"' + (Join-Path $installDir 'ironwaves-print-agent.exe') + '"')) { throw 'Windows login autostart was not registered' }
+if ($startupValue -ne ('"' + (Join-Path $env:WINDIR 'System32\wscript.exe') + '" "' + (Join-Path $installDir 'launch-silent.vbs') + '"')) { throw 'Windows login autostart was not registered' }
 if (Test-Path $legacyShortcut) { throw 'Legacy duplicate autostart shortcut remained' }
 if ((Get-FileHash $unrelatedShortcut).Hash -ne $unrelatedHash) { throw 'Unrelated startup shortcut changed' }
 $binary = Join-Path $installDir 'ironwaves-print-agent.exe'
@@ -62,6 +62,18 @@ try {
 Start-Sleep -Milliseconds 500
 if ((InstallAgent) -ne 0) { throw 'Safe idle upgrade failed' }
 if ((Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent -ne $startupValue) { throw 'Autostart changed during upgrade' }
+Remove-Item Env:IW_PRINT_AGENT_AUTOSTART -ErrorAction SilentlyContinue
+Remove-Item Env:IW_PRINT_AGENT_TRAY -ErrorAction SilentlyContinue
+Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList ('"' + (Join-Path $installDir 'launch-silent.vbs') + '"') -Wait
+$loginHealth = $null
+for ($n=0; $n -lt 40; $n++) {
+  try { $loginHealth=Invoke-RestMethod 'http://127.0.0.1:17777/health' -TimeoutSec 2; break } catch { Start-Sleep -Milliseconds 250 }
+}
+if (!$loginHealth -or $loginHealth.version -ne $expected) { throw 'Windows login launcher did not start the agent' }
+if ((Get-ItemProperty -Path $runKey -Name iRonWavesPrintAgent -ErrorAction Stop).iRonWavesPrintAgent -ne $startupValue) { throw 'Runtime changed the login command' }
+$loginPid = @(Get-NetTCPConnection -LocalPort 17777 -State Listen -ErrorAction Stop | Select-Object -ExpandProperty OwningProcess -Unique)
+if ($loginPid.Count -ne 1) { throw 'Login launcher started multiple listeners' }
+Stop-Process -Id $loginPid[0] -ErrorAction Stop
 if ((Get-FileHash $sentinel).Hash -ne $historyHash) { throw 'Upgrade modified existing job history' }
 if ((PrinterSnapshot) -ne $printersBefore) { throw 'Printer configuration changed' }
 $metadata = Get-Content (Join-Path $dist 'checksums.json') -Raw | ConvertFrom-Json

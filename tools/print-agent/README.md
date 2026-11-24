@@ -1,4 +1,4 @@
-# iRonWaves Print Agent 0.6.2
+# iRonWaves Print Agent 0.6.3
 
 Windows x64 local print helper; separate RAW queues and persistent job IDs.
 The existing macOS source path remains supported; this release packages Windows only.
@@ -29,7 +29,9 @@ served installer/ZIP bytes and hashes, HEAD behavior, and live manifest.
 
 ## Install / upgrade
 
-Run the installer while signed in as the same Windows user. It waits up to one
+Run the installer while signed in as the same Windows user. Version 0.6.3 uses
+the same silent launcher for installation and Windows login, then verifies the
+login command by starting the packaged agent in the Windows smoke test. It waits up to one
 minute for active print jobs, then stops only the verified local Print Agent,
 replaces its files, and writes the user's Windows Run entry even if the finish
 page launch is skipped. Busy jobs or a different program on port 17777 stop the
