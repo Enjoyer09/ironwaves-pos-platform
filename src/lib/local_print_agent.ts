@@ -99,14 +99,21 @@ async function timedFetch(url: string, init: RequestInit, ms: number): Promise<R
 }
 const uncertainPrintMessage = 'Çapın vəziyyəti təsdiqlənmədi. Təkrar çek göndərilmədi; printer növbəsini yoxlayın.';
 async function submitAgentPrint(kind: 'raw' | 'html', content: string, printerName: string | undefined, jobId: string): Promise<AgentAttempt> {
-  // A failed preflight means this call has not submitted a print.
+  // The health check is read-only. A busy 4 GB cashier PC can miss the first
+  // 1.5s window while opening the receipt, so retry this check only. Never
+  // replay a POST: after dispatch its spool outcome may be unknown.
   let supportsJobs = false;
-  try {
-    const health = await timedFetch(`${AGENT_BASE_URL}/health`, { method: 'GET' }, 1500);
-    if (!health.ok) return { success: false, notSent: true, jobId };
-    const data = await health.json();
-    supportsJobs = data?.capabilities?.print_jobs === true;
-  } catch { return { success: false, notSent: true, jobId }; }
+  let healthy = false;
+  for (let attempt = 0; attempt < 2 && !healthy; attempt += 1) {
+    try {
+      const health = await timedFetch(`${AGENT_BASE_URL}/health`, { method: 'GET' }, 3000);
+      if (!health.ok) continue;
+      const data = await health.json();
+      supportsJobs = data?.capabilities?.print_jobs === true;
+      healthy = true;
+    } catch { /* The read-only preflight can be retried safely. */ }
+  }
+  if (!healthy) return { success: false, notSent: true, jobId };
   try {
     const response = await timedFetch(`${AGENT_BASE_URL}/print-${kind}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

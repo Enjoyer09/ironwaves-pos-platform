@@ -46,10 +46,21 @@ test('job ID conflict is not confused with the previous successful job',async t=
  const h=setup(t,async url=>url.endsWith('/health')?health():ok({},409));const r=await printDirectOrFallback('ticket',opts);assert.equal(r.success,false);assert.equal(h.calls.length,2);
 });
 test('browser fallback is allowed only after a preflight failure, with no agent POST',async t=>{
- const h=setup(t,async()=>{throw Error('agent offline');});const r=await printDirectOrFallback('ticket',opts);assert.equal(r.method,'browser');assert.equal(h.calls.length,1);assert.equal(h.calls[0].options.method,'GET');
+ const h=setup(t,async()=>{throw Error('agent offline');});const r=await printDirectOrFallback('ticket',opts);assert.equal(r.method,'browser');assert.equal(h.calls.length,2);assert(h.calls.every(c=>c.options.method==='GET'));
 });
 test('disabled browser fallback remains disabled when agent is offline',async t=>{
- const h=setup(t,async()=>{throw Error('agent offline');});const r=await printDirectOrFallback('ticket',{...opts,allowBrowserFallback:false});assert.equal(r.success,false);assert.equal(h.calls.length,1);assert.equal(h.browser.prints,0);
+ const h=setup(t,async()=>{throw Error('agent offline');});const r=await printDirectOrFallback('ticket',{...opts,allowBrowserFallback:false});assert.equal(r.success,false);assert.equal(h.calls.length,2);assert.equal(h.browser.prints,0);
+});
+test('slow first health check retries before one print submission',async t=>{
+ let checks=0;
+ const h=setup(t,async url=>{
+  if(url.endsWith('/health')) { checks++; if(checks===1) throw Error('temporary preflight timeout'); return health(); }
+  return ok({job:{job_id:id,status:'submitted'}},202);
+ });
+ const r=await printDirectOrFallback('ticket',opts);
+ assert.equal(r.success,true);
+ assert.equal(checks,2);
+ assert.equal(h.calls.filter(c=>c.options.method==='POST').length,1);
 });
 test('HTML requested explicitly is submitted once with the same ID',async t=>{
  const h=setup(t,async url=>url.endsWith('/health')?health():ok({job:{job_id:id,status:'submitted'}},202));await printDirectOrFallback('ticket',{...opts,preferHtml:true});assert(h.calls.at(-1).url.endsWith('/print-html'));assert.equal(h.calls.at(-1).body.job_id,id);assert.equal(h.calls.at(-1).body.raw,undefined);

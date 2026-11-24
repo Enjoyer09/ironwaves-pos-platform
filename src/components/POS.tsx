@@ -269,6 +269,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [receiptRawCommands, setReceiptRawCommands] = useState<string | null>(null);
+  const [receiptPrintStatus, setReceiptPrintStatus] = useState<'idle' | 'sending' | 'accepted' | 'failed'>('idle');
   const [isPosAgentOnline, setIsPosAgentOnline] = useState<boolean | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('Nəğd');
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
@@ -1460,6 +1461,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
         setReceiptHtml(receiptMarkup);
         setReceiptRawCommands(rawCmds);
+        setReceiptPrintStatus(printSettings.auto_print_receipt === false ? 'idle' : 'sending');
         if (isBackendEnabled() && !queuedOffline && String(sale.sale_id || '').trim()) {
           void save_sale_receipt_html_live(String(sale.sale_id), receiptMarkup).catch(() => undefined);
         }
@@ -1472,6 +1474,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             rawCommands: rawCmds,
             allowBrowserFallback: false,
           }).then((res) => {
+            setReceiptPrintStatus(res.success ? 'accepted' : 'failed');
             if (res.success) {
               notify(
                 'success',
@@ -1482,6 +1485,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             } else if (!res.success) {
               notify('error', tx(lang, res.error || 'Çap alınmadı — printeri yoxlayın', res.error || 'Печать не удалась — проверьте принтер', res.error || 'Print failed — check your printer'));
             }
+          }).catch((error) => {
+            setReceiptPrintStatus('failed');
+            notify('error', error instanceof Error ? error.message : tx(lang, 'Çap alınmadı', 'Ошибка печати', 'Printing failed'));
           });
         }
       };
@@ -1501,7 +1507,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       setSplitCashInput('0');
       window.setTimeout(() => {
         void renderReceipt().catch((error) => {
+          setReceiptPrintStatus('failed');
           logUiError(tenantId, 'pos', error instanceof Error ? error.message : String(error), { phase: 'receipt_render' });
+          notify('error', tx(lang, 'Çek hazırlana bilmədi. Satış saxlanıb; çap üçün yenidən yoxlayın.', 'Не удалось подготовить чек. Продажа сохранена; проверьте печать.', 'Receipt could not be prepared. Sale was saved; check printing.'));
         });
       }, 0);
       void refreshData({ tables: true, menu: false });
@@ -1908,6 +1916,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const printReceiptOnly = async () => {
     if (!safeReceiptHtml) return;
+    setReceiptPrintStatus('sending');
     const res = await printDirectOrFallback(safeReceiptHtml, {
       printerName: printSettings.printer_name,
       useQz: Boolean(printSettings.use_qz),
@@ -1918,12 +1927,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       allowBrowserFallback: false,
     });
     if (res.success) {
+      setReceiptPrintStatus('accepted');
       if (res.method === 'agent') {
         notify('success', tx(lang, 'iRonWaves Print Agent ilə çap edildi', 'Печать через Print Agent', 'Printed via Print Agent'));
       } else if (res.method === 'qz') {
         notify('success', tx(lang, 'QZ Tray ilə çap edildi', 'Печать через QZ Tray', 'Printed via QZ Tray'));
       }
     } else {
+      setReceiptPrintStatus('failed');
       notify('error', tx(lang, res.error || 'Çap alınmadı — Print Agent-i işə salın', res.error || 'Печать не удалась — запустите Print Agent', res.error || 'Printing failed — start the Print Agent'));
     }
   };
@@ -2785,13 +2796,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Çek Hazırdır', 'Чек готов', 'Receipt Ready')}</h3>
-              {isPosAgentOnline === true && (
+              {receiptPrintStatus === 'accepted' && (
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{tx(lang, 'Print Agent aktivdir · Çek avtomatik çap edilir', 'Print Agent активен · Чек печатается автоматически', 'Print Agent active · Receipt auto-printed')}</span>
+                  <span>{tx(lang, 'Çek printer növbəsinə göndərildi', 'Чек отправлен в очередь принтера', 'Receipt sent to printer queue')}</span>
                 </div>
               )}
-              {isPosAgentOnline === false && (
+              {receiptPrintStatus === 'failed' && (
+                <div className="mt-0.5 text-xs font-semibold text-red-300">
+                  {tx(lang, 'Avtomatik çap alınmadı. Çap Et ilə yenidən yoxlayın.', 'Автопечать не удалась. Повторите кнопкой Печать.', 'Automatic print failed. Retry with Print.')}
+                </div>
+              )}
+              {isPosAgentOnline === false && receiptPrintStatus !== 'accepted' && (
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-400">
                   <span>⚠️</span>
                   <span>{tx(lang, 'Print Agent bağlıdır · Əl ilə çap edə bilərsiniz', 'Print Agent не подключен · Можно распечатать вручную', 'Print Agent offline · You can print manually')}</span>
@@ -2799,15 +2815,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Only show 'Çap Et' if Print Agent is NOT active (offline) */}
-              {isPosAgentOnline === false && (
                 <button
                   onClick={printReceiptOnly}
+                  disabled={receiptPrintStatus === 'sending'}
                   className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900 active:scale-95 transition"
                 >
                   {tx(lang, 'Çap Et', 'Печать', 'Print')}
                 </button>
-              )}
               <button
                 onClick={() => setReceiptHtml(null)}
                 className="rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700 active:scale-95 transition"
